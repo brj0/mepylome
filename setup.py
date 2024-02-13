@@ -13,7 +13,7 @@ include_dirs = [
 
 # Get the value of the PYLLUMINA_DEBUG environment variable
 debug = os.getenv("PYLLUMINA_DEBUG") == "1"
-debug = True
+debug = False
 
 # Set the compiler flags based on the debug flag
 if debug:
@@ -28,17 +28,17 @@ if debug:
     ]
 else:
     compile_args = [
-        "-DALL_METRICS",
-        "-Ofast",
-        "-flto",
-        "-fno-math-errno",
-        "-fopenmp",
+        "-O3",
+        # "-Ofast",
+        # "-flto",
+        # "-fno-math-errno",
+        # "-fopenmp",
         "-march=native",
-        "-mtune=native",
+        # "-mtune=native",
     ]
 
 module = Extension(
-    name="pyllumina",
+    name="_pyllumina",
     sources=glob.glob("pybindings/*.cpp") + glob.glob("src/*.cpp"),
     include_dirs=include_dirs,
     extra_compile_args=compile_args,

@@ -5,7 +5,7 @@ objects := $(patsubst %.cpp, %.o, $(sources))
 depends := $(patsubst %.cpp, %.d, $(sources))
 
 CXX := g++
-CXXFLAGS := -Wall -g -Wextra
+CXXFLAGS := -Wall -g -Wextra -std=c++11
 
 all: $(appname)
 

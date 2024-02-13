@@ -7,7 +7,7 @@ import numpy as np
 import os
 
 file_path = os.path.expanduser(
-    "~/MEGA/work/programming/pyidat/101130760092_R05C02_Grn.idat"
+    "/data/epidip_IDAT/10003885067_R02C02_Grn.idat"
 )
 
 @unique

@@ -15,6 +15,7 @@ constexpr int DEFAULT_IDAT_VERSION = 3;
 constexpr const char* DEFAULT_IDAT_FILE_ID = "IDAT";
 
 
+
 enum class IdatSectionCode : int
 {
     ILLUMINA_ID = 102,
@@ -38,109 +39,6 @@ enum class IdatSectionCode : int
     NUM_SNPS_READ = 1000
 };
 
-
-std::ostream& operator<<(std::ostream& os, IdatSectionCode code);
-
-template <typename T>
-inline T read(std::ifstream& infile)
-{
-    T result;
-    infile.read(reinterpret_cast<char*>(&result), sizeof(T));
-
-    // Swap bytes if the machine is big-endian
-    // if (is_big_endian())
-    // {
-        // std::reverse(
-            // reinterpret_cast<char*>(&result),
-            // reinterpret_cast<char*>(&result) + sizeof(T)
-        // );
-    // }
-
-    return result;
-}
-
-template <typename T>
-inline std::vector<T> read(std::ifstream& infile, const int num)
-{
-    std::vector<T> result(num);
-    infile.read(reinterpret_cast<char*>(result.data()), sizeof(T) * num);
-    return result;
-}
-
-
-inline uint8_t read_byte(std::ifstream& infile)
-{
-    return read<uint8_t>(infile);
-}
-
-inline uint16_t read_short(std::ifstream& infile)
-{
-    return read<uint16_t>(infile);
-}
-
-inline std::vector<uint16_t> read_short(std::ifstream& infile, const int num)
-{
-    return read<uint16_t>(infile, num);
-}
-
-inline int32_t read_int(std::ifstream& infile)
-{
-    return read<int32_t>(infile);
-}
-
-inline std::vector<int32_t> read_int(std::ifstream& infile, const int num)
-{
-    return read<int32_t>(infile, num);
-}
-
-inline int64_t read_long(std::ifstream& infile)
-{
-    return read<int64_t>(infile);
-}
-
-inline std::string read_char(std::ifstream& infile, const int num)
-{
-    char* buffer = new char[num];
-    infile.read(buffer, num);
-    std::string result(buffer, num);
-    delete[] buffer;
-    return result;
-}
-
-inline std::string read_string(std::ifstream& infile)
-{
-    int num = read_byte(infile);
-
-    int num_chars = num % 128;
-    int shift = 0;
-
-    while (num / 128 == 1)
-    {
-        num = read_byte(infile);
-        shift += 7;
-        int offset = (num % 128) * (1 << shift);
-        num_chars += offset;
-    }
-
-    return read_char(infile, num_chars);
-}
-
-template <typename T>
-std::vector<T> read_array(std::istream& ifstream, std::size_t length)
-{
-    std::vector<char> buffer(sizeof(T) * length);
-    ifstream.read(buffer.data(), buffer.size());
-    if (ifstream.gcount() != static_cast<std::streamsize>(sizeof(T) * length))
-    {
-        throw std::ios_base::failure(
-            "End of file reached before number of results parsed."
-        );
-    }
-    return std::vector<T>(
-        reinterpret_cast<T*>(buffer.data()),
-        reinterpret_cast<T*>(buffer.data() + buffer.size())
-    );
-}
 
 class IdatData
 {
@@ -196,32 +94,13 @@ public:
     const std::string& get_unknown_6() const { return unknown_6_; }
     const std::string& get_unknown_7() const { return unknown_7_; }
 
+    const std::string __str__() const;
+    const std::string __repr__() const;
+
     friend std::ostream& operator<<(std::ostream& os, const IdatData& data);
 
 };
 
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
-{
-    os << "array([";
-    if (!vec.empty())
-    {
-        os << static_cast<int>(vec[0]);
-        for (std::size_t i = 1; i < vec.size(); ++i)
-        {
-            if ((i < 3) || (i > vec.size() - 4) || (vec.size() < 10))
-            {
-                os << ", " << static_cast<int>(vec[i]);
-            }
-            else if (i == 3)
-            {
-                os << ", ...";
-            }
-        }
-    }
-    os << "], dtype=" << typeid(T).name() << ")";
-    return os;
-}
 
 class Timer
 {

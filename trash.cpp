@@ -50,3 +50,11 @@ inline int32_t read_int(std::ifstream& infile) {
     std::bitset<8> b1(buffer[1]);
     std::cout << " buffer(0,1)=(" << b0
          << "," << b1 << ")";
+
+
+bool is_big_endian()
+{
+    uint32_t value = 1;
+    return (*reinterpret_cast<uint8_t*>(&value) == 0);
+}
+<< "is_big_endian: " << is_big_endian() << "\n"

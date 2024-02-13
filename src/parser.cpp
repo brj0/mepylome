@@ -4,9 +4,112 @@
 #error "This code is not compatible with big-endian systems."
 #endif
 
-
+#include <sstream>
 #include "parser.h"
 
+
+
+std::ostream& operator<<(std::ostream& os, IdatSectionCode code);
+
+template <typename T>
+inline T read(std::ifstream& infile)
+{
+    T result;
+    infile.read(reinterpret_cast<char*>(&result), sizeof(T));
+
+    // Swap bytes if the machine is big-endian
+    // if (is_big_endian())
+    // {
+        // std::reverse(
+            // reinterpret_cast<char*>(&result),
+            // reinterpret_cast<char*>(&result) + sizeof(T)
+        // );
+    // }
+
+    return result;
+}
+
+template <typename T>
+inline std::vector<T> read(std::ifstream& infile, const int num)
+{
+    std::vector<T> result(num);
+    infile.read(reinterpret_cast<char*>(result.data()), sizeof(T) * num);
+    return result;
+}
+
+inline uint8_t read_byte(std::ifstream& infile)
+{
+    return read<uint8_t>(infile);
+}
+
+inline uint16_t read_short(std::ifstream& infile)
+{
+    return read<uint16_t>(infile);
+}
+
+inline std::vector<uint16_t> read_short(std::ifstream& infile, const int num)
+{
+    return read<uint16_t>(infile, num);
+}
+
+inline int32_t read_int(std::ifstream& infile)
+{
+    return read<int32_t>(infile);
+}
+
+inline std::vector<int32_t> read_int(std::ifstream& infile, const int num)
+{
+    return read<int32_t>(infile, num);
+}
+
+inline int64_t read_long(std::ifstream& infile)
+{
+    return read<int64_t>(infile);
+}
+
+inline std::string read_char(std::ifstream& infile, const int num)
+{
+    char* buffer = new char[num];
+    infile.read(buffer, num);
+    std::string result(buffer, num);
+    delete[] buffer;
+    return result;
+}
+
+inline std::string read_string(std::ifstream& infile)
+{
+    int num = read_byte(infile);
+
+    int num_chars = num % 128;
+    int shift = 0;
+
+    while (num / 128 == 1)
+    {
+        num = read_byte(infile);
+        shift += 7;
+        int offset = (num % 128) * (1 << shift);
+        num_chars += offset;
+    }
+
+    return read_char(infile, num_chars);
+}
+
+template <typename T>
+std::vector<T> read_array(std::istream& ifstream, std::size_t length)
+{
+    std::vector<char> buffer(sizeof(T) * length);
+    ifstream.read(buffer.data(), buffer.size());
+    if (ifstream.gcount() != static_cast<std::streamsize>(sizeof(T) * length))
+    {
+        throw std::ios_base::failure(
+            "End of file reached before number of results parsed."
+        );
+    }
+    return std::vector<T>(
+        reinterpret_cast<T*>(buffer.data()),
+        reinterpret_cast<T*>(buffer.data() + buffer.size())
+    );
+}
 
 std::ostream& operator<<(std::ostream& os, IdatSectionCode code)
 {
@@ -138,59 +241,148 @@ IdatData::IdatData(const std::string& filepath)
     idat_file.close();
 }
 
-bool is_big_endian()
-{
-    uint32_t value = 1;
-    return (*reinterpret_cast<uint8_t*>(&value) == 0);
+// Default implementation returns the raw type name
+template<typename T>
+std::string type_name() {
+    return typeid(T).name();
 }
 
-std::ostream& operator<<(std::ostream& os, const IdatData& idata) {
+// Specialization for specific types
+template<>
+std::string type_name<int8_t>() {
+    return "int8";
+}
+
+template<>
+std::string type_name<uint8_t>() {
+    return "uint8";
+}
+
+template<>
+std::string type_name<int16_t>() {
+    return "int16";
+}
+
+template<>
+std::string type_name<uint16_t>() {
+    return "uint16";
+}
+
+template<>
+std::string type_name<int32_t>() {
+    return "int32";
+}
+
+template<>
+std::string type_name<uint32_t>() {
+    return "uint32";
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
+{
+    size_t n_visable = 2;
+    os << "array([";
+    if (!vec.empty())
+    {
+        os << static_cast<int>(vec[0]);
+        for (std::size_t i = 1; i < vec.size(); ++i)
+        {
+            if (
+                (i < n_visable) ||
+                (i > vec.size() - n_visable - 1) ||
+                (vec.size() <= 2*n_visable)
+            )
+            {
+                os << ", " << static_cast<int>(vec[i]);
+            }
+            else if (i == n_visable)
+            {
+                os << ", ...";
+            }
+        }
+    }
+    os << "], dtype=" << type_name<T>() << ")";
+    return os;
+}
+
+
+std::ostream& operator<<(std::ostream& os, const IdatData& idata)
+{
     std::map<int, int> offsets_ordered;
     for (const auto& pair : idata.offsets_) {
         offsets_ordered[static_cast<int>(pair.second)] = static_cast<int>(
             pair.first
         );
     }
-    os << "is_big_endian: " << is_big_endian() << "\n"
-       << "file_size: " << idata.file_size_ << std::endl
-       << "Number of Fields: " << idata.num_fields_ << std::endl;
+    os << "file_size: " << idata.file_size_ << std::endl
+       << "num_fields: " << idata.num_fields_ << std::endl;
     for (const auto& pair : offsets_ordered) {
         os << "\tkey: " << pair.second << "\toffset: " << pair.first << std::endl;
     }
-    os << "illumina_ids: " << idata.illumina_ids_ << std::endl;
-    os << "std_dev: " << idata.std_dev_ << std::endl;
-    os << "probe_means: " << idata.probe_means_ << std::endl;
-    os << "n_beads: " << idata.n_beads_ << std::endl;
-    os << "mid_block: " << idata.mid_block_ << std::endl;
-    std::cout << "run_info: \n";
+    os << "illumina_ids: " << idata.illumina_ids_ << std::endl
+       << "std_dev: " << idata.std_dev_ << std::endl
+       << "probe_means: " << idata.probe_means_ << std::endl
+       << "n_beads: " << idata.n_beads_ << std::endl
+       << "mid_block: " << idata.mid_block_ << std::endl
+       << "run_info: \n";
     for (size_t i = 0; i < idata.run_info_.size() / 5; ++i)
     {
         for (size_t j = 0; j < 5; ++j)
         {
-            std::cout << idata.run_info_[i*5 + j] << ", ";
+            os << idata.run_info_[i*5 + j] << ", ";
         }
-        std::cout << std::endl;
+        os << std::endl;
     }
-    os << "red_green: " << idata.red_green_ << std::endl;
-    os << "mostly_null: " << idata.mostly_null_ << std::endl;
-    os << "barcode: " << idata.barcode_ << std::endl;
-    os << "chip_type: " << idata.chip_type_ << std::endl;
-    os << "mostly_a: " << idata.mostly_a_ << std::endl;
-    os << "unknown_1: " << idata.unknown_1_ << std::endl;
-    os << "unknown_2: " << idata.unknown_2_ << std::endl;
-    os << "unknown_3: " << idata.unknown_3_ << std::endl;
-    os << "unknown_4: " << idata.unknown_4_ << std::endl;
-    os << "unknown_5: " << idata.unknown_5_ << std::endl;
-    os << "unknown_6: " << idata.unknown_6_ << std::endl;
-    os << "unknown_7: " << idata.unknown_7_ << std::endl;
+    os << "red_green: " << idata.red_green_ << std::endl
+       << "mostly_null: " << idata.mostly_null_ << std::endl
+       << "barcode: " << idata.barcode_ << std::endl
+       << "chip_type: " << idata.chip_type_ << std::endl
+       << "mostly_a: " << idata.mostly_a_ << std::endl
+       << "unknown_1: " << idata.unknown_1_ << std::endl
+       << "unknown_2: " << idata.unknown_2_ << std::endl
+       << "unknown_3: " << idata.unknown_3_ << std::endl
+       << "unknown_4: " << idata.unknown_4_ << std::endl
+       << "unknown_5: " << idata.unknown_5_ << std::endl
+       << "unknown_6: " << idata.unknown_6_ << std::endl
+       << "unknown_7: " << idata.unknown_7_ << std::endl;
 
     return os;
 }
 
+const std::string IdatData::__str__() const {
+    std::ostringstream os;
+    os << "IdatData(" << std::endl
+       << "    file_size: " << file_size_ << std::endl
+       << "    num_fields: " << num_fields_ << std::endl
+       << "    illumina_ids: " << illumina_ids_ << std::endl
+       << "    std_dev: " << std_dev_ << std::endl
+       << "    probe_means: " << probe_means_ << std::endl
+       << "    n_beads: " << n_beads_ << std::endl
+       << "    mid_block: " << mid_block_ << std::endl
+       << "    red_green: " << red_green_ << std::endl
+       << "    mostly_null: " << mostly_null_ << std::endl
+       << "    barcode: " << barcode_ << std::endl
+       << "    chip_type: " << chip_type_ << std::endl
+       << "    mostly_a: " << mostly_a_ << std::endl
+       << "    unknown_1: " << unknown_1_ << std::endl
+       << "    unknown_2: " << unknown_2_ << std::endl
+       << "    unknown_3: " << unknown_3_ << std::endl
+       << "    unknown_4: " << unknown_4_ << std::endl
+       << "    unknown_5: " << unknown_5_ << std::endl
+       << "    unknown_6: " << unknown_6_ << std::endl
+       << "    unknown_7: " << unknown_7_ << std::endl
+       << ")";
+    return os.str();
+}
+
+const std::string IdatData::__repr__() const {
+    return __str__();
+}
+
 int main()
 {
-    std::string idat_path = (std::string)getenv("HOME") +
-        "/MEGA/work/programming/pyllumina/101130760092_R05C02_Grn.idat";
+    std::string idat_path = "/data/ref_IDAT/450k/3999997083_R02C02_Grn.idat";
 
     Timer timer;
     IdatData idat_data(idat_path);

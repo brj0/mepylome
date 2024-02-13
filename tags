@@ -1,0 +1,348 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+ARRAY_FILENAME	pyllumina/dtype/manifests.py	/^ARRAY_FILENAME = {$/;"	v
+ARRAY_TYPE_MANIFEST_FILENAMES	pyllumina/dtype/manifests.py	/^ARRAY_TYPE_MANIFEST_FILENAMES = {$/;"	v
+ARRAY_URL	pyllumina/dtype/manifests.py	/^ARRAY_URL = {$/;"	v
+ArrayType	pyllumina/dtype/arrays.py	/^class ArrayType(Enum):$/;"	c
+BARCODE	pyllumina/pyidat.py	/^    BARCODE = 402$/;"	v	class:IdatSectionCode
+BARCODE	src/parser.h	/^    BARCODE = 402,$/;"	m	class:IdatSectionCode
+BARCODE	src/test/basic_test.cpp	/^    BARCODE = 402,$/;"	m	class:IdatSectionCode	file:
+CHIP_TYPE	pyllumina/pyidat.py	/^    CHIP_TYPE = 403 # format$/;"	v	class:IdatSectionCode
+CHIP_TYPE	src/parser.h	/^    CHIP_TYPE = 403, \/\/ format$/;"	m	class:IdatSectionCode
+CHIP_TYPE	src/test/basic_test.cpp	/^    CHIP_TYPE = 403, \/\/ format$/;"	m	class:IdatSectionCode	file:
+CONTROL_COLUMNS	pyllumina/dtype/manifests.py	/^CONTROL_COLUMNS = ($/;"	v
+CUSTOM	pyllumina/dtype/arrays.py	/^    CUSTOM = "custom"$/;"	v	class:ArrayType
+CXX	Makefile	/^CXX := g++$/;"	m
+CXX	src/Makefile	/^CXX := g++$/;"	m
+CXX	src/test/Makefile	/^CXX := g++$/;"	m
+CXXFLAGS	Makefile	/^CXXFLAGS := -Wall -g$/;"	m
+CXXFLAGS	src/Makefile	/^CXXFLAGS := -Wall -g -Wextra -std=c++11$/;"	m
+CXXFLAGS	src/test/Makefile	/^CXXFLAGS := -Wall -g -std=c++11$/;"	m
+DEFAULT_IDAT_FILE_ID	pyllumina/pyidat.py	/^DEFAULT_IDAT_FILE_ID = 'IDAT'$/;"	v
+DEFAULT_IDAT_FILE_ID	src/parser.h	/^constexpr const char* DEFAULT_IDAT_FILE_ID = "IDAT";$/;"	v
+DEFAULT_IDAT_VERSION	pyllumina/pyidat.py	/^DEFAULT_IDAT_VERSION = 3$/;"	v
+DEFAULT_IDAT_VERSION	src/parser.h	/^constexpr int DEFAULT_IDAT_VERSION = 3;$/;"	v
+FIELD_COUNT	pyllumina/pyidat.py	/^    FIELD_COUNT = 12$/;"	v	class:IdatHeaderLocation
+FILE_TYPE	pyllumina/pyidat.py	/^    FILE_TYPE = 0$/;"	v	class:IdatHeaderLocation
+ILLUMINA_27K	pyllumina/dtype/arrays.py	/^    ILLUMINA_27K = "27k"$/;"	v	class:ArrayType
+ILLUMINA_450K	pyllumina/dtype/arrays.py	/^    ILLUMINA_450K = "450k"$/;"	v	class:ArrayType
+ILLUMINA_EPIC	pyllumina/dtype/arrays.py	/^    ILLUMINA_EPIC = "epic"$/;"	v	class:ArrayType
+ILLUMINA_EPIC_PLUS	pyllumina/dtype/arrays.py	/^    ILLUMINA_EPIC_PLUS = "epic+"$/;"	v	class:ArrayType
+ILLUMINA_EPIC_V2	pyllumina/dtype/arrays.py	/^    ILLUMINA_EPIC_V2 = "epicv2"$/;"	v	class:ArrayType
+ILLUMINA_ID	pyllumina/pyidat.py	/^    ILLUMINA_ID = 102$/;"	v	class:IdatSectionCode
+ILLUMINA_ID	src/parser.h	/^    ILLUMINA_ID = 102,$/;"	m	class:IdatSectionCode
+ILLUMINA_ID	src/test/basic_test.cpp	/^    ILLUMINA_ID = 102,$/;"	m	class:IdatSectionCode	file:
+ILLUMINA_MOUSE	pyllumina/dtype/arrays.py	/^    ILLUMINA_MOUSE = "mouse"$/;"	v	class:ArrayType
+IdatData	src/parser.cpp	/^IdatData::IdatData(const std::string& filepath)$/;"	f	class:IdatData
+IdatData	src/parser.h	/^class IdatData$/;"	c	class:IdatSectionCode
+IdatDataset	pyllumina/pyidat.py	/^class IdatDataset():$/;"	c
+IdatHeaderLocation	pyllumina/pyidat.py	/^class IdatHeaderLocation(IntEnum):$/;"	c
+IdatSectionCode	pyllumina/pyidat.py	/^class IdatSectionCode(IntEnum):$/;"	c
+IdatSectionCode	src/parser.h	/^enum class IdatSectionCode : int$/;"	c
+IdatSectionCode	src/test/basic_test.cpp	/^enum class IdatSectionCode : int$/;"	c	file:
+LOGGER	pyllumina/dtype/arrays.py	/^LOGGER = logging.getLogger(__name__)$/;"	v
+LOGGER	pyllumina/dtype/manifests.py	/^LOGGER = logging.getLogger(__name__)$/;"	v
+LOGGER	pyllumina/pyidat.py	/^LOGGER = logging.getLogger(__name__)$/;"	v
+LOGGER	pyllumina/utils/files.py	/^LOGGER = logging.getLogger(__name__)$/;"	v
+MANIFEST_COLUMNS	pyllumina/dtype/manifests.py	/^MANIFEST_COLUMNS = ($/;"	v
+MANIFEST_CONTROL_DIR	pyllumina/dtype/manifests.py	/^MANIFEST_CONTROL_DIR = f"~\/.{MANIFEST_DIR_NAME}\/control"$/;"	v
+MANIFEST_DIR_NAME	pyllumina/dtype/manifests.py	/^MANIFEST_DIR_NAME = "pyllumina"$/;"	v
+MANIFEST_DOWNLOAD_DIR	pyllumina/dtype/manifests.py	/^MANIFEST_DOWNLOAD_DIR = f"\/tmp\/{MANIFEST_DIR_NAME}"$/;"	v
+MANIFEST_PROBES_DIR	pyllumina/dtype/manifests.py	/^MANIFEST_PROBES_DIR = f"~\/.{MANIFEST_DIR_NAME}\/probes"$/;"	v
+MEAN	pyllumina/pyidat.py	/^    MEAN = 104$/;"	v	class:IdatSectionCode
+MEAN	src/parser.h	/^    MEAN = 104,$/;"	m	class:IdatSectionCode
+MEAN	src/test/basic_test.cpp	/^    MEAN = 104,$/;"	m	class:IdatSectionCode	file:
+MID_BLOCK	pyllumina/pyidat.py	/^    MID_BLOCK = 200$/;"	v	class:IdatSectionCode
+MID_BLOCK	src/parser.h	/^    MID_BLOCK = 200,$/;"	m	class:IdatSectionCode
+MID_BLOCK	src/test/basic_test.cpp	/^    MID_BLOCK = 200,$/;"	m	class:IdatSectionCode	file:
+MOSTLY_A	pyllumina/pyidat.py	/^    MOSTLY_A = 404  # label$/;"	v	class:IdatSectionCode
+MOSTLY_A	src/parser.h	/^    MOSTLY_A = 404,   \/\/ label$/;"	m	class:IdatSectionCode
+MOSTLY_A	src/test/basic_test.cpp	/^    MOSTLY_A = 404,   \/\/ label$/;"	m	class:IdatSectionCode	file:
+MOSTLY_NULL	pyllumina/pyidat.py	/^    MOSTLY_NULL = 401 # manifest$/;"	v	class:IdatSectionCode
+MOSTLY_NULL	src/parser.h	/^    MOSTLY_NULL = 401, \/\/ manifest$/;"	m	class:IdatSectionCode
+MOSTLY_NULL	src/test/basic_test.cpp	/^    MOSTLY_NULL = 401, \/\/ manifest$/;"	m	class:IdatSectionCode	file:
+MOUSE_MANIFEST_COLUMNS	pyllumina/dtype/manifests.py	/^MOUSE_MANIFEST_COLUMNS = ($/;"	v
+Manifest	pyllumina/dtype/manifests.py	/^class Manifest:$/;"	c
+NUM_BEADS	pyllumina/pyidat.py	/^    NUM_BEADS = 107 # how many replicate measurements for each probe$/;"	v	class:IdatSectionCode
+NUM_BEADS	src/parser.h	/^    NUM_BEADS = 107, \/\/ how many replicate measurements for each probe$/;"	m	class:IdatSectionCode
+NUM_BEADS	src/test/basic_test.cpp	/^    NUM_BEADS = 107, \/\/ how many replicate measurements for each probe$/;"	m	class:IdatSectionCode	file:
+NUM_SNPS_READ	pyllumina/pyidat.py	/^    NUM_SNPS_READ = 1000$/;"	v	class:IdatSectionCode
+NUM_SNPS_READ	src/parser.h	/^    NUM_SNPS_READ = 1000$/;"	m	class:IdatSectionCode
+NUM_SNPS_READ	src/test/basic_test.cpp	/^    NUM_SNPS_READ = 1000$/;"	m	class:IdatSectionCode	file:
+PROBES_COLUMNS	trash.py	/^PROBES_COLUMNS = [$/;"	v
+PYBIND11_MODULE	pybindings/pybind11ings.cpp	/^PYBIND11_MODULE(_pyllumina, m)$/;"	f
+PyIdatData	pybindings/pybind11ings.cpp	/^    PyIdatData(const std::string& data) : IdatData(data) {}$/;"	f	class:PyIdatData
+PyIdatData	pybindings/pybind11ings.cpp	/^class PyIdatData : public IdatData {$/;"	c	file:
+RED_GREEN	pyllumina/pyidat.py	/^    RED_GREEN = 400$/;"	v	class:IdatSectionCode
+RED_GREEN	src/parser.h	/^    RED_GREEN = 400,$/;"	m	class:IdatSectionCode
+RED_GREEN	src/test/basic_test.cpp	/^    RED_GREEN = 400,$/;"	m	class:IdatSectionCode	file:
+RUN_INFO	pyllumina/pyidat.py	/^    RUN_INFO = 300$/;"	v	class:IdatSectionCode
+RUN_INFO	src/parser.h	/^    RUN_INFO = 300,$/;"	m	class:IdatSectionCode
+RUN_INFO	src/test/basic_test.cpp	/^    RUN_INFO = 300,$/;"	m	class:IdatSectionCode	file:
+SECTION_OFFSETS	pyllumina/pyidat.py	/^    SECTION_OFFSETS = 16$/;"	v	class:IdatHeaderLocation
+STD_DEV	pyllumina/pyidat.py	/^    STD_DEV = 103$/;"	v	class:IdatSectionCode
+STD_DEV	src/parser.h	/^    STD_DEV = 103,$/;"	m	class:IdatSectionCode
+STD_DEV	src/test/basic_test.cpp	/^    STD_DEV = 103,$/;"	m	class:IdatSectionCode	file:
+Timer	src/parser.h	/^        Timer() { start(); }$/;"	f	class:IdatSectionCode::Timer
+Timer	src/parser.h	/^class Timer$/;"	c	class:IdatSectionCode
+Timer	src/test/basic_test.cpp	/^        Timer() { start(); }$/;"	f	class:Timer
+Timer	src/test/basic_test.cpp	/^class Timer$/;"	c	file:
+Timer	test.py	/^class Timer:$/;"	c
+UNKNOWN_1	pyllumina/pyidat.py	/^    UNKNOWN_1 = 405 # opa$/;"	v	class:IdatSectionCode
+UNKNOWN_1	src/parser.h	/^    UNKNOWN_1 = 405,  \/\/ opa$/;"	m	class:IdatSectionCode
+UNKNOWN_1	src/test/basic_test.cpp	/^    UNKNOWN_1 = 405,  \/\/ opa$/;"	m	class:IdatSectionCode	file:
+UNKNOWN_2	pyllumina/pyidat.py	/^    UNKNOWN_2 = 406 # sampleid$/;"	v	class:IdatSectionCode
+UNKNOWN_2	src/parser.h	/^    UNKNOWN_2 = 406,  \/\/ sampleid$/;"	m	class:IdatSectionCode
+UNKNOWN_2	src/test/basic_test.cpp	/^    UNKNOWN_2 = 406,  \/\/ sampleid$/;"	m	class:IdatSectionCode	file:
+UNKNOWN_3	pyllumina/pyidat.py	/^    UNKNOWN_3 = 407 # descr$/;"	v	class:IdatSectionCode
+UNKNOWN_3	src/parser.h	/^    UNKNOWN_3 = 407,  \/\/ descr$/;"	m	class:IdatSectionCode
+UNKNOWN_3	src/test/basic_test.cpp	/^    UNKNOWN_3 = 407,  \/\/ descr$/;"	m	class:IdatSectionCode	file:
+UNKNOWN_4	pyllumina/pyidat.py	/^    UNKNOWN_4 = 408 # plate$/;"	v	class:IdatSectionCode
+UNKNOWN_4	src/parser.h	/^    UNKNOWN_4 = 408,  \/\/ plate$/;"	m	class:IdatSectionCode
+UNKNOWN_4	src/test/basic_test.cpp	/^    UNKNOWN_4 = 408,  \/\/ plate$/;"	m	class:IdatSectionCode	file:
+UNKNOWN_5	pyllumina/pyidat.py	/^    UNKNOWN_5 = 409 # well$/;"	v	class:IdatSectionCode
+UNKNOWN_5	src/parser.h	/^    UNKNOWN_5 = 409,  \/\/ well$/;"	m	class:IdatSectionCode
+UNKNOWN_5	src/test/basic_test.cpp	/^    UNKNOWN_5 = 409,  \/\/ well$/;"	m	class:IdatSectionCode	file:
+UNKNOWN_6	pyllumina/pyidat.py	/^    UNKNOWN_6 = 410$/;"	v	class:IdatSectionCode
+UNKNOWN_6	src/parser.h	/^    UNKNOWN_6 = 410,$/;"	m	class:IdatSectionCode
+UNKNOWN_6	src/test/basic_test.cpp	/^    UNKNOWN_6 = 410,$/;"	m	class:IdatSectionCode	file:
+UNKNOWN_7	pyllumina/pyidat.py	/^    UNKNOWN_7 = 510 # unknown$/;"	v	class:IdatSectionCode
+UNKNOWN_7	src/parser.h	/^    UNKNOWN_7 = 510,  \/\/ unknown$/;"	m	class:IdatSectionCode
+UNKNOWN_7	src/test/basic_test.cpp	/^    UNKNOWN_7 = 510,  \/\/ unknown$/;"	m	class:IdatSectionCode	file:
+UNKNOWN_IDAT_SECTIONS	pyllumina/pyidat.py	/^UNKNOWN_IDAT_SECTIONS = ($/;"	v
+VERSION	pyllumina/pyidat.py	/^    VERSION = 4$/;"	v	class:IdatHeaderLocation
+__all__	pyllumina/dtype/__init__.py	/^__all__ = [$/;"	v
+__all__	pyllumina/dtype/manifests.py	/^__all__ = ["Manifest"]$/;"	v
+__all__	pyllumina/pyidat.py	/^__all__ = ['IdatDataset']$/;"	v
+__all__	pyllumina/utils/__init__.py	/^__all__ = file_utils$/;"	v
+__all__	pyllumina/utils/files.py	/^__all__ = [$/;"	v
+__genome_df	pyllumina/dtype/manifests.py	/^    __genome_df = None$/;"	v	class:Manifest
+__init__	pyllumina/dtype/manifests.py	/^    def __init__($/;"	m	class:Manifest
+__init__	pyllumina/pyidat.py	/^    def __init__($/;"	m	class:IdatDataset
+__init__	test.py	/^    def __init__(self):$/;"	m	class:Timer
+__probe_type_subsets	pyllumina/dtype/manifests.py	/^    __probe_type_subsets = None  # apparently not used anywhere in methylprep$/;"	v	class:Manifest
+__repr__	src/parser.cpp	/^const std::string IdatData::__repr__() const {$/;"	f	class:IdatData
+__str__	pyllumina/dtype/arrays.py	/^    def __str__(self):$/;"	m	class:ArrayType	file:
+__str__	src/parser.cpp	/^const std::string IdatData::__str__() const {$/;"	f	class:IdatData
+appname	Makefile	/^appname := main$/;"	m
+appname	src/Makefile	/^appname := main$/;"	m
+appname	src/test/Makefile	/^appname := main$/;"	m
+array_type	trash.py	/^array_type = "450k"$/;"	v
+array_type	trash.py	/^array_type = "epic"$/;"	v
+array_type	trash.py	/^array_type = "epicv2"$/;"	v
+array_type	trash.py	/^array_type = ArrayType(array_type)$/;"	v
+author	setup.py	/^    author="Jon Brugger",$/;"	v
+b1	trash.cpp	/^         << "," << b1 << ")";$/;"	v
+barcode	pyllumina/pyidat.py	/^barcode = read_string(idat_file)$/;"	v
+barcode_	src/parser.h	/^    std::string barcode_;$/;"	m	class:IdatSectionCode::IdatData
+chip_type	pyllumina/pyidat.py	/^chip_type = read_string(idat_file)$/;"	v
+chip_type_	src/parser.h	/^    std::string chip_type_;$/;"	m	class:IdatSectionCode::IdatData
+classifiers	setup.py	/^    classifiers=[$/;"	v
+columns	pyllumina/dtype/manifests.py	/^    def columns(self):$/;"	m	class:Manifest
+compile_args	setup.py	/^    compile_args = [$/;"	v
+control_data_frame	pyllumina/dtype/manifests.py	/^    def control_data_frame(self):$/;"	m	class:Manifest
+data_frame	pyllumina/dtype/manifests.py	/^    def data_frame(self):$/;"	m	class:Manifest
+debug	setup.py	/^debug = False$/;"	v
+debug	setup.py	/^debug = os.getenv("PYLLUMINA_DEBUG") == "1"$/;"	v
+depends	Makefile	/^depends := $(patsubst %.cpp, %.d, $(sources))$/;"	m
+depends	src/Makefile	/^depends := $(patsubst %.cpp, %.d, $(sources))$/;"	m
+depends	src/test/Makefile	/^depends := $(patsubst %.cpp, %.d, $(sources))$/;"	m
+description	setup.py	/^    description="Python package for processing Infinum DNA methylation arrays",$/;"	v
+dir_path	trash.py	/^dir_path = MANIFEST_DOWNLOAD_DIR$/;"	v
+download_default	pyllumina/dtype/manifests.py	/^    def download_default(array_type, on_lambda=False):$/;"	m	class:Manifest
+download_default	trash.py	/^def download_default(array_type):$/;"	f
+download_file	pyllumina/utils/files.py	/^def download_file(filename, src_url, dest_dir, overwrite=False):$/;"	f
+dtype	trash.py	/^    dtype=self.get_data_types(),$/;"	v
+ensure_directory_exists	pyllumina/utils/files.py	/^def ensure_directory_exists(path_like):$/;"	f
+ext_modules	setup.py	/^    ext_modules=[module],$/;"	v
+extra_compile_args	setup.py	/^    extra_compile_args=compile_args,$/;"	v
+extra_link_args	setup.py	/^    extra_link_args=["-fopenmp"],$/;"	v
+extras_require	setup.py	/^    extras_require={$/;"	v
+file_path	pyllumina/pyidat.py	/^file_path = os.path.expanduser($/;"	v
+file_size_	src/parser.h	/^    size_t file_size_;$/;"	m	class:IdatSectionCode::IdatData
+file_type	pyllumina/pyidat.py	/^file_type = read_char(idat_file, 4)$/;"	v
+filename	trash.py	/^filename = src_url.split("\/")[-1]$/;"	v
+filepath	test.py	/^filepath = "\/data\/epidip_IDAT\/101130760092_R05C02_Red.idat"$/;"	v
+filepath	test.py	/^filepath = "\/data\/ref_IDAT\/cnvrefidat_450k\/3999997083_R02C02_Grn.idat"$/;"	v
+filepath	trash.py	/^filepath = Path(dir_path, filename).expanduser()$/;"	v
+filesize	src/parser.cpp	/^std::ifstream::pos_type filesize(const std::string filename)$/;"	f
+filesize	src/test/basic_test.cpp	/^std::ifstream::pos_type filesize(const std::string filename)$/;"	f	class:IdatSectionCode	file:
+from_probe_count	pyllumina/dtype/arrays.py	/^    def from_probe_count(cls, probe_count):$/;"	m	class:ArrayType
+get_barcode	src/parser.h	/^    const std::string& get_barcode() const { return barcode_; }$/;"	f	class:IdatSectionCode::IdatData
+get_chip_type	src/parser.h	/^    const std::string& get_chip_type() const { return chip_type_; }$/;"	f	class:IdatSectionCode::IdatData
+get_data_types	pyllumina/dtype/manifests.py	/^    def get_data_types(self):$/;"	m	class:Manifest
+get_file_from_archive	trash.py	/^def get_file_from_archive(file_or_archive, filename):$/;"	f
+get_file_object	pyllumina/utils/files.py	/^def get_file_object(filepath_or_buffer):$/;"	f
+get_file_size	src/parser.h	/^    size_t get_file_size() const { return file_size_; }$/;"	f	class:IdatSectionCode::IdatData
+get_illumina_ids	src/parser.h	/^    const std::vector<int32_t>& get_illumina_ids() const { return illumina_ids_; }$/;"	f	class:IdatSectionCode::IdatData
+get_mid_block	src/parser.h	/^    const std::vector<int32_t>& get_mid_block() const { return mid_block_; }$/;"	f	class:IdatSectionCode::IdatData
+get_mostly_a	src/parser.h	/^    const std::string& get_mostly_a() const { return mostly_a_; }$/;"	f	class:IdatSectionCode::IdatData
+get_mostly_null	src/parser.h	/^    const std::string& get_mostly_null() const { return mostly_null_; }$/;"	f	class:IdatSectionCode::IdatData
+get_n_beads	src/parser.h	/^    const std::vector<uint8_t>& get_n_beads() const { return n_beads_; }$/;"	f	class:IdatSectionCode::IdatData
+get_n_snps_read	src/parser.h	/^    int32_t get_n_snps_read() const { return n_snps_read_; }$/;"	f	class:IdatSectionCode::IdatData
+get_num_fields	src/parser.h	/^    uint32_t get_num_fields() const { return num_fields_; }$/;"	f	class:IdatSectionCode::IdatData
+get_offsets	src/parser.h	/^    >& get_offsets() const { return offsets_; }$/;"	f	class:IdatSectionCode::IdatData
+get_probe_details	pyllumina/dtype/manifests.py	/^    def get_probe_details(self, probe_type, channel=None):$/;"	m	class:Manifest
+get_probe_means	src/parser.h	/^    const std::vector<int16_t>& get_probe_means() const { return probe_means_; }$/;"	f	class:IdatSectionCode::IdatData
+get_probe_type	pyllumina/dtype/manifests.py	/^        def get_probe_type(name, infinium_type):$/;"	f	function:Manifest.read_probes
+get_red_green	src/parser.h	/^    int32_t get_red_green() const { return red_green_; }$/;"	f	class:IdatSectionCode::IdatData
+get_run_info	src/parser.h	/^    const std::vector<std::string>& get_run_info() const { return run_info_; }$/;"	f	class:IdatSectionCode::IdatData
+get_section_offsets	pyllumina/pyidat.py	/^    def get_section_offsets(idat_file):$/;"	m	class:IdatDataset
+get_std_dev	src/parser.h	/^    const std::vector<uint16_t>& get_std_dev() const { return std_dev_; }$/;"	f	class:IdatSectionCode::IdatData
+get_unknown_1	src/parser.h	/^    const std::string& get_unknown_1() const { return unknown_1_; }$/;"	f	class:IdatSectionCode::IdatData
+get_unknown_2	src/parser.h	/^    const std::string& get_unknown_2() const { return unknown_2_; }$/;"	f	class:IdatSectionCode::IdatData
+get_unknown_3	src/parser.h	/^    const std::string& get_unknown_3() const { return unknown_3_; }$/;"	f	class:IdatSectionCode::IdatData
+get_unknown_4	src/parser.h	/^    const std::string& get_unknown_4() const { return unknown_4_; }$/;"	f	class:IdatSectionCode::IdatData
+get_unknown_5	src/parser.h	/^    const std::string& get_unknown_5() const { return unknown_5_; }$/;"	f	class:IdatSectionCode::IdatData
+get_unknown_6	src/parser.h	/^    const std::string& get_unknown_6() const { return unknown_6_; }$/;"	f	class:IdatSectionCode::IdatData
+get_unknown_7	src/parser.h	/^    const std::string& get_unknown_7() const { return unknown_7_; }$/;"	f	class:IdatSectionCode::IdatData
+grn	pyllumina/pyidat.py	/^grn = methylprep.models.Channel.GREEN$/;"	v
+idat_data	test.py	/^idat_data = pyllumina.IdatData(filepath)$/;"	v
+idat_file	pyllumina/pyidat.py	/^idat_file =  open(file_path, 'rb')$/;"	v
+idat_grn	pyllumina/pyidat.py	/^idat_grn = IdatDataset(file_path, grn)$/;"	v
+idat_version	pyllumina/pyidat.py	/^idat_version = read_long(idat_file)$/;"	v
+idat_version	trash.cpp	/^    int64_t idat_version = *reinterpret_cast<int64_t*>(idat_version_buffer);$/;"	v
+idat_version_buffer	trash.cpp	/^    char idat_version_buffer[9];$/;"	v
+illumina_ids	pyllumina/pyidat.py	/^illumina_ids = npread(idat_file, '<i4', n_snps_read)$/;"	v
+illumina_ids_	src/parser.h	/^    std::vector<int32_t> illumina_ids_;$/;"	m	class:IdatSectionCode::IdatData
+include_dirs	setup.py	/^    include_dirs=include_dirs,$/;"	v
+include_dirs	setup.py	/^include_dirs = [$/;"	v
+install_requires	setup.py	/^    install_requires=[$/;"	v
+is_big_endian	src/test/basic_test.cpp	/^bool is_big_endian()$/;"	f	class:IdatSectionCode	file:
+is_big_endian	trash.cpp	/^bool is_big_endian()$/;"	f
+is_correct_version	pyllumina/pyidat.py	/^    def is_correct_version(idat_file, expected):$/;"	m	class:IdatDataset
+is_file_like	pyllumina/utils/files.py	/^def is_file_like(obj):$/;"	f
+is_idat_file	pyllumina/pyidat.py	/^    def is_idat_file(idat_file, expected):$/;"	m	class:IdatDataset
+key	pyllumina/pyidat.py	/^    key = read_short(idat_file)$/;"	v
+keywords	setup.py	/^    keywords="Illumina, Methylation, Infinum, Microarray, BeadChip",$/;"	v
+language	setup.py	/^    language="c++",$/;"	v
+license	setup.py	/^    license="GPL-3.0 license",$/;"	v
+long_description	setup.py	/^    long_description = f.read()$/;"	v
+long_description	setup.py	/^    long_description=long_description,$/;"	v
+long_description_content_type	setup.py	/^    long_description_content_type="text\/markdown",$/;"	v
+main	src/parser.cpp	/^int main()$/;"	f
+main	src/test/basic_test.cpp	/^int main()$/;"	f	class:IdatSectionCode	file:
+make_path_like	pyllumina/utils/files.py	/^def make_path_like(path_like):$/;"	f
+manifest_name	trash.py	/^manifest_name = ARRAY_FILENAME[array_type]$/;"	v
+meta	pyllumina/pyidat.py	/^    def meta(self, idat_file):$/;"	m	class:IdatDataset
+mid_block_	src/parser.h	/^    std::vector<int32_t> mid_block_;$/;"	m	class:IdatSectionCode::IdatData
+module	setup.py	/^module = Extension($/;"	v
+mostly_a_	src/parser.h	/^    std::string mostly_a_;$/;"	m	class:IdatSectionCode::IdatData
+mostly_null_	src/parser.h	/^    std::string mostly_null_;$/;"	m	class:IdatSectionCode::IdatData
+mouse_data_frame	pyllumina/dtype/manifests.py	/^    def mouse_data_frame(self):$/;"	m	class:Manifest
+n_beads	pyllumina/pyidat.py	/^n_beads = npread(idat_file, '<u1', n_snps_read) # was <u1$/;"	v
+n_beads_	src/parser.h	/^    std::vector<uint8_t> n_beads_;$/;"	m	class:IdatSectionCode::IdatData
+n_snps_read	pyllumina/pyidat.py	/^n_snps_read = read_int(idat_file)$/;"	v
+n_snps_read_	src/parser.h	/^    int32_t n_snps_read_;$/;"	m	class:IdatSectionCode::IdatData
+name	setup.py	/^    name="_pyllumina",$/;"	v
+name	setup.py	/^    name="pyllumina",$/;"	v
+num_controls	pyllumina/dtype/arrays.py	/^    def num_controls(self):$/;"	m	class:ArrayType
+num_fields	pyllumina/pyidat.py	/^num_fields = read_int(idat_file)$/;"	v
+num_fields	trash.cpp	/^    int32_t num_fields = *reinterpret_cast<int32_t*>(num_fields_buffer);$/;"	v
+num_fields_	src/parser.h	/^    uint32_t num_fields_;$/;"	m	class:IdatSectionCode::IdatData
+num_fields_buffer	trash.cpp	/^    char num_fields_buffer[5];$/;"	v
+num_probes	pyllumina/dtype/arrays.py	/^    def num_probes(self):$/;"	m	class:ArrayType
+num_snps	pyllumina/dtype/arrays.py	/^    def num_snps(self):  # not used anywhere in v1.5.0+$/;"	m	class:ArrayType
+objects	Makefile	/^objects := $(patsubst %.cpp, %.o, $(sources))$/;"	m
+objects	src/Makefile	/^objects := $(patsubst %.cpp, %.o, $(sources))$/;"	m
+objects	src/test/Makefile	/^objects := $(patsubst %.cpp, %.o, $(sources))$/;"	m
+offsets	pyllumina/pyidat.py	/^offsets = {}$/;"	v
+offsets_	src/parser.h	/^    std::unordered_map<IdatSectionCode, std::streamoff> offsets_;$/;"	m	class:IdatSectionCode::IdatData
+operator <<	src/parser.cpp	/^std::ostream& operator<<(std::ostream& os, IdatSectionCode code)$/;"	f
+operator <<	src/parser.cpp	/^std::ostream& operator<<(std::ostream& os, const IdatData& idata)$/;"	f
+operator <<	src/parser.cpp	/^std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)$/;"	f
+operator <<	src/test/basic_test.cpp	/^std::ostream& operator<<(std::ostream& os, IdatSectionCode code)$/;"	f	class:IdatSectionCode	file:
+operator <<	src/test/basic_test.cpp	/^std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)$/;"	f	class:IdatSectionCode	file:
+overflow_check	pyllumina/pyidat.py	/^    def overflow_check(self):$/;"	m	class:IdatDataset
+probe_means	pyllumina/pyidat.py	/^probe_means = npread(idat_file, '<u2', n_snps_read) # '<u2' reads data as numpy unsigned-float16$/;"	v
+probe_means_	src/parser.h	/^    std::vector<int16_t> probe_means_;$/;"	m	class:IdatSectionCode::IdatData
+probes_file	trash.py	/^probes_file = ($/;"	v
+probes_pickle_file	trash.py	/^probes_pickle_file = probes_file.with_suffix('.pkl')$/;"	v
+process_manifest_file	trash.py	/^def process_manifest_file(filepath, manifest_name):$/;"	f
+pyget_illumina_ids	pybindings/pybind11ings.cpp	/^    py::array_t<int32_t> pyget_illumina_ids() const {$/;"	f	class:PyIdatData
+pyget_mid_block	pybindings/pybind11ings.cpp	/^    py::array_t<int32_t> pyget_mid_block() const {$/;"	f	class:PyIdatData
+pyget_n_beads	pybindings/pybind11ings.cpp	/^    py::array_t<uint8_t> pyget_n_beads() const {$/;"	f	class:PyIdatData
+pyget_probe_means	pybindings/pybind11ings.cpp	/^    py::array_t<int16_t> pyget_probe_means() const {$/;"	f	class:PyIdatData
+pyget_std_dev	pybindings/pybind11ings.cpp	/^    py::array_t<uint16_t> pyget_std_dev() const {$/;"	f	class:PyIdatData
+read	pyllumina/pyidat.py	/^    def read(self, idat_file):$/;"	m	class:IdatDataset
+read	src/parser.cpp	/^inline T read(std::ifstream& infile)$/;"	f
+read	src/parser.cpp	/^inline std::vector<T> read(std::ifstream& infile, const int num)$/;"	f
+read	src/test/basic_test.cpp	/^inline T read(std::ifstream& infile)$/;"	f	class:IdatSectionCode	file:
+read	src/test/basic_test.cpp	/^inline std::vector<T> read(std::ifstream& infile, const int num)$/;"	f	class:IdatSectionCode	file:
+read_and_reset	pyllumina/utils/files.py	/^def read_and_reset(inner):$/;"	f
+read_array	src/parser.cpp	/^std::vector<T> read_array(std::istream& ifstream, std::size_t length)$/;"	f
+read_array	src/test/basic_test.cpp	/^std::vector<T> read_array(std::istream& ifstream, std::size_t length)$/;"	f	class:IdatSectionCode	file:
+read_byte	src/parser.cpp	/^inline uint8_t read_byte(std::ifstream& infile)$/;"	f
+read_byte	src/test/basic_test.cpp	/^inline uint8_t read_byte(std::ifstream& infile)$/;"	f	class:IdatSectionCode	file:
+read_char	src/parser.cpp	/^inline std::string read_char(std::ifstream& infile, const int num)$/;"	f
+read_char	src/test/basic_test.cpp	/^inline std::string read_char(std::ifstream& infile, const int num)$/;"	f	class:IdatSectionCode	file:
+read_control_probes	pyllumina/dtype/manifests.py	/^    def read_control_probes(self, manifest_file):$/;"	m	class:Manifest
+read_data_frame	trash.py	/^read_data_frame = pd.read_csv($/;"	v
+read_data_frame	trash.py	/^read_data_frame = pd.read_pickle(probes_pickle_file)$/;"	v
+read_int	src/parser.cpp	/^inline int32_t read_int(std::ifstream& infile)$/;"	f
+read_int	src/parser.cpp	/^inline std::vector<int32_t> read_int(std::ifstream& infile, const int num)$/;"	f
+read_int	src/test/basic_test.cpp	/^inline int32_t read_int(std::ifstream& infile)$/;"	f	class:IdatSectionCode	file:
+read_int	src/test/basic_test.cpp	/^inline std::vector<int32_t> read_int(std::ifstream& infile, const int num)$/;"	f	class:IdatSectionCode	file:
+read_int	trash.cpp	/^inline int32_t read_int(std::ifstream& infile) {$/;"	f
+read_long	src/parser.cpp	/^inline int64_t read_long(std::ifstream& infile)$/;"	f
+read_long	src/test/basic_test.cpp	/^inline int64_t read_long(std::ifstream& infile)$/;"	f	class:IdatSectionCode	file:
+read_long	trash.cpp	/^inline uint64_t read_long(std::ifstream& infile)$/;"	f
+read_mouse_probes	pyllumina/dtype/manifests.py	/^    def read_mouse_probes(self, manifest_file):$/;"	m	class:Manifest
+read_probes	pyllumina/dtype/manifests.py	/^    def read_probes(self, manifest_file):$/;"	m	class:Manifest
+read_short	src/parser.cpp	/^inline std::vector<uint16_t> read_short(std::ifstream& infile, const int num)$/;"	f
+read_short	src/parser.cpp	/^inline uint16_t read_short(std::ifstream& infile)$/;"	f
+read_short	src/test/basic_test.cpp	/^inline std::vector<uint16_t> read_short(std::ifstream& infile, const int num)$/;"	f	class:IdatSectionCode	file:
+read_short	src/test/basic_test.cpp	/^inline uint16_t read_short(std::ifstream& infile)$/;"	f	class:IdatSectionCode	file:
+read_short	trash.cpp	/^inline uint16_t read_short(std::ifstream& infile) {$/;"	f
+read_snp_probes	pyllumina/dtype/manifests.py	/^    def read_snp_probes(self, manifest_file):$/;"	m	class:Manifest
+read_string	src/parser.cpp	/^inline std::string read_string(std::ifstream& infile)$/;"	f
+read_string	src/test/basic_test.cpp	/^inline std::string read_string(std::ifstream& infile)$/;"	f	class:IdatSectionCode	file:
+red	pyllumina/pyidat.py	/^red = methylprep.models.Channel.RED$/;"	v
+red_green_	src/parser.h	/^    int32_t red_green_;$/;"	m	class:IdatSectionCode::IdatData
+require_path	pyllumina/utils/files.py	/^def require_path(inner):$/;"	f
+reset_file	pyllumina/utils/files.py	/^def reset_file(filepath_or_buffer):$/;"	f
+run_info_	src/parser.h	/^    std::vector<std::string> run_info_;$/;"	m	class:IdatSectionCode::IdatData
+seek_to_section	pyllumina/pyidat.py	/^        def seek_to_section(section_code):$/;"	f	function:IdatDataset.meta
+seek_to_section	pyllumina/pyidat.py	/^        def seek_to_section(section_code):$/;"	f	function:IdatDataset.read
+seek_to_section	pyllumina/pyidat.py	/^def seek_to_section(section_code):$/;"	f
+seek_to_start	pyllumina/dtype/manifests.py	/^    def seek_to_start(manifest_file):$/;"	m	class:Manifest
+self	trash.py	/^self = Manifest_old("450k")$/;"	v
+snp_data_frame	pyllumina/dtype/manifests.py	/^    def snp_data_frame(self):$/;"	m	class:Manifest
+sources	Makefile	/^sources := $(wildcard *.cpp)$/;"	m
+sources	setup.py	/^    sources=glob.glob("pybindings\/*.cpp") + glob.glob("src\/*.cpp"),$/;"	v
+sources	src/Makefile	/^sources := $(wildcard *.cpp)$/;"	m
+sources	src/test/Makefile	/^sources := $(wildcard *.cpp)$/;"	m
+src_url	trash.py	/^src_url = ARRAY_URL[array_type]$/;"	v
+start	src/parser.h	/^        void start()$/;"	f	class:IdatSectionCode::Timer
+start	src/test/basic_test.cpp	/^        void start()$/;"	f	class:Timer
+start	test.py	/^    def start(self):$/;"	m	class:Timer
+std_dev_	src/parser.h	/^    std::vector<uint16_t> std_dev_;$/;"	m	class:IdatSectionCode::IdatData
+stop	src/parser.h	/^        void stop(const std::string& text)$/;"	f	class:IdatSectionCode::Timer
+stop	src/test/basic_test.cpp	/^        void stop(const std::string& text)$/;"	f	class:Timer
+stop	test.py	/^    def stop(self, text=None):$/;"	m	class:Timer
+t	trash.py	/^t = time.time()$/;"	v
+time	src/parser.h	/^        std::chrono::time_point<std::chrono::system_clock> time;$/;"	m	class:IdatSectionCode::Timer
+time	src/test/basic_test.cpp	/^        std::chrono::time_point<std::chrono::system_clock> time;$/;"	m	class:Timer	file:
+timer	test.py	/^timer = Timer()$/;"	v
+type_name	src/parser.cpp	/^std::string type_name() {$/;"	f
+type_name	src/parser.cpp	/^std::string type_name<int16_t>() {$/;"	f
+type_name	src/parser.cpp	/^std::string type_name<int32_t>() {$/;"	f
+type_name	src/parser.cpp	/^std::string type_name<int8_t>() {$/;"	f
+type_name	src/parser.cpp	/^std::string type_name<uint16_t>() {$/;"	f
+type_name	src/parser.cpp	/^std::string type_name<uint32_t>() {$/;"	f
+type_name	src/parser.cpp	/^std::string type_name<uint8_t>() {$/;"	f
+unknown_1_	src/parser.h	/^    std::string unknown_1_;$/;"	m	class:IdatSectionCode::IdatData
+unknown_2_	src/parser.h	/^    std::string unknown_2_;$/;"	m	class:IdatSectionCode::IdatData
+unknown_3_	src/parser.h	/^    std::string unknown_3_;$/;"	m	class:IdatSectionCode::IdatData
+unknown_4_	src/parser.h	/^    std::string unknown_4_;$/;"	m	class:IdatSectionCode::IdatData
+unknown_5_	src/parser.h	/^    std::string unknown_5_;$/;"	m	class:IdatSectionCode::IdatData
+unknown_6_	src/parser.h	/^    std::string unknown_6_;$/;"	m	class:IdatSectionCode::IdatData
+unknown_7_	src/parser.h	/^    std::string unknown_7_;$/;"	m	class:IdatSectionCode::IdatData
+url	setup.py	/^    url="https:\/\/github.com\/brj0\/pyllumina",$/;"	v
+version	setup.py	/^    version="0.0.0",$/;"	v
+wrapped	pyllumina/utils/files.py	/^    def wrapped(orig_path, *args, **kwargs):$/;"	f	function:require_path
+wrapper	pyllumina/utils/files.py	/^    def wrapper(infile, *args, **kwargs):$/;"	f	function:read_and_reset

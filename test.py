@@ -6,11 +6,9 @@ class Timer:
     """Measures the time elapsed in milliseconds."""
     def __init__(self):
         self.time0 = time.time()
-
     def start(self):
         """Resets timer."""
         self.time0 = time.time()
-
     def stop(self, text=None):
         """Resets timer and return elapsed time."""
         delta_time = 1000 * (time.time() - self.time0)
@@ -20,7 +18,8 @@ class Timer:
         return delta_time
 
 
-filepath = "./101130760092_R05C02_Grn.idat"
+filepath = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
+filepath = "/data/epidip_IDAT/101130760092_R05C02_Red.idat"
 
 timer = Timer()
 idat_data = pyllumina.IdatData(filepath)
