@@ -1,1 +1,1 @@
-from _pyllumina import *
+from _pyllumina import IdatData

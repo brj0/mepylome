@@ -1,17 +1,19 @@
 # Lib
+from pathlib import Path, PurePath
+from urllib.error import URLError
+from urllib.request import urlopen
 import gzip
 import logging
-from pathlib import Path, PurePath
 import shutil
-from urllib.request import urlopen
-from urllib.error import URLError
 import ssl
+import zipfile
 
 
 __all__ = [
     "download_file",
     "ensure_directory_exists",
     "get_file_object",
+    "get_file_from_archive",
     "is_file_like",
     "read_and_reset",
     "reset_file",
@@ -143,6 +145,31 @@ def get_file_object(filepath_or_buffer):
         return gzip.open(filepath_or_buffer, "rb")
 
     return open(filepath_or_buffer, "rb")
+
+
+def get_file_from_archive(file_or_archive, filename):
+    """Retrieve a file object from a regular file or a ZIP archive."""
+    if isinstance(file_or_archive, str):
+        file_or_archive = Path(file_or_archive)
+    if file_or_archive.suffix == ".csv":
+        return open(file_or_archive, "rb")
+    elif file_or_archive.suffix == ".zip":
+        with zipfile.ZipFile(file_or_archive, "r") as archive:
+            file_list = archive.namelist()
+            file_match = next(
+                (f for f in file_list if f.endswith(filename)), None
+            )
+            if file_match:
+                return archive.open(file_match, "r")
+            else:
+                raise ValueError(
+                    f"File '{filename}' not found in the ZIP archive."
+                )
+    else:
+        raise ValueError(
+            "Unsupported file type. Only '.csv' and '.zip' are supported."
+        )
+
 
 
 def reset_file(filepath_or_buffer):

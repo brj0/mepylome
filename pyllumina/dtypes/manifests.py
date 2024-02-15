@@ -7,11 +7,13 @@ import pandas as pd
 import pickle
 
 # App
-from pyllumina.dtype import ArrayType  # , Channel, ProbeType
+from pyllumina.dtypes import ArrayType, Channel, ProbeType
 from pyllumina.utils import (
     download_file,
     get_file_object,
+    get_file_from_archive,
     reset_file,
+    ensure_directory_exists,
 )
 
 
@@ -20,21 +22,20 @@ __all__ = ["Manifest"]
 
 LOGGER = logging.getLogger(__name__)
 
-MANIFEST_DIR_NAME = "pyllumina"
-MANIFEST_PROBES_DIR = f"~/.{MANIFEST_DIR_NAME}/probes"
-MANIFEST_CONTROL_DIR = f"~/.{MANIFEST_DIR_NAME}/control"
-MANIFEST_DOWNLOAD_DIR = f"/tmp/{MANIFEST_DIR_NAME}"
+MANIFEST_DIR = f"~/.pyllumina/manifest_files"
+MANIFEST_DOWNLOAD_DIR = f"/tmp/pyllumina"
+ENDING_CONTROL_PROBES = "_control-probes"
 # MANIFEST_BUCKET_NAME = "array-manifest-files"
 
 # MANIFEST_REMOTE_PATH = f"https://s3.amazonaws.com/{MANIFEST_BUCKET_NAME}/"
 
 ARRAY_FILENAME = {
     # "27k": "humanmethylation450_15017482_v1-2.csv",
-    "450k": "humanmethylation450_15017482_v1-2.csv",
-    "epic": "infinium-methylationepic-v-1-0-b5-manifest-file.csv",
+    "450k": "humanmethylation450_15017482_v1-2.csv.gz",
+    "epic": "infinium-methylationepic-v-1-0-b5-manifest-file.csv.gz",
     # "epic+": "CombinedManifestEPIC_manifest_CoreColumns_v2.csv.gz",
-    "epicv2": "EPIC-8v2-0_A1.csv",
-    # "mouse": "MM285_manifest_v3.csv.gz",
+    "epicv2": "EPIC-8v2-0_A1.csv.gz",
+    "mouse": "MouseMethylation-12v1-0_A2.csv.gz",
 }
 
 ARRAY_URL = {
@@ -42,7 +43,7 @@ ARRAY_URL = {
     ArrayType.ILLUMINA_450K: "https://webdata.illumina.com/downloads/productfiles/humanmethylation450/humanmethylation450_15017482_v1-2.csv",
     ArrayType.ILLUMINA_EPIC: "https://webdata.illumina.com/downloads/productfiles/methylationEPIC/infinium-methylationepic-v-1-0-b5-manifest-file-csv.zip",
     # "epic+": "CombinedManifestEPIC_manifest_CoreColumns_v2.csv.gz",
-    # "mouse": "MM285_manifest_v3.csv.gz",
+    ArrayType.ILLUMINA_MOUSE: "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip",
     ArrayType.ILLUMINA_EPIC_V2: "https://support.illumina.com.cn/content/dam/illumina-support/documents/downloads/productfiles/methylationepic/InfiniumMethylationEPICv2.0ProductFiles(ZIPFormat).zip",
 }
 
@@ -52,8 +53,19 @@ ARRAY_TYPE_MANIFEST_FILENAMES = {
     ArrayType.ILLUMINA_EPIC: ARRAY_FILENAME["epic"],
     ArrayType.ILLUMINA_EPIC_V2: ARRAY_FILENAME["epicv2"],
     # ArrayType.ILLUMINA_EPIC_PLUS: ARRAY_FILENAME["epic+"],
-    # ArrayType.ILLUMINA_MOUSE: ARRAY_FILENAME["mouse"],
+    ArrayType.ILLUMINA_MOUSE: ARRAY_FILENAME["mouse"],
 }
+
+PROBES_COLUMNS = [
+    "IlmnID",
+    "Name",
+    "AddressA_ID",
+    "AddressB_ID",
+    "Infinium_Design_Type",
+    "Color_Channel",
+    "CHR",
+]
+
 MANIFEST_COLUMNS = (
     "IlmnID",
     "AddressA_ID",
@@ -112,7 +124,7 @@ class Manifest:
         or ArrayType('epic'), ArrayType('mouse')
 
     Keyword Arguments:
-        filepath_or_buffer {file-like} -- a pre-existing manifest filepath
+        filepath {file-like} -- a pre-existing manifest filepath
         (default: {None})
 
     Raises:
@@ -126,8 +138,7 @@ class Manifest:
     def __init__(
         self,
         array_type,
-        filepath_or_buffer=None,
-        on_lambda=False,
+        filepath=None,
         verbose=True,
     ):
         array_str_to_class = dict(
@@ -139,24 +150,34 @@ class Manifest:
         if array_type in array_str_to_class:
             array_type = array_str_to_class[array_type]
         self.array_type = array_type
-        self.on_lambda = (
-            on_lambda  # changes filepath to /tmp for the read-only file system
-        )
         self.verbose = verbose
 
-        if filepath_or_buffer is None:
-            filepath_or_buffer = self.download_default(
-                array_type, self.on_lambda
-            )
+        if filepath is None:
+            (
+                filepath,
+                control_filepath,
+            ) = self.download_and_process_manifest(array_type)
+        else:
+            control_filepath = self.get_control_path(filepath)
 
-        with get_file_object(filepath_or_buffer) as manifest_file:
-            self.__data_frame = self.read_probes(manifest_file)
-            self.__control_data_frame = self.read_control_probes(manifest_file)
-            self.__snp_data_frame = self.read_snp_probes(manifest_file)
-            if self.array_type == ArrayType.ILLUMINA_MOUSE:
-                self.__mouse_data_frame = self.read_mouse_probes(manifest_file)
-            else:
-                self.__mouse_data_frame = pd.DataFrame()
+        self.__data_frame = self.read_probes(filepath)
+        self.__control_data_frame = self.read_control_probes(control_filepath)
+        self.__snp_data_frame = self.read_snp_probes()
+        if self.array_type == ArrayType.ILLUMINA_MOUSE:
+            self.__mouse_data_frame = self.read_mouse_probes()
+        else:
+            self.__mouse_data_frame = pd.DataFrame()
+
+    def __repr__(self):
+        title = f"Manifest({self.array_type}):"
+        lines = [
+            title + "\n" + "*" * len(title),
+            f"data_frame:\n{self.data_frame}",
+            f"control_data_frame:\n{self.control_data_frame}",
+            f"snp_data_frame:\n{self.snp_data_frame}",
+            f"mouse_data_frame:\n{self.mouse_data_frame}",
+        ]
+        return "\n\n".join(lines)
 
     @property
     def columns(self):
@@ -191,7 +212,7 @@ class Manifest:
         Returns:
             [PurePath] -- Path to the manifest file.
         """
-        dir_path = Path(MANIFEST_PROBES_DIR).expanduser()
+        dir_path = Path(MANIFEST_DIR).expanduser()
         if on_lambda:
             dir_path = Path(MANIFEST_DIR_PATH_LAMBDA).expanduser()
         filename = ARRAY_TYPE_MANIFEST_FILENAMES[array_type]
@@ -205,6 +226,89 @@ class Manifest:
         # download_file(filename, src_url, dir_path)
 
         return filepath
+
+    @staticmethod
+    def download_and_process_manifest(array_type):
+        """Downloads the appropriate manifest file if one does not already exist.
+
+        Args:
+            array_type (ArrayType): The type of array to process.
+
+        Returns:
+            tuple of PurePath: Paths to the manifest file and its control file.
+        """
+        manifest_filename = ARRAY_TYPE_MANIFEST_FILENAMES[array_type]
+        manifest_filepath = Path(MANIFEST_DIR, manifest_filename).expanduser()
+        control_filepath = Manifest.get_control_path(manifest_filepath)
+
+        if manifest_filepath.exists() and control_filepath.exists():
+            return manifest_filepath, control_filepath
+
+        download_dir = Path(MANIFEST_DOWNLOAD_DIR).expanduser()
+
+        source_url = ARRAY_URL[array_type]
+        source_filename = Path(source_url).name
+        LOGGER.info(f"Downloading manifest: {source_filename}")
+        download_file(source_filename, source_url, download_dir)
+
+        downloaded_filepath = Path(download_dir, source_filename).expanduser()
+        # Remove the .gz suffix
+        manifest_name = manifest_filepath.with_suffix("").name
+        Manifest.process_manifest(
+            filepath=downloaded_filepath,
+            manifest_name=manifest_name,
+            dest_probes=manifest_filepath,
+            dest_control=control_filepath,
+        )
+
+        # Remove downloaded files
+        # TODO uncomment this
+        # shutil.rmtree(MANIFEST_DOWNLOAD_DIR)
+
+        return manifest_filepath, control_filepath
+
+    @staticmethod
+    def get_control_path(probes_path):
+        split_filename = probes_path.name.split(".")
+        split_filename[0] += ENDING_CONTROL_PROBES
+        return Path(probes_path.parent, ".".join(split_filename))
+
+    @staticmethod
+    def process_manifest(filepath, manifest_name, dest_probes, dest_control):
+        ensure_directory_exists(dest_probes)
+        ensure_directory_exists(dest_control)
+        with get_file_from_archive(filepath, manifest_name) as manifest_file:
+            # Process probes
+            Manifest.seek_to_start(manifest_file)
+            data_frame = pd.read_csv(
+                manifest_file,
+                low_memory=False,
+                usecols=PROBES_COLUMNS,
+            )
+            n_probes = data_frame[data_frame.IlmnID.str.startswith("[")].index[
+                0
+            ]
+            data_frame_probes = data_frame[:n_probes].copy()
+            data_frame_probes[["AddressA_ID", "AddressB_ID"]] = (
+                data_frame_probes[["AddressA_ID", "AddressB_ID"]]
+                .apply(pd.to_numeric)
+                .astype("Int32")
+            )
+            data_frame_probes.to_csv(dest_probes, index=False)
+            # Process controls
+            Manifest.seek_to_start(manifest_file)
+            data_frame_controls = pd.read_csv(
+                manifest_file,
+                header=None,
+                # Skip metadata and probe section
+                skiprows=(3 + n_probes),
+                usecols=range(len(CONTROL_COLUMNS)),
+            )
+            data_frame_controls.columns = CONTROL_COLUMNS
+            data_frame_controls["Address_ID"] = data_frame_controls[
+                "Address_ID"
+            ].astype("int32")
+            data_frame_controls.to_csv(dest_control, index=False)
 
     @staticmethod
     def seek_to_start(manifest_file):
@@ -230,53 +334,17 @@ class Manifest:
         else:
             manifest_file.seek(current_pos - 1)
 
-    def read_probes(self, manifest_file):
+    def read_probes(self, probes_file):
         if self.verbose:
             LOGGER.info(
-                f"Reading manifest file: {Path(manifest_file.name).stem}"
+                f"Reading manifest file: {Path(probes_file.name).stem}"
             )
 
-        try:
-            data_frame = pd.read_csv(
-                manifest_file,
-                comment="[",
-                dtype=self.get_data_types(),
-                usecols=self.columns,
-                nrows=self.array_type.num_probes,
-                # the -1 applies if the manifest has one extra row between the
-                # cg and control probes (a [Controls],,,,,, row) --- fixed in
-                # v1.5.6
-                index_col="IlmnID",
-            )
-        except ValueError:
-            optional = [
-                "OLD_CHR",
-                "OLD_Strand",
-                "OLD_Genome_Build",
-                "OLD_MAPINFO",
-            ]
-            use_columns = [col for col in self.columns if col not in optional]
-            data_frame = pd.read_csv(
-                manifest_file,
-                comment="[",
-                dtype=self.get_data_types(),
-                usecols=use_columns,
-                nrows=self.array_type.num_probes,
-                # the -1 applies if the manifest has one extra row between the
-                # cg and control probes (a [Controls],,,,,, row) --- fixed in
-                # v1.5.6
-                index_col="IlmnID",
-            )
-            LOGGER.info(
-                f"Some optional genome mapping columns were not found "
-                f"in {Path(manifest_file.name).stem}"
-            )
-        # AddressB_ID in manifest includes NaNs and INTs and becomes floats,
-        # which breaks. forcing back here.
-        # data_frame['AddressB_ID'] = data_frame['AddressB_ID'].astype('Int64')
-        # # converts floats to ints; leaves NaNs inplace
-        # TURNS out, int or float both work for manifests. NOT the source of
-        # the error with mouse.
+        data_frame = pd.read_csv(
+            probes_file,
+            dtype=self.get_data_types(),
+            index_col="IlmnID",
+        )
 
         def get_probe_type(name, infinium_type):
             """returns one of (I, II, SnpI, SnpII, Control)
@@ -295,55 +363,38 @@ class Manifest:
         )
         return data_frame
 
-    def read_control_probes(self, manifest_file):
+    def read_control_probes(self, control_file):
         """Unlike other probes, control probes have no IlmnID because they're
         not locus-specific.  they also use arbitrary columns, ignoring the
         header at start of manifest file.
         """
-        # LOGGER.info(f'Reading control probes: {Path(manifest_file.name).stem}')
-
-        self.seek_to_start(manifest_file)
-
         return pd.read_csv(
-            manifest_file,
-            comment="[",
-            header=None,
-            # illumina_id, not IlmnID here this gives these columns new names,
-            # because they have none.  loading stuff at end of CSV after probes
-            # end.
+            control_file,
+            dtype=self.get_data_types(),
             index_col=0,
-            names=CONTROL_COLUMNS,
-            nrows=self.array_type.num_controls,
-            # without the +1, it includes the last cpg probe in controls and
-            # breaks stuff.
-            skiprows=self.array_type.num_probes + 1,
-            usecols=range(len(CONTROL_COLUMNS)),
         )
 
-    def read_snp_probes(self, manifest_file):
+    def read_snp_probes(self):
         """Unlike cpg and control probes, these rs probes are NOT sequential in
         all arrays.
         """
-        # LOGGER.info(f'Reading snp probes: {Path(manifest_file.name).stem} -->
-        # {snp_df.shape[0]} found')
-        self.seek_to_start(manifest_file)
         # since these are not sequential, loading everything and filtering by
         # IlmnID.
-        snp_df = pd.read_csv(manifest_file, low_memory=False)
+        snp_df = self.data_frame.copy()
         # 'O' type columns won't match in SigSet, so forcing float64 here.
         # Also, float32 won't cover all probe IDs; must be float64.
-        snp_df = snp_df[snp_df["IlmnID"].str.match("rs", na=False)].astype(
+        snp_df = snp_df[snp_df.index.str.match("rs", na=False)].astype(
             {"AddressA_ID": "float64", "AddressB_ID": "float64"}
         )
+
         return snp_df
 
-    def read_mouse_probes(self, manifest_file):
+    def read_mouse_probes(self):
         """ILLUMINA_MOUSE contains unique probes whose names begin with 'mu'
         and 'rp' for 'murine' and 'repeat', respectively. This creates a
         dataframe of these probes, which are not processed like normal cg/ch
         probes.
         """
-        self.seek_to_start(manifest_file)
         # low_memory=Fase is required because control probes create mixed-types
         # in columns.
         # --- pre v1.4.6: mouse_df = mouse_df[(mouse_df['Probe_Type'] == 'rp')
@@ -351,7 +402,7 @@ class Manifest:
         # (mouse_df['Probe_Type'] == 'mu')]
         # --- pre v1.4.6: 'mu' probes start with 'cg' instead and have 'mu' in
         # Probe_Type column
-        mouse_df = pd.read_csv(manifest_file, low_memory=False)
+        mouse_df = self.dataframe.copy()
         mouse_df = mouse_df[
             (mouse_df["design"] == "Multi") | (mouse_df["design"] == "Random")
         ]
