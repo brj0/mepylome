@@ -17,7 +17,7 @@ from pyllumina.utils import (
 )
 
 
-__all__ = ["Manifest"]
+__all__ = ["Manifest", "ManifestLoader"]
 
 
 LOGGER = logging.getLogger(__name__)
@@ -383,10 +383,11 @@ class Manifest:
         snp_df = self.data_frame.copy()
         # 'O' type columns won't match in SigSet, so forcing float64 here.
         # Also, float32 won't cover all probe IDs; must be float64.
-        snp_df = snp_df[snp_df.index.str.match("rs", na=False)].astype(
-            {"AddressA_ID": "float64", "AddressB_ID": "float64"}
-        )
-
+        # snp_df = snp_df[snp_df.index.str.match("rs", na=False)].astype(
+            # {"AddressA_ID": "float64", "AddressB_ID": "float64"}
+        # )
+        # TODO use int
+        snp_df = snp_df[snp_df.index.str.match("rs", na=False)]
         return snp_df
 
     def read_mouse_probes(self):
@@ -436,3 +437,15 @@ class Manifest:
 
         channel_mask = data_frame["Color_Channel"].values == channel.value
         return data_frame[probe_type_mask & channel_mask]
+
+
+class ManifestLoader:
+    _manifests = {}
+
+    @classmethod
+    def get_manifest(cls, array_type):
+        if array_type not in cls._manifests:
+            manifest = Manifest(array_type)
+            cls._manifests[array_type] = manifest
+        return cls._manifests[array_type]
+

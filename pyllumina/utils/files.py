@@ -171,7 +171,6 @@ def get_file_from_archive(file_or_archive, filename):
         )
 
 
-
 def reset_file(filepath_or_buffer):
     """Attempts to return the open file to the beginning if it is seekable."""
     if not hasattr(filepath_or_buffer, "seek"):

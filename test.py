@@ -1,4 +1,5 @@
 import pyllumina
+from pathlib import Path
 import time
 import os
 
@@ -24,3 +25,10 @@ filepath = "/data/epidip_IDAT/101130760092_R05C02_Red.idat"
 timer = Timer()
 idat_data = pyllumina.IdatData(filepath)
 timer.stop("Parsing IDAT")
+
+
+file0 = "/data/ref_IDAT/450k/3999997083_R02C02_Grn.idat"
+file1 = "/data/ref_IDAT/450k/5775446049_R01C02_Grn.idat"
+idat_data = pyllumina.IdatData(file0)
+idat_data = pyllumina.IdatData(Path(file0))
+

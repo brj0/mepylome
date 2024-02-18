@@ -51,6 +51,7 @@ logging.basicConfig(level=logging.INFO)
 # self = Manifest_old("450k")
 
 
+quit()
 
 self = Manifest("450k")
 
@@ -59,7 +60,6 @@ epic = Manifest("epic")
 epicv2 = Manifest("epicv2")
 
 
-quit()
 
 
 # filepath=downloaded_filepath

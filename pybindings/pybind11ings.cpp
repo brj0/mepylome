@@ -5,40 +5,47 @@
  */
 
 
+#include <filesystem>
+#include <iostream>
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <pybind11/numpy.h>
+#include <pybind11/stl/filesystem.h>
+#include <string>
 
 #include "../src/parser.h"
 
 
 namespace py = pybind11;
+namespace fs = std::filesystem;
 
 class PyIdatData : public IdatData {
 public:
     // Constructor explicitly calling base class constructor
     // Without this line pybind11 generates a compiler error
-    PyIdatData(const std::string& data) : IdatData(data) {}
+    PyIdatData(const std::string& filepath) : IdatData(filepath) {}
+
+    PyIdatData(const fs::path& filepath) : IdatData(filepath.string()) {}
 
     // numpy compatible get functions for vectors
     py::array_t<int32_t> pyget_illumina_ids() const {
-        return py::cast(illumina_ids_);
+        return py::array_t<int32_t>(illumina_ids_.size(), illumina_ids_.data());
     }
 
     py::array_t<uint16_t> pyget_std_dev() const {
-        return py::cast(std_dev_);
+        return py::array_t<uint16_t>(std_dev_.size(), std_dev_.data());
     }
 
     py::array_t<int16_t> pyget_probe_means() const {
-        return py::cast(probe_means_);
+        return py::array_t<int16_t>(probe_means_.size(), probe_means_.data());
     }
 
     py::array_t<uint8_t> pyget_n_beads() const {
-        return py::cast(n_beads_);
+        return py::array_t<uint8_t>(n_beads_.size(), n_beads_.data());
     }
 
     py::array_t<int32_t> pyget_mid_block() const {
-        return py::cast(mid_block_);
+        return py::array_t<int32_t>(mid_block_.size(), mid_block_.data());
     }
 
 };
@@ -50,6 +57,10 @@ PYBIND11_MODULE(_pyllumina, m)
 
         .def(
             py::init< const std::string& >(),
+            py::arg("filepath")
+        )
+        .def(
+            py::init<const fs::path &>(),
             py::arg("filepath")
         )
         .def("__str__", &PyIdatData::__str__)

@@ -3,6 +3,7 @@ library(minfi)
 
 file0 <- path.expand("/data/ref_IDAT/450k/3999997083_R02C02_Grn.idat")
 file1 <- path.expand("/data/ref_IDAT/450k/5775446049_R01C02_Grn.idat")
+# file1 <- path.expand("/data/epidip_IDAT/101130760092_R05C02_Red.idat")
 
 idat <- readIDAT(file0)
 
