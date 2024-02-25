@@ -20,6 +20,7 @@ from pyllumina.utils import (
 __all__ = ["Manifest", "ManifestLoader"]
 
 
+NONE = -1
 LOGGER = logging.getLogger(__name__)
 
 MANIFEST_DIR = f"~/.pyllumina/manifest_files"
@@ -64,6 +65,7 @@ PROBES_COLUMNS = [
     "Infinium_Design_Type",
     "Color_Channel",
     "CHR",
+    "MAPINFO",
 ]
 
 MANIFEST_COLUMNS = (
@@ -132,8 +134,6 @@ class Manifest:
         cannot be found.
     """
 
-    __genome_df = None
-    __probe_type_subsets = None  # apparently not used anywhere in methylprep
 
     def __init__(
         self,
@@ -156,7 +156,7 @@ class Manifest:
             (
                 filepath,
                 control_filepath,
-            ) = self.download_and_process_manifest(array_type)
+            ) = self.get_processed_manifest(array_type)
         else:
             control_filepath = self.get_control_path(filepath)
 
@@ -194,6 +194,17 @@ class Manifest:
     def control_data_frame(self):
         return self.__control_data_frame
 
+    def control_address(self, control_type=None):
+        if control_type is None:
+            return self.__control_data_frame.Address_ID
+        # Ensure control_type is a list-like object
+        if not isinstance(control_type, (list, tuple)):
+            control_type = [control_type]
+        # Use isin() with the list-like object
+        return self.__control_data_frame[
+            self.__control_data_frame.Control_Type.isin(control_type)
+        ].Address_ID
+
     @property
     def snp_data_frame(self):
         return self.__snp_data_frame
@@ -228,7 +239,7 @@ class Manifest:
         return filepath
 
     @staticmethod
-    def download_and_process_manifest(array_type):
+    def get_processed_manifest(array_type):
         """Downloads the appropriate manifest file if one does not already exist.
 
         Args:
@@ -289,8 +300,8 @@ class Manifest:
                 0
             ]
             data_frame_probes = data_frame[:n_probes].copy()
-            data_frame_probes[["AddressA_ID", "AddressB_ID"]] = (
-                data_frame_probes[["AddressA_ID", "AddressB_ID"]]
+            data_frame_probes[["AddressA_ID", "AddressB_ID", "MAPINFO"]] = (
+                data_frame_probes[["AddressA_ID", "AddressB_ID", "MAPINFO"]]
                 .apply(pd.to_numeric)
                 .astype("Int32")
             )
@@ -343,8 +354,17 @@ class Manifest:
         data_frame = pd.read_csv(
             probes_file,
             dtype=self.get_data_types(),
-            index_col="IlmnID",
+            # index_col="IlmnID",
         )
+
+        # Use int32 instead of Int32 to improve performance of indexing
+        data_frame["AddressA_ID"] = (
+            data_frame["AddressA_ID"].fillna(NONE).astype("int32").copy()
+        )
+        data_frame["AddressB_ID"] = (
+            data_frame["AddressB_ID"].fillna(NONE).astype("int32").copy()
+        )
+
 
         def get_probe_type(name, infinium_type):
             """returns one of (I, II, SnpI, SnpII, Control)
@@ -358,7 +378,7 @@ class Manifest:
 
         vectorized_get_type = np.vectorize(get_probe_type)
         data_frame["probe_type"] = vectorized_get_type(
-            data_frame.index.values,
+            data_frame.IlmnID.values,
             data_frame["Infinium_Design_Type"].values,
         )
         return data_frame
@@ -368,11 +388,14 @@ class Manifest:
         not locus-specific.  they also use arbitrary columns, ignoring the
         header at start of manifest file.
         """
-        return pd.read_csv(
+        data_frame = pd.read_csv(
             control_file,
             dtype=self.get_data_types(),
-            index_col=0,
+            # index_col=0,
         )
+        # Use int32 instead of int64 to improve performance of indexing
+        data_frame["Address_ID"] = data_frame["Address_ID"].astype("int32").copy()
+        return data_frame
 
     def read_snp_probes(self):
         """Unlike cpg and control probes, these rs probes are NOT sequential in
@@ -384,10 +407,10 @@ class Manifest:
         # 'O' type columns won't match in SigSet, so forcing float64 here.
         # Also, float32 won't cover all probe IDs; must be float64.
         # snp_df = snp_df[snp_df.index.str.match("rs", na=False)].astype(
-            # {"AddressA_ID": "float64", "AddressB_ID": "float64"}
+        # {"AddressA_ID": "float64", "AddressB_ID": "float64"}
         # )
         # TODO use int
-        snp_df = snp_df[snp_df.index.str.match("rs", na=False)]
+        snp_df = snp_df[snp_df.IlmnID.str.match("rs", na=False)]
         return snp_df
 
     def read_mouse_probes(self):
@@ -411,13 +434,11 @@ class Manifest:
 
     def get_data_types(self):
         data_types = {key: str for key in self.columns}
-        data_types[
-            "AddressA_ID"
-        ] = "Int64"  #'float64' -- dtype found only in pandas 0.24 or greater
-        data_types["AddressB_ID"] = "Int64"  #'float64'
+        data_types["AddressA_ID"] = "Int32"
+        data_types["AddressB_ID"] = "Int32"
         return data_types
 
-    def get_probe_details(self, probe_type, channel=None):
+    def probe_info(self, probe_type, channel=None):
         """used by infer_channel_switch. Given a probe type (I, II, SnpI,
         SnpII, Control) and a channel (Channel.RED | Channel.GREEN), this will
         return info needed to map probes to their names (e.g. cg0031313 or
@@ -438,14 +459,50 @@ class Manifest:
         channel_mask = data_frame["Color_Channel"].values == channel.value
         return data_frame[probe_type_mask & channel_mask]
 
+    def _probe_info(self, probe_types, channel=None):
+        """Retrieve probe information based on probe types and channel."""
+        if isinstance(probe_types, ProbeType):
+            probe_types = [probe_types]
+
+        if not isinstance(probe_types, list):
+            raise ValueError(
+                "probe_types must be a ProbeType or a list of ProbeType"
+            )
+
+        if not all(
+            isinstance(probe_type, ProbeType) for probe_type in probe_types
+        ):
+            raise ValueError(f"{probe_type} is not a valid ProbeType")
+
+        if channel and not isinstance(channel, Channel):
+            raise ValueError("channel not a valid Channel")
+
+        data_frame = self.data_frame
+        probe_type_mask = data_frame["probe_type"].isin(
+            [probe_type.value for probe_type in probe_types]
+        )
+
+        if not channel:
+            return data_frame[probe_type_mask]
+
+        channel_mask = data_frame["Color_Channel"].values == channel.value
+        return data_frame[probe_type_mask & channel_mask]
+
 
 class ManifestLoader:
     _manifests = {}
 
     @classmethod
     def get_manifest(cls, array_type):
+        array_str_to_class = dict(
+            zip(
+                list(ARRAY_FILENAME.keys()),
+                list(ARRAY_TYPE_MANIFEST_FILENAMES.keys()),
+            )
+        )
+        if array_type in array_str_to_class:
+            array_type = array_str_to_class[array_type]
         if array_type not in cls._manifests:
             manifest = Manifest(array_type)
             cls._manifests[array_type] = manifest
         return cls._manifests[array_type]
-

@@ -5,19 +5,19 @@
  */
 
 
-#include <filesystem>
+// #include <filesystem>
 #include <iostream>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <pybind11/stl/filesystem.h>
+// #include <pybind11/stl/filesystem.h>
 #include <string>
 
 #include "../src/parser.h"
 
 
 namespace py = pybind11;
-namespace fs = std::filesystem;
+// namespace fs = std::filesystem;
 
 class PyIdatData : public IdatData {
 public:
@@ -25,7 +25,7 @@ public:
     // Without this line pybind11 generates a compiler error
     PyIdatData(const std::string& filepath) : IdatData(filepath) {}
 
-    PyIdatData(const fs::path& filepath) : IdatData(filepath.string()) {}
+    // PyIdatData(const fs::path& filepath) : IdatData(filepath.string()) {}
 
     // numpy compatible get functions for vectors
     py::array_t<int32_t> pyget_illumina_ids() const {
@@ -59,10 +59,10 @@ PYBIND11_MODULE(_pyllumina, m)
             py::init< const std::string& >(),
             py::arg("filepath")
         )
-        .def(
-            py::init<const fs::path &>(),
-            py::arg("filepath")
-        )
+        // .def(
+            // py::init<const fs::path &>(),
+            // py::arg("filepath")
+        // )
         .def("__str__", &PyIdatData::__str__)
         .def("__repr__", &PyIdatData::__repr__)
 
