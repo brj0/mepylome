@@ -18,7 +18,7 @@ $(appname): $(objects)
 	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 clean:
-	rm -fr src/*.o tests/*.o tests/*.d src/*.d src/*.gcda src/main src/*.gcno src/*.h.gch src/**.egg-info pyllumina/__pycache__ $(appname) build dist *.so *.egg-info .eggs gmon.out gprof.png nnd.ltrans* nnd.wpa.gcno
+	rm -fr src/*.o tests/*.o tests/*.d src/*.d src/*.gcda src/main src/*.gcno src/*.h.gch src/**.egg-info */__pycache__ */*/__pycache__ $(appname) build dist *.so *.egg-info .eggs gmon.out gprof.png nnd.ltrans* nnd.wpa.gcno scipy.log
 	ctags -R .
 
 

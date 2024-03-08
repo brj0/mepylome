@@ -3,7 +3,7 @@
 from methylprep import Manifest as Manifest_old
 from pathlib import Path
 from pathlib import Path, PurePath
-from pyllumina.dtypes.manifests import Manifest
+from mepylome.dtypes.manifests import Manifest
 from urllib.error import URLError
 from urllib.parse import urljoin
 from urllib.request import urlopen
@@ -20,8 +20,8 @@ import ssl
 import time
 
 # App
-from pyllumina.dtypes import ArrayType  # , Channel, ProbeType
-from pyllumina.utils import (
+from mepylome.dtypes import ArrayType  # , Channel, ProbeType
+from mepylome.utils import (
     download_file,
     get_file_object,
     is_file_like,
@@ -31,7 +31,7 @@ from pyllumina.utils import (
 
 LOGGER = logging.getLogger(__name__)
 
-from pyllumina.dtypes.manifests import (
+from mepylome.dtypes.manifests import (
     MANIFEST_DIR,
     MANIFEST_DOWNLOAD_DIR,
     ENDING_CONTROL_PROBES,
@@ -176,3 +176,64 @@ red.sort_index(inplace=True)
 grn.sort_index(inplace=True)
 timer.stop("sort")
 
+# overlap = bins.join(anno.ranges[["Name"]], how="left", preserve_order=True)
+# cnv.ratio.bins_index = None
+# cnv.ratio.loc[overlap.Name, "bins_index"] = overlap.bins_index.values.astype(int)
+# overlap.ratio = None
+# idx = overlap.Name != "-1"
+# overlap.ratio[idx] = cnv.ratio.loc[overlap.Name[idx]].ratio
+# result = overlap.df.groupby("bins_index", dropna=False).mean()
+from numba import njit
+@njit
+def numba_merge_bins(matrix, min_probes_per_bin, verbose=False):
+    I_START = 0
+    I_END = 1
+    I_N_PROBES = 2
+    INVALID = np.iinfo(np.int64).max
+    while np.any(matrix[:, I_N_PROBES] < min_probes_per_bin):
+        i_min = np.argmin(matrix[:, I_N_PROBES])
+        n_probes_left = INVALID
+        n_probes_right = INVALID
+        # Left
+        if i_min > 0:
+            delta_left = np.argmax(
+                matrix[i_min - 1 :: -1, I_N_PROBES] != INVALID
+            )
+            i_left = i_min - delta_left - 1
+            if (
+                matrix[i_left, I_N_PROBES] != INVALID
+                and matrix[i_min, I_START] == matrix[i_left, I_END]
+            ):
+                n_probes_left = matrix[i_left, I_N_PROBES]
+        # Right
+        if i_min < len(matrix) - 1:
+            delta_right = np.argmax(matrix[i_min + 1 :, I_N_PROBES] != INVALID)
+            i_right = i_min + delta_right + 1
+            if (
+                matrix[i_right, I_N_PROBES] != INVALID
+                and matrix[i_min, I_END] == matrix[i_right, I_START]
+            ):
+                n_probes_right = matrix[i_right, I_N_PROBES]
+        # Invalid
+        if n_probes_left == INVALID and n_probes_right == INVALID:
+            matrix[i_min, I_N_PROBES] = INVALID
+            continue
+        elif n_probes_right == INVALID or n_probes_left <= n_probes_right:
+            i_merge = i_left
+        else:
+            i_merge = i_right
+        matrix[i_merge, I_N_PROBES] += matrix[i_min, I_N_PROBES]
+        matrix[i_merge, I_START] = min(
+            matrix[i_merge, I_START], matrix[i_min, I_START]
+        )
+        matrix[i_merge, I_END] = max(
+            matrix[i_merge, I_END], matrix[i_min, I_END]
+        )
+        matrix[i_min, I_N_PROBES] = INVALID
+    return matrix
+
+# z = numba_merge_bins(
+#     df[["Start", "End", "n_probes"]].values.astype(np.int64),
+#     min_probes_per_bin,
+#     verbose=True,
+# )

@@ -7,36 +7,55 @@ import logging
 import os
 import re
 import time
-import pyranges as pr
 from pathlib import Path
 from urllib.parse import urljoin
 
-import numpy as np
-import pandas as pd
+import warnings
 
-from pyllumina import IdatData
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
+import numpy as np
+from cbseg import (
+    determine_cbs_stat,
+    determine_t_stat,
+    determine_cbs,
+    segment,
+    validate,
+)
+import pandas as pd
+import pyranges as pr
+from sklearn.linear_model import LinearRegression
+
+from mepylome import IdatData
 
 # TODO too long for import
-from pyllumina.dtypes import (
+from mepylome.dtypes import (
     ArrayType,
     Channel,
     Manifest,
     ManifestLoader,
     ProbeType,
 )
-from pyllumina.utils import (
+from mepylome.utils import (
     download_file,
     ensure_directory_exists,
     get_file_from_archive,
     get_file_object,
     reset_file,
 )
+from functools import reduce
 
+# import numexpr
+
+LOGGER = logging.getLogger(__name__)
 print("imports done")
 
-NONE = -1
 
-from functools import reduce
+# Set the numexpr.evaluate option to True
+# pd.options.compute.use_numexpr = True
+
+GENES = "./data/hg19_genes.tsv.gz"
+NONE = -1
 
 
 class Timer:
@@ -64,10 +83,12 @@ timer = Timer()
 ENDING_RED = "_Red.idat"
 ENDING_GRN = "_Grn.idat"
 
+# TODO probes start at 1 pyranges at 0
 
 
 class RawData:
     def __init__(self, basenames):
+        # TODO if basenames is dir take all files in it
         # Clean up basenames
         _basenames = basenames if isinstance(basenames, list) else [basenames]
         _basenames = [
@@ -76,7 +97,7 @@ class RawData:
             ).expanduser()
             for name in _basenames
         ]
-        # Remove duplicates keep ordering
+        # Remove duplicates, keep ordering
         _basenames = list(dict.fromkeys(_basenames))
 
         self.probes = [path.name for path in _basenames]
@@ -237,7 +258,7 @@ class MethylData:
         red = self.red
         grn = self.grn
         df = pd.DataFrame(
-            NONE,
+            np.nan,
             index=locus_names,
             columns=red.columns,
             dtype="float32",
@@ -246,13 +267,13 @@ class MethylData:
         df.loc[i_grn.index] = grn.loc[i_grn["AddressB_ID"].values].values
         df.loc[ii.index] = grn.loc[ii["AddressA_ID"].values].values
         df["Name"] = self.manifest.data_frame.Name.values[locus_names]
-        self.methylated = df
+        self.methylated = df.set_index("Name")
 
     def preprocess_raw_unmethylated(self, locus_names, i_grn, i_red, ii):
         red = self.red
         grn = self.grn
         df = pd.DataFrame(
-            NONE,
+            np.nan,
             index=locus_names,
             columns=red.columns,
             dtype="float32",
@@ -261,7 +282,33 @@ class MethylData:
         df.loc[i_grn.index] = grn.loc[i_grn["AddressA_ID"].values].values
         df.loc[ii.index] = red.loc[ii["AddressA_ID"].values].values
         df["Name"] = self.manifest.data_frame.Name.values[locus_names]
-        self.unmethylated = df
+        self.unmethylated = df.set_index("Name")
+
+    @property
+    def beta(self):
+        return self.get_beta(self.methylated, self.unmethylated)
+
+    @staticmethod
+    def get_beta(
+        methylated, unmethylated, offset=0, beta_threshold=0, min_zero=True
+    ):
+        assert offset >= 0, "offset must be non-negative"
+        assert (
+            0 <= beta_threshold <= 0.5
+        ), "beta_threshold must be between 0 and 0.5"
+
+        if min_zero:
+            methylated = np.maximum(methylated, 0)
+            unmethylated = np.maximum(unmethylated, 0)
+
+        beta = methylated / (methylated + unmethylated + offset)
+
+        if beta_threshold > 0:
+            beta = np.minimum(
+                np.maximum(beta, beta_threshold), 1 - beta_threshold
+            )
+
+        return beta
 
     def __repr__(self):
         title = f"RawData():"
@@ -277,22 +324,299 @@ class MethylData:
             f"methylated:\n{self.methylated}",
             f"unmethylated:\n{self.unmethylated}",
         ]
+        if hasattr(self, "intensity"):
+            lines.append(f"intensity:\n{self.intensity}")
+        return "\n\n".join(lines)
+
+
+class Annotation:
+    def __init__(
+        self,
+        manifest,
+        gap=None,
+        genes=None,
+        bin_size=50000,
+        min_probes_per_bin=15,
+        verbose=False,
+    ):
+        # TODO sort
+        self.bin_size = bin_size
+        self.min_probes_per_bin = min_probes_per_bin
+        self.gap = gap
+        self.genes = genes
+        self.verbose = verbose
+        self.chromsizes = pr.data.chromsizes()
+        df = manifest.data_frame.copy()
+        df = df[[x.startswith("cg") for x in df.Name.values]]
+        df.rename(
+            columns={"CHR": "Chromosome", "MAPINFO": "Start"}, inplace=True
+        )
+        df["End"] = df["Start"]
+        df = df[
+            df.Chromosome.isin(["X", "Y"] + [str(x) for x in range(1, 23)])
+        ]
+        df.Chromosome = "chr" + df.Chromosome
+        self.manifest = pr.PyRanges(df)
+        self.manifest = self.manifest.sort()
+        self.probes = self.manifest.Name.values
+        self.bins = self.make_bins()
+
+    def make_bins(self):
+        bins = pr.gf.tile_genome(self.chromsizes, int(5e4))
+        bins = bins[bins.Chromosome != "chrM"]
+        bins = bins.subtract(self.gap)
+        bins = self.merge_bins(bins)
+        return bins
+
+    def merge_bins(self, bins):
+        bins = bins.count_overlaps(
+            self.manifest[["Name"]], overlap_col="N_probes"
+        )
+        bins = bins.apply(
+            lambda df: self.merge_bins_in_chromosome(
+                df, self.min_probes_per_bin, verbose=self.verbose
+            ),
+            as_pyranges=True,
+        )
+        return bins
+
+    @staticmethod
+    def merge_bins_in_chromosome(df, min_probes_per_bin, verbose=False):
+        I_START = 0
+        I_END = 1
+        I_N_PROBES = 2
+        INVALID = np.iinfo(np.int64).max
+
+        matrix = df[["Start", "End", "N_probes"]].values.astype(np.int64)
+
+        while np.any(matrix[:, I_N_PROBES] < min_probes_per_bin):
+            i_min = np.argmin(matrix[:, I_N_PROBES])
+            n_probes_left = INVALID
+            n_probes_right = INVALID
+
+            # Left
+            if i_min > 0:
+                delta_left = np.argmax(
+                    matrix[i_min - 1 :: -1, I_N_PROBES] != INVALID
+                )
+                i_left = i_min - delta_left - 1
+                if (
+                    matrix[i_left, I_N_PROBES] != INVALID
+                    and matrix[i_min, I_START] == matrix[i_left, I_END]
+                ):
+                    n_probes_left = matrix[i_left, I_N_PROBES]
+
+            # Right
+            if i_min < len(matrix) - 1:
+                delta_right = np.argmax(
+                    matrix[i_min + 1 :, I_N_PROBES] != INVALID
+                )
+                i_right = i_min + delta_right + 1
+                if (
+                    matrix[i_right, I_N_PROBES] != INVALID
+                    and matrix[i_min, I_END] == matrix[i_right, I_START]
+                ):
+                    n_probes_right = matrix[i_right, I_N_PROBES]
+
+            # Invalid
+            if n_probes_left == INVALID and n_probes_right == INVALID:
+                matrix[i_min, I_N_PROBES] = INVALID
+                if verbose:
+                    row = (
+                        df.loc[i_min, ["Chromosome", "Start", "End"]]
+                        .astype(str)
+                        .tolist()
+                    )
+                    row_str = "-".join(row)
+                    print(f"Could not merge {row_str}. Removed instead.")
+                continue
+            elif n_probes_right == INVALID or n_probes_left <= n_probes_right:
+                i_merge = i_left
+            else:
+                i_merge = i_right
+            matrix[i_merge, I_N_PROBES] += matrix[i_min, I_N_PROBES]
+            matrix[i_merge, I_START] = min(
+                matrix[i_merge, I_START], matrix[i_min, I_START]
+            )
+            matrix[i_merge, I_END] = max(
+                matrix[i_merge, I_END], matrix[i_min, I_END]
+            )
+            matrix[i_min, I_N_PROBES] = INVALID
+        df[["Start", "End", "N_probes"]] = matrix
+        df = df[df.N_probes != INVALID]
+        return df
+
+    def __repr__(self):
+        # TODO
+        title = f"CNV():"
+        lines = [
+            title + "\n" + "*" * len(title),
+            f"probes:\n{self.probes}",
+            f"min_probes_per_bin:\n{self.min_probes_per_bin}",
+            f"bin_size:\n{self.bin_size}",
+            f"gap:\n{self.gap}",
+            f"genes:\n{self.genes}",
+            f"manifest:\n{self.manifest}",
+            f"chromsizes:\n{self.chromsizes}",
+            f"bins:\n{self.bins}",
+        ]
+        return "\n\n".join(lines)
+
+
+class CNV:
+    def __init__(self, sample, reference, annotation=None):
+        self.sample = sample
+        self.reference = reference
+        self.annotation = annotation
+        self.sample.intensity = self.get_itensity(self.sample)
+        self.reference.intensity = self.get_itensity(self.reference)
+        self.bins = annotation.bins
+
+    def get_itensity(self, methyl_data):
+        intensity = methyl_data.methylated + methyl_data.unmethylated
+        prefix = "sample" if methyl_data == self.sample else "reference"
+        if intensity.isna().any().any():
+            print(f"{prefix}: Intensities that are NA, set to 1.")
+            intensity.fillna(1, inplace=True)
+        if (intensity < 1).any().any():
+            print(f"{prefix}: Intensities smaller than 0 set to 1.")
+            intensity[intensity < 1] = 1
+        if intensity.mean(axis=0).min() < 5000:
+            print(f"{prefix}: Intensities are abnormally low (< 5000).")
+        if intensity.mean(axis=0).max() > 50000:
+            print(f"{prefix}: Intensities are abnormally high (> 50000).")
+        return intensity
+
+    def fit(self):
+        probes = self.annotation.probes
+        smp_intensity = self.sample.intensity.loc[probes].values.ravel()
+        idx = self.sample.intensity.loc[probes].index
+        ref_intensity = self.reference.intensity.loc[
+            probes,
+        ].values
+        correlation = np.array(
+            [np.corrcoef(smp_intensity, z)[0, 1] for z in ref_intensity.T]
+        )
+        if any(correlation >= 0.99):
+            LOGGER.warning(
+                "Query sample also found in reference set. Excluded from fitting."
+            )
+        X = np.log2(ref_intensity)
+        y = np.log2(smp_intensity)
+        reg = LinearRegression().fit(X, y)
+        y_pred = reg.predict(X)
+        y_pred[y_pred < 0] = 0
+        self.coef = reg.coef_
+        self._ratio = y - y_pred
+        self.ratio = pd.DataFrame({"ratio": self._ratio}, idx)
+        self.noise = np.sqrt(
+            np.mean((self._ratio[1:] - self._ratio[:-1]) ** 2)
+        )
+        self.probes = self.annotation.manifest[["Name"]]
+        self.probes.ratio = self._ratio
+
+    def bin(self):
+        self.bins.bins_index = np.arange(len(self.bins.df))
+        overlap = self.bins.join(self.annotation.manifest[["Name"]])
+        overlap.ratio = self.ratio.loc[overlap.Name].ratio
+        result = overlap.df.groupby("bins_index", dropna=False)["ratio"].agg(
+            ["median", "var"]
+        )
+        df = self.bins.df
+        df["Median"] = np.nan
+        df["Var"] = np.nan
+        df.loc[result.index, ["Median", "Var"]] = result.values
+        self.bins = pr.PyRanges(df)
+
+    def genes(self):
+        overlap = self.annotation.genes.join(
+            self.annotation.manifest[["Name"]]
+        )
+        overlap.ratio = self.ratio.loc[overlap.Name].ratio
+        result = overlap.df.groupby("Gene", dropna=False)["ratio"].agg(
+            ["median", "var", "count"]
+        )
+        df = self.annotation.genes.df.set_index("Gene")
+        df["Median"] = np.nan
+        df["Var"] = np.nan
+        df["N_probes"] = 0
+        df.loc[result.index, ["Median", "Var", "N_probes"]] = result.values
+        df["N_probes"] = df["N_probes"].astype(int)
+        df = df.reset_index()
+        self.genes = pr.PyRanges(df)
+        self.genes = self.genes.sort()
+
+    @staticmethod
+    def get_segments(df):
+        bin_values = df["Median"].values
+        chrom = df["Chromosome"].iloc[0]
+        seg = segment(bin_values, shuffles=1000, p=0.001)
+        seg_df = pd.DataFrame(
+            [
+                [chrom, df.Start.iloc[l.start], df.End.iloc[l.end - 1]]
+                for l in seg
+            ],
+            # [[chrom, l.start, l.end] for l in seg],
+            columns=["Chromosome", "Start", "End"],
+        )
+        return seg_df
+
+    def segments(self):
+        segments = self.bins.apply(self.get_segments)
+        overlap = segments.join(self.annotation.manifest[["Name"]])
+        overlap.ratio = self.ratio.loc[overlap.Name].ratio
+        result = (
+            overlap.df.groupby(["Chromosome", "Start", "End"], dropna=False)[
+                "ratio"
+            ]
+            .agg(["median", "mean", "var", "count"])
+            .reset_index()
+            .rename(
+                columns={
+                    "count": "N_probes",
+                    "median": "Median",
+                    "mean": "Mean",
+                    "var": "Var",
+                }
+            )
+        )
+        self.segments = pr.PyRanges(result)
+        self.segments = self.segments.sort()
+
+    def __repr__(self):
+        # TODO
+        title = f"CNV():"
+        lines = [
+            title + "\n" + "*" * len(title),
+            f"sample:\n{self.sample.probes}",
+            f"reference:\n{self.reference.probes}",
+            f"annotation: {self.annotation}",
+            f"_ratio: {self._ratio}",
+            f"bins:\n{self.bins}",
+            f"genes:\n{self.genes}",
+            f"segments:\n{self.segments}",
+            f"coef:\n{self.coef}",
+            f"noise:\n{self.noise}",
+            f"ratio:\n{self.ratio}",
+        ]
         return "\n\n".join(lines)
 
 
 file0 = "/data/epidip_IDAT/7970368088_R01C01_Grn.idat"
 file1 = "/data/epidip_IDAT/7970368088_R01C02_Grn.idat"
-file2 = "/data/ref_IDAT/450k/5775446049_R06C01_Red.idat"
-file3 = "/data/ref_IDAT/450k/5775446051_R02C01"
+file2 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01_Red.idat"
+file3 = "/data/ref_IDAT/cnvrefidat_450k/5775446051_R02C01"
+file4 = "/data/epidip_IDAT/206171430049_R08C01"
+file5 = "/data/epidip_IDAT/6042324058_R03C02"
 
 
 timer.start()
-raw_data = RawData([file0, file1])
-timer.stop("loading rgset")
+refs_raw = RawData([file0, file1])
+timer.stop("loading rgset ref")
 
 timer.start()
-m_data = MethylData(raw_data)
-timer.stop("preproc")
+ref_methyl = MethylData(refs_raw)
+timer.stop("preproc ref")
 
 manifest = ManifestLoader.get_manifest("450k")
 # manifest = ManifestLoader.get_manifest("epic")
@@ -300,99 +624,81 @@ manifest = ManifestLoader.get_manifest("450k")
 
 
 timer.start()
-sample_r_data = RawData(file3)
-timer.stop("loading rgset")
+sample_raw = RawData(file5)
+timer.stop("loading rgset sample")
 
 timer.start()
-sample_m_data = MethylData(sample_r_data)
-timer.stop("preproc")
-self = sample_m_data
+sample_methyl = MethylData(sample_raw)
+timer.stop("preproc samp")
 
-class Annotation:
-    def __init__(self, manifest):
-        self.probes = manifest.data_frame.Name
+gap = pr.PyRanges(pd.read_csv("./data/gap_450k.csv.gz"))
+gap.Start -= 1
+# gap.End -= 1
 
-anno = Annotation(manifest)
+genes_df = pd.read_csv(GENES, sep="\t").rename(
+    columns={
+        "start": "Start",
+        "end": "End",
+        "name": "Gene",
+        "strand": "Strand",
+        "seqname": "Chromosome",
+    }
+)
+genes_df["Strand"] = genes_df["Strand"].replace({-1: "-", 1: "+"})
+genes_df.Start -= 1
+genes = pr.PyRanges(genes_df)
+genes = genes[["Gene"]]
 
-df = manifest.data_frame
-df.columns = [
-    "IlmnID",
-    "Name",
-    "AddressA_ID",
-    "AddressB_ID",
-    "Infinium_Design_Type",
-    "Color_Channel",
-    "Chromosome",
-    "Start",
-    "probe_type",
+timer.start()
+annotation = Annotation(manifest, gap=gap, genes=genes)
+timer.stop("anno")
+
+timer.start()
+cnv = CNV(sample_methyl, ref_methyl, annotation)
+timer.stop("cnv")
+
+timer.start()
+cnv.fit()
+timer.stop("CNV fit")
+
+timer.start()
+cnv.bin()
+timer.stop("CNV bin")
+
+timer.start()
+cnv.genes()
+timer.stop("CNV genes")
+
+timer.start()
+cnv.segments()
+timer.stop("CNV segments")
+
+self = cnv
+sample = sample_methyl
+reference = ref_methyl
+
+
+bins_df = cnv.bins.df[["Chromosome", "Start", "End", "Median"]]
+bins_df.columns = ["chrom", "start", "end", "value"]
+detail_df = cnv.genes.df[
+    ["Chromosome", "Start", "End", "Gene", "Median", "N_probes"]
 ]
-df["End"] = df["Start"]
-df = df[df.Chromosome.isin(["X", "Y"] + [str(x) for x in range(1, 23)])]
-df = df[df["Name"].str.startswith("cg")]
-
-pran = pr.PyRanges(df)
-chromsizes = pr.data.chromsizes()
-bins = pr.gf.tile_genome(chromsizes, int(5e4))
-
-probes = df.Name.unique()
-
-
-# #' @rdname CNV.fit
-# setMethod("CNV.fit", signature(query = "CNV.data", ref = "CNV.data", anno = "CNV.anno"),
-# function(query, ref, anno, intercept = TRUE) {
-# if (ncol(query@intensity) == 0)
-# stop("query intensities unavailable, run CNV.load")
-# if (ncol(ref@intensity) == 0)
-# stop("reference set intensities unavailable, run CNV.load")
-
-# if (ncol(query@intensity) != 1)
-# message("using multiple query samples")
-# if (ncol(ref@intensity) == 1)
-# warning("reference set contains only a single sample. use more samples for better results.")
-
-# p <- unique(names(anno@probes))  # ordered by location
-# if (!all(is.element(p, rownames(query@intensity))))
-# stop("query intensities not given for all probes.")
-# if (!all(is.element(p, rownames(ref@intensity))))
-# stop("reference set intensities not given for all probes.")
-
-# object <- new("CNV.analysis")
-# object@date <- date()
-# object@fit$args <- list(intercept = intercept)
-
-# object@anno <- anno
-
-# object@fit$coef <- data.frame(matrix(ncol = 0, nrow = ncol(ref@intensity)))
-# object@fit$ratio <- data.frame(matrix(ncol = 0, nrow = length(p)))
-# for (i in 1:ncol(query@intensity)) {
-
-# message(paste(colnames(query@intensity)[i]), " (",round(i/ncol(query@intensity)*100, digits = 3), "%", ")", sep = "")
-# r <- cor(query@intensity[p, ], ref@intensity[p, ])[i, ] < 0.99
-# if (any(!r)) message("query sample seems to also be in the reference set. not used for fit.")
-# if (intercept) {
-# ref.fit <- lm(y ~ ., data = data.frame(y = log2(query@intensity[p,i]), X = log2(ref@intensity[p, r])))
-# } else {
-# ref.fit <- lm(y ~ . - 1, data = data.frame(y = log2(query@intensity[p,i]), X = log2(ref@intensity[p, r])))
-# }
-# object@fit$coef <- cbind(object@fit$coef,as.numeric(ref.fit$coefficients[-1]))
-
-# ref.predict <- predict(ref.fit)
-# ref.predict[ref.predict < 0] <- 0
-
-# object@fit$ratio <- cbind(object@fit$ratio, log2(query@intensity[p,i]) - ref.predict[p])
-# }
-
-
-# colnames(object@fit$coef) <- colnames(query@intensity)
-# rownames(object@fit$coef) <- colnames(ref@intensity)
-# colnames(object@fit$ratio) <- colnames(query@intensity)
-# rownames(object@fit$ratio) <- p
-
-# object@fit$noise <- as.numeric()
-# for (i in 1:ncol(query@intensity)) {
-# object@fit$noise <- c(object@fit$noise, sqrt(mean((object@fit$ratio[-1,i] - object@fit$ratio[-nrow(object@fit$ratio),i])^2,na.rm = TRUE)))
-# }
-
-# names(object@fit$noise) <- colnames(query@intensity)
-# return(object)
-# })
+detail_df.columns = ["chrom", "start", "end", "name", "value", "nprobes"]
+segments_df = cnv.segments.df[["Chromosome", "Start", "End", "Mean", "Median"]]
+segments_df.columns = [
+    "chrom",
+    "start",
+    "end",
+    "mean",
+    "median",
+]
+import zipfile
+dfs = [
+    ("py_cnv_bins.csv", bins_df),
+    ("py_cnv_detail.csv", detail_df),
+    ("py_cnv_segments.csv", segments_df),
+]
+with zipfile.ZipFile("/data/epidip_CNV_data/py_cnv.zip", "w") as zf:
+    for filename, df in dfs:
+        df.to_csv(filename, index=False)
+        zf.write(filename)

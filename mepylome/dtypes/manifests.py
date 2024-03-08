@@ -7,8 +7,8 @@ import pandas as pd
 import pickle
 
 # App
-from pyllumina.dtypes import ArrayType, Channel, ProbeType
-from pyllumina.utils import (
+from mepylome.dtypes import ArrayType, Channel, ProbeType
+from mepylome.utils import (
     download_file,
     get_file_object,
     get_file_from_archive,
@@ -23,8 +23,8 @@ __all__ = ["Manifest", "ManifestLoader"]
 NONE = -1
 LOGGER = logging.getLogger(__name__)
 
-MANIFEST_DIR = f"~/.pyllumina/manifest_files"
-MANIFEST_DOWNLOAD_DIR = f"/tmp/pyllumina"
+MANIFEST_DIR = f"~/.mepylome/manifest_files"
+MANIFEST_DOWNLOAD_DIR = f"/tmp/mepylome"
 ENDING_CONTROL_PROBES = "_control-probes"
 # MANIFEST_BUCKET_NAME = "array-manifest-files"
 

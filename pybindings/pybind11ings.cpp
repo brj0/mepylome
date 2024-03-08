@@ -13,7 +13,7 @@
 // #include <pybind11/stl/filesystem.h>
 #include <string>
 
-#include "../src/parser.h"
+#include "../src/idat_parser.h"
 
 
 namespace py = pybind11;
@@ -50,7 +50,7 @@ public:
 
 };
 
-PYBIND11_MODULE(_pyllumina, m)
+PYBIND11_MODULE(_mepylome, m)
 {
     m.doc() = "Parses idat files";
     py::class_<PyIdatData>(m, "IdatData")

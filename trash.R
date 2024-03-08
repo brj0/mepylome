@@ -4,8 +4,11 @@ library(conumee2.0)
 
 file0 <- "/data/epidip_IDAT/7970368088_R01C01_Grn.idat"
 file1 <- "/data/epidip_IDAT/7970368088_R01C02_Grn.idat"
-file2 <- "/data/ref_IDAT/450k/5775446049_R06C01_Red.idat"
-file3 <- "/data/ref_IDAT/450k/5775446051_R02C01"
+file2 <- "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01_Red.idat"
+file3 <- "/data/ref_IDAT/cnvrefidat_450k/5775446051_R02C01"
+file4 <- "/data/epidip_IDAT/206171430049_R08C01"
+file5 <- "/data/epidip_IDAT/6042324058_R03C02"
+
 
 # file1 <- path.expand("/data/epidip_IDAT/101130760092_R05C02_Red.idat")
 
@@ -23,7 +26,6 @@ cat("Elapsed time:", timing[["elapsed"]], "seconds\n")
 rgSet <- read.metharray(c(file0,file1), force = TRUE)
 mset <- preprocessIllumina(rgSet)
 
-sample_idat = file3 
 
 GENES <- "/applications/nanodip_cache/reference_data/hg19_cnv/hg19_genes.tsv"
 genes_df <- read.csv(GENES, sep = "\t", header = TRUE)
@@ -37,16 +39,37 @@ anno <- CNV.create_anno(array_type = "450k", chrXY = TRUE,
                                 detail_regions = all_genes)
 
 
-ref_cnv <- CNV.load(mset)
+ref <- CNV.load(mset)
 
-smp_rgSet <- read.metharray(sample_idat)
-sample_mset <- preprocessIllumina(read.metharray(sample_idat))
+smp_rgSet <- read.metharray(file5)
+sample_mset <- preprocessIllumina(read.metharray(file5))
 
 
 
-sample_cnv_data <- CNV.load(sample_mset)
-cnv <- CNV.fit(sample_cnv_data, ref_cnv, anno)
-cnv <- CNV.segment(CNV.detail(CNV.bin(cnv)))
+query <- CNV.load(sample_mset)
+
+timing <- system.time({
+    cnv <- CNV.fit(query, ref, anno)
+})
+cat("Elapsed time: (fit)", timing[["elapsed"]], "seconds\n")
+
+timing <- system.time({
+    cnv <- CNV.bin(cnv)
+})
+cat("Elapsed time: (bin)", timing[["elapsed"]], "seconds\n")
+
+timing <- system.time({
+    cnv <- CNV.detail(cnv)
+})
+cat("Elapsed time: (detail)", timing[["elapsed"]], "seconds\n")
+
+timing <- system.time({
+    cnv <- CNV.segment(cnv)
+})
+cat("Elapsed time: (segment)", timing[["elapsed"]], "seconds\n")
+
+
+# cnv <- CNV.segment(CNV.detail(CNV.bin(cnv)))
 
 result <- list()
 WHAT <- c("bins", "detail", "gistic", "overview", "segments", "probes")

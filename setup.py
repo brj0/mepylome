@@ -11,8 +11,8 @@ include_dirs = [
     np.get_include(),
 ]
 
-# Get the value of the PYLLUMINA_DEBUG environment variable
-debug = os.getenv("PYLLUMINA_DEBUG") == "1"
+# Get the value of the MEPYLOME_DEBUG environment variable
+debug = os.getenv("MEPYLOME_DEBUG") == "1"
 debug = False
 
 # Set the compiler flags based on the debug flag
@@ -38,7 +38,7 @@ else:
     ]
 
 module = Extension(
-    name="_pyllumina",
+    name="_mepylome",
     sources=glob.glob("pybindings/*.cpp") + glob.glob("src/*.cpp"),
     include_dirs=include_dirs,
     extra_compile_args=compile_args,
@@ -50,13 +50,17 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
-    name="pyllumina",
+    name="mepylome",
     version="0.0.0",
     description="Python package for processing Infinum DNA methylation arrays",
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[
+        "cbseg",
         "numpy",
+        "pandas",
+        "pyranges",
+        "scikit-learn",
     ],
     extras_require={
         "full": [
@@ -66,7 +70,7 @@ setup(
     keywords="Illumina, Methylation, Infinum, Microarray, BeadChip",
     license="GPL-3.0 license",
     author="Jon Brugger",
-    url="https://github.com/brj0/pyllumina",
+    url="https://github.com/brj0/mepylome",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
