@@ -1,4 +1,4 @@
-from setuptools import Extension, setup
+from setuptools import Extension, setup, find_packages
 import glob
 import numpy as np
 import os
@@ -13,7 +13,6 @@ include_dirs = [
 
 # Get the value of the MEPYLOME_DEBUG environment variable
 debug = os.getenv("MEPYLOME_DEBUG") == "1"
-debug = False
 
 # Set the compiler flags based on the debug flag
 if debug:
@@ -53,6 +52,7 @@ setup(
     name="mepylome",
     version="0.0.0",
     description="Python package for processing Infinum DNA methylation arrays",
+    packages=find_packages(),
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[

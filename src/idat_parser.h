@@ -97,50 +97,6 @@ public:
     const std::string __str__() const;
     const std::string __repr__() const;
 
-    friend std::ostream& operator<<(std::ostream& os, const IdatParser& data);
-
-};
-
-
-class Timer
-{
-    private:
-
-        std::chrono::time_point<std::chrono::system_clock> time;
-
-    public:
-
-        Timer() { start(); }
-
-        /*
-         * @brief Start the timer.
-         *
-         * This function starts the timer and sets the initial timestamp.
-         */
-        void start()
-        {
-            time = std::chrono::high_resolution_clock::now();
-        }
-
-        /*
-         * @brief Stop the timer and log a message.
-         *
-         * This function stops the timer, updates the end timestamp, and
-         * logs a message.
-         *
-         * @param text The message to be logged.
-         */
-        void stop(const std::string& text)
-        {
-            auto end = std::chrono::high_resolution_clock::now();
-            std::cout << "Time passed: "
-                << std::chrono::duration_cast<std::chrono::milliseconds>(
-                       end - time
-                   ).count()
-                << " ms ("
-                << text
-                << ")\n";
-            this->start();
-        }
+    friend std::ostream& operator<<(std::ostream& os, const IdatParser& idata);
 
 };

@@ -93,7 +93,6 @@ def save_cnv(cnv_zip_path, cnv):
         "median",
     ]
     import zipfile
-
     dfs = [
         ("py_cnv_bins.csv", bins_df),
         ("py_cnv_detail.csv", detail_df),

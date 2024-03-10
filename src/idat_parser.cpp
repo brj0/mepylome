@@ -379,14 +379,3 @@ const std::string IdatParser::__str__() const {
 const std::string IdatParser::__repr__() const {
     return __str__();
 }
-
-int main()
-{
-    std::string idat_path = "/data/ref_IDAT/450k/3999997083_R02C02_Grn.idat";
-
-    Timer timer;
-    IdatParser idat_data(idat_path);
-    timer.stop("Time for parsing");
-
-    std::cout << idat_data << "\n";
-}
