@@ -19,13 +19,13 @@
 namespace py = pybind11;
 // namespace fs = std::filesystem;
 
-class PyIdatData : public IdatData {
+class PyIdatParser : public IdatParser {
 public:
     // Constructor explicitly calling base class constructor
     // Without this line pybind11 generates a compiler error
-    PyIdatData(const std::string& filepath) : IdatData(filepath) {}
+    PyIdatParser(const std::string& filepath) : IdatParser(filepath) {}
 
-    // PyIdatData(const fs::path& filepath) : IdatData(filepath.string()) {}
+    // PyIdatParser(const fs::path& filepath) : IdatParser(filepath.string()) {}
 
     // numpy compatible get functions for vectors
     py::array_t<int32_t> pyget_illumina_ids() const {
@@ -53,7 +53,7 @@ public:
 PYBIND11_MODULE(_mepylome, m)
 {
     m.doc() = "Parses idat files";
-    py::class_<PyIdatData>(m, "IdatData")
+    py::class_<PyIdatParser>(m, "IdatParser")
 
         .def(
             py::init< const std::string& >(),
@@ -63,37 +63,37 @@ PYBIND11_MODULE(_mepylome, m)
             // py::init<const fs::path &>(),
             // py::arg("filepath")
         // )
-        .def("__str__", &PyIdatData::__str__)
-        .def("__repr__", &PyIdatData::__repr__)
+        .def("__str__", &PyIdatParser::__str__)
+        .def("__repr__", &PyIdatParser::__repr__)
 
         // numpy arrays
-        .def_property_readonly("illumina_ids", &PyIdatData::pyget_illumina_ids)
-        .def_property_readonly("std_dev", &PyIdatData::pyget_std_dev)
-        .def_property_readonly("probe_means", &PyIdatData::pyget_probe_means)
-        .def_property_readonly("n_beads", &PyIdatData::pyget_n_beads)
-        .def_property_readonly("mid_block", &PyIdatData::pyget_mid_block)
+        .def_property_readonly("illumina_ids", &PyIdatParser::pyget_illumina_ids)
+        .def_property_readonly("std_dev", &PyIdatParser::pyget_std_dev)
+        .def_property_readonly("probe_means", &PyIdatParser::pyget_probe_means)
+        .def_property_readonly("n_beads", &PyIdatParser::pyget_n_beads)
+        .def_property_readonly("mid_block", &PyIdatParser::pyget_mid_block)
 
         // list
-        .def_property_readonly("run_info", &PyIdatData::get_run_info)
-        .def_property_readonly("offsets", &PyIdatData::get_offsets)
+        .def_property_readonly("run_info", &PyIdatParser::get_run_info)
+        .def_property_readonly("offsets", &PyIdatParser::get_offsets)
 
         // int
-        .def_property_readonly("file_size", &PyIdatData::get_file_size)
-        .def_property_readonly("num_fields", &PyIdatData::get_num_fields)
-        .def_property_readonly("n_snps_read", &PyIdatData::get_n_snps_read)
-        .def_property_readonly("red_green", &PyIdatData::get_red_green)
+        .def_property_readonly("file_size", &PyIdatParser::get_file_size)
+        .def_property_readonly("num_fields", &PyIdatParser::get_num_fields)
+        .def_property_readonly("n_snps_read", &PyIdatParser::get_n_snps_read)
+        .def_property_readonly("red_green", &PyIdatParser::get_red_green)
 
         // strings
-        .def_property_readonly("mostly_null", &PyIdatData::get_mostly_null)
-        .def_property_readonly("barcode", &PyIdatData::get_barcode)
-        .def_property_readonly("chip_type", &PyIdatData::get_chip_type)
-        .def_property_readonly("mostly_a", &PyIdatData::get_mostly_a)
-        .def_property_readonly("unknown_1", &PyIdatData::get_unknown_1)
-        .def_property_readonly("unknown_2", &PyIdatData::get_unknown_2)
-        .def_property_readonly("unknown_3", &PyIdatData::get_unknown_3)
-        .def_property_readonly("unknown_4", &PyIdatData::get_unknown_4)
-        .def_property_readonly("unknown_5", &PyIdatData::get_unknown_5)
-        .def_property_readonly("unknown_6", &PyIdatData::get_unknown_6)
-        .def_property_readonly("unknown_7", &PyIdatData::get_unknown_7)
+        .def_property_readonly("mostly_null", &PyIdatParser::get_mostly_null)
+        .def_property_readonly("barcode", &PyIdatParser::get_barcode)
+        .def_property_readonly("chip_type", &PyIdatParser::get_chip_type)
+        .def_property_readonly("mostly_a", &PyIdatParser::get_mostly_a)
+        .def_property_readonly("unknown_1", &PyIdatParser::get_unknown_1)
+        .def_property_readonly("unknown_2", &PyIdatParser::get_unknown_2)
+        .def_property_readonly("unknown_3", &PyIdatParser::get_unknown_3)
+        .def_property_readonly("unknown_4", &PyIdatParser::get_unknown_4)
+        .def_property_readonly("unknown_5", &PyIdatParser::get_unknown_5)
+        .def_property_readonly("unknown_6", &PyIdatParser::get_unknown_6)
+        .def_property_readonly("unknown_7", &PyIdatParser::get_unknown_7)
     ;
 }

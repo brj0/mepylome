@@ -1,1 +1,1 @@
-from _mepylome import IdatData
+from _mepylome import IdatParser

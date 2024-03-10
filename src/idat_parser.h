@@ -40,7 +40,7 @@ enum class IdatSectionCode : int
 };
 
 
-class IdatData
+class IdatParser
 {
 public:
     size_t file_size_;
@@ -67,7 +67,7 @@ public:
     std::string unknown_7_;
 
 
-    IdatData(const std::string& filepath);
+    IdatParser(const std::string& filepath);
 
     size_t get_file_size() const { return file_size_; }
     uint32_t get_num_fields() const { return num_fields_; }
@@ -97,7 +97,7 @@ public:
     const std::string __str__() const;
     const std::string __repr__() const;
 
-    friend std::ostream& operator<<(std::ostream& os, const IdatData& data);
+    friend std::ostream& operator<<(std::ostream& os, const IdatParser& data);
 
 };
 

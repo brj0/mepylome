@@ -123,7 +123,7 @@ std::ifstream::pos_type filesize(const std::string filename)
     return in.tellg();
 }
 
-IdatData::IdatData(const std::string& filepath)
+IdatParser::IdatParser(const std::string& filepath)
     : file_size_(static_cast<size_t>(filesize(filepath)))
 {
     // Start parsing IDAT file
@@ -307,7 +307,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
 }
 
 
-std::ostream& operator<<(std::ostream& os, const IdatData& idata)
+std::ostream& operator<<(std::ostream& os, const IdatParser& idata)
 {
     std::map<int, int> offsets_ordered;
     for (const auto& pair : idata.offsets_) {
@@ -350,9 +350,9 @@ std::ostream& operator<<(std::ostream& os, const IdatData& idata)
     return os;
 }
 
-const std::string IdatData::__str__() const {
+const std::string IdatParser::__str__() const {
     std::ostringstream os;
-    os << "IdatData(" << std::endl
+    os << "IdatParser(" << std::endl
        << "    file_size: " << file_size_ << std::endl
        << "    num_fields: " << num_fields_ << std::endl
        << "    illumina_ids: " << illumina_ids_ << std::endl
@@ -376,7 +376,7 @@ const std::string IdatData::__str__() const {
     return os.str();
 }
 
-const std::string IdatData::__repr__() const {
+const std::string IdatParser::__repr__() const {
     return __str__();
 }
 
@@ -385,7 +385,7 @@ int main()
     std::string idat_path = "/data/ref_IDAT/450k/3999997083_R02C02_Grn.idat";
 
     Timer timer;
-    IdatData idat_data(idat_path);
+    IdatParser idat_data(idat_path);
     timer.stop("Time for parsing");
 
     std::cout << idat_data << "\n";
