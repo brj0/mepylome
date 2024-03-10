@@ -57,9 +57,9 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[
-        "cbseg",
+        # "cbseg",
         "cython",
-        "ailist==1.0.4",
+        # "ailist==1.0.4",
         "numpy",
         "pandas",
         "pyranges",

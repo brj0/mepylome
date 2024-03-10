@@ -25,6 +25,8 @@ cd mepylome
 
 ```sh
 pip install .
+pip install ailist==1.0.4
+pip install cbseg
 ```
 
 ## Usage

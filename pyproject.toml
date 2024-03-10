@@ -1,7 +1,5 @@
 [build-system]
 requires = [
-    "cython",
-    "ailist==1.0.4",
     "setuptools>=42",
     "wheel",
     "numpy>=1.10.0",
