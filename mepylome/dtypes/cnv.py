@@ -1,16 +1,18 @@
 import numpy as np
 import pandas as pd
 import pyranges as pr
-from cbseg import segment
+import cbseg
+import logging
 from sklearn.linear_model import LinearRegression
 
+LOGGER = logging.getLogger(__name__)
 
 class Annotation:
     def __init__(
         self,
         manifest,
         gap=None,
-        genes=None,
+        detail=None,
         bin_size=50000,
         min_probes_per_bin=15,
         verbose=False,
@@ -19,11 +21,11 @@ class Annotation:
         self.bin_size = bin_size
         self.min_probes_per_bin = min_probes_per_bin
         self.gap = gap
-        self.genes = genes
+        self.detail = detail
         self.verbose = verbose
         self.chromsizes = pr.data.chromsizes()
         df = manifest.data_frame.copy()
-        df = df[[x.startswith("cg") for x in df.Name.values]]
+        df = df[[x.startswith("cg") for x in df.IlmnID.values]]
         df.rename(
             columns={"CHR": "Chromosome", "MAPINFO": "Start"}, inplace=True
         )
@@ -34,7 +36,7 @@ class Annotation:
         df.Chromosome = "chr" + df.Chromosome
         self.manifest = pr.PyRanges(df)
         self.manifest = self.manifest.sort()
-        self.probes = self.manifest.Name.values
+        self.probes = self.manifest.IlmnID.values
         self.bins = self.make_bins()
 
     def make_bins(self):
@@ -46,7 +48,7 @@ class Annotation:
 
     def merge_bins(self, bins):
         bins = bins.count_overlaps(
-            self.manifest[["Name"]], overlap_col="N_probes"
+            self.manifest[["IlmnID"]], overlap_col="N_probes"
         )
         bins = bins.apply(
             lambda df: self.merge_bins_in_chromosome(
@@ -131,7 +133,7 @@ class Annotation:
             f"min_probes_per_bin:\n{self.min_probes_per_bin}",
             f"bin_size:\n{self.bin_size}",
             f"gap:\n{self.gap}",
-            f"genes:\n{self.genes}",
+            f"detail:\n{self.detail}",
             f"manifest:\n{self.manifest}",
             f"chromsizes:\n{self.chromsizes}",
             f"bins:\n{self.bins}",
@@ -141,12 +143,21 @@ class Annotation:
 
 class CNV:
     def __init__(self, sample, reference, annotation=None):
+        if len(sample.probes) != 1:
+            raise ValueError("sample must contain exactly 1 probe.")
         self.sample = sample
         self.reference = reference
         self.annotation = annotation
         self.sample.intensity = self.get_itensity(self.sample)
         self.reference.intensity = self.get_itensity(self.reference)
         self.bins = annotation.bins
+        self.probes = self.annotation.manifest.IlmnID
+        self.coef = None
+        self._ratio = None
+        self.ratio = None
+        self.noise = None
+        self.detail = None
+        self.segments = None
 
     def get_itensity(self, methyl_data):
         intensity = methyl_data.methylated + methyl_data.unmethylated
@@ -164,7 +175,7 @@ class CNV:
         return intensity
 
     def fit(self):
-        probes = self.annotation.probes
+        probes = self.probes.values
         smp_intensity = self.sample.intensity.loc[probes].values.ravel()
         idx = self.sample.intensity.loc[probes].index
         ref_intensity = self.reference.intensity.loc[
@@ -174,6 +185,7 @@ class CNV:
             [np.corrcoef(smp_intensity, z)[0, 1] for z in ref_intensity.T]
         )
         if any(correlation >= 0.99):
+            # TODO exclude
             LOGGER.warning(
                 "Query sample also found in reference set. Excluded from fitting."
             )
@@ -188,13 +200,12 @@ class CNV:
         self.noise = np.sqrt(
             np.mean((self._ratio[1:] - self._ratio[:-1]) ** 2)
         )
-        self.probes = self.annotation.manifest[["Name"]]
         self.probes.ratio = self._ratio
 
-    def bin(self):
+    def set_bins(self):
         self.bins.bins_index = np.arange(len(self.bins.df))
-        overlap = self.bins.join(self.annotation.manifest[["Name"]])
-        overlap.ratio = self.ratio.loc[overlap.Name].ratio
+        overlap = self.bins.join(self.annotation.manifest[["IlmnID"]])
+        overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
         result = overlap.df.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
         )
@@ -204,29 +215,29 @@ class CNV:
         df.loc[result.index, ["Median", "Var"]] = result.values
         self.bins = pr.PyRanges(df)
 
-    def genes(self):
-        overlap = self.annotation.genes.join(
-            self.annotation.manifest[["Name"]]
+    def set_detail(self):
+        overlap = self.annotation.detail.join(
+            self.annotation.manifest[["IlmnID"]]
         )
-        overlap.ratio = self.ratio.loc[overlap.Name].ratio
-        result = overlap.df.groupby("Gene", dropna=False)["ratio"].agg(
+        overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
+        result = overlap.df.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
         )
-        df = self.annotation.genes.df.set_index("Gene")
+        df = self.annotation.detail.df.set_index("Name")
         df["Median"] = np.nan
         df["Var"] = np.nan
         df["N_probes"] = 0
         df.loc[result.index, ["Median", "Var", "N_probes"]] = result.values
         df["N_probes"] = df["N_probes"].astype(int)
         df = df.reset_index()
-        self.genes = pr.PyRanges(df)
-        self.genes = self.genes.sort()
+        self.detail = pr.PyRanges(df)
+        self.detail = self.detail.sort()
 
     @staticmethod
     def get_segments(df):
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
-        seg = segment(bin_values, shuffles=1000, p=0.001)
+        seg = cbseg.segment(bin_values, shuffles=1000, p=0.001)
         seg_df = pd.DataFrame(
             [
                 [chrom, df.Start.iloc[l.start], df.End.iloc[l.end - 1]]
@@ -237,10 +248,10 @@ class CNV:
         )
         return seg_df
 
-    def segments(self):
+    def set_segments(self):
         segments = self.bins.apply(self.get_segments)
-        overlap = segments.join(self.annotation.manifest[["Name"]])
-        overlap.ratio = self.ratio.loc[overlap.Name].ratio
+        overlap = segments.join(self.annotation.manifest[["IlmnID"]])
+        overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
         result = (
             overlap.df.groupby(["Chromosome", "Start", "End"], dropna=False)[
                 "ratio"
@@ -266,10 +277,10 @@ class CNV:
             title + "\n" + "*" * len(title),
             f"sample:\n{self.sample.probes}",
             f"reference:\n{self.reference.probes}",
-            f"annotation: {self.annotation}",
+            # f"annotation: {self.annotation}",
             f"_ratio: {self._ratio}",
             f"bins:\n{self.bins}",
-            f"genes:\n{self.genes}",
+            f"detail:\n{self.detail}",
             f"segments:\n{self.segments}",
             f"coef:\n{self.coef}",
             f"noise:\n{self.noise}",

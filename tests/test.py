@@ -61,14 +61,11 @@ print("imports done")
 
 class Timer:
     """Measures the time elapsed in milliseconds."""
-
     def __init__(self):
         self.time0 = time.time()
-
     def start(self):
         """Resets timer."""
         self.time0 = time.time()
-
     def stop(self, text=None):
         """Resets timer and return elapsed time."""
         delta_time = 1000 * (time.time() - self.time0)
@@ -78,113 +75,11 @@ class Timer:
         return delta_time
 
 
-timer = Timer()
-
-filepath = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
-filepath = "/data/epidip_IDAT/101130760092_R05C02_Red.idat"
-
-timer = Timer()
-idat_data = mepylome.IdatParser(filepath)
-timer.stop("Parsing IDAT")
-
-
-file0 = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
-file1 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R01C02_Grn.idat"
-idat_data = mepylome.IdatParser(file0)
-idat_data = mepylome.IdatParser(file1)
-
-file0 = "/data/epidip_IDAT/7970368088_R01C01_Grn.idat"
-file1 = "/data/epidip_IDAT/7970368088_R01C02_Grn.idat"
-file2 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01_Red.idat"
-file3 = "/data/ref_IDAT/cnvrefidat_450k/5775446051_R02C01"
-file4 = "/data/epidip_IDAT/206171430049_R08C01"
-file5 = "/data/epidip_IDAT/6042324058_R03C02"
-
-
-# Set the numexpr.evaluate option to True
-# pd.options.compute.use_numexpr = True
-
-# GENES = "./data/hg19_genes.tsv.gz"
-GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
-GAP_450K = pkg_resources.resource_filename("mepylome", "data/gap_450k.csv.gz")
-
-
-timer.start()
-refs_raw = RawData([file0, file1])
-timer.stop("loading rgset ref")
-
-timer.start()
-ref_methyl = MethylData(refs_raw)
-timer.stop("preproc ref")
-
-manifest = ManifestLoader.get_manifest("450k")
-# manifest = ManifestLoader.get_manifest("epic")
-# manifest = ManifestLoader.get_manifest("epicv2")
-
-
-timer.start()
-sample_raw = RawData(file5)
-timer.stop("loading rgset sample")
-
-timer.start()
-sample_methyl = MethylData(sample_raw)
-timer.stop("preproc samp")
-
-gap = pr.PyRanges(pd.read_csv(GAP_450K))
-gap.Start -= 1
-# gap.End -= 1
-
-genes_df = pd.read_csv(GENES, sep="\t").rename(
-    columns={
-        "start": "Start",
-        "end": "End",
-        "name": "Gene",
-        "strand": "Strand",
-        "seqname": "Chromosome",
-    }
-)
-genes_df["Strand"] = genes_df["Strand"].replace({-1: "-", 1: "+"})
-genes_df.Start -= 1
-genes = pr.PyRanges(genes_df)
-genes = genes[["Gene"]]
-
-timer.start()
-annotation = Annotation(manifest, gap=gap, genes=genes)
-timer.stop("anno")
-
-timer.start()
-cnv = CNV(sample_methyl, ref_methyl, annotation)
-timer.stop("cnv")
-
-timer.start()
-cnv.fit()
-timer.stop("CNV fit")
-
-timer.start()
-cnv.bin()
-timer.stop("CNV bin")
-
-timer.start()
-cnv.genes()
-timer.stop("CNV genes")
-
-timer.start()
-cnv.segments()
-timer.stop("CNV segments")
-
-self = cnv
-sample = sample_methyl
-reference = ref_methyl
-
-
-filepath = "/data/epidip_CNV_data/py_cnv.zip"
-
-
-def save_cnv(filepath, cnv):
+def save_cnv(cnv_zip_path, cnv):
     bins_df = cnv.bins.df[["Chromosome", "Start", "End", "Median"]]
     bins_df.columns = ["chrom", "start", "end", "value"]
-    detail_df = cnv.genes.df[
-        ["Chromosome", "Start", "End", "Gene", "Median", "N_probes"]
+    detail_df = cnv.detail.df[
+        ["Chromosome", "Start", "End", "Name", "Median", "N_probes"]
     ]
     detail_df.columns = ["chrom", "start", "end", "name", "value", "nprobes"]
     segments_df = cnv.segments.df[
@@ -208,3 +103,114 @@ def save_cnv(filepath, cnv):
         for filename, df in dfs:
             df.to_csv(filename, index=False)
             zf.write(filename)
+
+timer = Timer()
+
+
+ref_dir = "/data/ref_IDAT/cnvrefidat_450k"
+smp0 = "/data/epidip_IDAT/6042324058_R03C02_Grn.idat"
+smp1 = "/data/epidip_IDAT/6042324058_R04C01_Red.idat"
+smp2 = "/data/epidip_IDAT/6042324058_R04C02_Red.idat"
+smp3 = "/data/epidip_IDAT/6042324058_R05C01_Grn.idat"
+smp4 = "/data/epidip_IDAT/6042324058_R05C02_Grn.idat"
+smp5 = "/data/epidip_IDAT/6042324058_R06C01_Red.idat"
+smp6 = "/data/epidip_IDAT/6042324058_R06C02_Grn.idat"
+smp7 = "/data/epidip_IDAT/7970368088_R01C01_Grn.idat"
+smp8 = "/data/epidip_IDAT/7970368088_R01C02_Grn.idat"
+ref0 = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
+ref1 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01_Red.idat"
+ref2 = "/data/ref_IDAT/cnvrefidat_450k/5775446051_R02C01"
+ref3 = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
+ref4 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R01C02_Grn.idat"
+
+
+timer = Timer()
+idat_data = mepylome.IdatParser(smp1)
+timer.stop("Parsing IDAT")
+
+
+GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
+GAP_450K = pkg_resources.resource_filename("mepylome", "data/gap_450k.csv.gz")
+
+timer.start()
+# refs_raw = RawData(ref_dir)
+refs_raw = RawData([ref0, ref1])
+timer.stop("loading rgset ref")
+
+timer.start()
+ref_methyl = MethylData(refs_raw)
+timer.stop("preproc ref")
+
+manifest = ManifestLoader.get_manifest("450k")
+# manifest = ManifestLoader.get_manifest("epic")
+# manifest = ManifestLoader.get_manifest("epicv2")
+
+
+timer.start()
+sample_raw = RawData(smp0)
+timer.stop("loading rgset sample")
+
+timer.start()
+smp2_methyl = MethylData(RawData([smp0, smp1, smp2]))
+timer.stop("loading rgset sample")
+
+timer.start()
+sample_methyl = MethylData(sample_raw)
+timer.stop("preproc samp")
+
+gap = pr.PyRanges(pd.read_csv(GAP_450K))
+gap.Start -= 1
+# gap.End -= 1
+
+genes_df = pd.read_csv(GENES, sep="\t").rename(
+    columns={
+        "start": "Start",
+        "end": "End",
+        "name": "Name",
+        "strand": "Strand",
+        "seqname": "Chromosome",
+    }
+)
+genes_df["Strand"] = genes_df["Strand"].replace({-1: "-", 1: "+"})
+genes_df.Start -= 1
+genes = pr.PyRanges(genes_df)
+genes = genes[["Name"]]
+
+timer.start()
+annotation = Annotation(manifest, gap=gap, detail=genes)
+timer.stop("anno")
+
+timer.start()
+cnv = CNV(sample_methyl, ref_methyl, annotation)
+timer.stop("cnv")
+
+timer.start()
+cnv.fit()
+timer.stop("CNV fit")
+
+timer.start()
+cnv.set_bins()
+timer.stop("CNV set_bins")
+
+timer.start()
+cnv.set_detail()
+timer.stop("CNV set_detail")
+
+timer.start()
+cnv.set_segments()
+timer.stop("CNV segments")
+
+self = cnv
+sample = sample_methyl
+reference = ref_methyl
+
+
+quit()
+
+cnv_zip_path = "/data/epidip_CNV_data/py_cnv.zip"
+# save_cnv(cnv_zip_path, cnv)
+
+
+
+cnv = CNV(smp2_methyl, ref_methyl, annotation)
+

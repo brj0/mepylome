@@ -1,4 +1,4 @@
-<picture align="center">
+<picture>
   <img alt="Mepylome Logo" src="/mepylome/data/mepylome.svg" width="300">
 </picture>
 
@@ -6,7 +6,8 @@
 
 # mepylome: methylation array analysis toolkit
 
-Mepylome is a python implementation for parsing and processing methylation array IDAT files.
+Mepylome is a python implementation for parsing, processing and analyzing methylation array IDAT files.
+
 **under construction**
 
 ## Installation

@@ -1,4 +1,5 @@
 from functools import reduce
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -12,12 +13,18 @@ ENDING_GRN = "_Grn.idat"
 
 # TODO probes start at 1 pyranges at 0
 
+LOGGER = logging.getLogger(__name__)
 
 class RawData:
     def __init__(self, basenames):
-        # TODO if basenames is dir take all files in it
-        # Clean up basenames
-        _basenames = basenames if isinstance(basenames, list) else [basenames]
+        # If basenames is dir take all files in it
+        if isinstance(basenames, list):
+            _basenames = basenames
+        elif Path(basenames).is_dir():
+            _basenames = list(Path(basenames).iterdir())
+        else:
+            _basenames = [basenames]
+        # Remove file endings
         _basenames = [
             Path(
                 str(name).replace(ENDING_RED, "").replace(ENDING_GRN, "")
@@ -170,8 +177,8 @@ class MethylData:
         type_i_grn = type_i[type_i.Color_Channel.values == Channel.GREEN.value]
         locus_names = np.concatenate(
             [
-                type_i.Name.index,
-                type_ii.Name.index,
+                type_i.IlmnID.index,
+                type_ii.IlmnID.index,
             ]
         )
         self.preprocess_raw_methylated(
@@ -193,8 +200,8 @@ class MethylData:
         df.loc[i_red.index] = red.loc[i_red["AddressB_ID"].values].values
         df.loc[i_grn.index] = grn.loc[i_grn["AddressB_ID"].values].values
         df.loc[ii.index] = grn.loc[ii["AddressA_ID"].values].values
-        df["Name"] = self.manifest.data_frame.Name.values[locus_names]
-        self.methylated = df.set_index("Name")
+        df["IlmnID"] = self.manifest.data_frame.IlmnID.values[locus_names]
+        self.methylated = df.set_index("IlmnID")
 
     def preprocess_raw_unmethylated(self, locus_names, i_grn, i_red, ii):
         red = self.red
@@ -208,8 +215,8 @@ class MethylData:
         df.loc[i_red.index] = red.loc[i_red["AddressA_ID"].values].values
         df.loc[i_grn.index] = grn.loc[i_grn["AddressA_ID"].values].values
         df.loc[ii.index] = red.loc[ii["AddressA_ID"].values].values
-        df["Name"] = self.manifest.data_frame.Name.values[locus_names]
-        self.unmethylated = df.set_index("Name")
+        df["IlmnID"] = self.manifest.data_frame.IlmnID.values[locus_names]
+        self.unmethylated = df.set_index("IlmnID")
 
     @property
     def beta(self):

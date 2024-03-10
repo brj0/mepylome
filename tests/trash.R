@@ -2,28 +2,37 @@ library(illuminaio)
 library(minfi)
 library(conumee2.0)
 
-file0 <- "/data/epidip_IDAT/7970368088_R01C01_Grn.idat"
-file1 <- "/data/epidip_IDAT/7970368088_R01C02_Grn.idat"
-file2 <- "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01_Red.idat"
-file3 <- "/data/ref_IDAT/cnvrefidat_450k/5775446051_R02C01"
-file4 <- "/data/epidip_IDAT/206171430049_R08C01"
-file5 <- "/data/epidip_IDAT/6042324058_R03C02"
+ref_dir = "/data/ref_IDAT/cnvrefidat_450k"
+smp0 = "/data/epidip_IDAT/6042324058_R03C02_Grn.idat"
+smp1 = "/data/epidip_IDAT/6042324058_R04C01_Red.idat"
+smp2 = "/data/epidip_IDAT/6042324058_R04C02_Red.idat"
+smp3 = "/data/epidip_IDAT/6042324058_R05C01_Grn.idat"
+smp4 = "/data/epidip_IDAT/6042324058_R05C02_Grn.idat"
+smp5 = "/data/epidip_IDAT/6042324058_R06C01_Red.idat"
+smp6 = "/data/epidip_IDAT/6042324058_R06C02_Grn.idat"
+smp7 = "/data/epidip_IDAT/7970368088_R01C01_Grn.idat"
+smp8 = "/data/epidip_IDAT/7970368088_R01C02_Grn.idat"
+ref0 = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
+ref1 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01_Red.idat"
+ref2 = "/data/ref_IDAT/cnvrefidat_450k/5775446051_R02C01"
+ref3 = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
+ref4 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R01C02_Grn.idat"
 
 
-# file1 <- path.expand("/data/epidip_IDAT/101130760092_R05C02_Red.idat")
 
-idat <- readIDAT(file0)
+
+idat <- readIDAT(smp0)
 
 
 timing <- system.time({
-    idat <- readIDAT(file0)
+    idat <- readIDAT(smp0)
 })
 cat("Elapsed time:", timing[["elapsed"]], "seconds\n")
 
 
 
-# rgSet <- read.metharray(file0, force = TRUE)
-rgSet <- read.metharray(c(file0,file1), force = TRUE)
+# rgSet <- read.metharray(ref0, force = TRUE)
+rgSet <- read.metharray(c(ref0,ref1), force = TRUE)
 mset <- preprocessIllumina(rgSet)
 
 
@@ -41,8 +50,9 @@ anno <- CNV.create_anno(array_type = "450k", chrXY = TRUE,
 
 ref <- CNV.load(mset)
 
-smp_rgSet <- read.metharray(file5)
-sample_mset <- preprocessIllumina(read.metharray(file5))
+# smp_rgSet <- read.metharray(c(smp0,smp1))
+smp_rgSet <- read.metharray(smp0)
+sample_mset <- preprocessIllumina(smp_rgSet)
 
 
 

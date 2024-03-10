@@ -24,9 +24,9 @@
      inkscape:document-units="mm"
      showgrid="false"
      units="mm"
-     inkscape:zoom="0.3535534"
-     inkscape:cx="625.08238"
-     inkscape:cy="124.45079"
+     inkscape:zoom="1"
+     inkscape:cx="278.99999"
+     inkscape:cy="96.999997"
      inkscape:window-width="1920"
      inkscape:window-height="1024"
      inkscape:window-x="0"
@@ -130,7 +130,7 @@
        cy="34"
        r="4" />
     <circle
-       style="fill:#4d4d4d"
+       style="fill:#ffff00;fill-opacity:1"
        id="path103-3-9"
        cx="24"
        cy="34"
@@ -172,7 +172,7 @@
        cy="44"
        r="4" />
     <circle
-       style="fill:#00d400"
+       style="fill:#ffff00;fill-opacity:1"
        id="path103-3-6-9-1"
        cx="54"
        cy="44"
@@ -208,7 +208,7 @@
        cy="54"
        r="4" />
     <circle
-       style="fill:#ffff00"
+       style="fill:#00d400;fill-opacity:1"
        id="path103-3-6-2"
        cx="54"
        cy="54"
@@ -256,7 +256,7 @@
        cy="64"
        r="4" />
     <circle
-       style="fill:#ffff00"
+       style="fill:#4d4d4d;fill-opacity:1"
        id="path103-3-5-2-73"
        cx="44.000004"
        cy="64"
@@ -274,6 +274,6 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:333.333px;line-height:1.25;font-family:Cabin;-inkscape-font-specification:Cabin;white-space:pre;shape-inside:url(#rect6930);fill:#ff0000;fill-opacity:1;stroke:none"><tspan
          x="261.41797"
          y="309.68213"
-         id="tspan903">mepylome</tspan></text>
+         id="tspan26791">mepylome</tspan></text>
   </g>
 </svg>
