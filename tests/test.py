@@ -161,16 +161,7 @@ gap = pr.PyRanges(pd.read_csv(GAP_450K))
 gap.Start -= 1
 # gap.End -= 1
 
-genes_df = pd.read_csv(GENES, sep="\t").rename(
-    columns={
-        "start": "Start",
-        "end": "End",
-        "name": "Name",
-        "strand": "Strand",
-        "seqname": "Chromosome",
-    }
-)
-genes_df["Strand"] = genes_df["Strand"].replace({-1: "-", 1: "+"})
+genes_df = pd.read_csv(GENES, sep="\t")
 genes_df.Start -= 1
 genes = pr.PyRanges(genes_df)
 genes = genes[["Name"]]
@@ -210,6 +201,4 @@ cnv_zip_path = "/data/epidip_CNV_data/py_cnv.zip"
 # save_cnv(cnv_zip_path, cnv)
 
 
-
-cnv = CNV(smp2_methyl, ref_methyl, annotation)
 

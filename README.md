@@ -26,3 +26,7 @@ cd mepylome
 ```sh
 pip install .
 ```
+
+## Usage
+
+See 'tests/basic_usage.py' for a detailed basic example.
