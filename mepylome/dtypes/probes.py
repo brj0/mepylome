@@ -1,15 +1,15 @@
 # Lib
-from enum import Enum, unique
+from enum import IntEnum, Enum, unique
 
 
 @unique
-class Channel(Enum):
+class Channel(IntEnum):
     """idat probes measure either a red or green fluorescence.  This specifies
     which to return within idat.py: red_idat or green_idat.
     """
 
-    RED = "Red"
-    GREEN = "Grn"
+    GREEN = 0
+    RED = 1
 
     def __str__(self):
         return self.value
@@ -48,7 +48,7 @@ class ProbeAddress(Enum):
 
 
 @unique
-class ProbeType(Enum):
+class ProbeType(IntEnum):
     """probes can either be type I or type II for CpG or Snp sequences.
     Control probes are used for background correction in different fluorescence
     ranges and staining efficiency.  Type I probes record EITHER a red or a
@@ -57,11 +57,11 @@ class ProbeType(Enum):
     fluorescence.
     """
 
-    ONE = "I"
-    TWO = "II"
-    SNP_ONE = "SnpI"
-    SNP_TWO = "SnpII"
-    CONTROL = "Control"
+    ONE = 1
+    TWO = 2
+    SNP_ONE = 3
+    SNP_TWO = 4
+    CONTROL = 5
     # I was separating out mouse probes EARLY, here, but found they need to be
     # processed like all other probes, THEN removed in post-processing stage.
     # MOUSE_ONE = 'MouseI'

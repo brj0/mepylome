@@ -5,7 +5,6 @@ from urllib.request import urlopen
 import gzip
 import logging
 import shutil
-import ssl
 import zipfile
 
 
@@ -20,8 +19,8 @@ __all__ = [
 ]
 
 
-LOGGER = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+# logging.basicConfig(level=logging.INFO)
 
 
 def read_and_reset(inner):
@@ -75,7 +74,8 @@ def ensure_directory_exists(path_like):
 
 
 def download_file(filename, src_url, dest_dir, overwrite=False):
-    """download_file now defaults to non-SSL if SSL fails, with warning to user.
+    """download_file now defaults to non-SSL if SSL fails, with warning to
+    user.
     MacOS doesn't have ceritifi installed by default."""
     dir_path = make_path_like(dest_dir)
     dest_path = dir_path.joinpath(filename)
@@ -83,12 +83,12 @@ def download_file(filename, src_url, dest_dir, overwrite=False):
         ensure_directory_exists(dest_dir)
     elif not overwrite:
         # check if file already exists, and return if it is there.
-        LOGGER.info(
+        logger.info(
             f"File exists: {dest_path}. Set overwrite=True to overwrite the file."
         )
         return
     try:
-        LOGGER.info(
+        logger.info(
             f"Downloading manifest from {src_url} to {dest_dir}. "
             "Can take several minutes..."
         )
@@ -96,8 +96,8 @@ def download_file(filename, src_url, dest_dir, overwrite=False):
             with open(dest_path, "wb") as out_file:
                 shutil.copyfileobj(response, out_file)
     except URLError as e:
-        LOGGER.error(e)
-        LOGGER.info(
+        logger.error(e)
+        logger.info(
             f"Downloading manifest from {src_url} failed. Please correct "
             "url in source code"
         )
@@ -105,8 +105,8 @@ def download_file(filename, src_url, dest_dir, overwrite=False):
 
 
 def is_file_like(obj):
-    """Check if the object is a file-like object.
-    For objects to be considered file-like, they must be an iterator AND have either a
+    """Check if the object is a file-like object.  For objects to be considered
+    file-like, they must be an iterator AND have either a
     `read` and/or `write` method as an attribute.
     Note: file-like objects must be iterable, but iterable objects need not be file-like.
 
@@ -154,7 +154,7 @@ def get_file_from_archive(file_or_archive, filename):
         file_or_archive = Path(file_or_archive)
     if file_or_archive.suffix == ".csv":
         return open(file_or_archive, "rb")
-    elif file_or_archive.suffix == ".zip":
+    if file_or_archive.suffix == ".zip":
         with zipfile.ZipFile(file_or_archive, "r") as archive:
             file_list = archive.namelist()
             file_match = next(
@@ -162,10 +162,9 @@ def get_file_from_archive(file_or_archive, filename):
             )
             if file_match:
                 return archive.open(file_match, "r")
-            else:
-                raise ValueError(
-                    f"File '{filename}' not found in the ZIP archive."
-                )
+            raise ValueError(
+                f"File '{filename}' not found in the ZIP archive."
+            )
     else:
         raise ValueError(
             "Unsupported file type. Only '.csv' and '.zip' are supported."
@@ -178,3 +177,6 @@ def reset_file(filepath_or_buffer):
         return
 
     filepath_or_buffer.seek(0)
+
+def idat_pair_basepaths(dir_):
+    pass

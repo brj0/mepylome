@@ -3,6 +3,7 @@
 # from .data_frames import __all__ as data_frame_utils
 from .files import *  # NOQA
 from .files import __all__ as file_utils
+from .varia import *
 # from .parsing import *  # NOQA
 # from .parsing import __all__ as parsing_utils
 

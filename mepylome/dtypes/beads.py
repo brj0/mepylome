@@ -7,6 +7,7 @@ import pandas as pd
 
 from mepylome import IdatParser
 from mepylome.dtypes import ArrayType, Channel, ManifestLoader, ProbeType
+from mepylome.utils import Timer
 
 ENDING_RED = "_Red.idat"
 ENDING_GRN = "_Grn.idat"
@@ -14,6 +15,10 @@ ENDING_GRN = "_Grn.idat"
 # TODO probes start at 1 pyranges at 0
 
 LOGGER = logging.getLogger(__name__)
+
+beads_timer = Timer()
+cache = {}
+
 
 class RawData:
     def __init__(self, basenames):
@@ -66,33 +71,54 @@ class RawData:
 
         self.array_type = array_types[0]
 
-        self.ids = reduce(
-            np.intersect1d, [idat.illumina_ids for idat in grn_idat]
-        )
+        all_illumina_ids = [idat.illumina_ids for idat in grn_idat + red_idat]
 
-        self._grn = np.array(
-            [
-                idat.probe_means[np.isin(idat.illumina_ids, self.ids)]
-                for idat in grn_idat
-            ]
-        )
-
-        self._red = np.array(
-            [
-                idat.probe_means[np.isin(idat.illumina_ids, self.ids)]
-                for idat in red_idat
-            ]
-        )
+        if all([np.array_equal(all_illumina_ids[0], arr) for arr in all_illumina_ids]):
+            self.ids = all_illumina_ids[0]
+            self._grn = np.array([idat.probe_means for idat in grn_idat])
+            self._red = np.array([idat.probe_means for idat in red_idat])
+        else:
+            self.ids = reduce(
+                np.intersect1d, [idat.illumina_ids for idat in grn_idat]
+            )
+            self._grn = np.array(
+                [
+                    idat.probe_means[
+                        np.isin(idat.illumina_ids, self.ids, assume_unique=True)
+                    ]
+                    for idat in grn_idat
+                ]
+            )
+            self._red = np.array(
+                [
+                    idat.probe_means[
+                        np.isin(idat.illumina_ids, self.ids, assume_unique=True)
+                    ]
+                    for idat in red_idat
+                ]
+            )
         self.manifest = ManifestLoader.get_manifest(self.array_type)
 
-        self.grn = pd.DataFrame(
-            self._grn.T, index=self.ids, columns=self.probes, dtype="int32"
-        )
-        self.red = pd.DataFrame(
-            self._red.T, index=self.ids, columns=self.probes, dtype="int32"
-        )
+        self._grn_df = None
+        self._red_df = None
         self.methylated = None
         self.unmethylated = None
+
+    @property
+    def grn(self):
+        if self._grn_df is None:
+            self._grn_df = pd.DataFrame(
+                self._grn.T, index=self.ids, columns=self.probes, dtype="int32"
+            )
+        return self._grn_df
+
+    @property
+    def red(self):
+        if self._red_df is None:
+            self._red_df = pd.DataFrame(
+                self._red.T, index=self.ids, columns=self.probes, dtype="int32"
+            )
+        return self._red_df
 
     def __repr__(self):
         title = f"RawData():"
@@ -110,35 +136,88 @@ class RawData:
         return "\n\n".join(lines)
 
 
+def _overlap_indices(left_arr, right_arr):
+    # Not perfect, but fast hash value
+    N = len(left_arr)
+    idx = [0, -1, N // 2, N // 3, -N // 4, -N // 5, N // 6, N // 7, -N // 8]
+    key = (
+        tuple(left_arr[idx]),
+        tuple(right_arr[idx]),
+        len(left_arr),
+        len(right_arr),
+    )
+    if key in cache:
+        return cache[key]
+    if not isinstance(left_arr, pd.Index):
+        left_arr = pd.Index(left_arr)
+    if not isinstance(right_arr, pd.Index):
+        right_arr = pd.Index(right_arr)
+    common_indices = left_arr.intersection(right_arr)
+    left_index = left_arr.get_indexer(common_indices)
+    right_index = right_arr.get_indexer(common_indices)
+    cache[key] = left_index, right_index
+    return left_index, right_index
+
+
 class MethylData:
-    def __init__(self, raw_data, prep="illumina"):
+    def __init__(self, data=None, file=None, prep="illumina"):
+        if data is None and file is None:
+            raise ValueError("'data' or 'file' must be given.")
+        if data is None:
+            data = RawData(file)
         # TODO remove _grn and _red
-        self._grn = raw_data._grn
-        self._red = raw_data._red
-        self.array_type = raw_data.array_type
-        self.ids = raw_data.ids
-        self.manifest = raw_data.manifest
-        self.probes = raw_data.probes
-        self.raw_data = raw_data
+        self._grn = data._grn
+        self._red = data._red
+        self.array_type = data.array_type
+        self.ids = data.ids
+        self.manifest = data.manifest
+        self.probes = data.probes
+        self.data = data
+        self._grn_df = None
+        self._red_df = None
         if prep == "illumina":
             self.preprocess_illumina()
         else:
-            self.preprocess_raw()
+            self.preprocess_raw_cached()
+
+    @property
+    def grn(self):
+        if self._grn_df is None:
+            self._grn_df = pd.DataFrame(
+                self._grn.T,
+                index=self.ids,
+                columns=self.probes,
+                dtype="float32",
+            )
+        return self._grn_df
+
+    @property
+    def red(self):
+        if self._red_df is None:
+            self._red_df = pd.DataFrame(
+                self._red.T,
+                index=self.ids,
+                columns=self.probes,
+                dtype="float32",
+            )
+        return self._red_df
 
     def preprocess_illumina(self):
         self.illumina_control_normalization()
         self.illumina_bg_correction()
-        self.preprocess_raw()
+        self.preprocess_raw_cached()
 
     def illumina_control_normalization(self, reference=0):
         at_controls = self.manifest.control_address(["NORM_A", "NORM_T"])
         cg_controls = self.manifest.control_address(["NORM_C", "NORM_G"])
 
         grn_average = np.mean(
-            self._grn[:, np.isin(self.ids, cg_controls)], axis=1
+            self._grn[:, np.isin(self.ids, cg_controls, assume_unique=True)],
+            axis=1,
         )
         red_average = np.mean(
-            self._red[:, np.isin(self.ids, at_controls)], axis=1
+            self._red[:, np.isin(self.ids, at_controls, assume_unique=True)],
+            axis=1,
         )
 
         ref = (grn_average + red_average)[reference] / 2
@@ -148,79 +227,162 @@ class MethylData:
         self._grn = grn_factor[:, np.newaxis] * self._grn
         self._red = red_factor[:, np.newaxis] * self._red
 
-        self.grn = pd.DataFrame(
-            self._grn.T, index=self.ids, columns=self.probes, dtype="float32"
-        )
-        self.red = pd.DataFrame(
-            self._red.T, index=self.ids, columns=self.probes, dtype="float32"
-        )
-
     def illumina_bg_correction(self):
         neg_controls = self.manifest.control_address("NEGATIVE")
 
-        grn_bg = np.sort(self._grn[:, np.isin(self.ids, neg_controls)])[:, 30]
-        red_bg = np.sort(self._red[:, np.isin(self.ids, neg_controls)])[:, 30]
+        grn_bg = np.sort(
+            self._grn[:, np.isin(self.ids, neg_controls, assume_unique=True)]
+        )[:, 30]
+        red_bg = np.sort(
+            self._red[:, np.isin(self.ids, neg_controls, assume_unique=True)]
+        )[:, 30]
 
         self._grn = np.maximum(self._grn - grn_bg[:, np.newaxis], 0)
         self._red = np.maximum(self._red - red_bg[:, np.newaxis], 0)
-        self.grn = pd.DataFrame(
-            self._grn.T, index=self.ids, columns=self.probes, dtype="float32"
-        )
-        self.red = pd.DataFrame(
-            self._red.T, index=self.ids, columns=self.probes, dtype="float32"
-        )
 
     def preprocess_raw(self):
-        type_i = self.manifest.probe_info(ProbeType("I"))
-        type_ii = self.manifest.probe_info(ProbeType("II"))
+        type_i = self.manifest.probe_info(ProbeType.ONE)
+        type_ii = self.manifest.probe_info(ProbeType.TWO)
         type_i_red = type_i[type_i.Color_Channel.values == Channel.RED.value]
         type_i_grn = type_i[type_i.Color_Channel.values == Channel.GREEN.value]
-        locus_names = np.concatenate(
-            [
-                type_i.IlmnID.index,
-                type_ii.IlmnID.index,
-            ]
+        locus_idx = np.sort(
+            np.concatenate(
+                [
+                    type_i.IlmnID.index,
+                    type_ii.IlmnID.index,
+                ]
+            )
         )
         self.preprocess_raw_methylated(
-            locus_names, type_i_grn, type_i_red, type_ii
+            locus_idx, type_i_grn, type_i_red, type_ii
         )
         self.preprocess_raw_unmethylated(
-            locus_names, type_i_grn, type_i_red, type_ii
+            locus_idx, type_i_grn, type_i_red, type_ii
         )
 
-    def preprocess_raw_methylated(self, locus_names, i_grn, i_red, ii):
+    def preprocess_raw_methylated(self, locus_idx, i_grn, i_red, ii):
         red = self.red
         grn = self.grn
         df = pd.DataFrame(
             np.nan,
-            index=locus_names,
+            index=locus_idx,
             columns=red.columns,
             dtype="float32",
         )
         df.loc[i_red.index] = red.loc[i_red["AddressB_ID"].values].values
         df.loc[i_grn.index] = grn.loc[i_grn["AddressB_ID"].values].values
         df.loc[ii.index] = grn.loc[ii["AddressA_ID"].values].values
-        df["IlmnID"] = self.manifest.data_frame.IlmnID.values[locus_names]
+        df["IlmnID"] = self.manifest.data_frame.IlmnID.values[locus_idx]
         self.methylated = df.set_index("IlmnID")
 
-    def preprocess_raw_unmethylated(self, locus_names, i_grn, i_red, ii):
+    def preprocess_raw_unmethylated(self, locus_idx, i_grn, i_red, ii):
         red = self.red
         grn = self.grn
         df = pd.DataFrame(
             np.nan,
-            index=locus_names,
+            index=locus_idx,
             columns=red.columns,
             dtype="float32",
         )
         df.loc[i_red.index] = red.loc[i_red["AddressA_ID"].values].values
         df.loc[i_grn.index] = grn.loc[i_grn["AddressA_ID"].values].values
         df.loc[ii.index] = red.loc[ii["AddressA_ID"].values].values
-        df["IlmnID"] = self.manifest.data_frame.IlmnID.values[locus_names]
+        df["IlmnID"] = self.manifest.data_frame.IlmnID.values[locus_idx]
         self.unmethylated = df.set_index("IlmnID")
+
+    def preprocess_raw_cached(self):
+        key = (self.manifest.array_type, self.ids.tobytes())
+        if key in cache:
+            (
+                lnm_idx,
+                ids__i_red_a,
+                ids__i_red_b,
+                ids__i_grn_a,
+                ids__i_grn_b,
+                ids_ii_____a,
+                lnm__i_red__,
+                lnm__i_grn__,
+                lnm_ii______,
+            ) = cache[key]
+        else:
+            type_i = self.manifest.probe_info(ProbeType.ONE)
+            type_ii = self.manifest.probe_info(ProbeType.TWO)
+            type_i_red = type_i[
+                type_i.Color_Channel.values == Channel.RED.value
+            ]
+            type_i_grn = type_i[
+                type_i.Color_Channel.values == Channel.GREEN.value
+            ]
+            locus_idx = np.sort(
+                np.concatenate(
+                    [
+                        type_i.IlmnID.index,
+                        type_ii.IlmnID.index,
+                    ]
+                )
+            )
+            ids_idx = pd.Index(self.ids)
+            lnm_idx = pd.Index(locus_idx)
+            ids__i_red_a = ids_idx.get_indexer(type_i_red["AddressA_ID"])
+            ids__i_red_b = ids_idx.get_indexer(type_i_red["AddressB_ID"])
+            ids__i_grn_a = ids_idx.get_indexer(type_i_grn["AddressA_ID"])
+            ids__i_grn_b = ids_idx.get_indexer(type_i_grn["AddressB_ID"])
+            ids_ii_____a = ids_idx.get_indexer(type_ii["AddressA_ID"])
+            lnm__i_red__ = lnm_idx.get_indexer(type_i_red.index)
+            lnm__i_grn__ = lnm_idx.get_indexer(type_i_grn.index)
+            lnm_ii______ = lnm_idx.get_indexer(type_ii.index)
+            cache[key] = (
+                lnm_idx,
+                ids__i_red_a,
+                ids__i_red_b,
+                ids__i_grn_a,
+                ids__i_grn_b,
+                ids_ii_____a,
+                lnm__i_red__,
+                lnm__i_grn__,
+                lnm_ii______,
+            )
+        self.methyl = np.full((len(self.probes), len(lnm_idx)), np.nan)
+        self.methyl[:, lnm__i_red__] = self._red[:, ids__i_red_b]
+        self.methyl[:, lnm__i_grn__] = self._grn[:, ids__i_grn_b]
+        self.methyl[:, lnm_ii______] = self._grn[:, ids_ii_____a]
+        self.unmethyl = np.full((len(self.probes), len(lnm_idx)), np.nan)
+        self.unmethyl[:, lnm__i_red__] = self._red[:, ids__i_red_a]
+        self.unmethyl[:, lnm__i_grn__] = self._grn[:, ids__i_grn_a]
+        self.unmethyl[:, lnm_ii______] = self._red[:, ids_ii_____a]
+        self.methyl_index = lnm_idx
+        self.methyl_ilmnid = self.manifest.data_frame.IlmnID.values[lnm_idx]
+        self.methylated = pd.DataFrame(
+            self.methyl.T,
+            index=self.methyl_ilmnid,
+            columns=self.probes,
+            dtype="float32",
+        )
+        self.methylated.index.name = "IlmnID"
+        self.unmethylated = pd.DataFrame(
+            self.unmethyl.T,
+            index=self.methyl_ilmnid,
+            columns=self.probes,
+            dtype="float32",
+        )
+        self.unmethylated.index.name = "IlmnID"
 
     @property
     def beta(self):
-        return self.get_beta(self.methylated, self.unmethylated)
+        beta = self.get_beta(self.methyl, self.unmethyl)
+        return pd.DataFrame(
+            beta.T, columns=self.probes, index=self.methyl_ilmnid
+        )
+
+    def converted_beta(self, cpgs=None, fill=0.49):
+        if cpgs is None:
+            cpgs = self.manifest.methylation_probes
+        beta = self.get_beta(self.methyl, self.unmethyl)
+        converted = np.full((len(self.probes), len(cpgs)), fill)
+        left_idx, right_idx = _overlap_indices(cpgs, self.methyl_ilmnid)
+        converted[:, left_idx] = beta[:, right_idx]
+        converted[np.isnan(converted)] = fill
+        return pd.DataFrame(converted.T, columns=self.probes, index=cpgs)
 
     @staticmethod
     def get_beta(
@@ -234,8 +396,9 @@ class MethylData:
         if min_zero:
             methylated = np.maximum(methylated, 0)
             unmethylated = np.maximum(unmethylated, 0)
-
-        beta = methylated / (methylated + unmethylated + offset)
+        # Ignore division by zero
+        with np.errstate(divide="ignore", invalid="ignore"):
+            beta = methylated / (methylated + unmethylated + offset)
 
         if beta_threshold > 0:
             beta = np.minimum(

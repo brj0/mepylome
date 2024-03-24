@@ -62,12 +62,6 @@ epicv2 = Manifest("epicv2")
 
 
 
-# filepath=downloaded_filepath
-# manifest_name=manifest_name
-# dest_probes=manifest_filepath
-# dest_control=control_filepath
-
-
 array_type = ArrayType("450k")
 p0, c0 = download_and_process_manifest(array_type)
 
@@ -237,3 +231,107 @@ def numba_merge_bins(matrix, min_probes_per_bin, verbose=False):
 #     min_probes_per_bin,
 #     verbose=True,
 # )
+
+
+
+
+
+
+#
+
+self = sample_methyl
+fill = 0.49
+cpgs = cpg_index_450k
+
+if cpgs is None:
+    cpgs = self.manifest.methylation_probes
+
+timer.start()
+beta = self.get_beta(self.methylated, self.unmethylated)
+timer.stop("1")
+converted = pd.DataFrame(fill, columns=beta.columns, index=cpgs)
+timer.stop("2")
+common_indices = converted.index.intersection(beta.index)
+converted.loc[common_indices] = beta.loc[common_indices].values
+timer.stop("3")
+
+
+
+timer.stop("1")
+timer.stop("2")
+
+np.intersect1d(converted.index.values, beta.index.values)
+
+converted_index = np.array([probe_to_index[p] for p in converted.index])
+beta_index = np.array([probe_to_index[p] for p in beta.index])
+
+timer.start()
+common_indices, converted_positions, beta_positions = np.intersect1d(
+    converted_index, beta_index, return_indices=True
+)
+converted.iloc[converted_positions] = beta.iloc[beta_positions].values
+timer.stop("inter")
+
+
+import functools
+
+np.all(left_arr == converted.index)
+
+left_arr = converted.index
+right_arr = beta.index
+
+
+def overlap_indices(left_arr, right_arr):
+    key = (left_arr.values[:5].tostring(), right_arr.values[:5].tostring())
+    if key in cache:
+        print("CACHE")
+        return cache[key]
+    common_indices = left_arr.intersection(right_arr)
+    left_index = left_arr.get_indexer(common_indices)
+    right_index = right_arr.get_indexer(common_indices)
+    cache[key] = left_index, right_index
+    return left_index, right_index
+
+
+
+
+def overlap_indices(left_arr, right_arr):
+    left_arr_tuple = tuple(left_arr)
+    right_arr_tuple = tuple(right_arr)
+    return hashable_overlap_indices(left_arr_tuple, right_arr_tuple)
+
+
+@functools.lru_cache(maxsize=None)
+def hashable_overlap_indices(left_arr_tuple, right_arr_tuple):
+    left_arr = pd.Index(left_arr_tuple)
+    right_arr = pd.Index(right_arr_tuple)
+    common_indices = left_arr.intersection(right_arr)
+    left_index = left_arr.get_indexer(common_indices)
+    right_index = right_arr.get_indexer(common_indices)
+    return left_index, right_index
+
+
+left_idx, right_idx = _overlap_indices(converted.index, beta.index)
+
+timer.start()
+left_idx, right_idx = overlap_indices(converted.index, beta.index)
+timer.stop("inter")
+
+timer.start()
+# x=converted.index.values.tobytes()
+# x=tuple(converted.index)
+# x = str(converted.index.values)
+# x = converted.index.values.tostring()
+x = "".join(converted.index)
+# x = converted.index.values
+timer.stop("inter")
+
+np.intersect1d(left_cpgs, right_cpgs, assume_unique=True)
+
+timer.start()
+set1 = set(left_cpgs)
+set2 = set(right_cpgs)
+overlap = set1.intersection(set2)
+indices_arr1 = [i for i, x in enumerate(left_cpgs) if x in overlap]
+indices_arr2 = [i for i, x in enumerate(right_cpgs) if x in overlap]
+timer.stop("inter")

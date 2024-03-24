@@ -93,3 +93,9 @@ for (what in WHAT) {
 }
 
 
+# test beta values
+
+s = preprocessIllumina(read.metharray(c(smp0, smp1, smp2)))
+b = getBeta(s)
+
+

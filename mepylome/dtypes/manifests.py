@@ -2,6 +2,7 @@
 import logging
 from pathlib import Path
 from urllib.parse import urljoin
+import pyranges as pr
 import numpy as np
 import pandas as pd
 import pickle
@@ -53,7 +54,6 @@ ARRAY_TYPE_MANIFEST_FILENAMES = {
     ArrayType.ILLUMINA_450K: ARRAY_FILENAME["450k"],
     ArrayType.ILLUMINA_EPIC: ARRAY_FILENAME["epic"],
     ArrayType.ILLUMINA_EPIC_V2: ARRAY_FILENAME["epicv2"],
-    # ArrayType.ILLUMINA_EPIC_PLUS: ARRAY_FILENAME["epic+"],
     ArrayType.ILLUMINA_MOUSE: ARRAY_FILENAME["mouse"],
 }
 
@@ -68,21 +68,17 @@ PROBES_COLUMNS = [
     "MAPINFO",
 ]
 
-MANIFEST_COLUMNS = (
+MANIFEST_COLUMNS = [
     "IlmnID",
     "AddressA_ID",
     "AddressB_ID",
     "Infinium_Design_Type",
     "Color_Channel",
-    "Genome_Build",
-    "CHR",
-    "MAPINFO",
-    "Strand",
-    "OLD_Genome_Build",
-    "OLD_CHR",
-    "OLD_MAPINFO",
-    "OLD_Strand",
-)
+    "Chromosome",
+    "Start",
+    "End",
+    "Probe_Type",
+]
 
 MOUSE_MANIFEST_COLUMNS = (
     "IlmnID",
@@ -134,7 +130,6 @@ class Manifest:
         cannot be found.
     """
 
-
     def __init__(
         self,
         array_type,
@@ -167,6 +162,20 @@ class Manifest:
             self.__mouse_data_frame = self.read_mouse_probes()
         else:
             self.__mouse_data_frame = pd.DataFrame()
+        self.__methyl_probes = self.get_methyl_probes()
+
+    def get_methyl_probes(self):
+        type_i = self.probe_info(ProbeType.ONE)
+        type_ii = self.probe_info(ProbeType.TWO)
+        locus_names = np.sort(
+            np.concatenate(
+                [
+                    type_i.IlmnID.index,
+                    type_ii.IlmnID.index,
+                ]
+            )
+        )
+        return self.__data_frame.iloc[locus_names]["IlmnID"].values
 
     def __repr__(self):
         title = f"Manifest({self.array_type}):"
@@ -208,6 +217,10 @@ class Manifest:
     @property
     def snp_data_frame(self):
         return self.__snp_data_frame
+
+    @property
+    def methylation_probes(self):
+        return self.__methyl_probes
 
     @property
     def mouse_data_frame(self):
@@ -285,41 +298,76 @@ class Manifest:
         return Path(probes_path.parent, ".".join(split_filename))
 
     @staticmethod
+    def process_probes(data_frame):
+        # TODO Chromosomes not consistent
+        data_frame.rename(
+            columns={
+                "MAPINFO": "Start",
+                "CHR": "Chromosome",
+            },
+            inplace=True,
+        )
+        # IlmnID and Name are different in EPICv2
+        data_frame.IlmnID = data_frame.Name
+        data_frame = data_frame.drop(columns="Name")
+        channel_to_int = {"Grn": Channel.GREEN, "Red": Channel.RED}
+        data_frame["Color_Channel"] = data_frame["Color_Channel"].replace(
+            channel_to_int
+        )
+        # Use int32 to improve performance of indexing
+        int_cols = ["AddressA_ID", "AddressB_ID", "Start", "Color_Channel"]
+        data_frame[int_cols] = (
+            data_frame[int_cols].fillna(NONE).astype("int32")
+        )
+        data_frame["End"] = data_frame["Start"]
+
+        def get_probe_type(name, infinium_type):
+            """returns one of (I, II, SnpI, SnpII, Control)
+            .from_manifest_values() returns probe type using either the
+            Infinium_Design_Type (I or II) or the name
+            (starts with 'rs' == SnpI) and 'Control' is none of the above.
+            """
+            probe_type = ProbeType.from_manifest_values(name, infinium_type)
+            return probe_type.value
+
+        vectorized_get_type = np.vectorize(get_probe_type)
+        data_frame["Probe_Type"] = vectorized_get_type(
+            data_frame.IlmnID.values,
+            data_frame["Infinium_Design_Type"].values,
+        )
+        probes_ranges = pr.PyRanges(data_frame).sort()
+        return probes_ranges.df
+
+    @staticmethod
     def process_manifest(filepath, manifest_name, dest_probes, dest_control):
         ensure_directory_exists(dest_probes)
         ensure_directory_exists(dest_control)
         with get_file_from_archive(filepath, manifest_name) as manifest_file:
             # Process probes
             Manifest.seek_to_start(manifest_file)
-            data_frame = pd.read_csv(
+            probes_df = pd.read_csv(
                 manifest_file,
                 low_memory=False,
                 usecols=PROBES_COLUMNS,
             )
-            n_probes = data_frame[data_frame.IlmnID.str.startswith("[")].index[
-                0
-            ]
-            data_frame_probes = data_frame[:n_probes].copy()
-            data_frame_probes[["AddressA_ID", "AddressB_ID", "MAPINFO"]] = (
-                data_frame_probes[["AddressA_ID", "AddressB_ID", "MAPINFO"]]
-                .apply(pd.to_numeric)
-                .astype("Int32")
-            )
-            data_frame_probes.to_csv(dest_probes, index=False)
+            n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
+            probes_df = probes_df[:n_probes]
+            probes_df = Manifest.process_probes(probes_df)
+            probes_df.to_csv(dest_probes, index=False)
             # Process controls
             Manifest.seek_to_start(manifest_file)
-            data_frame_controls = pd.read_csv(
+            controls_df = pd.read_csv(
                 manifest_file,
                 header=None,
                 # Skip metadata and probe section
                 skiprows=(3 + n_probes),
                 usecols=range(len(CONTROL_COLUMNS)),
             )
-            data_frame_controls.columns = CONTROL_COLUMNS
-            data_frame_controls["Address_ID"] = data_frame_controls[
-                "Address_ID"
-            ].astype("int32")
-            data_frame_controls.to_csv(dest_control, index=False)
+            controls_df.columns = CONTROL_COLUMNS
+            controls_df["Address_ID"] = controls_df["Address_ID"].astype(
+                "int32"
+            )
+            controls_df.to_csv(dest_control, index=False)
 
     @staticmethod
     def seek_to_start(manifest_file):
@@ -346,6 +394,7 @@ class Manifest:
             manifest_file.seek(current_pos - 1)
 
     def read_probes(self, probes_file):
+        # TODO better do this before saving gz
         if self.verbose:
             LOGGER.info(
                 f"Reading manifest file: {Path(probes_file.name).stem}"
@@ -354,33 +403,13 @@ class Manifest:
         data_frame = pd.read_csv(
             probes_file,
             dtype=self.get_data_types(),
-            # index_col="IlmnID",
         )
-
-        # Use int32 instead of Int32 to improve performance of indexing
-        data_frame["AddressA_ID"] = (
-            data_frame["AddressA_ID"].fillna(NONE).astype("int32").copy()
+        # TODO epicv2 has duplicated ID's for example c='cg22367159'
+        data_frame.drop_duplicates(
+            subset=["IlmnID"], keep="first", inplace=True
         )
-        data_frame["AddressB_ID"] = (
-            data_frame["AddressB_ID"].fillna(NONE).astype("int32").copy()
-        )
-
-
-        def get_probe_type(name, infinium_type):
-            """returns one of (I, II, SnpI, SnpII, Control)
-
-            .from_manifest_values() returns probe type using either the
-            Infinium_Design_Type (I or II) or the name
-            (starts with 'rs' == SnpI) and 'Control' is none of the above.
-            """
-            probe_type = ProbeType.from_manifest_values(name, infinium_type)
-            return probe_type.value
-
-        vectorized_get_type = np.vectorize(get_probe_type)
-        data_frame["probe_type"] = vectorized_get_type(
-            data_frame.IlmnID.values,
-            data_frame["Infinium_Design_Type"].values,
-        )
+        data_frame.index.name = "_IlmnID"
+        data_frame.reset_index(inplace=True)#, drop=True)
         return data_frame
 
     def read_control_probes(self, control_file):
@@ -394,7 +423,9 @@ class Manifest:
             # index_col=0,
         )
         # Use int32 instead of int64 to improve performance of indexing
-        data_frame["Address_ID"] = data_frame["Address_ID"].astype("int32").copy()
+        data_frame["Address_ID"] = (
+            data_frame["Address_ID"].astype("int32").copy()
+        )
         return data_frame
 
     def read_snp_probes(self):
@@ -434,8 +465,14 @@ class Manifest:
 
     def get_data_types(self):
         data_types = {key: str for key in self.columns}
-        data_types["AddressA_ID"] = "Int32"
-        data_types["AddressB_ID"] = "Int32"
+        data_types["AddressA_ID"] = np.int32
+        data_types["AddressB_ID"] = np.int32
+        data_types["Start"] = np.int32
+        data_types["End"] = np.int32
+        data_types["Probe_Type"] = np.int32
+        data_types["Color_Channel"] = np.int32
+        # data_types["Chromosome"] = np.str
+        # data_types["Chromosome"] = np.dtype("object")
         return data_types
 
     def probe_info(self, probe_type, channel=None):
@@ -451,7 +488,7 @@ class Manifest:
             raise Exception("channel not a valid Channel")
 
         data_frame = self.data_frame
-        probe_type_mask = data_frame["probe_type"].values == probe_type.value
+        probe_type_mask = data_frame["Probe_Type"].values == probe_type.value
 
         if not channel:
             return data_frame[probe_type_mask]
@@ -478,7 +515,7 @@ class Manifest:
             raise ValueError("channel not a valid Channel")
 
         data_frame = self.data_frame
-        probe_type_mask = data_frame["probe_type"].isin(
+        probe_type_mask = data_frame["Probe_Type"].isin(
             [probe_type.value for probe_type in probe_types]
         )
 
