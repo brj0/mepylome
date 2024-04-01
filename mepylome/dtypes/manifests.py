@@ -8,7 +8,7 @@ import pandas as pd
 import pickle
 
 # App
-from mepylome.dtypes import ArrayType, Channel, ProbeType
+from mepylome.dtypes import ArrayType, Channel, ProbeType, InfiniumDesignType
 from mepylome.utils import (
     download_file,
     get_file_object,
@@ -66,6 +66,8 @@ PROBES_COLUMNS = [
     "Color_Channel",
     "CHR",
     "MAPINFO",
+    "AlleleA_ProbeSeq",
+    "AlleleB_ProbeSeq",
 ]
 
 MANIFEST_COLUMNS = [
@@ -314,12 +316,50 @@ class Manifest:
         data_frame["Color_Channel"] = data_frame["Color_Channel"].replace(
             channel_to_int
         )
+        data_frame["Infinium_Design_Type"] = data_frame[
+            "Infinium_Design_Type"
+        # TODO drop Infinium_Design_Type
+        ].replace({"I": InfiniumDesignType.I, "II": InfiniumDesignType.II})
+        data_frame["TypeI_N_CpG"] = np.maximum(
+            0, data_frame["AlleleB_ProbeSeq"].fillna("").str.count("CG") - 1
+        )
+        # R Stands for CG in AlleleA_ProbeSeq
+        data_frame["TypeII_N_CpG"] = data_frame["AlleleA_ProbeSeq"].str.count(
+            "R"
+        )
+        data_frame["N_CpG"] = NONE
+        data_frame.loc[
+            data_frame["Infinium_Design_Type"] == InfiniumDesignType.I,
+            "N_CpG",
+        ] = data_frame.loc[
+            data_frame["Infinium_Design_Type"] == InfiniumDesignType.I,
+            "TypeI_N_CpG",
+        ]
+        data_frame.loc[
+            data_frame["Infinium_Design_Type"] == InfiniumDesignType.II,
+            "N_CpG",
+        ] = data_frame.loc[
+            data_frame["Infinium_Design_Type"] == InfiniumDesignType.II,
+            "TypeII_N_CpG",
+        ]
+
         # Use int32 to improve performance of indexing
-        int_cols = ["AddressA_ID", "AddressB_ID", "Start", "Color_Channel"]
+        int_cols = [
+            "AddressA_ID",
+            "AddressB_ID",
+            "Infinium_Design_Type",
+            "Start",
+            "Color_Channel",
+            "TypeI_N_CpG",
+            "TypeII_N_CpG",
+        ]
         data_frame[int_cols] = (
             data_frame[int_cols].fillna(NONE).astype("int32")
         )
         data_frame["End"] = data_frame["Start"]
+        data_frame.drop(
+            columns=["AlleleA_ProbeSeq", "AlleleB_ProbeSeq"], inplace=True
+        )
 
         def get_probe_type(name, infinium_type):
             """returns one of (I, II, SnpI, SnpII, Control)
@@ -409,7 +449,7 @@ class Manifest:
             subset=["IlmnID"], keep="first", inplace=True
         )
         data_frame.index.name = "_IlmnID"
-        data_frame.reset_index(inplace=True)#, drop=True)
+        data_frame.reset_index(inplace=True)  # , drop=True)
         return data_frame
 
     def read_control_probes(self, control_file):
@@ -471,6 +511,9 @@ class Manifest:
         data_types["End"] = np.int32
         data_types["Probe_Type"] = np.int32
         data_types["Color_Channel"] = np.int32
+        data_types["Infinium_Design_Type"] = np.int32
+        data_types["TypeI_N_CpG"] = np.int32
+        data_types["TypeII_N_CpG"] = np.int32
         # data_types["Chromosome"] = np.str
         # data_types["Chromosome"] = np.dtype("object")
         return data_types

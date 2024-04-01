@@ -35,6 +35,8 @@ cat("Elapsed time:", timing[["elapsed"]], "seconds\n")
 rgSet <- read.metharray(c(ref0,ref1), force = TRUE)
 mset <- preprocessIllumina(rgSet)
 
+mset <- preprocessSWAN(rgSet)
+
 
 GENES <- "/applications/nanodip_cache/reference_data/hg19_cnv/hg19_genes.tsv"
 genes_df <- read.csv(GENES, sep = "\t", header = TRUE)

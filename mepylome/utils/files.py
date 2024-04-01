@@ -88,7 +88,7 @@ def download_file(filename, src_url, dest_dir, overwrite=False):
         )
         return
     try:
-        logger.info(
+        print(
             f"Downloading manifest from {src_url} to {dest_dir}. "
             "Can take several minutes..."
         )

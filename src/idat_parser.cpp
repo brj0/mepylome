@@ -185,7 +185,7 @@ IdatParser::IdatParser(const std::string& filepath)
     std_dev_= read_short(idat_file, n_snps_read_);
 
     idat_file.seekg(offsets_[IdatSectionCode::MEAN]);
-    probe_means_= read_array<int16_t>(idat_file, n_snps_read_);
+    probe_means_= read_array<uint16_t>(idat_file, n_snps_read_);
 
     idat_file.seekg(offsets_[IdatSectionCode::NUM_BEADS]);
     n_beads_= read_array<uint8_t>(idat_file, n_snps_read_);

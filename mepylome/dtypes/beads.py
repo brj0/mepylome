@@ -17,27 +17,29 @@ ENDING_GRN = "_Grn.idat"
 LOGGER = logging.getLogger(__name__)
 
 beads_timer = Timer()
-cache = {}
 
+def idat_basepaths(files):
+    # If basenames is dir take all files in it
+    if isinstance(files, list):
+        _files = files
+    elif Path(files).is_dir():
+        _files = list(Path(files).iterdir())
+    else:
+        _files = [files]
+    # Remove file endings
+    _files = [
+        Path(
+            str(name).replace(ENDING_RED, "").replace(ENDING_GRN, "")
+        ).expanduser()
+        for name in _files
+    ]
+    # Remove duplicates, keep ordering
+    _files = list(dict.fromkeys(_files))
+    return _files
 
 class RawData:
     def __init__(self, basenames):
-        # If basenames is dir take all files in it
-        if isinstance(basenames, list):
-            _basenames = basenames
-        elif Path(basenames).is_dir():
-            _basenames = list(Path(basenames).iterdir())
-        else:
-            _basenames = [basenames]
-        # Remove file endings
-        _basenames = [
-            Path(
-                str(name).replace(ENDING_RED, "").replace(ENDING_GRN, "")
-            ).expanduser()
-            for name in _basenames
-        ]
-        # Remove duplicates, keep ordering
-        _basenames = list(dict.fromkeys(_basenames))
+        _basenames = idat_basepaths(basenames)
 
         self.probes = [path.name for path in _basenames]
 
@@ -136,27 +138,36 @@ class RawData:
         return "\n\n".join(lines)
 
 
-def _overlap_indices(left_arr, right_arr):
-    # Not perfect, but fast hash value
-    N = len(left_arr)
-    idx = [0, -1, N // 2, N // 3, -N // 4, -N // 5, N // 6, N // 7, -N // 8]
-    key = (
-        tuple(left_arr[idx]),
-        tuple(right_arr[idx]),
-        len(left_arr),
-        len(right_arr),
-    )
-    if key in cache:
-        return cache[key]
-    if not isinstance(left_arr, pd.Index):
-        left_arr = pd.Index(left_arr)
-    if not isinstance(right_arr, pd.Index):
-        right_arr = pd.Index(right_arr)
-    common_indices = left_arr.intersection(right_arr)
-    left_index = left_arr.get_indexer(common_indices)
-    right_index = right_arr.get_indexer(common_indices)
-    cache[key] = left_index, right_index
-    return left_index, right_index
+class Cache:
+    cache = {}
+    @classmethod
+    def overlap_indices(self, left_arr, right_arr):
+        key = Cache.fast_hash(left_arr, right_arr)
+        # key = hash(left_arr.data.tobytes() + right_arr.data.tobytes())
+        if key in Cache.cache:
+            return Cache.cache[key]
+        if not isinstance(left_arr, pd.Index):
+            left_arr = pd.Index(left_arr)
+        if not isinstance(right_arr, pd.Index):
+            right_arr = pd.Index(right_arr)
+        common_indices = left_arr.intersection(right_arr)
+        left_index = left_arr.get_indexer(common_indices)
+        right_index = right_arr.get_indexer(common_indices)
+        Cache.cache[key] = left_index, right_index
+        return left_index, right_index
+    def fast_hash(left_arr, right_arr):
+        N = len(left_arr)
+        M = len(right_arr)
+        L = 57
+        idx_left = [x * N // L for x in range(L)] + [-1]
+        idx_right = [x * M // L for x in range(L)] + [-1]
+        key = (
+            tuple(left_arr[idx_left]),
+            tuple(right_arr[idx_right]),
+            N,
+            M,
+        )
+        return key
 
 
 class MethylData:
@@ -292,7 +303,7 @@ class MethylData:
 
     def preprocess_raw_cached(self):
         key = (self.manifest.array_type, self.ids.tobytes())
-        if key in cache:
+        if key in Cache.cache:
             (
                 lnm_idx,
                 ids__i_red_a,
@@ -303,7 +314,7 @@ class MethylData:
                 lnm__i_red__,
                 lnm__i_grn__,
                 lnm_ii______,
-            ) = cache[key]
+            ) = Cache.cache[key]
         else:
             type_i = self.manifest.probe_info(ProbeType.ONE)
             type_ii = self.manifest.probe_info(ProbeType.TWO)
@@ -331,7 +342,7 @@ class MethylData:
             lnm__i_red__ = lnm_idx.get_indexer(type_i_red.index)
             lnm__i_grn__ = lnm_idx.get_indexer(type_i_grn.index)
             lnm_ii______ = lnm_idx.get_indexer(type_ii.index)
-            cache[key] = (
+            Cache.cache[key] = (
                 lnm_idx,
                 ids__i_red_a,
                 ids__i_red_b,
@@ -379,7 +390,7 @@ class MethylData:
             cpgs = self.manifest.methylation_probes
         beta = self.get_beta(self.methyl, self.unmethyl)
         converted = np.full((len(self.probes), len(cpgs)), fill)
-        left_idx, right_idx = _overlap_indices(cpgs, self.methyl_ilmnid)
+        left_idx, right_idx = Cache.overlap_indices(cpgs, self.methyl_ilmnid)
         converted[:, left_idx] = beta[:, right_idx]
         converted[np.isnan(converted)] = fill
         return pd.DataFrame(converted.T, columns=self.probes, index=cpgs)

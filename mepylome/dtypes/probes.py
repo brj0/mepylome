@@ -46,6 +46,11 @@ class ProbeAddress(Enum):
             return "AddressA_ID"
         return "AddressB_ID"
 
+# TODO del
+@unique
+class InfiniumDesignType(IntEnum):
+    I = 1
+    II = 2
 
 @unique
 class ProbeType(IntEnum):
@@ -88,19 +93,19 @@ class ProbeType(IntEnum):
         is_snp = name.startswith("rs")
 
         if is_control and is_snp:
-            if infinium_type == "I":
+            if infinium_type == InfiniumDesignType.I:
                 return ProbeType.SNP_ONE
-            elif infinium_type == "II":
+            elif infinium_type == InfiniumDesignType.II:
                 return ProbeType.SNP_TWO
             else:
                 return ProbeType.CONTROL
         elif is_control:
             return ProbeType.CONTROL
 
-        elif infinium_type == "I":
+        elif infinium_type == InfiniumDesignType.I:
             return ProbeType.ONE
 
-        elif infinium_type == "II":
+        elif infinium_type == InfiniumDesignType.II:
             return ProbeType.TWO
 
         # mouse only -- these are type I probes but Bret's files label them

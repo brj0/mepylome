@@ -36,8 +36,8 @@ public:
         return py::array_t<uint16_t>(std_dev_.size(), std_dev_.data());
     }
 
-    py::array_t<int16_t> pyget_probe_means() const {
-        return py::array_t<int16_t>(probe_means_.size(), probe_means_.data());
+    py::array_t<uint16_t> pyget_probe_means() const {
+        return py::array_t<uint16_t>(probe_means_.size(), probe_means_.data());
     }
 
     py::array_t<uint8_t> pyget_n_beads() const {

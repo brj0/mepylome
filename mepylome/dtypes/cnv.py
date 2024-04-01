@@ -1,8 +1,10 @@
+import heapq
+import logging
+
+import cbseg
 import numpy as np
 import pandas as pd
 import pyranges as pr
-import cbseg
-import logging
 from sklearn.linear_model import LinearRegression
 
 from mepylome.utils import Timer
@@ -27,6 +29,7 @@ class Annotation:
         self.min_probes_per_bin = min_probes_per_bin
         self.gap = gap
         self.detail = detail
+        self.detail = self.detail.sort()
         self.verbose = verbose
         self.chromsizes = pr.data.chromsizes()
         df = manifest.data_frame.copy()
@@ -70,6 +73,96 @@ class Annotation:
 
     @staticmethod
     def merge_bins_in_chromosome(df, min_probes_per_bin, verbose=False):
+        I_START, I_END, I_N_PROBES, I_LEFT, I_RIGHT = range(5)
+        INVALID = np.iinfo(np.int64).max
+
+        # Calculate Left and Right neighbors
+        df["Left"] = df.index - 1
+        df["Right"] = df.index + 1
+
+        # Need to regularly extract minimum; use min-heap
+        heap = [
+            (x, y)
+            for x, y in zip(df.N_probes, df.index)
+            if x < min_probes_per_bin
+        ]
+        heapq.heapify(heap)
+
+        matrix = df[
+            ["Start", "End", "N_probes", "Left", "Right"]
+        ].values.astype(np.int64)
+
+        def update_neighbors(left, mid, right):
+            matrix[mid, I_N_PROBES] = INVALID
+            if left > 0:
+                matrix[left, I_RIGHT] = matrix[mid, I_RIGHT]
+            if right < matrix.shape[0]:
+                matrix[right, I_LEFT] = matrix[mid, I_LEFT]
+
+        while heap and heap[0][0] < min_probes_per_bin:
+            n_probes, i_min = heap[0]
+            real_n_probes = matrix[i_min, I_N_PROBES]
+
+            # Check if n_probes changed due to merging and needs to be updated
+            if n_probes != real_n_probes:
+                heapq.heapreplace(heap, (real_n_probes, i_min))
+                continue
+
+            heapq.heappop(heap)
+            n_probes_left = INVALID
+            n_probes_right = INVALID
+
+            # Left
+            i_left = matrix[i_min, I_LEFT]
+            if (
+                i_left > 0
+                and matrix[i_left, I_N_PROBES] != INVALID
+                and matrix[i_min, I_START] == matrix[i_left, I_END]
+            ):
+                n_probes_left = matrix[i_left, I_N_PROBES]
+
+            # Right
+            i_right = matrix[i_min, I_RIGHT]
+            if (
+                i_right < matrix.shape[0]
+                and matrix[i_right, I_N_PROBES] != INVALID
+                and matrix[i_min, I_END] == matrix[i_right, I_START]
+            ):
+                n_probes_right = matrix[i_right, I_N_PROBES]
+
+            # Invalid
+            if n_probes_left == INVALID and n_probes_right == INVALID:
+                update_neighbors(i_left, i_min, i_right)
+                if verbose:
+                    row = (
+                        df.loc[i_min, ["Chromosome", "Start", "End"]]
+                        .astype(str)
+                        .tolist()
+                    )
+                    row_str = "-".join(row)
+                    print(f"Could not merge {row_str}. Removed instead.")
+                continue
+            elif n_probes_right == INVALID or n_probes_left <= n_probes_right:
+                i_merge = i_left
+            else:
+                i_merge = i_right
+
+            matrix[i_merge, I_N_PROBES] += matrix[i_min, I_N_PROBES]
+            matrix[i_merge, I_START] = min(
+                matrix[i_merge, I_START], matrix[i_min, I_START]
+            )
+            matrix[i_merge, I_END] = max(
+                matrix[i_merge, I_END], matrix[i_min, I_END]
+            )
+
+            update_neighbors(i_left, i_min, i_right)
+
+        df[["Start", "End", "N_probes"]] = matrix[:, :3]
+        df = df[df.N_probes != INVALID]
+        return df[["Chromosome", "Start", "End", "N_probes"]]
+
+    @staticmethod
+    def _merge_bins_in_chromosome(df, min_probes_per_bin, verbose=False):
         I_START = 0
         I_END = 1
         I_N_PROBES = 2
@@ -274,10 +367,10 @@ class CNV:
         self.bins = pr.PyRanges(df)
 
     def set_detail(self):
-        overlap = self.annotation._cpg_detail.copy()
-        idx = Cache.indices(self.ratio.index, overlap.IlmnID.values)
-        overlap["ratio"] = self.ratio.iloc[idx].ratio.values
-        result = overlap.groupby("Name", dropna=False)["ratio"].agg(
+        cpg_detail = self.annotation._cpg_detail.copy()
+        idx = Cache.indices(self.ratio.index, cpg_detail.IlmnID.values)
+        cpg_detail["ratio"] = self.ratio.iloc[idx].ratio.values
+        result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
         )
         df = self.annotation.detail.df.set_index("Name")
@@ -291,7 +384,6 @@ class CNV:
         df["N_probes"] = df["N_probes"].astype(int)
         df = df.reset_index()
         self.detail = pr.PyRanges(df)
-        self.detail = self.detail.sort()
 
     def _set_detail(self):
         overlap = self.annotation.detail.join(
