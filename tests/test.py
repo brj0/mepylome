@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from scipy.stats import rankdata
 import pandas as pd
 import pyranges as pr
 import cbseg
@@ -46,10 +47,13 @@ from mepylome.dtypes import (
     Annotation,
     ArrayType,
     Channel,
+    cache,
     Manifest,
     ManifestLoader,
     MethylData,
     ProbeType,
+    ExtProbeType,
+    np_ext_probe_type,
     RawData,
 )
 from mepylome.utils import (
@@ -134,6 +138,8 @@ timer.stop("RawData ref")
 timer.start()
 ref_methyl = MethylData(refs_raw)
 timer.stop("MethylData ref")
+
+# quit()
 
 manifest = ManifestLoader.get_manifest("450k")
 # manifest = ManifestLoader.get_manifest("epic")
@@ -288,55 +294,6 @@ for x in grn_idat_files:
     print(c[0, 1])
 
 
-timer.start()
-cpg_detail = self.annotation._cpg_detail.copy()
-timer.stop("1")
-idx = Cache.indices(self.ratio.index, cpg_detail.IlmnID.values)
-timer.stop("2")
-cpg_detail["ratio"] = self.ratio.iloc[idx].ratio.values
-timer.stop("3")
-result = overlap.groupby("Name", dropna=False)["ratio"].agg(
-    ["median", "var", "count"]
-)
-timer.stop("4")
-df = self.annotation.detail.df.set_index("Name")
-timer.stop("5")
-df["Median"] = np.nan
-timer.stop("6")
-df["Var"] = np.nan
-timer.stop("7")
-df["N_probes"] = 0
-timer.stop("8")
-idx = Cache.indices(df.index, result.index.values)
-timer.stop("9")
-df.iloc[
-    idx, df.columns.get_indexer(["Median", "Var", "N_probes"])
-] = result.values
-timer.stop("10")
-df["N_probes"] = df["N_probes"].astype(int)
-timer.stop("11")
-df = df.reset_index()
-timer.stop("12")
-self.detail = pr.PyRanges(df)
-timer.stop("13")
-
-
-timer.start()
-x = _overlap_indices(cpgs, self.methyl_ilmnid)
-timer.stop("1")
-
-timer.start()
-y = Cache.overlap_indices(cpgs, self.methyl_ilmnid)
-timer.stop("1")
-
-np.all(x[0] == y[0])
-np.all(x[1] == y[1])
-
-timer.start()
-x = Cache.get(cpgs.tobytes())
-timer.stop("1")
-
-
 # Time passed: 9.987592697143555 ms (Parsing IDAT)
 # Time passed: 1480.562686920166 ms (RawData ref)
 # Time passed: 392.32563972473145 ms (MethylData ref)
@@ -355,112 +312,176 @@ timer.stop("1")
 # Time passed: 2024.538516998291 ms (CNV set_segments)
 
 
+# self = MethylData(raw, prep="raw")
+
+
 raw = RawData([ref0, ref1])
-self = MethylData(raw, prep="raw")
-
-
-
-# BG correction
-neg_controls = self.manifest.control_address("NEGATIVE")
-grn_med = np.median(
-    self._grn[:, np.isin(self.ids, neg_controls, assume_unique=True)], axis=1
-)
-red_med = np.median(
-    self._red[:, np.isin(self.ids, neg_controls, assume_unique=True)], axis=1
-)
-bg_intensity = np.mean([grn_med, red_med], axis=0)
-
 
 timer.start()
-type_i = self.manifest.probe_info(ProbeType.ONE)[
-    ["IlmnID", "N_CpG", "Probe_Type"]
-]
-type_ii = self.manifest.probe_info(ProbeType.TWO)[
-    ["IlmnID", "N_CpG", "Probe_Type"]
-]
-all_ncpgs = pd.concat([type_i, type_ii], axis=0)
-all_ncpgs = all_ncpgs.iloc[ref_methyl.methyl_index]
+self = MethylData(raw, prep="swan")
 timer.stop("1")
 
 
-locus_idx = np.sort(
-    np.concatenate(
-        [
-            type_i.IlmnID.index,
-            type_ii.IlmnID.index,
-        ]
+raw = RawData([ref0, ref1])
+meth = MethylData(raw, prep="swan")
+M_s = meth.methylated
+U_s = meth.unmethylated
+for _ in range(999):
+    print(_)
+    # meth = MethylData(raw)
+    meth = MethylData(raw, prep="swan")
+    M_s += meth.methylated
+    U_s += meth.unmethylated
+
+M = M_s / 1000
+U = U_s / 1000
+
+
+timer.start()
+# meth = MethylData(sample_raw, prep="swan")
+meth = MethylData(sample_raw)
+timer.stop("1")
+
+
+def huber(y, k=1.5, tol=1.0e-6):
+    y = y[~np.isnan(y)]
+    n = len(y)
+    mu = np.median(y)
+    s = np.median(np.abs(y - mu)) * 1.4826
+    if s == 0:
+        raise ValueError("Cannot estimate scale: MAD is zero for this sample")
+    while True:
+        yy = np.clip(y, mu - k * s, mu + k * s)
+        mu1 = np.sum(yy) / n
+        if np.abs(mu - mu1) < tol * s:
+            break
+        mu = mu1
+    return {"mu": mu, "s": s}
+
+
+def normexp_get_xs(xf, controls, offset=50, verbose=False):
+    if verbose:
+        print(
+            "[normexp.get.xs] Background mean & SD estimated from",
+            controls.shape[0],
+            "probes",
+        )
+    mu = np.empty(xf.shape[1])
+    sigma = np.empty(xf.shape[1])
+    alpha = np.empty(xf.shape[1])
+    for i in range(xf.shape[1]):
+        ests = huber(controls[:, i])
+        mu[i] = ests["mu"]
+        sigma[i] = ests["s"]
+        alpha[i] = max(huber(xf[:, i])["mu"] - mu[i], 10)
+    pars = pd.DataFrame(
+        {"mu": mu, "lsigma": np.log(sigma), "lalpha": np.log(alpha)}
     )
-)
+    for i in range(xf.shape[1]):
+        xf[:, i] = normexp_signal(pars.iloc[i].values, xf[:, i])
+    return {
+        "xs": xf + offset,
+        "params": pd.DataFrame(
+            {"mu": mu, "sigma": sigma, "alpha": alpha, "offset": offset}
+        ),
+        "meta": ["background mean", "background SD", "signal mean", "offset"],
+    }
 
 
-self.methyl_ilmnid
-self.methyl_index
+def normexp_get_xs(xf, controls, offset=50, verbose=False):
+    if verbose:
+        print(
+            "[normexp.get.xs] Background mean & SD estimated from",
+            controls.shape[0],
+            "probes",
+        )
+    mu = np.empty(xf.shape[1])
+    sigma = np.empty(xf.shape[1])
+    alpha = np.empty(xf.shape[1])
+    for i in range(xf.shape[1]):
+        ests = huber(controls[:, i])
+        mu[i] = ests["mu"]
+        sigma[i] = ests["s"]
+        alpha[i] = max(huber(xf[:, i])["mu"] - mu[i], 10)
+    pars = np.column_stack((mu, np.log(sigma), np.log(alpha)))
+    for i in range(xf.shape[1]):
+        xf[:, i] = normexp_signal(pars[i], xf[:, i])
+    return {
+        "xs": xf + offset,
+        "params": np.column_stack(
+            (mu, sigma, alpha, np.full_like(mu, offset))
+        ),
+        "meta": ["background mean", "background SD", "signal mean", "offset"],
+    }
+
+
+manifest = ManifestLoader.get_manifest("450k")
+self = manifest
+probe_type = ProbeType.ONE
+
 timer.start()
-all_ncpgs = self.manifest.data_frame[["Probe_Type", "N_CpG"]].iloc[
-    self.methyl_index
-]
-
-subset_sizes = all_ncpgs.groupby(["Probe_Type", "N_CpG"], dropna=False).size()
-subset_size = min(subset_sizes.loc[(slice(None), slice(1, 3))])
-
-timer.start()
-indices_per_type = {}
-random_indices = {}
-for probe_type in [ProbeType.ONE, ProbeType.TWO]:
-    all_ncpgs_ = all_ncpgs[all_ncpgs.Probe_Type == probe_type]
-    indices = []
-    for ncpgs in range(1, 4):
-        ids = all_ncpgs_.index[all_ncpgs_.N_CpG == ncpgs]
-        ids_subset = np.random.permutation(len(ids))[:subset_size]
-        indices.append(ids_subset)
-    random_indices[probe_type] = np.sort(np.concatenate(indices))
-    indices_per_type[probe_type] = all_ncpgs_.index.values
-
+for _ in range(100):
+    z = manifest.probe_info(ProbeType.ONE)
 
 timer.stop("1")
 
+timer.start()
+for _ in range(100):
+    z1 = manifest._probe_info([ProbeType.ONE])
 
-# intensity = self.methyl[1, :]
-intensity = self.methyl
-self.swan = np.full((len(self.probes), len(self.methyl_index)), np.nan)
+timer.stop("1")
 
-self.methyl[:, random_indices[ProbeType.ONE]]
-
-n_probes = len(self.probes)
-
-for probe_type in [ProbeType.ONE, ProbeType.TWO]:
-    intensity[:, random_indices[probe_type]]
+np.all(z1.values == z.values)
 
 
-sorted_intensity = (
-    np.sort(intensity[:, random_indices[ProbeType.ONE]], axis=1)
-    + np.sort(intensity[:, random_indices[ProbeType.TWO]], axis=1)
-) / 2
-
-from scipy.stats import rankdata
-
-normed_rank = rankdata(intensity, axis=1) / intensity.shape[1]
-
-distribution = np.sort(normed_rank[:, random_indices[ProbeType.ONE]], axis=1)
-distribution = np.sort(normed_rank[:, random_indices[ProbeType.TWO]], axis=1)
+################### NOOB
 
 
-min_intensity = np.min(intensity[:, random_indices[ProbeType.ONE]], axis=1)
-max_intensity = np.max(intensity[:, random_indices[ProbeType.ONE]], axis=1)
-
-min_intensity = np.min(intensity[:, random_indices[ProbeType.TWO]], axis=1)
-max_intensity = np.max(intensity[:, random_indices[ProbeType.TWO]], axis=1)
-
-xNew = normed_rank
-
-x = distribution[0,:]
-y = intensity[0,random_indices[ProbeType.ONE]]
-z = normed_rank[0,:]
-
-len(x)
-len(y)
-len(z)
 
 
-interp = np.interp(z, y, x)
+offset = 15
+dye_corr = True
+verbose = False
+dye_method = "single"
+
+raw = RawData([ref0, ref1])
+self = MethylData(raw)
+
+grn = raw.grn
+red = raw.red
+
+i_grn = self.manifest.probe_info(ProbeType.ONE, Channel.GRN)
+i_red = self.manifest.probe_info(ProbeType.ONE, Channel.RED)
+
+
+grn_oob = pd.concat(
+    [grn.loc[i_red.AddressA_ID], grn.loc[i_red.AddressB_ID]], axis=0
+)
+red_oob = pd.concat(
+    [red.loc[i_grn.AddressA_ID], red.loc[i_grn.AddressB_ID]], axis=0
+)
+
+control_probes = self.manifest.control_data_frame
+
+self.methylated[self.methylated <= 0] = 1
+self.unmethylated[self.unmethylated <= 0] = 1
+
+manifest_df = self.manifest.data_frame.iloc[self.methyl_index]
+probe_type = manifest_df.Probe_Type
+color = manifest_df.Color_Channel
+
+ext_probe_type = np_ext_probe_type(probe_type, color)
+
+i_grn_idx = manifest_df.index[ext_probe_type == ExtProbeType.ONE_GRN]
+i_red_idx = manifest_df.index[ext_probe_type == ExtProbeType.ONE_RED]
+ii_idx = manifest_df.index[ext_probe_type == ExtProbeType.TWO]
+
+# i_green_idx =  manifest_df[manifest_df.Probe_Type == ProbeType.ONE
+
+# Green_probes <- which(probe.type == "IGrn")
+# Red_probes <- which(probe.type == "IRed")
+# d2.probes <- which(probe.type == "II")
+
+
+
 

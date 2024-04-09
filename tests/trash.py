@@ -335,3 +335,26 @@ overlap = set1.intersection(set2)
 indices_arr1 = [i for i, x in enumerate(left_cpgs) if x in overlap]
 indices_arr2 = [i for i, x in enumerate(right_cpgs) if x in overlap]
 timer.stop("inter")
+
+
+
+swan = np.full((len(self.probes), len(self.methyl_index)), np.nan)
+for i in range(len(self.probes)):
+    for probe_type in [ProbeType.ONE, ProbeType.TWO]:
+        curr_intensity = intensity[i, all_indices[probe_type]]
+        x = rankdata(curr_intensity) / len(curr_intensity)
+        xp = np.sort(x[random_indices[probe_type]])
+        fp = sorted_subset_intensity[i,:]
+        # xp = intensity[i,random_indices[probe_type]]
+        # x = normed_rank[i,:]
+        intensity_min = np.min(curr_intensity[random_indices[probe_type]])
+        intensity_max = np.max(curr_intensity[random_indices[probe_type]])
+        i_max = np.where(x > np.max(xp))
+        i_min = np.where(x < np.min(xp))
+        delta_max = curr_intensity[i_max] - intensity_max
+        delta_min = curr_intensity[i_min] - intensity_min
+        interp = np.interp(x=x, xp=xp, fp=fp)
+        interp[i_max] = np.max(fp) + delta_max
+        interp[i_min] = np.min(fp) + delta_min
+        interp = np.where(interp <= 0, bg_intensity[i], interp)
+        swan[i, all_indices[probe_type]] = interp

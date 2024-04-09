@@ -8,6 +8,7 @@ import pyranges as pr
 from sklearn.linear_model import LinearRegression
 
 from mepylome.utils import Timer
+from mepylome.dtypes import Manifest, cache
 
 cnv_timer = Timer()
 
@@ -244,17 +245,9 @@ class Annotation:
         return "\n\n".join(lines)
 
 
-class Cache:
-    _cache = {}
-
-    @classmethod
-    def indices(self, left_arr, right_arr):
-        key = hash(left_arr.values.tobytes() + right_arr.tobytes())
-        if key in Cache._cache:
-            return Cache._cache[key]
-        index = left_arr.get_indexer(right_arr)
-        Cache._cache[key] = index
-        return index
+@cache
+def indices(left_arr, right_arr):
+    return left_arr.get_indexer(right_arr)
 
 
 class CNV:
@@ -307,10 +300,10 @@ class CNV:
 
     def fit(self):
         probes = self.probes.values
-        smp_prob_idx = Cache.indices(self.sample.intensity.index, probes)
+        smp_prob_idx = indices(self.sample.intensity.index, probes)
         smp_intensity = self.sample.intensity.iloc[smp_prob_idx].values.ravel()
         idx = self.sample.intensity.iloc[smp_prob_idx].index
-        ref_prob_idx = Cache.indices(self.reference.intensity.index, probes)
+        ref_prob_idx = indices(self.reference.intensity.index, probes)
         ref_intensity = self.reference.intensity.iloc[
             ref_prob_idx,
         ].values
@@ -341,7 +334,7 @@ class CNV:
 
     def set_bins(self):
         cpg_bins = self.annotation._cpg_bins.copy()
-        idx = Cache.indices(self.ratio.index, cpg_bins.IlmnID.values)
+        idx = indices(self.ratio.index, cpg_bins.IlmnID.values)
         cpg_bins["ratio"] = self.ratio.iloc[idx].ratio.values
         # cpg_bins["ratio"] = self.ratio.loc[cpg_bins.IlmnID].ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
@@ -368,7 +361,7 @@ class CNV:
 
     def set_detail(self):
         cpg_detail = self.annotation._cpg_detail.copy()
-        idx = Cache.indices(self.ratio.index, cpg_detail.IlmnID.values)
+        idx = indices(self.ratio.index, cpg_detail.IlmnID.values)
         cpg_detail["ratio"] = self.ratio.iloc[idx].ratio.values
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
@@ -377,7 +370,7 @@ class CNV:
         df["Median"] = np.nan
         df["Var"] = np.nan
         df["N_probes"] = 0
-        idx = Cache.indices(df.index, result.index.values)
+        idx = indices(df.index, result.index.values)
         df.iloc[
             idx, df.columns.get_indexer(["Median", "Var", "N_probes"])
         ] = result.values

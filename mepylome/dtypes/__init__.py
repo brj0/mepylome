@@ -1,7 +1,14 @@
 from .arrays import ArrayType
 from .controls import ControlProbe, ControlType
-from .probes import Channel, ProbeType, InfiniumDesignType
+from .probes import (
+    Channel,
+    ProbeType,
+    InfiniumDesignType,
+    ExtProbeType,
+    np_ext_probe_type,
+)
 from .manifests import Manifest, ManifestLoader
+from .cache import cache
 
 from .beads import MethylData, RawData, idat_basepaths
 from .cnv import CNV, Annotation
@@ -16,12 +23,15 @@ __all__ = [
     "Channel",
     "ControlProbe",
     "ControlType",
+    "ExtProbeType",
     "InfiniumDesignType",
     "Manifest",
     "ManifestLoader",
     "MethylData",
     "ProbeType",
     "RawData",
+    "cache",
+    "np_ext_probe_type",
     "idat_basepaths",
     # 'RawMetaDataset',
     # 'Sample',

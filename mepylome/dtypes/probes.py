@@ -1,5 +1,5 @@
-# Lib
 from enum import IntEnum, Enum, unique
+import numpy as np
 
 
 @unique
@@ -8,7 +8,7 @@ class Channel(IntEnum):
     which to return within idat.py: red_idat or green_idat.
     """
 
-    GREEN = 0
+    GRN = 0
     RED = 1
 
     def __str__(self):
@@ -16,7 +16,7 @@ class Channel(IntEnum):
 
     @property
     def is_green(self):
-        return self == self.GREEN
+        return self == self.GRN
 
     @property
     def is_red(self):
@@ -46,11 +46,13 @@ class ProbeAddress(Enum):
             return "AddressA_ID"
         return "AddressB_ID"
 
+
 # TODO del
 @unique
 class InfiniumDesignType(IntEnum):
     I = 1
     II = 2
+
 
 @unique
 class ProbeType(IntEnum):
@@ -116,6 +118,29 @@ class ProbeType(IntEnum):
         return ProbeType.CONTROL
 
 
+@unique
+class ExtProbeType(IntEnum):
+    ONE_GRN = 1
+    ONE_RED = 2
+    TWO = 3
+    NONE = -1
+
+    def __str__(self):
+        return str(self.value)
+
+
+def np_ext_probe_type(probe_types, colors):
+    result = np.full_like(probe_types, ExtProbeType.NONE.value)
+    result[
+        (probe_types == ProbeType.ONE.value) & (colors == Channel.GRN.value)
+    ] = ExtProbeType.ONE_GRN.value
+    result[
+        (probe_types == ProbeType.ONE.value) & (colors == Channel.RED.value)
+    ] = ExtProbeType.ONE_RED.value
+    result[probe_types == ProbeType.TWO.value] = ExtProbeType.TWO.value
+    return result
+
+
 class Probe:
     """this doesn't appear to be instantiated anywhere in methylprep"""
 
@@ -173,15 +198,15 @@ class ProbeSubset:
 
 METHYLATED_SNP_PROBES = (
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.SNP_TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.B,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.SNP_ONE,
     ),
     ProbeSubset(
@@ -200,9 +225,9 @@ UNMETHYLATED_SNP_PROBES = (
         probe_type=ProbeType.SNP_TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.SNP_ONE,
     ),
     ProbeSubset(
@@ -215,21 +240,21 @@ UNMETHYLATED_SNP_PROBES = (
 
 FG_GREEN_PROBE_SUBSETS = (
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.ONE,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.B,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.ONE,
     ),
 )
@@ -256,22 +281,22 @@ FG_RED_PROBE_SUBSETS = (
 )
 
 FG_PROBE_SUBSETS = {
-    Channel.GREEN: FG_GREEN_PROBE_SUBSETS,
+    Channel.GRN: FG_GREEN_PROBE_SUBSETS,
     Channel.RED: FG_RED_PROBE_SUBSETS,
 }
 
 # == IG[AddressB] + II[green] + IR[AddressB]
 METHYLATED_PROBE_SUBSETS = (
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.B,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.ONE,
     ),
     ProbeSubset(
@@ -291,9 +316,9 @@ UNMETHYLATED_PROBE_SUBSETS = (
         probe_type=ProbeType.TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.ONE,
     ),
     ProbeSubset(
@@ -309,15 +334,15 @@ postprocessing.
 
 METHYLATED_MOUSE_PROBES = (
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.MOUSE_TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.B,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.MOUSE_ONE,
     ),
     ProbeSubset(
@@ -336,9 +361,9 @@ UNMETHYLATED_MOUSE_PROBES = (
         probe_type=ProbeType.MOUSE_TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.MOUSE_ONE,
     ),
     ProbeSubset(
@@ -361,16 +386,16 @@ UNMETHYLATED_MOUSE_PROBES = (
 SNP_PROBES = (
     # SNP_II_PROBES
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.SNP_TWO,
     ),
     # SNP_I_GREEN_PROBES
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.SNP_ONE,
     ),
     # SNP_I_RED_PROBES
