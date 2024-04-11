@@ -3,7 +3,7 @@ from functools import lru_cache, wraps
 import numpy as np
 import pandas as pd
 
-from mepylome.dtypes import Manifest
+# from mepylome.dtypes import Manifest
 
 
 class Hash:
@@ -16,7 +16,8 @@ class Hash:
 
     @staticmethod
     def get_key(value):
-        if isinstance(value, Manifest):
+        if hasattr(value, "__class__") and value.__class__.__name__ == "Manifest":
+        # if isinstance(value, Manifest):
             return value.array_type.value
         if isinstance(value, pd.Index):
             return value.values.tobytes()

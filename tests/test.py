@@ -343,78 +343,6 @@ meth = MethylData(sample_raw)
 timer.stop("1")
 
 
-def huber(y, k=1.5, tol=1.0e-6):
-    y = y[~np.isnan(y)]
-    n = len(y)
-    mu = np.median(y)
-    s = np.median(np.abs(y - mu)) * 1.4826
-    if s == 0:
-        raise ValueError("Cannot estimate scale: MAD is zero for this sample")
-    while True:
-        yy = np.clip(y, mu - k * s, mu + k * s)
-        mu1 = np.sum(yy) / n
-        if np.abs(mu - mu1) < tol * s:
-            break
-        mu = mu1
-    return {"mu": mu, "s": s}
-
-
-def normexp_get_xs(xf, controls, offset=50, verbose=False):
-    if verbose:
-        print(
-            "[normexp.get.xs] Background mean & SD estimated from",
-            controls.shape[0],
-            "probes",
-        )
-    mu = np.empty(xf.shape[1])
-    sigma = np.empty(xf.shape[1])
-    alpha = np.empty(xf.shape[1])
-    for i in range(xf.shape[1]):
-        ests = huber(controls[:, i])
-        mu[i] = ests["mu"]
-        sigma[i] = ests["s"]
-        alpha[i] = max(huber(xf[:, i])["mu"] - mu[i], 10)
-    pars = pd.DataFrame(
-        {"mu": mu, "lsigma": np.log(sigma), "lalpha": np.log(alpha)}
-    )
-    for i in range(xf.shape[1]):
-        xf[:, i] = normexp_signal(pars.iloc[i].values, xf[:, i])
-    return {
-        "xs": xf + offset,
-        "params": pd.DataFrame(
-            {"mu": mu, "sigma": sigma, "alpha": alpha, "offset": offset}
-        ),
-        "meta": ["background mean", "background SD", "signal mean", "offset"],
-    }
-
-
-def normexp_get_xs(xf, controls, offset=50, verbose=False):
-    if verbose:
-        print(
-            "[normexp.get.xs] Background mean & SD estimated from",
-            controls.shape[0],
-            "probes",
-        )
-    mu = np.empty(xf.shape[1])
-    sigma = np.empty(xf.shape[1])
-    alpha = np.empty(xf.shape[1])
-    for i in range(xf.shape[1]):
-        ests = huber(controls[:, i])
-        mu[i] = ests["mu"]
-        sigma[i] = ests["s"]
-        alpha[i] = max(huber(xf[:, i])["mu"] - mu[i], 10)
-    pars = np.column_stack((mu, np.log(sigma), np.log(alpha)))
-    for i in range(xf.shape[1]):
-        xf[:, i] = normexp_signal(pars[i], xf[:, i])
-    return {
-        "xs": xf + offset,
-        "params": np.column_stack(
-            (mu, sigma, alpha, np.full_like(mu, offset))
-        ),
-        "meta": ["background mean", "background SD", "signal mean", "offset"],
-    }
-
-
 manifest = ManifestLoader.get_manifest("450k")
 self = manifest
 probe_type = ProbeType.ONE
@@ -436,51 +364,55 @@ np.all(z1.values == z.values)
 
 ################### NOOB
 
-
-
-
 offset = 15
 dye_corr = True
 verbose = False
 dye_method = "single"
 
 raw = RawData([ref0, ref1])
-self = MethylData(raw)
 
-grn = raw.grn
-red = raw.red
+timer.start()
+self = MethylData(raw, prep="noob")
+timer.stop("*")
 
-i_grn = self.manifest.probe_info(ProbeType.ONE, Channel.GRN)
-i_red = self.manifest.probe_info(ProbeType.ONE, Channel.RED)
+timer.start()
+self = MethylData(sample_raw, prep="noob")
+timer.stop("*")
 
 
-grn_oob = pd.concat(
-    [grn.loc[i_red.AddressA_ID], grn.loc[i_red.AddressB_ID]], axis=0
-)
-red_oob = pd.concat(
-    [red.loc[i_grn.AddressA_ID], red.loc[i_grn.AddressB_ID]], axis=0
-)
 
-control_probes = self.manifest.control_data_frame
 
-self.methylated[self.methylated <= 0] = 1
-self.unmethylated[self.unmethylated <= 0] = 1
+# Noob
+# >>> methyl_df
+# 3999997083_R02C02  5775446049_R06C01
+# cg13869341       18532.097447       31249.660200
+# cg14008030        7381.869629       17687.621094
+# cg12045430         123.438129         273.567078
+# cg20826792         530.955529        1632.319576
+# cg00381604         130.188501         247.995769
+# ...                       ...                ...
+# cg17939569          87.637659        5362.623047
+# cg13365400          91.106116        5940.623047
+# cg21106100          78.593774        7248.623047
+# cg08265308         121.063723        5180.034367
+# cg14273923          90.267410       10678.623047
 
-manifest_df = self.manifest.data_frame.iloc[self.methyl_index]
-probe_type = manifest_df.Probe_Type
-color = manifest_df.Color_Channel
+# [485512 rows x 2 columns]
+# >>> unmethyl_df
+# 3999997083_R02C02  5775446049_R06C01
+# cg13869341        1131.388267        4347.401849
+# cg14008030        2242.245217       11188.378244
+# cg12045430        7880.098972       15914.997346
+# cg20826792        9914.292138       16576.082461
+# cg00381604        8556.804514       13605.383527
+# ...                       ...                ...
+# cg17939569         110.009358        1331.076523
+# cg13365400         114.410604        5418.527098
+# cg21106100         117.836945         497.635410
+# cg08265308         125.480597         263.723241
+# cg14273923         149.288049        4527.317418
 
-ext_probe_type = np_ext_probe_type(probe_type, color)
 
-i_grn_idx = manifest_df.index[ext_probe_type == ExtProbeType.ONE_GRN]
-i_red_idx = manifest_df.index[ext_probe_type == ExtProbeType.ONE_RED]
-ii_idx = manifest_df.index[ext_probe_type == ExtProbeType.TWO]
-
-# i_green_idx =  manifest_df[manifest_df.Probe_Type == ProbeType.ONE
-
-# Green_probes <- which(probe.type == "IGrn")
-# Red_probes <- which(probe.type == "IRed")
-# d2.probes <- which(probe.type == "II")
 
 
 

@@ -137,13 +137,13 @@ class Manifest:
         self.__methyl_probes = self.get_methyl_probes()
 
     def get_methyl_probes(self):
-        type_i = self.probe_info(ProbeType.ONE)
-        type_ii = self.probe_info(ProbeType.TWO)
+        type_1 = self.probe_info(ProbeType.ONE)
+        type_2 = self.probe_info(ProbeType.TWO)
         locus_names = np.sort(
             np.concatenate(
                 [
-                    type_i.IlmnID.index,
-                    type_ii.IlmnID.index,
+                    type_1.IlmnID.index,
+                    type_2.IlmnID.index,
                 ]
             )
         )
