@@ -406,7 +406,6 @@ class CNV:
                 [chrom, df.Start.iloc[l.start], df.End.iloc[l.end - 1]]
                 for l in seg
             ],
-            # [[chrom, l.start, l.end] for l in seg],
             columns=["Chromosome", "Start", "End"],
         )
         return seg_df

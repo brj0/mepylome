@@ -1,21 +1,55 @@
+import gzip
 import logging
-import numpy as np
-from scipy.stats import rankdata
-import pandas as pd
-import pyranges as pr
-import cbseg
-import logging
-from sklearn.linear_model import LinearRegression
 import os
+import pickle
 import re
 import time
+import timeit
 import warnings
+from functools import reduce
 from pathlib import Path
 from urllib.parse import urljoin
-import pickle
-import gzip
+
+import cbseg
+import numpy as np
+import pandas as pd
+import pkg_resources
+import pyranges as pr
+import scipy.stats as stats
+from cbseg import (
+    determine_cbs,
+    determine_cbs_stat,
+    determine_t_stat,
+    segment,
+    validate,
+)
+from scipy.stats import rankdata
+from sklearn.linear_model import LinearRegression
 
 import mepylome
+from mepylome import IdatParser
+
+# TODO too long for import
+from mepylome.dtypes import (
+    CNV,
+    Annotation,
+    ArrayType,
+    Channel,
+    Manifest,
+    ManifestLoader,
+    MethylData,
+    ProbeType,
+    RawData,
+    cache,
+)
+from mepylome.utils import (
+    Timer,
+    download_file,
+    ensure_directory_exists,
+    get_file_from_archive,
+    get_file_object,
+    reset_file,
+)
 
 # from methylprep.files.idat import IdatDataset
 # from methylprep.models.probes import Channel
@@ -25,45 +59,9 @@ import mepylome
 
 # warnings.simplefilter(action="ignore", category=FutureWarning)
 
-from functools import reduce
 
-import numpy as np
-import pandas as pd
-import pkg_resources
-import pyranges as pr
-from cbseg import (
-    determine_cbs,
-    determine_cbs_stat,
-    determine_t_stat,
-    segment,
-    validate,
-)
 
-from mepylome import IdatParser
 
-# TODO too long for import
-from mepylome.dtypes import (
-    CNV,
-    Annotation,
-    ArrayType,
-    Channel,
-    cache,
-    Manifest,
-    ManifestLoader,
-    MethylData,
-    ProbeType,
-    ExtProbeType,
-    np_ext_probe_type,
-    RawData,
-)
-from mepylome.utils import (
-    download_file,
-    ensure_directory_exists,
-    get_file_from_archive,
-    get_file_object,
-    reset_file,
-    Timer,
-)
 
 # import numexpr
 
@@ -364,10 +362,6 @@ np.all(z1.values == z.values)
 
 ################### NOOB
 
-offset = 15
-dye_corr = True
-verbose = False
-dye_method = "single"
 
 raw = RawData([ref0, ref1])
 
@@ -379,39 +373,19 @@ timer.start()
 self = MethylData(sample_raw, prep="noob")
 timer.stop("*")
 
+timer.start()
+self = MethylData(sample_raw, prep="swan")
+timer.stop("*")
 
 
+def cached_loc(self, idx):
+    return self.loc[idx]
 
-# Noob
-# >>> methyl_df
-# 3999997083_R02C02  5775446049_R06C01
-# cg13869341       18532.097447       31249.660200
-# cg14008030        7381.869629       17687.621094
-# cg12045430         123.438129         273.567078
-# cg20826792         530.955529        1632.319576
-# cg00381604         130.188501         247.995769
-# ...                       ...                ...
-# cg17939569          87.637659        5362.623047
-# cg13365400          91.106116        5940.623047
-# cg21106100          78.593774        7248.623047
-# cg08265308         121.063723        5180.034367
-# cg14273923          90.267410       10678.623047
+pd.DataFrame.cached_loc = cached_loc
 
-# [485512 rows x 2 columns]
-# >>> unmethyl_df
-# 3999997083_R02C02  5775446049_R06C01
-# cg13869341        1131.388267        4347.401849
-# cg14008030        2242.245217       11188.378244
-# cg12045430        7880.098972       15914.997346
-# cg20826792        9914.292138       16576.082461
-# cg00381604        8556.804514       13605.383527
-# ...                       ...                ...
-# cg17939569         110.009358        1331.076523
-# cg13365400         114.410604        5418.527098
-# cg21106100         117.836945         497.635410
-# cg08265308         125.480597         263.723241
-# cg14273923         149.288049        4527.317418
-
+df = pd.DataFrame({'A': [1, 2, 3], 'B': [4, 5, 6]})
+result = df.cached_loc[:, 'A']
+print(result)
 
 
 

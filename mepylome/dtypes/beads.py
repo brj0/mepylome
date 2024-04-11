@@ -169,40 +169,6 @@ def overlap_indices(left_arr, right_arr):
     return left_index, right_index
 
 
-# class Cache:
-# cache = {}
-
-# @classmethod
-# def overlap_indices(self, left_arr, right_arr):
-# key = Cache.fast_hash(left_arr, right_arr)
-# # key = hash(left_arr.data.tobytes() + right_arr.data.tobytes())
-# if key in Cache.cache:
-# return Cache.cache[key]
-# if not isinstance(left_arr, pd.Index):
-# left_arr = pd.Index(left_arr)
-# if not isinstance(right_arr, pd.Index):
-# right_arr = pd.Index(right_arr)
-# common_indices = left_arr.intersection(right_arr)
-# left_index = left_arr.get_indexer(common_indices)
-# right_index = right_arr.get_indexer(common_indices)
-# Cache.cache[key] = left_index, right_index
-# return left_index, right_index
-
-# def fast_hash(left_arr, right_arr):
-# N = len(left_arr)
-# M = len(right_arr)
-# L = 57
-# idx_left = [x * N // L for x in range(L)] + [-1]
-# idx_right = [x * M // L for x in range(L)] + [-1]
-# key = (
-# tuple(left_arr[idx_left]),
-# tuple(right_arr[idx_right]),
-# N,
-# M,
-# )
-# return key
-
-
 class MethylData:
     def __init__(self, data=None, file=None, prep="illumina"):
         if data is None and file is None:
@@ -438,83 +404,6 @@ class MethylData:
         self.methyl_index = ci["idx"]
         self.methyl_ilmnid = self.manifest.data_frame.IlmnID.values[ci["idx"]]
 
-    # def _preprocess_raw_cached(self):
-    # key = (self.manifest.array_type, self.ids.tobytes())
-    # if key in Cache.cache:
-    # (
-    # man_idx,
-    # ids_1_red_a,
-    # ids_1_red_b,
-    # ids_1_grn_a,
-    # ids_1_grn_b,
-    # ids_2_____a,
-    # idx_1_red__,
-    # idx_1_grn__,
-    # idx_2______,
-    # ) = Cache.cache[key]
-    # else:
-    # type_1 = self.manifest.probe_info(ProbeType.ONE)
-    # type_2 = self.manifest.probe_info(ProbeType.TWO)
-    # type_1_red = type_1[
-    # type_1.Color_Channel.values == Channel.RED.value
-    # ]
-    # type_1_grn = type_1[
-    # type_1.Color_Channel.values == Channel.GRN.value
-    # ]
-    # man_idx_np = np.sort(
-    # np.concatenate(
-    # [
-    # type_1.IlmnID.index,
-    # type_2.IlmnID.index,
-    # ]
-    # )
-    # )
-    # ids_pd = pd.Index(self.ids)
-    # man_idx = pd.Index(man_idx_np)
-    # ids_1_red_a = ids_pd.get_indexer(type_1_red["AddressA_ID"])
-    # ids_1_red_b = ids_pd.get_indexer(type_1_red["AddressB_ID"])
-    # ids_1_grn_a = ids_pd.get_indexer(type_1_grn["AddressA_ID"])
-    # ids_1_grn_b = ids_pd.get_indexer(type_1_grn["AddressB_ID"])
-    # ids_2_____a = ids_pd.get_indexer(type_2["AddressA_ID"])
-    # idx_1_red__ = man_idx.get_indexer(type_1_red.index)
-    # idx_1_grn__ = man_idx.get_indexer(type_1_grn.index)
-    # idx_2______ = man_idx.get_indexer(type_2.index)
-    # Cache.cache[key] = (
-    # man_idx,
-    # ids_1_red_a,
-    # ids_1_red_b,
-    # ids_1_grn_a,
-    # ids_1_grn_b,
-    # ids_2_____a,
-    # idx_1_red__,
-    # idx_1_grn__,
-    # idx_2______,
-    # )
-    # self.methyl = np.full((len(self.probes), len(man_idx)), np.nan)
-    # self.methyl[:, idx_1_red__] = self._red[:, ids_1_red_b]
-    # self.methyl[:, idx_1_grn__] = self._grn[:, ids_1_grn_b]
-    # self.methyl[:, idx_2______] = self._grn[:, ids_2_____a]
-    # self.unmethyl = np.full((len(self.probes), len(man_idx)), np.nan)
-    # self.unmethyl[:, idx_1_red__] = self._red[:, ids_1_red_a]
-    # self.unmethyl[:, idx_1_grn__] = self._grn[:, ids_1_grn_a]
-    # self.unmethyl[:, idx_2______] = self._red[:, ids_2_____a]
-    # self.methyl_index = man_idx
-    # self.methyl_ilmnid = self.manifest.data_frame.IlmnID.values[man_idx]
-    # self.methylated = pd.DataFrame(
-    # self.methyl.T,
-    # index=self.methyl_ilmnid,
-    # columns=self.probes,
-    # dtype="float32",
-    # )
-    # self.methylated.index.name = "IlmnID"
-    # self.unmethylated = pd.DataFrame(
-    # self.unmethyl.T,
-    # index=self.methyl_ilmnid,
-    # columns=self.probes,
-    # dtype="float32",
-    # )
-    # self.unmethylated.index.name = "IlmnID"
-
     def swan_bg_intensity(self):
         neg_controls = self.manifest.control_address("NEGATIVE")
         grn_med = np.median(
@@ -530,14 +419,6 @@ class MethylData:
 
     @staticmethod
     def swan_indices(manifest, methyl_index):
-        # type_1 = manifest.probe_info(ProbeType.ONE)[
-        # ["IlmnID", "N_CpG", "Probe_Type"]
-        # ]
-        # type_2 = manifest.probe_info(ProbeType.TWO)[
-        # ["IlmnID", "N_CpG", "Probe_Type"]
-        # ]
-        # all_ncpgs = pd.concat([type_1, type_2], axis=0)
-        # all_ncpgs = all_ncpgs.loc[methyl_index]
         all_ncpgs = manifest.data_frame[["Probe_Type", "N_CpG"]].loc[
             methyl_index
         ]
@@ -555,7 +436,6 @@ class MethylData:
             for ncpgs in range(1, 4):
                 ids = all_ncpts_type.index[all_ncpts_type.N_CpG == ncpgs]
                 ids_subset = np.random.permutation(ids)[:subset_size]
-                # ids_subset = ids[:subset_size]  # TODO del this line
                 indices.append(ids_subset)
             random_subset_indices[probe_type] = np.sort(
                 np.concatenate(indices)

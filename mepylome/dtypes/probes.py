@@ -118,29 +118,6 @@ class ProbeType(IntEnum):
         return ProbeType.CONTROL
 
 
-@unique
-class ExtProbeType(IntEnum):
-    ONE_GRN = 1
-    ONE_RED = 2
-    TWO = 3
-    NONE = -1
-
-    def __str__(self):
-        return str(self.value)
-
-
-def np_ext_probe_type(probe_types, colors):
-    result = np.full_like(probe_types, ExtProbeType.NONE.value)
-    result[
-        (probe_types == ProbeType.ONE.value) & (colors == Channel.GRN.value)
-    ] = ExtProbeType.ONE_GRN.value
-    result[
-        (probe_types == ProbeType.ONE.value) & (colors == Channel.RED.value)
-    ] = ExtProbeType.ONE_RED.value
-    result[probe_types == ProbeType.TWO.value] = ExtProbeType.TWO.value
-    return result
-
-
 class Probe:
     """this doesn't appear to be instantiated anywhere in methylprep"""
 
