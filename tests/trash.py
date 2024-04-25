@@ -405,3 +405,12 @@ self.unmethylated.loc["ch.22.47579720R"] #          7800.607         12882.931
 self.unmethylated.loc["ch.22.48274842R"] #         13027.749         14065.632
 
 
+for x in grn_idat_files:
+    # x = grn_idat_files[0]
+    y = Path(BETA_VALUES, x.name)
+    data_x = np.fromfile(x, dtype=np.float64)
+    data_y = np.fromfile(y, dtype=np.float64)
+    c = np.corrcoef(data_x, data_y)
+    print(c[0, 1])
+
+

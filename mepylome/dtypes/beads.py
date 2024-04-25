@@ -32,7 +32,7 @@ def idat_basepaths(files):
     if isinstance(files, list):
         _files = files
     elif Path(files).is_dir():
-        _files = list(Path(files).iterdir())
+        _files = Path(files).iterdir()
     else:
         _files = [files]
     # Remove file endings

@@ -2,17 +2,20 @@ import heapq
 import logging
 
 import cbseg
+import zipfile
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import pyranges as pr
 from sklearn.linear_model import LinearRegression
 
-from mepylome.utils import Timer
-from mepylome.dtypes import Manifest, cache
+from mepylome.utils import Timer, ensure_directory_exists
+from mepylome.dtypes import Manifest, cache, MANIFEST_TMP_DIR, CNVPlot
 
 cnv_timer = Timer()
 
 LOGGER = logging.getLogger(__name__)
+ZIP_ENDING = "_cnv.zip"
 
 
 class Annotation:
@@ -33,6 +36,7 @@ class Annotation:
         self.detail = self.detail.sort()
         self.verbose = verbose
         self.chromsizes = pr.data.chromsizes()
+        self.array_type = manifest.array_type
         df = manifest.data_frame.copy()
         df = df[[x.startswith("cg") for x in df.IlmnID.values]]
         df = df[
@@ -238,6 +242,7 @@ class Annotation:
             f"bin_size:\n{self.bin_size}",
             f"gap:\n{self.gap}",
             f"detail:\n{self.detail}",
+            f"array_type:\n{self.array_type}",
             f"manifest:\n{self.manifest}",
             f"chromsizes:\n{self.chromsizes}",
             f"bins:\n{self.bins}",
@@ -255,6 +260,7 @@ class CNV:
         if len(sample.probes) != 1:
             raise ValueError("sample must contain exactly 1 probe.")
         self.sample = sample
+        self.probe = self.sample.probes[0]
         self.reference = reference
         self.annotation = annotation
         self.set_itensity(self.sample)
@@ -304,9 +310,7 @@ class CNV:
         smp_intensity = self.sample.intensity.iloc[smp_prob_idx].values.ravel()
         idx = self.sample.intensity.iloc[smp_prob_idx].index
         ref_prob_idx = indices(self.reference.intensity.index, probes)
-        ref_intensity = self.reference.intensity.iloc[
-            ref_prob_idx,
-        ].values
+        ref_intensity = self.reference.intensity.iloc[ref_prob_idx,].values
         # smp_intensity = self.sample.intensity.loc[probes].values.ravel()
         # idx = self.sample.intensity.loc[probes].index
         # ref_intensity = self.reference.intensity.loc[
@@ -431,6 +435,54 @@ class CNV:
         )
         self.segments = pr.PyRanges(result)
         self.segments = self.segments.sort()
+
+    def write(self, file_dir, file_name=None, files="all"):
+        default = {"all", "bins", "detail", "segments", "metadata"}
+        if not isinstance(files, list):
+            files = [files]
+        files = set(files)
+        if "all" in files:
+            files = default
+        invalid = files - default
+        if invalid:
+            raise ValueError(
+                f"Invalid file(s) specified: {invalid}. "
+                f"Valid options are: {default}"
+            )
+        dfs_to_write = []
+        if "bins" in files:
+            dfs_to_write.append(("bins.csv", self.bins.df))
+        if "detail" in files:
+            dfs_to_write.append(("detail.csv", self.detail.df))
+        if "segments" in files:
+            dfs_to_write.append(("segments.csv", self.segments.df))
+        if "metadata" in files:
+            metadata_df = pd.DataFrame(
+                {"Array_type": [str(self.annotation.array_type)]},
+            )
+            dfs_to_write.append(("metadata.csv", metadata_df))
+        file_dir = Path(file_dir).expanduser()
+        if file_name is None:
+            file_name = Path(file_dir).joinpath(
+                self.probe + ZIP_ENDING
+            )
+        base_path = Path(file_dir).joinpath(file_name)
+        if base_path.suffix == ".zip":
+            base_path = base_path.with_suffix("")
+        with zipfile.ZipFile(base_path.with_suffix(".zip"), "w") as zf:
+            for filename, df in dfs_to_write:
+                csv_path = Path(str(base_path) + "_" + filename)
+                df.to_csv(csv_path, index=False)
+                zf.write(csv_path, arcname=csv_path.name)
+                csv_path.unlink()
+
+    def plot(self):
+        cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
+        ensure_directory_exists(cnv_dir)
+        cnv_file = self.probe + ZIP_ENDING
+        self.write(cnv_dir, cnv_file)
+        CNVPlot(cnv_dir, cnv_file)
+
 
     def __repr__(self):
         # TODO

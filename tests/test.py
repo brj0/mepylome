@@ -39,17 +39,19 @@ from mepylome.dtypes import (
     ManifestLoader,
     MethylData,
     ProbeType,
+    CNVPlot,
     RawData,
     cache,
 )
 from mepylome.utils import (
-    Timer,
     download_file,
+    Timer,
     ensure_directory_exists,
     get_file_from_archive,
     get_file_object,
     reset_file,
 )
+
 
 # from methylprep.files.idat import IdatDataset
 # from methylprep.models.probes import Channel
@@ -60,43 +62,16 @@ from mepylome.utils import (
 # warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
-
-
-
 # import numexpr
+
+CNV_DATA = os.path.expanduser("/data/epidip_CNV_data/")
 
 LOGGER = logging.getLogger(__name__)
 print("imports done")
 
-
-def save_cnv(cnv_zip_path, cnv):
-    bins_df = cnv.bins.df[["Chromosome", "Start", "End", "Median"]]
-    bins_df.columns = ["chrom", "start", "end", "value"]
-    detail_df = cnv.detail.df[
-        ["Chromosome", "Start", "End", "Name", "Median", "N_probes"]
-    ]
-    detail_df.columns = ["chrom", "start", "end", "name", "value", "nprobes"]
-    segments_df = cnv.segments.df[
-        ["Chromosome", "Start", "End", "Mean", "Median"]
-    ]
-    segments_df.columns = [
-        "chrom",
-        "start",
-        "end",
-        "mean",
-        "median",
-    ]
-    import zipfile
-
-    dfs = [
-        ("py_cnv_bins.csv", bins_df),
-        ("py_cnv_detail.csv", detail_df),
-        ("py_cnv_segments.csv", segments_df),
-    ]
-    with zipfile.ZipFile("/data/epidip_CNV_data/py_cnv.zip", "w") as zf:
-        for filename, df in dfs:
-            df.to_csv(filename, index=False)
-            zf.write(filename)
+# [["Chromosome", "Start", "End", "N_probes", "Median", "Var"]]
+# ["Chromosome", "Start", "End", "Name", "Median", "N_probes"]
+# ["Chromosome", "Start", "End", "Mean", "Median"]
 
 
 timer = Timer()
@@ -201,8 +176,14 @@ sample = sample_methyl
 reference = ref_methyl
 
 
-cnv_zip_path = "/data/epidip_CNV_data/py_cnv.zip"
-# save_cnv(cnv_zip_path, cnv)
+file_path = "/data/epidip_CNV_data/py_cnv.zip"
+file_name = "py_cnv.zip"
+
+file_dir = "/data/epidip_CNV_data/"
+
+timer.start()
+cnv.write(file_dir, file_name="py_cnv")
+timer.stop("zip write")
 
 
 quit()
@@ -283,15 +264,6 @@ grn_idat_files = [
     if str(x).endswith(ENDING_BETAS)
 ]
 
-for x in grn_idat_files:
-    # x = grn_idat_files[0]
-    y = Path(BETA_VALUES, x.name)
-    data_x = np.fromfile(x, dtype=np.float64)
-    data_y = np.fromfile(y, dtype=np.float64)
-    c = np.corrcoef(data_x, data_y)
-    print(c[0, 1])
-
-
 # Time passed: 9.987592697143555 ms (Parsing IDAT)
 # Time passed: 1480.562686920166 ms (RawData ref)
 # Time passed: 392.32563972473145 ms (MethylData ref)
@@ -313,38 +285,6 @@ for x in grn_idat_files:
 # self = MethylData(raw, prep="raw")
 
 
-raw = RawData([ref0, ref1])
-
-timer.start()
-self = MethylData(raw, prep="swan")
-timer.stop("1")
-
-
-raw = RawData([ref0, ref1])
-meth = MethylData(raw, prep="swan")
-M_s = meth.methylated
-U_s = meth.unmethylated
-for _ in range(999):
-    print(_)
-    # meth = MethylData(raw)
-    meth = MethylData(raw, prep="swan")
-    M_s += meth.methylated
-    U_s += meth.unmethylated
-
-M = M_s / 1000
-U = U_s / 1000
-
-
-timer.start()
-# meth = MethylData(sample_raw, prep="swan")
-meth = MethylData(sample_raw)
-timer.stop("1")
-
-
-manifest = ManifestLoader.get_manifest("450k")
-self = manifest
-probe_type = ProbeType.ONE
-
 timer.start()
 for _ in range(100):
     z = manifest.probe_info(ProbeType.ONE)
@@ -358,9 +298,6 @@ for _ in range(100):
 timer.stop("1")
 
 np.all(z1.values == z.values)
-
-
-################### NOOB
 
 
 raw = RawData([ref0, ref1])
@@ -377,17 +314,5 @@ timer.start()
 self = MethylData(sample_raw, prep="swan")
 timer.stop("*")
 
-
-def cached_loc(self, idx):
-    return self.loc[idx]
-
-pd.DataFrame.cached_loc = cached_loc
-
-df = pd.DataFrame({'A': [1, 2, 3], 'B': [4, 5, 6]})
-result = df.cached_loc[:, 'A']
-print(result)
-
-
-
-
+cnv.plot()
 

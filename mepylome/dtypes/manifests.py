@@ -23,7 +23,7 @@ NONE = -1
 LOGGER = logging.getLogger(__name__)
 
 MANIFEST_DIR = f"~/.mepylome/manifest_files"
-MANIFEST_DOWNLOAD_DIR = f"/tmp/mepylome"
+MANIFEST_TMP_DIR = f"/tmp/mepylome"
 ENDING_CONTROL_PROBES = "_control-probes"
 
 
@@ -232,7 +232,7 @@ class Manifest:
         if manifest_filepath.exists() and control_filepath.exists():
             return manifest_filepath, control_filepath
 
-        download_dir = Path(MANIFEST_DOWNLOAD_DIR).expanduser()
+        download_dir = Path(MANIFEST_TMP_DIR).expanduser()
 
         source_url = ARRAY_URL[array_type]
         source_filename = Path(source_url).name
@@ -251,7 +251,7 @@ class Manifest:
 
         # Remove downloaded files
         # TODO uncomment this
-        # shutil.rmtree(MANIFEST_DOWNLOAD_DIR)
+        # shutil.rmtree(MANIFEST_TMP_DIR)
 
         return manifest_filepath, control_filepath
 
@@ -527,3 +527,8 @@ class ManifestLoader:
             manifest = Manifest(array_type)
             cls._manifests[array_type] = manifest
         return cls._manifests[array_type]
+
+    @staticmethod
+    def load(array_types):
+        for array_type in array_types:
+            _ = ManifestLoader.get_manifest(array_type)
