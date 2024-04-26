@@ -181,25 +181,6 @@ inline std::string read_char(std::ifstream& infile, const int num)
 }
 
 
-inline std::string read_string(std::ifstream& infile)
-{
-    int num = read_byte(infile);
-
-    int num_chars = num % 128;
-    int shift = 0;
-
-    while (num / 128 == 1)
-    {
-        num = read_byte(infile);
-        shift += 7;
-        int offset = (num % 128) * (1 << shift);
-        num_chars += offset;
-    }
-
-    return read_char(infile, num_chars);
-}
-
-
 template <typename T>
 std::vector<T> read_array(std::istream& ifstream, std::size_t length)
 {

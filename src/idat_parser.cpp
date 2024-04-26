@@ -85,6 +85,11 @@ inline std::string read_string(std::ifstream& infile)
 
     while (num / 128 == 1)
     {
+        if (infile.peek() == EOF) {
+            throw std::ios_base::failure(
+                "Parser reached the end of the IDAT prematurely (read_string)."
+            );
+        }
         num = read_byte(infile);
         shift += 7;
         int offset = (num % 128) * (1 << shift);
@@ -102,7 +107,7 @@ std::vector<T> read_array(std::istream& ifstream, std::size_t length)
     if (ifstream.gcount() != static_cast<std::streamsize>(sizeof(T) * length))
     {
         throw std::ios_base::failure(
-            "End of file reached before number of results parsed."
+            "Parser reached the end of the IDAT prematurely (read_array)."
         );
     }
     return std::vector<T>(
@@ -132,7 +137,9 @@ IdatParser::IdatParser(const std::string& filepath)
 
     if (!idat_file.is_open())
     {
-        std::cerr << "Error opening file: " << filepath << std::endl;
+        throw std::ios_base::failure(
+            "Parser could not open file " + filepath
+        );
     }
 
 
@@ -142,16 +149,18 @@ IdatParser::IdatParser(const std::string& filepath)
 
     if (file_type != DEFAULT_IDAT_FILE_ID)
     {
-        std::cerr << "Not an IDAT file. Unsupported file type."
-                    << std::endl;
+        throw std::ios_base::failure(
+            "Parser could not open file as its not a valid IDAT file."
+        );
     }
 
     uint64_t idat_version = read_long(idat_file);
 
     if (idat_version != DEFAULT_IDAT_VERSION)
     {
-        std::cerr << "Not a version 3 IDAT file. Unsupported IDAT version."
-                    << std::endl;
+        throw std::ios_base::failure(
+            "Parser could not open file as its not a version 3 IDAT file."
+        );
     }
 
     num_fields_ = read_int(idat_file);
@@ -176,7 +185,7 @@ IdatParser::IdatParser(const std::string& filepath)
     std_dev_= read_short(idat_file, n_snps_read_);
 
     idat_file.seekg(offsets_[IdatSectionCode::MEAN]);
-    probe_means_= read_array<int16_t>(idat_file, n_snps_read_);
+    probe_means_= read_array<uint16_t>(idat_file, n_snps_read_);
 
     idat_file.seekg(offsets_[IdatSectionCode::NUM_BEADS]);
     n_beads_= read_array<uint8_t>(idat_file, n_snps_read_);

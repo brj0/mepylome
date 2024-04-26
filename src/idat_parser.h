@@ -49,7 +49,7 @@ public:
     int32_t n_snps_read_;
     std::vector<int32_t> illumina_ids_;
     std::vector<uint16_t> std_dev_;
-    std::vector<int16_t> probe_means_;
+    std::vector<uint16_t> probe_means_;
     std::vector<uint8_t> n_beads_;
     std::vector<int32_t> mid_block_;
     std::vector<std::string> run_info_;
@@ -77,7 +77,7 @@ public:
     int32_t get_n_snps_read() const { return n_snps_read_; }
     const std::vector<int32_t>& get_illumina_ids() const { return illumina_ids_; }
     const std::vector<uint16_t>& get_std_dev() const { return std_dev_; }
-    const std::vector<int16_t>& get_probe_means() const { return probe_means_; }
+    const std::vector<uint16_t>& get_probe_means() const { return probe_means_; }
     const std::vector<uint8_t>& get_n_beads() const { return n_beads_; }
     const std::vector<int32_t>& get_mid_block() const { return mid_block_; }
     const std::vector<std::string>& get_run_info() const { return run_info_; }

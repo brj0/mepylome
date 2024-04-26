@@ -1,22 +1,22 @@
-# Lib
-from enum import Enum, unique
+from enum import IntEnum, Enum, unique
+import numpy as np
 
 
 @unique
-class Channel(Enum):
+class Channel(IntEnum):
     """idat probes measure either a red or green fluorescence.  This specifies
     which to return within idat.py: red_idat or green_idat.
     """
 
-    RED = "Red"
-    GREEN = "Grn"
+    GRN = 0
+    RED = 1
 
     def __str__(self):
         return self.value
 
     @property
     def is_green(self):
-        return self == self.GREEN
+        return self == self.GRN
 
     @property
     def is_red(self):
@@ -47,8 +47,15 @@ class ProbeAddress(Enum):
         return "AddressB_ID"
 
 
+# TODO del
 @unique
-class ProbeType(Enum):
+class InfiniumDesignType(IntEnum):
+    I = 1
+    II = 2
+
+
+@unique
+class ProbeType(IntEnum):
     """probes can either be type I or type II for CpG or Snp sequences.
     Control probes are used for background correction in different fluorescence
     ranges and staining efficiency.  Type I probes record EITHER a red or a
@@ -57,11 +64,11 @@ class ProbeType(Enum):
     fluorescence.
     """
 
-    ONE = "I"
-    TWO = "II"
-    SNP_ONE = "SnpI"
-    SNP_TWO = "SnpII"
-    CONTROL = "Control"
+    ONE = 1
+    TWO = 2
+    SNP_ONE = 3
+    SNP_TWO = 4
+    CONTROL = 5
     # I was separating out mouse probes EARLY, here, but found they need to be
     # processed like all other probes, THEN removed in post-processing stage.
     # MOUSE_ONE = 'MouseI'
@@ -88,19 +95,19 @@ class ProbeType(Enum):
         is_snp = name.startswith("rs")
 
         if is_control and is_snp:
-            if infinium_type == "I":
+            if infinium_type == InfiniumDesignType.I:
                 return ProbeType.SNP_ONE
-            elif infinium_type == "II":
+            elif infinium_type == InfiniumDesignType.II:
                 return ProbeType.SNP_TWO
             else:
                 return ProbeType.CONTROL
         elif is_control:
             return ProbeType.CONTROL
 
-        elif infinium_type == "I":
+        elif infinium_type == InfiniumDesignType.I:
             return ProbeType.ONE
 
-        elif infinium_type == "II":
+        elif infinium_type == InfiniumDesignType.II:
             return ProbeType.TWO
 
         # mouse only -- these are type I probes but Bret's files label them
@@ -168,15 +175,15 @@ class ProbeSubset:
 
 METHYLATED_SNP_PROBES = (
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.SNP_TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.B,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.SNP_ONE,
     ),
     ProbeSubset(
@@ -195,9 +202,9 @@ UNMETHYLATED_SNP_PROBES = (
         probe_type=ProbeType.SNP_TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.SNP_ONE,
     ),
     ProbeSubset(
@@ -210,21 +217,21 @@ UNMETHYLATED_SNP_PROBES = (
 
 FG_GREEN_PROBE_SUBSETS = (
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.ONE,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.B,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.ONE,
     ),
 )
@@ -251,22 +258,22 @@ FG_RED_PROBE_SUBSETS = (
 )
 
 FG_PROBE_SUBSETS = {
-    Channel.GREEN: FG_GREEN_PROBE_SUBSETS,
+    Channel.GRN: FG_GREEN_PROBE_SUBSETS,
     Channel.RED: FG_RED_PROBE_SUBSETS,
 }
 
 # == IG[AddressB] + II[green] + IR[AddressB]
 METHYLATED_PROBE_SUBSETS = (
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.B,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.ONE,
     ),
     ProbeSubset(
@@ -286,9 +293,9 @@ UNMETHYLATED_PROBE_SUBSETS = (
         probe_type=ProbeType.TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.ONE,
     ),
     ProbeSubset(
@@ -304,15 +311,15 @@ postprocessing.
 
 METHYLATED_MOUSE_PROBES = (
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.MOUSE_TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.B,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.MOUSE_ONE,
     ),
     ProbeSubset(
@@ -331,9 +338,9 @@ UNMETHYLATED_MOUSE_PROBES = (
         probe_type=ProbeType.MOUSE_TWO,
     ),
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.MOUSE_ONE,
     ),
     ProbeSubset(
@@ -356,16 +363,16 @@ UNMETHYLATED_MOUSE_PROBES = (
 SNP_PROBES = (
     # SNP_II_PROBES
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
         probe_channel=None,
         probe_type=ProbeType.SNP_TWO,
     ),
     # SNP_I_GREEN_PROBES
     ProbeSubset(
-        data_channel=Channel.GREEN,
+        data_channel=Channel.GRN,
         probe_address=ProbeAddress.A,
-        probe_channel=Channel.GREEN,
+        probe_channel=Channel.GRN,
         probe_type=ProbeType.SNP_ONE,
     ),
     # SNP_I_RED_PROBES

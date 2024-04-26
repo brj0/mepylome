@@ -1,21 +1,20 @@
-# Lib
 import logging
+import pickle
 from pathlib import Path
 from urllib.parse import urljoin
+
 import numpy as np
 import pandas as pd
-import pickle
+import pyranges as pr
 
-# App
-from mepylome.dtypes import ArrayType, Channel, ProbeType
+from mepylome.dtypes import ArrayType, Channel, InfiniumDesignType, ProbeType
 from mepylome.utils import (
     download_file,
-    get_file_object,
-    get_file_from_archive,
-    reset_file,
     ensure_directory_exists,
+    get_file_from_archive,
+    get_file_object,
+    reset_file,
 )
-
 
 __all__ = ["Manifest", "ManifestLoader"]
 
@@ -24,36 +23,36 @@ NONE = -1
 LOGGER = logging.getLogger(__name__)
 
 MANIFEST_DIR = f"~/.mepylome/manifest_files"
-MANIFEST_DOWNLOAD_DIR = f"/tmp/mepylome"
+MANIFEST_TMP_DIR = f"/tmp/mepylome"
 ENDING_CONTROL_PROBES = "_control-probes"
-# MANIFEST_BUCKET_NAME = "array-manifest-files"
 
-# MANIFEST_REMOTE_PATH = f"https://s3.amazonaws.com/{MANIFEST_BUCKET_NAME}/"
 
 ARRAY_FILENAME = {
-    # "27k": "humanmethylation450_15017482_v1-2.csv",
     "450k": "humanmethylation450_15017482_v1-2.csv.gz",
     "epic": "infinium-methylationepic-v-1-0-b5-manifest-file.csv.gz",
-    # "epic+": "CombinedManifestEPIC_manifest_CoreColumns_v2.csv.gz",
     "epicv2": "EPIC-8v2-0_A1.csv.gz",
     "mouse": "MouseMethylation-12v1-0_A2.csv.gz",
 }
 
 ARRAY_URL = {
-    # "27k": "",
-    ArrayType.ILLUMINA_450K: "https://webdata.illumina.com/downloads/productfiles/humanmethylation450/humanmethylation450_15017482_v1-2.csv",
-    ArrayType.ILLUMINA_EPIC: "https://webdata.illumina.com/downloads/productfiles/methylationEPIC/infinium-methylationepic-v-1-0-b5-manifest-file-csv.zip",
-    # "epic+": "CombinedManifestEPIC_manifest_CoreColumns_v2.csv.gz",
-    ArrayType.ILLUMINA_MOUSE: "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip",
-    ArrayType.ILLUMINA_EPIC_V2: "https://support.illumina.com.cn/content/dam/illumina-support/documents/downloads/productfiles/methylationepic/InfiniumMethylationEPICv2.0ProductFiles(ZIPFormat).zip",
+    ArrayType.ILLUMINA_450K: (
+        "https://webdata.illumina.com/downloads/productfiles/humanmethylation450/humanmethylation450_15017482_v1-2.csv"
+    ),
+    ArrayType.ILLUMINA_EPIC: (
+        "https://webdata.illumina.com/downloads/productfiles/methylationEPIC/infinium-methylationepic-v-1-0-b5-manifest-file-csv.zip"
+    ),
+    ArrayType.ILLUMINA_MOUSE: (
+        "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip"
+    ),
+    ArrayType.ILLUMINA_EPIC_V2: (
+        "https://support.illumina.com.cn/content/dam/illumina-support/documents/downloads/productfiles/methylationepic/InfiniumMethylationEPICv2.0ProductFiles(ZIPFormat).zip"
+    ),
 }
 
 ARRAY_TYPE_MANIFEST_FILENAMES = {
-    # ArrayType.ILLUMINA_27K: ARRAY_FILENAME["27k"],
     ArrayType.ILLUMINA_450K: ARRAY_FILENAME["450k"],
     ArrayType.ILLUMINA_EPIC: ARRAY_FILENAME["epic"],
     ArrayType.ILLUMINA_EPIC_V2: ARRAY_FILENAME["epicv2"],
-    # ArrayType.ILLUMINA_EPIC_PLUS: ARRAY_FILENAME["epic+"],
     ArrayType.ILLUMINA_MOUSE: ARRAY_FILENAME["mouse"],
 }
 
@@ -66,54 +65,27 @@ PROBES_COLUMNS = [
     "Color_Channel",
     "CHR",
     "MAPINFO",
+    "AlleleA_ProbeSeq",
+    "AlleleB_ProbeSeq",
 ]
 
-MANIFEST_COLUMNS = (
+MANIFEST_COLUMNS = [
     "IlmnID",
     "AddressA_ID",
     "AddressB_ID",
     "Infinium_Design_Type",
     "Color_Channel",
-    "Genome_Build",
-    "CHR",
-    "MAPINFO",
-    "Strand",
-    "OLD_Genome_Build",
-    "OLD_CHR",
-    "OLD_MAPINFO",
-    "OLD_Strand",
-)
-
-MOUSE_MANIFEST_COLUMNS = (
-    "IlmnID",
-    "AddressA_ID",
-    "AddressB_ID",
-    "Infinium_Design_Type",
-    "Color_Channel",
-    # replaces Probe_Type in v1.4.6+ with tons of design meta data. only
-    # 'Random' and 'Multi' matter in code.
-    #'Probe_Type', # pre v1.4.6, needed to identify mouse-specific probes (mu)
-    # | and control probe sub_types
-    "design",
-    "Genome_Build",
-    "CHR",
-    "MAPINFO",
-    "Strand",
-    "OLD_Genome_Build",
-    "OLD_CHR",
-    "OLD_MAPINFO",
-    "OLD_Strand",
-)
+    "Chromosome",
+    "Start",
+    "End",
+    "Probe_Type",
+]
 
 CONTROL_COLUMNS = (
     "Address_ID",
     "Control_Type",
     "Color",
     "Extended_Type",
-    # control probes don't have 'IlmnID' values set -- these probes are not
-    # locii specific
-    # these column names don't appear in manifest. they are added when
-    # importing the control section of rows
 )
 
 
@@ -133,7 +105,6 @@ class Manifest:
         ValueError: The sample sheet is not formatted properly or a sample
         cannot be found.
     """
-
 
     def __init__(
         self,
@@ -163,10 +134,20 @@ class Manifest:
         self.__data_frame = self.read_probes(filepath)
         self.__control_data_frame = self.read_control_probes(control_filepath)
         self.__snp_data_frame = self.read_snp_probes()
-        if self.array_type == ArrayType.ILLUMINA_MOUSE:
-            self.__mouse_data_frame = self.read_mouse_probes()
-        else:
-            self.__mouse_data_frame = pd.DataFrame()
+        self.__methyl_probes = self.get_methyl_probes()
+
+    def get_methyl_probes(self):
+        type_1 = self.probe_info(ProbeType.ONE)
+        type_2 = self.probe_info(ProbeType.TWO)
+        locus_names = np.sort(
+            np.concatenate(
+                [
+                    type_1.IlmnID.index,
+                    type_2.IlmnID.index,
+                ]
+            )
+        )
+        return self.__data_frame.iloc[locus_names]["IlmnID"].values
 
     def __repr__(self):
         title = f"Manifest({self.array_type}):"
@@ -175,16 +156,12 @@ class Manifest:
             f"data_frame:\n{self.data_frame}",
             f"control_data_frame:\n{self.control_data_frame}",
             f"snp_data_frame:\n{self.snp_data_frame}",
-            f"mouse_data_frame:\n{self.mouse_data_frame}",
         ]
         return "\n\n".join(lines)
 
     @property
     def columns(self):
-        if self.array_type == ArrayType.ILLUMINA_MOUSE:
-            return MOUSE_MANIFEST_COLUMNS
-        else:
-            return MANIFEST_COLUMNS
+        return MANIFEST_COLUMNS
 
     @property
     def data_frame(self):
@@ -210,8 +187,8 @@ class Manifest:
         return self.__snp_data_frame
 
     @property
-    def mouse_data_frame(self):
-        return self.__mouse_data_frame
+    def methylation_probes(self):
+        return self.__methyl_probes
 
     @staticmethod
     def download_default(array_type, on_lambda=False):
@@ -255,7 +232,7 @@ class Manifest:
         if manifest_filepath.exists() and control_filepath.exists():
             return manifest_filepath, control_filepath
 
-        download_dir = Path(MANIFEST_DOWNLOAD_DIR).expanduser()
+        download_dir = Path(MANIFEST_TMP_DIR).expanduser()
 
         source_url = ARRAY_URL[array_type]
         source_filename = Path(source_url).name
@@ -274,7 +251,7 @@ class Manifest:
 
         # Remove downloaded files
         # TODO uncomment this
-        # shutil.rmtree(MANIFEST_DOWNLOAD_DIR)
+        # shutil.rmtree(MANIFEST_TMP_DIR)
 
         return manifest_filepath, control_filepath
 
@@ -285,41 +262,114 @@ class Manifest:
         return Path(probes_path.parent, ".".join(split_filename))
 
     @staticmethod
+    def process_probes(data_frame):
+        # TODO Chromosomes not consistent
+        data_frame.rename(
+            columns={
+                "MAPINFO": "Start",
+                "CHR": "Chromosome",
+            },
+            inplace=True,
+        )
+        # IlmnID and Name are different in EPICv2
+        data_frame.IlmnID = data_frame.Name
+        data_frame = data_frame.drop(columns="Name")
+        channel_to_int = {"Grn": Channel.GRN, "Red": Channel.RED}
+        data_frame["Color_Channel"] = data_frame["Color_Channel"].replace(
+            channel_to_int
+        )
+        data_frame["Infinium_Design_Type"] = data_frame[
+            "Infinium_Design_Type"
+            # TODO drop Infinium_Design_Type
+        ].replace({"I": InfiniumDesignType.I, "II": InfiniumDesignType.II})
+        data_frame["TypeI_N_CpG"] = np.maximum(
+            0, data_frame["AlleleB_ProbeSeq"].fillna("").str.count("CG") - 1
+        )
+        # R Stands for CG in AlleleA_ProbeSeq
+        data_frame["TypeII_N_CpG"] = data_frame["AlleleA_ProbeSeq"].str.count(
+            "R"
+        )
+        data_frame["N_CpG"] = NONE
+        data_frame.loc[
+            data_frame["Infinium_Design_Type"] == InfiniumDesignType.I,
+            "N_CpG",
+        ] = data_frame.loc[
+            data_frame["Infinium_Design_Type"] == InfiniumDesignType.I,
+            "TypeI_N_CpG",
+        ]
+        data_frame.loc[
+            data_frame["Infinium_Design_Type"] == InfiniumDesignType.II,
+            "N_CpG",
+        ] = data_frame.loc[
+            data_frame["Infinium_Design_Type"] == InfiniumDesignType.II,
+            "TypeII_N_CpG",
+        ]
+
+        # Use int32 to improve performance of indexing
+        int_cols = [
+            "AddressA_ID",
+            "AddressB_ID",
+            "Infinium_Design_Type",
+            "Start",
+            "Color_Channel",
+            "TypeI_N_CpG",
+            "TypeII_N_CpG",
+        ]
+        data_frame[int_cols] = (
+            data_frame[int_cols].fillna(NONE).astype("int32")
+        )
+        data_frame["End"] = data_frame["Start"]
+        data_frame.drop(
+            columns=["AlleleA_ProbeSeq", "AlleleB_ProbeSeq"], inplace=True
+        )
+
+        def get_probe_type(name, infinium_type):
+            """returns one of (I, II, SnpI, SnpII, Control)
+            .from_manifest_values() returns probe type using either the
+            Infinium_Design_Type (I or II) or the name
+            (starts with 'rs' == SnpI) and 'Control' is none of the above.
+            """
+            probe_type = ProbeType.from_manifest_values(name, infinium_type)
+            return probe_type.value
+
+        vectorized_get_type = np.vectorize(get_probe_type)
+        data_frame["Probe_Type"] = vectorized_get_type(
+            data_frame.IlmnID.values,
+            data_frame["Infinium_Design_Type"].values,
+        )
+        probes_ranges = pr.PyRanges(data_frame).sort()
+        return probes_ranges.df
+
+    @staticmethod
     def process_manifest(filepath, manifest_name, dest_probes, dest_control):
         ensure_directory_exists(dest_probes)
         ensure_directory_exists(dest_control)
         with get_file_from_archive(filepath, manifest_name) as manifest_file:
             # Process probes
             Manifest.seek_to_start(manifest_file)
-            data_frame = pd.read_csv(
+            probes_df = pd.read_csv(
                 manifest_file,
                 low_memory=False,
                 usecols=PROBES_COLUMNS,
             )
-            n_probes = data_frame[data_frame.IlmnID.str.startswith("[")].index[
-                0
-            ]
-            data_frame_probes = data_frame[:n_probes].copy()
-            data_frame_probes[["AddressA_ID", "AddressB_ID", "MAPINFO"]] = (
-                data_frame_probes[["AddressA_ID", "AddressB_ID", "MAPINFO"]]
-                .apply(pd.to_numeric)
-                .astype("Int32")
-            )
-            data_frame_probes.to_csv(dest_probes, index=False)
+            n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
+            probes_df = probes_df[:n_probes]
+            probes_df = Manifest.process_probes(probes_df)
+            probes_df.to_csv(dest_probes, index=False)
             # Process controls
             Manifest.seek_to_start(manifest_file)
-            data_frame_controls = pd.read_csv(
+            controls_df = pd.read_csv(
                 manifest_file,
                 header=None,
                 # Skip metadata and probe section
                 skiprows=(3 + n_probes),
                 usecols=range(len(CONTROL_COLUMNS)),
             )
-            data_frame_controls.columns = CONTROL_COLUMNS
-            data_frame_controls["Address_ID"] = data_frame_controls[
-                "Address_ID"
-            ].astype("int32")
-            data_frame_controls.to_csv(dest_control, index=False)
+            controls_df.columns = CONTROL_COLUMNS
+            controls_df["Address_ID"] = controls_df["Address_ID"].astype(
+                "int32"
+            )
+            controls_df.to_csv(dest_control, index=False)
 
     @staticmethod
     def seek_to_start(manifest_file):
@@ -346,6 +396,7 @@ class Manifest:
             manifest_file.seek(current_pos - 1)
 
     def read_probes(self, probes_file):
+        # TODO better do this before saving gz
         if self.verbose:
             LOGGER.info(
                 f"Reading manifest file: {Path(probes_file.name).stem}"
@@ -354,33 +405,13 @@ class Manifest:
         data_frame = pd.read_csv(
             probes_file,
             dtype=self.get_data_types(),
-            # index_col="IlmnID",
         )
-
-        # Use int32 instead of Int32 to improve performance of indexing
-        data_frame["AddressA_ID"] = (
-            data_frame["AddressA_ID"].fillna(NONE).astype("int32").copy()
+        # TODO epicv2 has duplicated ID's for example c='cg22367159'
+        data_frame.drop_duplicates(
+            subset=["IlmnID"], keep="first", inplace=True
         )
-        data_frame["AddressB_ID"] = (
-            data_frame["AddressB_ID"].fillna(NONE).astype("int32").copy()
-        )
-
-
-        def get_probe_type(name, infinium_type):
-            """returns one of (I, II, SnpI, SnpII, Control)
-
-            .from_manifest_values() returns probe type using either the
-            Infinium_Design_Type (I or II) or the name
-            (starts with 'rs' == SnpI) and 'Control' is none of the above.
-            """
-            probe_type = ProbeType.from_manifest_values(name, infinium_type)
-            return probe_type.value
-
-        vectorized_get_type = np.vectorize(get_probe_type)
-        data_frame["probe_type"] = vectorized_get_type(
-            data_frame.IlmnID.values,
-            data_frame["Infinium_Design_Type"].values,
-        )
+        # data_frame.index.name = "_IlmnID"
+        data_frame.reset_index(inplace=True)  # , drop=True)
         return data_frame
 
     def read_control_probes(self, control_file):
@@ -394,53 +425,38 @@ class Manifest:
             # index_col=0,
         )
         # Use int32 instead of int64 to improve performance of indexing
-        data_frame["Address_ID"] = data_frame["Address_ID"].astype("int32").copy()
+        data_frame["Address_ID"] = (
+            data_frame["Address_ID"].astype("int32").copy()
+        )
         return data_frame
 
     def read_snp_probes(self):
         """Unlike cpg and control probes, these rs probes are NOT sequential in
         all arrays.
         """
-        # since these are not sequential, loading everything and filtering by
-        # IlmnID.
         snp_df = self.data_frame.copy()
-        # 'O' type columns won't match in SigSet, so forcing float64 here.
-        # Also, float32 won't cover all probe IDs; must be float64.
-        # snp_df = snp_df[snp_df.index.str.match("rs", na=False)].astype(
-        # {"AddressA_ID": "float64", "AddressB_ID": "float64"}
-        # )
         # TODO use int
         snp_df = snp_df[snp_df.IlmnID.str.match("rs", na=False)]
         return snp_df
 
-    def read_mouse_probes(self):
-        """ILLUMINA_MOUSE contains unique probes whose names begin with 'mu'
-        and 'rp' for 'murine' and 'repeat', respectively. This creates a
-        dataframe of these probes, which are not processed like normal cg/ch
-        probes.
-        """
-        # low_memory=Fase is required because control probes create mixed-types
-        # in columns.
-        # --- pre v1.4.6: mouse_df = mouse_df[(mouse_df['Probe_Type'] == 'rp')
-        # | (mouse_df['IlmnID'].str.startswith('uk', na=False)) |
-        # (mouse_df['Probe_Type'] == 'mu')]
-        # --- pre v1.4.6: 'mu' probes start with 'cg' instead and have 'mu' in
-        # Probe_Type column
-        mouse_df = self.dataframe.copy()
-        mouse_df = mouse_df[
-            (mouse_df["design"] == "Multi") | (mouse_df["design"] == "Random")
-        ]
-        return mouse_df
-
     def get_data_types(self):
         data_types = {key: str for key in self.columns}
-        data_types["AddressA_ID"] = "Int32"
-        data_types["AddressB_ID"] = "Int32"
+        data_types["AddressA_ID"] = np.int32
+        data_types["AddressB_ID"] = np.int32
+        data_types["Start"] = np.int32
+        data_types["End"] = np.int32
+        data_types["Probe_Type"] = np.int32
+        data_types["Color_Channel"] = np.int32
+        data_types["Infinium_Design_Type"] = np.int32
+        data_types["TypeI_N_CpG"] = np.int32
+        data_types["TypeII_N_CpG"] = np.int32
+        # data_types["Chromosome"] = np.str
+        # data_types["Chromosome"] = np.dtype("object")
         return data_types
 
     def probe_info(self, probe_type, channel=None):
         """used by infer_channel_switch. Given a probe type (I, II, SnpI,
-        SnpII, Control) and a channel (Channel.RED | Channel.GREEN), this will
+        SnpII, Control) and a channel (Channel.RED | Channel.GRN), this will
         return info needed to map probes to their names (e.g. cg0031313 or
         rs00542420), which are NOT in the idat files.
         """
@@ -451,9 +467,9 @@ class Manifest:
             raise Exception("channel not a valid Channel")
 
         data_frame = self.data_frame
-        probe_type_mask = data_frame["probe_type"].values == probe_type.value
+        probe_type_mask = data_frame["Probe_Type"].values == probe_type.value
 
-        if not channel:
+        if channel is None:
             return data_frame[probe_type_mask]
 
         channel_mask = data_frame["Color_Channel"].values == channel.value
@@ -461,28 +477,33 @@ class Manifest:
 
     def _probe_info(self, probe_types, channel=None):
         """Retrieve probe information based on probe types and channel."""
+        data_frame = self.data_frame
         if isinstance(probe_types, ProbeType):
-            probe_types = [probe_types]
-
-        if not isinstance(probe_types, list):
-            raise ValueError(
-                "probe_types must be a ProbeType or a list of ProbeType"
+            probe_type_mask = (
+                data_frame["Probe_Type"].values == probe_types.value
             )
 
-        if not all(
-            isinstance(probe_type, ProbeType) for probe_type in probe_types
-        ):
-            raise ValueError(f"{probe_type} is not a valid ProbeType")
+        else:
+            if not isinstance(probe_types, list):
+                raise ValueError(
+                    "probe_types must be a ProbeType or a list of ProbeType"
+                )
+            if not all(
+                isinstance(probe_type, ProbeType) for probe_type in probe_types
+            ):
+                raise ValueError(f"{probe_type} is not a valid ProbeType")
+
+            probe_type_values = np.array(
+                [probe_type.value for probe_type in probe_types]
+            )
+            probe_type_mask = np.isin(
+                data_frame["Probe_Type"].values, probe_type_values
+            )
 
         if channel and not isinstance(channel, Channel):
             raise ValueError("channel not a valid Channel")
 
-        data_frame = self.data_frame
-        probe_type_mask = data_frame["probe_type"].isin(
-            [probe_type.value for probe_type in probe_types]
-        )
-
-        if not channel:
+        if channel is None:
             return data_frame[probe_type_mask]
 
         channel_mask = data_frame["Color_Channel"].values == channel.value
@@ -506,3 +527,8 @@ class ManifestLoader:
             manifest = Manifest(array_type)
             cls._manifests[array_type] = manifest
         return cls._manifests[array_type]
+
+    @staticmethod
+    def load(array_types):
+        for array_type in array_types:
+            _ = ManifestLoader.get_manifest(array_type)

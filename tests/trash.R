@@ -33,7 +33,15 @@ cat("Elapsed time:", timing[["elapsed"]], "seconds\n")
 
 # rgSet <- read.metharray(ref0, force = TRUE)
 rgSet <- read.metharray(c(ref0,ref1), force = TRUE)
-mset <- preprocessIllumina(rgSet)
+
+mSet <- preprocessIllumina(rgSet)
+
+mSet_raw <- preprocessRaw(rgSet)
+
+mset <- preprocessSWAN(rgSet, mSet=mSet_raw)
+mset <- preprocessSWAN(rgSet)
+
+mset <- preprocessNoob(rgSet)
 
 
 GENES <- "/applications/nanodip_cache/reference_data/hg19_cnv/hg19_genes.tsv"
@@ -91,5 +99,38 @@ for (what in WHAT) {
     }
     result[[what]] <- cnv_write
 }
+
+
+# test beta values
+
+s = preprocessIllumina(read.metharray(c(smp0, smp1, smp2)))
+b = getBeta(s)
+
+
+
+getSubset <- function(counts, subset){
+    x <- integer(0)
+    for (i in 1:3) {
+        x <- c(x, seq.int(1, length(counts))[counts == i][1:subset])
+    }
+    seq.int(1, length(counts)) %in% x
+}
+
+
+
+mset <- preprocessSWAN(rgSet, mSet=mSet_raw)
+M_s = getMeth(mset)
+U_s = getUnmeth(mset)
+for (i in 1:999) {
+    print(i)
+    mset <- preprocessSWAN(rgSet, mSet=mSet_raw)
+    M=getMeth(mset)
+    U=getUnmeth(mset)
+    M_s = M_s + M
+    U_s = U_s + U
+}
+
+M = M_s / 1000
+U = U_s / 1000
 
 
