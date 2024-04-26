@@ -256,6 +256,7 @@ class UMAPPlot:
 
 
 UMAPPlot(cpgs, files, ids, classes, description)
+<<<<<<< HEAD
 
 
 
