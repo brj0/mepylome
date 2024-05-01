@@ -2,12 +2,16 @@ import heapq
 import logging
 
 import cbseg
+import importlib.resources as res
+from functools import lru_cache
 import zipfile
+import pkg_resources
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import pyranges as pr
 from sklearn.linear_model import LinearRegression
+import hashlib
 
 from mepylome.utils import Timer, ensure_directory_exists
 from mepylome.dtypes import Manifest, cache, MANIFEST_TMP_DIR, CNVPlot
@@ -18,55 +22,156 @@ LOGGER = logging.getLogger(__name__)
 ZIP_ENDING = "_cnv.zip"
 
 
+GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
+GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
+
+Unset = object()
+
+
+def pd_hash(df):
+    return hashlib.sha1(pd.util.hash_pandas_object(df).values).hexdigest()
+
+
 class Annotation:
-    def __init__(
-        self,
-        manifest,
-        gap=None,
-        detail=None,
+    _cache = {}
+
+    def __new__(
+        cls,
+        manifest=None,
+        array_type=None,
+        gap=Unset,
+        detail=Unset,
         bin_size=50000,
         min_probes_per_bin=15,
         verbose=False,
     ):
+        manifest_key = None if manifest is None else manifest.init_args
+        gap_key = None if gap is None else pd_hash(gap.df)
+        detail_key = None if detail is None else pd_hash(detail.df)
+        cache_key = (
+            manifest_key,
+            array_type,
+            gap_key,
+            detail_key,
+            bin_size,
+            min_probes_per_bin,
+            verbose,
+        )
+        if cache_key in cls._cache:
+            return cls._cache[cache_key]
+        instance = super().__new__(cls)
+        # Cache the instance
+        cls._cache[cache_key] = instance
+        return instance
+
+    def __init__(
+        self,
+        manifest=None,
+        array_type=None,
+        gap=Unset,
+        detail=Unset,
+        bin_size=50000,
+        min_probes_per_bin=15,
+        verbose=False,
+    ):
+        if hasattr(self, 'initialized'):
+            return
+        self.initialized = True
         # TODO sort
+        if manifest is None and array_type is None:
+            raise ValueError("'manifest' or 'array_type' must be given")
         self.bin_size = bin_size
         self.min_probes_per_bin = min_probes_per_bin
+
         self.gap = gap
+        if gap is Unset:
+            gap = self.default_gaps()
+
         self.detail = detail
-        self.detail = self.detail.sort()
+        if detail is Unset:
+            self.detail = self.default_detail()
+        elif detail is not None:
+            self.detail = self.detail.sort()
+
         self.verbose = verbose
         self.chromsizes = pr.data.chromsizes()
-        self.array_type = manifest.array_type
-        df = manifest.data_frame.copy()
+
+        self.array_type = array_type
+        if array_type is None:
+            self.array_type = manifest.array_type
+
+        self.manifest = manifest
+        if manifest is None:
+            self.manifest = Manifest(array_type)
+
+        df = self.manifest.data_frame.copy()
         df = df[[x.startswith("cg") for x in df.IlmnID.values]]
         df = df[
             df.Chromosome.isin(["X", "Y"] + [str(x) for x in range(1, 23)])
         ]
         df.Chromosome = "chr" + df.Chromosome.astype(str)
-        self.manifest = pr.PyRanges(df)
-        # self.manifest = self.manifest.sort()
-        self.probes = self.manifest.IlmnID.values
+        self.adjusted_manifest = pr.PyRanges(df)
+
+        # self.adjusted_manifest = self.adjusted_manifest.sort()
+        self.probes = self.adjusted_manifest.IlmnID.values
         self.bins = self.make_bins()
         self.bins.bins_index = np.arange(len(self.bins.df))
         self._cpg_bins = (
-            self.bins.join(self.manifest[["IlmnID"]])
+            self.bins.join(self.adjusted_manifest[["IlmnID"]])
             .df[["bins_index", "IlmnID"]]
             .set_index("bins_index")
         )
-        self._cpg_detail = self.detail.join(self.manifest[["IlmnID"]]).df[
-            ["Name", "IlmnID"]
-        ]
+        if self.detail is None:
+             self._cpg_detail = pd.DataFrame(columns=["Name", "IlmnID"])
+        else:
+            self._cpg_detail = self.detail.join(
+                self.adjusted_manifest[["IlmnID"]]
+            ).df[["Name", "IlmnID"]]
+
+    @classmethod
+    def from_array_type(
+        cls,
+        array_type,
+        bin_size=50000,
+        min_probes_per_bin=15,
+        verbose=False,
+    ):
+        annotation = cls(
+            Manifest(array_type),
+            gap=Annotation.default_gaps(),
+            detail=Annotation.default_detail(),
+            bin_size=bin_size,
+            min_probes_per_bin=min_probes_per_bin,
+            verbose=verbose,
+        )
+        return annotation
+
+    @staticmethod
+    @lru_cache()
+    def default_gaps():
+        gap = pr.PyRanges(pd.read_csv(GAPS))
+        gap.Start -= 1
+        return gap
+
+    @staticmethod
+    @lru_cache()
+    def default_detail():
+        genes_df = pd.read_csv(GENES, sep="\t")
+        genes_df.Start -= 1
+        genes = pr.PyRanges(genes_df)
+        return genes
 
     def make_bins(self):
         bins = pr.gf.tile_genome(self.chromsizes, int(5e4))
         bins = bins[bins.Chromosome != "chrM"]
-        bins = bins.subtract(self.gap)
+        if self.gap is not None:
+            bins = bins.subtract(self.gap)
         bins = self.merge_bins(bins)
         return bins
 
     def merge_bins(self, bins):
         bins = bins.count_overlaps(
-            self.manifest[["IlmnID"]], overlap_col="N_probes"
+            self.adjusted_manifest[["IlmnID"]], overlap_col="N_probes"
         )
         bins = bins.apply(
             lambda df: self.merge_bins_in_chromosome(
@@ -243,7 +348,7 @@ class Annotation:
             f"gap:\n{self.gap}",
             f"detail:\n{self.detail}",
             f"array_type:\n{self.array_type}",
-            f"manifest:\n{self.manifest}",
+            f"adjusted_manifest:\n{self.adjusted_manifest}",
             f"chromsizes:\n{self.chromsizes}",
             f"bins:\n{self.bins}",
         ]
@@ -266,13 +371,22 @@ class CNV:
         self.set_itensity(self.sample)
         self.set_itensity(self.reference)
         self.bins = annotation.bins
-        self.probes = self.annotation.manifest.IlmnID
+        self.probes = self.annotation.adjusted_manifest.IlmnID
         self.coef = None
         self._ratio = None
         self.ratio = None
         self.noise = None
         self.detail = None
         self.segments = None
+
+    @classmethod
+    def set_all(cls, sample, reference, annotation=None):
+        cnv = cls(sample, reference, annotation)
+        cnv.fit()
+        cnv.set_bins()
+        cnv.set_detail()
+        cnv.set_segments()
+        return cnv
 
     def set_itensity(self, methyl_data):
         if hasattr(methyl_data, "intensity"):
@@ -352,7 +466,7 @@ class CNV:
 
     def _set_bins(self):
         self.bins.bins_index = np.arange(len(self.bins.df))
-        overlap = self.bins.join(self.annotation.manifest[["IlmnID"]])
+        overlap = self.bins.join(self.annotation.adjusted_manifest[["IlmnID"]])
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
         result = overlap.df.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
@@ -384,7 +498,7 @@ class CNV:
 
     def _set_detail(self):
         overlap = self.annotation.detail.join(
-            self.annotation.manifest[["IlmnID"]]
+            self.annotation.adjusted_manifest[["IlmnID"]]
         )
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
         result = overlap.df.groupby("Name", dropna=False)["ratio"].agg(
@@ -416,7 +530,7 @@ class CNV:
 
     def set_segments(self):
         segments = self.bins.apply(self.get_segments)
-        overlap = segments.join(self.annotation.manifest[["IlmnID"]])
+        overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
         result = (
             overlap.df.groupby(["Chromosome", "Start", "End"], dropna=False)[
@@ -463,9 +577,7 @@ class CNV:
             dfs_to_write.append(("metadata.csv", metadata_df))
         file_dir = Path(file_dir).expanduser()
         if file_name is None:
-            file_name = Path(file_dir).joinpath(
-                self.probe + ZIP_ENDING
-            )
+            file_name = Path(file_dir).joinpath(self.probe + ZIP_ENDING)
         base_path = Path(file_dir).joinpath(file_name)
         if base_path.suffix == ".zip":
             base_path = base_path.with_suffix("")
@@ -482,7 +594,6 @@ class CNV:
         cnv_file = self.probe + ZIP_ENDING
         self.write(cnv_dir, cnv_file)
         CNVPlot(cnv_dir, cnv_file)
-
 
     def __repr__(self):
         # TODO

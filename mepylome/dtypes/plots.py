@@ -84,6 +84,7 @@ def get_df_from_zip(zip_file_path, extract=["bins", "detail", "segments"]):
         return extracted_dfs[0]
     return extracted_dfs
 
+
 # TODO del
 def rename_cols(df_list):
     translate = {
@@ -155,7 +156,7 @@ def cnv_grid(genome):
     return grid
 
 
-def cnv_plot_from_data(data_frame, title, labels, genome):
+def cnv_bins_plot(data_frame, title, labels, genome):
     """Create CNV plot from CNV data.
     Args:
         data_frame: DataFrame with columns 'x', 'y', and 'hover_data'
@@ -331,9 +332,40 @@ def read_cnv_data_from_disk(sample_id, cnv_dir):
     return bins, detail, segments
 
 
+def cnv_plot(sample_id, bins, detail, segments, genes_fix, genes_sel):
+    # Base scatterplot
+    bins, detail = find_genes_within_bins(bins, detail)
+    scatter_df = bins[["X_mid", "Median", "Genes"]]
+    scatter_df.columns = ["x", "y", "hover_data"]
+    plot = cnv_bins_plot(
+        data_frame=scatter_df,
+        title=f"Sample ID: {sample_id}",
+        labels=("", ""),
+        genome=genome,
+    )
+    # Highlight bins adjacent to the added genes
+    genes_sel = genes_sel if genes_sel else []
+    genes_x_range = (
+        detail[detail["Name"].isin(genes_sel)]["Range"].explode().tolist()
+    )
+    highlighted_bins = bins.loc[genes_x_range, ["X_mid", "Median"]]
+    plot = add_highlited_bins(plot, highlighted_bins)
+    # Draw the segments
+    plot = add_segments(plot, segments)
+    # Add all added and important genes
+    genes_to_plot = genes_fix + genes_sel
+    gene_detail = detail[detail["Name"].isin(genes_to_plot)].copy()
+    plot = add_genes(plot, gene_detail)
+    # plot = plot.update_layout(
+        # margin=dict(l=0, r=0, t=30, b=0),
+    # )
+    return plot
+
+
 class CNVPlot:
     def __init__(self, cnv_dir, cnv_file, genes=IMPORTANT_GENES):
         self.cnv_dir = cnv_dir
+        self.genes_fix = genes
         # TODO
         init_sample_id = cnv_file.replace(ZIP_ENDING, "")
         fig = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
@@ -378,7 +410,7 @@ class CNVPlot:
                 Input("url", "pathname"),
             ],
         )
-        def update_graph(gene_names, url_path):
+        def update_graph(genes_sel, url_path):
             sample_id = url_path[1:]
             try:
                 bins, detail, segments = read_cnv_data_from_disk(
@@ -386,37 +418,18 @@ class CNVPlot:
                 )
             except FileNotFoundError:
                 return no_update, no_update, f"Sample ID {sample_id} not found"
-            bins, detail = find_genes_within_bins(bins, detail)
-            # Base scatterplot
-            scatter_df = bins[["X_mid", "Median", "Genes"]]
-            scatter_df.columns = ["x", "y", "hover_data"]
-            plot = cnv_plot_from_data(
-                data_frame=scatter_df,
-                title=f"Sample ID: {sample_id}",
-                labels=("", ""),
-                genome=genome,
+            plot = cnv_plot(
+                sample_id,
+                bins,
+                detail,
+                segments,
+                self.genes_fix,
+                genes_sel,
             )
-            # Highlight bins adjacent to the added genes
-            added_genes = gene_names if gene_names else []
-            genes_x_range = (
-                detail[detail["Name"].isin(added_genes)]["Range"]
-                .explode()
-                .tolist()
-            )
-            highlighted_bins = bins.loc[genes_x_range, ["X_mid", "Median"]]
-            plot = add_highlited_bins(plot, highlighted_bins)
-            # Draw the segments
-            plot = add_segments(plot, segments)
-            # Add all added and important genes
-            genes_to_plot = genes + added_genes
-            gene_detail = detail[detail["Name"].isin(genes_to_plot)].copy()
-            plot = add_genes(plot, gene_detail)
             return plot, detail.sort_values(by="Name").Name, ""
 
         def open_browser_tab():
-            webbrowser.open_new_tab(
-                f"http://{HOST}:{PORT}/{init_sample_id}"
-            )
+            webbrowser.open_new_tab(f"http://{HOST}:{PORT}/{init_sample_id}")
 
         threading.Timer(1, open_browser_tab).start()
         app.run(debug=True, host=HOST, use_reloader=False)

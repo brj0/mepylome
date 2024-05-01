@@ -106,12 +106,31 @@ class Manifest:
         cannot be found.
     """
 
+    _cache = {}
+
+    def __new__(
+        cls,
+        array_type,
+        filepath=None,
+        verbose=True,
+    ):
+        cache_key = (array_type, filepath, verbose)
+        if cache_key in cls._cache:
+            return cls._cache[cache_key]
+        instance = super().__new__(cls)
+        # Cache the instance
+        cls._cache[cache_key] = instance
+        return instance
+
     def __init__(
         self,
         array_type,
         filepath=None,
         verbose=True,
     ):
+        if hasattr(self, 'init_args'):
+            return
+        self.init_args = (array_type, filepath, verbose)
         array_str_to_class = dict(
             zip(
                 list(ARRAY_FILENAME.keys()),
@@ -120,6 +139,12 @@ class Manifest:
         )
         if array_type in array_str_to_class:
             array_type = array_str_to_class[array_type]
+
+        # if array_type in Manifest._cache:
+            # self = Manifest(array_type)
+            # return
+        # Manifest._cache[array_type] = self
+
         self.array_type = array_type
         self.verbose = verbose
 
@@ -158,6 +183,11 @@ class Manifest:
             f"snp_data_frame:\n{self.snp_data_frame}",
         ]
         return "\n\n".join(lines)
+
+    @staticmethod
+    def load(array_types):
+        for array_type in array_types:
+            _ = Manifest(array_type)
 
     @property
     def columns(self):
@@ -511,7 +541,7 @@ class Manifest:
 
 
 class ManifestLoader:
-    _manifests = {}
+    _cache = {}
 
     @classmethod
     def get_manifest(cls, array_type):
@@ -523,10 +553,10 @@ class ManifestLoader:
         )
         if array_type in array_str_to_class:
             array_type = array_str_to_class[array_type]
-        if array_type not in cls._manifests:
+        if array_type not in cls._cache:
             manifest = Manifest(array_type)
-            cls._manifests[array_type] = manifest
-        return cls._manifests[array_type]
+            cls._cache[array_type] = manifest
+        return cls._cache[array_type]
 
     @staticmethod
     def load(array_types):

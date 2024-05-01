@@ -11,7 +11,6 @@ from mepylome.dtypes import (
     ArrayType,
     Channel,
     Manifest,
-    ManifestLoader,
     ProbeType,
     cache,
 )
@@ -118,7 +117,7 @@ class RawData:
                     for idat in red_idat
                 ]
             )
-        self.manifest = ManifestLoader.get_manifest(self.array_type)
+        self.manifest = Manifest(self.array_type)
 
         self._grn_df = None
         self._red_df = None

@@ -101,7 +101,7 @@ timer.stop("Parsing IDAT")
 
 
 GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
-GAP_450K = pkg_resources.resource_filename("mepylome", "data/gap_450k.csv.gz")
+GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
 
 timer.start()
 # refs_raw = RawData(ref_dir)
@@ -114,7 +114,7 @@ timer.stop("MethylData ref")
 
 # quit()
 
-manifest = ManifestLoader.get_manifest("450k")
+manifest = Manifest("450k")
 # manifest = ManifestLoader.get_manifest("epic")
 # manifest = ManifestLoader.get_manifest("epicv2")
 
@@ -135,13 +135,15 @@ timer.start()
 betas = sample_methyl.converted_beta(cpgs=None, fill=0.49)
 timer.stop("beta 2")
 
-gap = pr.PyRanges(pd.read_csv(GAP_450K))
+gap = pr.PyRanges(pd.read_csv(GAPS))
 gap.Start -= 1
 
+timer.start()
 genes_df = pd.read_csv(GENES, sep="\t")
 genes_df.Start -= 1
 genes = pr.PyRanges(genes_df)
 genes = genes[["Name"]]
+timer.stop("genes")
 
 timer.start()
 annotation = Annotation(manifest, gap=gap, detail=genes)
@@ -315,4 +317,53 @@ self = MethylData(sample_raw, prep="swan")
 timer.stop("*")
 
 cnv.plot()
+
+
+def get_id_tuple(f, args, kwargs, mark=object()):
+    l = [id(f)]
+    for arg in args:
+        l.append(id(arg))
+    l.append(id(mark))
+    for k, v in kwargs.items():
+        l.append(k)
+        if k == 'manifest' and hasattr(v, 'init_args'):
+            l.append(v.init_args)
+        else:
+            l.append(id(v))
+    return tuple(l)
+
+def get_id_tuple(f, args, kwargs, mark=object()):
+    l = [id(f)]
+    for arg in args:
+        l.append(id(arg))
+    l.append(id(mark))
+    for k, v in kwargs:
+        l.append(k)
+        l.append(id(v))
+    return tuple(l)
+
+_memoized = {}
+def memoize(f):
+    def memoized(*args, **kwargs):
+        key = get_id_tuple(f, args, kwargs)
+        if key not in _memoized:
+            _memoized[key] = f(*args, **kwargs)
+        return _memoized[key]
+    return memoized
+
+@memoize
+class Test(object):
+    def __init__(self, somevalue, manifest=None):
+        self.somevalue = somevalue
+        time.sleep(1)
+
+t0=Test(1)
+t1=Test(1, manifest)
+manifest_ = manifest
+t2=Test(1, manifest_)
+t3=Test(1)
+
+tests = [Test(1), Test(2), Test(3), Test(2), Test(4)]
+for test in tests:
+    print(test.somevalue, id(test))
 

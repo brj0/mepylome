@@ -1,6 +1,10 @@
 import random
 import plotly.graph_objects as go
+import json
+from dash import Dash, html, dcc, callback, Output, Input, no_update
+from dash.exceptions import PreventUpdate
 import colorsys
+from mepylome.dtypes import MANIFEST_TMP_DIR, IMPORTANT_GENES, CHROMOSOME_DATA
 import umap
 import plotly.express as px
 from multiprocessing import Pool
@@ -11,14 +15,16 @@ from nanodip import Reference
 import hashlib
 from tqdm import tqdm
 
-from mepylome import ManifestLoader, MethylData, RawData, idat_basepaths
-from mepylome.dtypes import COLOR_MAP
+from mepylome import MethylData, RawData, idat_basepaths
+from mepylome.dtypes import COLOR_MAP, read_cnv_data_from_disk, cnv_plot, ZIP_ENDING
 from pathlib import Path
 
 
 # IDAT_DIR = "/data/epidip_IDAT"
-IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
+# IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
+IDAT_DIR = Path("~/MEGA/work/programming/data/epidip_IDAT").expanduser()
 PLOTLY_RENDER_MODE = "webgl"
+HOST = "localhost"
 
 # Contains CpGs common to both 450k and EPIC arrays, excluding those on sex
 # chromosomes and cross-reactive probes (as identified in Chen et al., 2013).
@@ -29,7 +35,6 @@ CNV_LINK = (
     "http://s1665.rootserver.io/umapplot01/%s_CNV_IFPBasel_annotations.pdf"
 )
 CNV_LINK = "http://localhost:8050/%s"
-
 
 
 def random_color(var):
@@ -112,8 +117,10 @@ def umap_plot_from_data(umap_df, sample=None, reference=None, close_up=False):
         x="x",
         y="y",
         labels={
-            "x": "UMAP 0",
-            "y": "UMAP 1",
+            "x": "",
+            # "x": "UMAP 0",
+            "y": "",
+            # "y": "UMAP 1",
             "methylation_class": "WHO class",
         },
         title=umap_title,
@@ -124,6 +131,7 @@ def umap_plot_from_data(umap_df, sample=None, reference=None, close_up=False):
         hover_data=["description"],
         render_mode=PLOTLY_RENDER_MODE,
         template="simple_white",
+        # template="none",
     )
     if add_sample:
         umap_plot.add_annotation(
@@ -179,7 +187,8 @@ def umap_plot_from_data(umap_df, sample=None, reference=None, close_up=False):
 with open(CPG_450K_EPIC_OVERLAP, "r") as f:
     cpg_450k_epic = np.array(f.read().splitlines())
 
-reference = Reference("AllIDATv2_20210804_HPAP_Sarc")
+# reference = Reference("AllIDATv2_20210804_HPAP_Sarc")
+reference = Reference("AllIDATv2_20210804")
 NR_CPGS = 9000
 random_cpg_sample = random.sample(reference.cpg_sites, NR_CPGS)
 
@@ -216,7 +225,7 @@ class UMAPPlot:
         classes_overlap = [classes[x] for x in overlap_idx]
         descripton_overlap = [description[x] for x in overlap_idx]
         # Load all manifests
-        ManifestLoader.load(["450k", "epic", "epicv2"])
+        Manifest.load(["450k", "epic", "epicv2"])
         cpg_mask = np.isin(cpg_450k_epic, cpgs)
         with Pool() as pool:
             betas_450k_results = list(
@@ -251,65 +260,161 @@ class UMAPPlot:
                 "y": umap_2d[:, 1],
             }
         )
-        cnv_plt = umap_plot_from_data(umap_df)
-        cnv_plt.show(config=dict({"scrollZoom": True}))
-
-
-UMAPPlot(cpgs, files, ids, classes, description)
-<<<<<<< HEAD
-
-
-
-
-import dash
-from dash import dcc, html
-import threading
-
-# First Dash application running on port 8050
-def run_dash_app_1():
-    app = dash.Dash(__name__)
-    app.layout = html.Div([
-        html.H1("App 1"),
-        dcc.Graph(
-            id='example-graph-1',
-            figure={
-                'data': [
-                    {'x': [1, 2, 3], 'y': [4, 1, 2], 'type': 'bar', 'name': 'App 1'}
-                ],
-                'layout': {
-                    'title': 'App 1 Graph'
-                }
-            }
+        self.cnv_plt = umap_plot_from_data(umap_df)
+        self.cnv_plt = self.cnv_plt.update_layout(
+            margin=dict(l=0, r=0, t=30, b=0),
         )
-    ])
-    app.run_server(debug=True, port=8050, use_reloader=False)  # Important: No reloader in threads
+        # self.cnv_plt.show(config=dict({"scrollZoom": True}))
 
-# Second Dash application running on port 8051
-def run_dash_app_2():
-    app = dash.Dash(__name__)
-    app.layout = html.Div([
-        html.H1("App 2"),
-        dcc.Graph(
-            id='example-graph-2',
-            figure={
-                'data': [
-                    {'x': [1, 2, 3], 'y': [2, 3, 4], 'type': 'line', 'name': 'App 2'}
-                ],
-                'layout': {
-                    'title': 'App 2 Graph'
-                }
-            }
+styles = {
+    'pre': {
+        'border': 'thin lightgrey solid',
+        'overflowX': 'scroll'
+    }
+}
+
+
+umap = UMAPPlot(cpgs, files, ids, classes, description)
+
+# umap.cnv_plt.show(config=dict({"scrollZoom": True}))
+
+umap_fig = umap.cnv_plt
+cnv_fig = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
+app = Dash(__name__)
+app.layout = html.Div(
+    style={"display": "flex"},  # Use Flexbox for horizontal layout
+    children=[
+        # Left column
+        html.Div(
+            children=[
+                dcc.Store(id="memory"),
+                dcc.Location(id="url", refresh=False),
+                html.P(id="err", style={"color": "red"}),
+                html.Div(id="page"),
+                # dcc.Dropdown(
+                    # options=[],
+                    # value=None,
+                    # placeholder="Select genes to highlight...",
+                    # id="dropdown",
+                    # multi=True,
+                    # style={"width": "30vw"},
+                # ),
+                html.Div(
+                    [
+                        dcc.Markdown(
+                            """
+                                **Click Data**
+                                Click on points in the graph.
+                            """
+                        ),
+                        html.Pre(id="click-data", style=styles["pre"]),
+                    ],
+                ),
+            ],
+            style={"flex": 2},  # Flex value determines the relative width
+        ),
+        # Right column
+        html.Div(
+            children=[
+                dcc.Graph(
+                    id="umap",
+                    figure=umap_fig,
+                    config={
+                        "scrollZoom": False,
+                        "doubleClick": "reset",
+                        "modeBarButtonsToRemove": ["lasso2d", "select"],
+                        "displaylogo": False,
+                    },
+                    style={"height": "75vh"},
+                    # style={"width": "70vw", "height": "90vh"},
+                ),
+                dcc.Graph(
+                    id="cnv",
+                    figure=cnv_fig,
+                    config={
+                        "scrollZoom": False,
+                        "doubleClick": "reset",
+                        "modeBarButtonsToRemove": ["select"],
+                        # "modeBarButtonsToRemove": ["lasso2d", "select"],
+                        "displaylogo": False,
+                    },
+                    # style={"width": "30vw", "height": "45vh"},
+                    style={"width": "90%", "height": "65vh"},
+                ),
+            ],
+            style={"flex": 8},  # Flex value for the right column
+        ),
+    ],
+)
+@callback(
+    [
+        Output("click-data", "children"),
+        Output("cnv", "figure"),
+    ],
+    Input("umap", "clickData")
+)
+def display_click_data(clickData):
+    sample_id = None
+    if isinstance(clickData, dict):
+        points = clickData.get("points", [])
+        if points and isinstance(points, list):
+            first_point = points[0] if points else {}
+            sample_id = first_point.get("hovertext", None)
+    idat_base = Path(files, sample_id)
+    sample_methyl = MethylData(file=idat_base)
+    print("ID=", sample_id)
+    cnv = CNV.set_all(sample_methyl, ref_methyl, annotation)
+    cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
+    ensure_directory_exists(cnv_dir)
+    cnv_file = sample_id + ZIP_ENDING
+    cnv.write(cnv_dir, cnv_file)
+    genes_fix = IMPORTANT_GENES
+    genes_sel = []
+    try:
+        bins, detail, segments = read_cnv_data_from_disk(
+            sample_id, cnv_dir
         )
-    ])
-    app.run_server(debug=True, port=8051, use_reloader=False)
+    except FileNotFoundError:
+        return no_update, no_update, f"Sample ID {sample_id} not found"
+    plot = cnv_plot(
+        sample_id,
+        bins,
+        detail,
+        segments,
+        genes_fix,
+        genes_sel,
+    )
+    plot = plot.update_layout(
+        margin=dict(l=0, r=0, t=30, b=0),
+    )
+    return json.dumps(clickData, indent=2), plot
 
-# Run the two Dash apps concurrently
-if __name__ == "__main__":
-    thread1 = threading.Thread(target=run_dash_app_1)
-    thread2 = threading.Thread(target=run_dash_app_2)
+app.run(debug=True, host=HOST, use_reloader=False)
 
-    thread1.start()
-    thread2.start()
 
-    thread1.join()
-    thread2.join()
+def open_browser_tab():
+    webbrowser.open_new_tab(f"http://{HOST}:{PORT}/{init_sample_id}")
+
+
+
+#home
+id_ = "6042324058_R04C01"
+
+id_ = "7970376005_R03C01"
+
+
+ref0 = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
+ref1 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01_Red.idat"
+GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
+GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
+refs_raw = RawData([ref0, ref1])
+ref_methyl = MethylData(refs_raw)
+sample_raw = RawData(smp0)
+gap = pr.PyRanges(pd.read_csv(GAPS))
+gap.Start -= 1
+genes_df = pd.read_csv(GENES, sep="\t")
+genes_df.Start -= 1
+genes = pr.PyRanges(genes_df)
+genes = genes[["Name"]]
+annotation = Annotation(manifest, gap=gap, detail=genes)
+

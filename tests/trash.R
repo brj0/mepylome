@@ -56,6 +56,9 @@ anno <- CNV.create_anno(array_type = "450k", chrXY = TRUE,
                                 detail_regions = all_genes)
 
 
+anno_epic <- CNV.create_anno(array_type = "EPICv2", chrXY = TRUE,
+                                detail_regions = all_genes)
+
 ref <- CNV.load(mset)
 
 # smp_rgSet <- read.metharray(c(smp0,smp1))
