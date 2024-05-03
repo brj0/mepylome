@@ -1,20 +1,28 @@
+import hashlib
 import heapq
+import importlib.resources as res
 import logging
+import zipfile
+from functools import lru_cache
+from pathlib import Path
 
 import cbseg
-import importlib.resources as res
-from functools import lru_cache
-import zipfile
-import pkg_resources
-from pathlib import Path
 import numpy as np
 import pandas as pd
+import pkg_resources
 import pyranges as pr
 from sklearn.linear_model import LinearRegression
-import hashlib
 
+from mepylome.dtypes import (
+    MANIFEST_TMP_DIR,
+    CNVPlot,
+    Manifest,
+    MethylData,
+    ReferenceMethylData,
+    cache,
+    memoize,
+)
 from mepylome.utils import Timer, ensure_directory_exists
-from mepylome.dtypes import Manifest, cache, MANIFEST_TMP_DIR, CNVPlot
 
 cnv_timer = Timer()
 
@@ -32,37 +40,38 @@ def pd_hash(df):
     return hashlib.sha1(pd.util.hash_pandas_object(df).values).hexdigest()
 
 
+@memoize
 class Annotation:
-    _cache = {}
+    # _cache = {}
 
-    def __new__(
-        cls,
-        manifest=None,
-        array_type=None,
-        gap=Unset,
-        detail=Unset,
-        bin_size=50000,
-        min_probes_per_bin=15,
-        verbose=False,
-    ):
-        manifest_key = None if manifest is None else manifest.init_args
-        gap_key = None if gap is None else pd_hash(gap.df)
-        detail_key = None if detail is None else pd_hash(detail.df)
-        cache_key = (
-            manifest_key,
-            array_type,
-            gap_key,
-            detail_key,
-            bin_size,
-            min_probes_per_bin,
-            verbose,
-        )
-        if cache_key in cls._cache:
-            return cls._cache[cache_key]
-        instance = super().__new__(cls)
-        # Cache the instance
-        cls._cache[cache_key] = instance
-        return instance
+    # def __new__(
+        # cls,
+        # manifest=None,
+        # array_type=None,
+        # gap=Unset,
+        # detail=Unset,
+        # bin_size=50000,
+        # min_probes_per_bin=15,
+        # verbose=False,
+    # ):
+        # manifest_key = None if manifest is None else manifest.init_args
+        # gap_key = None if gap is None else pd_hash(gap.df)
+        # detail_key = None if detail is None else pd_hash(detail.df)
+        # cache_key = (
+            # manifest_key,
+            # array_type,
+            # gap_key,
+            # detail_key,
+            # bin_size,
+            # min_probes_per_bin,
+            # verbose,
+        # )
+        # if cache_key in cls._cache:
+            # return cls._cache[cache_key]
+        # instance = super().__new__(cls)
+        # # Cache the instance
+        # cls._cache[cache_key] = instance
+        # return instance
 
     def __init__(
         self,
@@ -74,9 +83,9 @@ class Annotation:
         min_probes_per_bin=15,
         verbose=False,
     ):
-        if hasattr(self, 'initialized'):
-            return
-        self.initialized = True
+        # if hasattr(self, 'initialized'):
+            # return
+        # self.initialized = True
         # TODO sort
         if manifest is None and array_type is None:
             raise ValueError("'manifest' or 'array_type' must be given")
@@ -84,13 +93,13 @@ class Annotation:
         self.min_probes_per_bin = min_probes_per_bin
 
         self.gap = gap
-        if gap is Unset:
-            gap = self.default_gaps()
+        if self.gap is Unset:
+            self.gap = self.default_gaps()
 
         self.detail = detail
-        if detail is Unset:
+        if self.detail is Unset:
             self.detail = self.default_detail()
-        elif detail is not None:
+        elif self.detail is not None:
             self.detail = self.detail.sort()
 
         self.verbose = verbose
@@ -366,11 +375,21 @@ class CNV:
             raise ValueError("sample must contain exactly 1 probe.")
         self.sample = sample
         self.probe = self.sample.probes[0]
-        self.reference = reference
+        if isinstance(reference, MethylData):
+            self.reference = reference
+        elif isinstance(reference, ReferenceMethylData):
+            self.reference = reference[self.sample.array_type]
+        else:
+            raise ValueError(
+                "'reference' must be of type 'MethylData' "
+                "or 'ReferenceMethylData'"
+            )
         self.annotation = annotation
+        if annotation is None:
+            self.annotation = Annotation(array_type=sample.array_type)
         self.set_itensity(self.sample)
         self.set_itensity(self.reference)
-        self.bins = annotation.bins
+        self.bins = self.annotation.bins
         self.probes = self.annotation.adjusted_manifest.IlmnID
         self.coef = None
         self._ratio = None
@@ -577,7 +596,7 @@ class CNV:
             dfs_to_write.append(("metadata.csv", metadata_df))
         file_dir = Path(file_dir).expanduser()
         if file_name is None:
-            file_name = Path(file_dir).joinpath(self.probe + ZIP_ENDING)
+            file_name = self.probe + ZIP_ENDING
         base_path = Path(file_dir).joinpath(file_name)
         if base_path.suffix == ".zip":
             base_path = base_path.with_suffix("")

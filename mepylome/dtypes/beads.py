@@ -2,13 +2,17 @@ import logging
 from functools import reduce
 from pathlib import Path
 
+import collections
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from scipy.stats import rankdata
 
-from mepylome import IdatParser
+from mepylome import _IdatParser
 from mepylome.dtypes import (
     ArrayType,
+    memoize,
+    IdatParser,
     Channel,
     Manifest,
     ProbeType,
@@ -16,8 +20,8 @@ from mepylome.dtypes import (
 )
 from mepylome.utils import Timer, normexp_get_xs
 
-ENDING_RED = "_Red.idat"
 ENDING_GRN = "_Grn.idat"
+ENDING_RED = "_Red.idat"
 
 # TODO probes start at 1 pyranges at 0
 
@@ -31,13 +35,13 @@ def idat_basepaths(files):
     if isinstance(files, list):
         _files = files
     elif Path(files).is_dir():
-        _files = Path(files).iterdir()
+        _files = Path(files).rglob(f"*{ENDING_GRN}")
     else:
         _files = [files]
     # Remove file endings
     _files = [
         Path(
-            str(name).replace(ENDING_RED, "").replace(ENDING_GRN, "")
+            str(name).replace(ENDING_GRN, "").replace(ENDING_RED, "")
         ).expanduser()
         for name in _files
     ]
@@ -69,8 +73,14 @@ class RawData:
                 f"The following file does not exist: {not_found}"
             )
 
-        grn_idat = [IdatParser(str(filepath)) for filepath in grn_idat_files]
-        red_idat = [IdatParser(str(filepath)) for filepath in red_idat_files]
+        grn_idat = [
+            IdatParser(str(filepath), intensity_only=True)
+            for filepath in grn_idat_files
+        ]
+        red_idat = [
+            IdatParser(str(filepath), intensity_only=True)
+            for filepath in red_idat_files
+        ]
 
         array_types = [
             ArrayType.from_probe_count(len(idat.illumina_ids))
@@ -649,3 +659,23 @@ class MethylData:
         if hasattr(self, "intensity"):
             lines.append(f"intensity:\n{self.intensity}")
         return "\n\n".join(lines)
+
+@memoize
+class ReferenceMethylData:
+    def __init__(self, files=None, prep="illumina"):
+        idat_files = idat_basepaths(files)
+        reference_files = collections.defaultdict(list)
+        self._methyl = {}
+        for idat_file in tqdm(idat_files, desc="Categorizing IDAT files"):
+            raw_data = RawData(idat_file)
+            array_type = raw_data.array_type
+            reference_files[array_type].append(idat_file)
+        for array_type, file_list in tqdm(
+            reference_files.items(), desc="Processing IDAT files"
+        ):
+            raw_data = RawData(file_list)
+            self._methyl[array_type] = MethylData(raw_data, prep=prep)
+    def __getitem__(self, array_type):
+        return self._methyl[array_type]
+
+

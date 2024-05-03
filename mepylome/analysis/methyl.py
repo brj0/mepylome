@@ -1,28 +1,38 @@
-import random
-import plotly.graph_objects as go
-import json
-from dash import Dash, html, dcc, callback, Output, Input, no_update
-from dash.exceptions import PreventUpdate
 import colorsys
-from mepylome.dtypes import MANIFEST_TMP_DIR, IMPORTANT_GENES, CHROMOSOME_DATA
-import umap
-import plotly.express as px
+import hashlib
+import json
+import random
+import importlib
+from functools import lru_cache, wraps
 from multiprocessing import Pool
 from pathlib import Path
 
+import dash_bootstrap_components as dbc
 import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import umap
+from dash import Dash, Input, Output, callback, dcc, html, no_update
+from dash.exceptions import PreventUpdate
 from nanodip import Reference
-import hashlib
 from tqdm import tqdm
 
-from mepylome import MethylData, RawData, idat_basepaths
-from mepylome.dtypes import COLOR_MAP, read_cnv_data_from_disk, cnv_plot, ZIP_ENDING
-from pathlib import Path
-
+from mepylome import CNV, Manifest, MethylData, RawData, idat_basepaths
+from mepylome.dtypes import (
+    CHROMOSOME_DATA,
+    ReferenceMethylData,
+    COLOR_MAP,
+    IMPORTANT_GENES,
+    MANIFEST_TMP_DIR,
+    ZIP_ENDING,
+    cnv_plot,
+    read_cnv_data_from_disk,
+)
 
 # IDAT_DIR = "/data/epidip_IDAT"
-# IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
-IDAT_DIR = Path("~/MEGA/work/programming/data/epidip_IDAT").expanduser()
+IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
+# IDAT_DIR = Path("~/MEGA/work/programming/data/epidip_IDAT").expanduser()
 PLOTLY_RENDER_MODE = "webgl"
 HOST = "localhost"
 
@@ -35,6 +45,12 @@ CNV_LINK = (
     "http://s1665.rootserver.io/umapplot01/%s_CNV_IFPBasel_annotations.pdf"
 )
 CNV_LINK = "http://localhost:8050/%s"
+
+
+from mepylome import idat_basepaths
+
+ref_dir = "/data/ref_IDAT"
+ref_idat_basepaths = idat_basepaths(ref_dir)
 
 
 def random_color(var):
@@ -260,122 +276,35 @@ class UMAPPlot:
                 "y": umap_2d[:, 1],
             }
         )
-        self.cnv_plt = umap_plot_from_data(umap_df)
-        self.cnv_plt = self.cnv_plt.update_layout(
+        self.umap_plt = umap_plot_from_data(umap_df)
+        self.umap_plt = self.umap_plt.update_layout(
             margin=dict(l=0, r=0, t=30, b=0),
         )
-        # self.cnv_plt.show(config=dict({"scrollZoom": True}))
+        # self.umap_plt.show(config=dict({"scrollZoom": True}))
 
-styles = {
-    'pre': {
-        'border': 'thin lightgrey solid',
-        'overflowX': 'scroll'
-    }
-}
+
+styles = {"pre": {"border": "thin lightgrey solid", "overflowX": "scroll"}}
 
 
 umap = UMAPPlot(cpgs, files, ids, classes, description)
 
-# umap.cnv_plt.show(config=dict({"scrollZoom": True}))
+# umap.umap_plt.show(config=dict({"scrollZoom": True}))
 
-umap_fig = umap.cnv_plt
-cnv_fig = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
-app = Dash(__name__)
-app.layout = html.Div(
-    style={"display": "flex"},  # Use Flexbox for horizontal layout
-    children=[
-        # Left column
-        html.Div(
-            children=[
-                dcc.Store(id="memory"),
-                dcc.Location(id="url", refresh=False),
-                html.P(id="err", style={"color": "red"}),
-                html.Div(id="page"),
-                # dcc.Dropdown(
-                    # options=[],
-                    # value=None,
-                    # placeholder="Select genes to highlight...",
-                    # id="dropdown",
-                    # multi=True,
-                    # style={"width": "30vw"},
-                # ),
-                html.Div(
-                    [
-                        dcc.Markdown(
-                            """
-                                **Click Data**
-                                Click on points in the graph.
-                            """
-                        ),
-                        html.Pre(id="click-data", style=styles["pre"]),
-                    ],
-                ),
-            ],
-            style={"flex": 2},  # Flex value determines the relative width
-        ),
-        # Right column
-        html.Div(
-            children=[
-                dcc.Graph(
-                    id="umap",
-                    figure=umap_fig,
-                    config={
-                        "scrollZoom": False,
-                        "doubleClick": "reset",
-                        "modeBarButtonsToRemove": ["lasso2d", "select"],
-                        "displaylogo": False,
-                    },
-                    style={"height": "75vh"},
-                    # style={"width": "70vw", "height": "90vh"},
-                ),
-                dcc.Graph(
-                    id="cnv",
-                    figure=cnv_fig,
-                    config={
-                        "scrollZoom": False,
-                        "doubleClick": "reset",
-                        "modeBarButtonsToRemove": ["select"],
-                        # "modeBarButtonsToRemove": ["lasso2d", "select"],
-                        "displaylogo": False,
-                    },
-                    # style={"width": "30vw", "height": "45vh"},
-                    style={"width": "90%", "height": "65vh"},
-                ),
-            ],
-            style={"flex": 8},  # Flex value for the right column
-        ),
-    ],
-)
-@callback(
-    [
-        Output("click-data", "children"),
-        Output("cnv", "figure"),
-    ],
-    Input("umap", "clickData")
-)
-def display_click_data(clickData):
-    sample_id = None
-    if isinstance(clickData, dict):
-        points = clickData.get("points", [])
-        if points and isinstance(points, list):
-            first_point = points[0] if points else {}
-            sample_id = first_point.get("hovertext", None)
-    idat_base = Path(files, sample_id)
-    sample_methyl = MethylData(file=idat_base)
-    print("ID=", sample_id)
-    cnv = CNV.set_all(sample_methyl, ref_methyl, annotation)
+
+@lru_cache()
+def get_cnv_plot(sample_id):
     cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
-    ensure_directory_exists(cnv_dir)
-    cnv_file = sample_id + ZIP_ENDING
-    cnv.write(cnv_dir, cnv_file)
+    cnv_filename = sample_id + ZIP_ENDING
+    if not Path(cnv_dir, cnv_filename).exists():
+        idat_base = Path(files, sample_id)
+        sample_methyl = MethylData(file=idat_base)
+        print("ID=", sample_id)
+        cnv = CNV.set_all(sample_methyl, ref_methyl, annotation)
+        ensure_directory_exists(cnv_dir)
+        cnv.write(cnv_dir, cnv_filename)
     genes_fix = IMPORTANT_GENES
     genes_sel = []
-    try:
-        bins, detail, segments = read_cnv_data_from_disk(
-            sample_id, cnv_dir
-        )
-    except FileNotFoundError:
-        return no_update, no_update, f"Sample ID {sample_id} not found"
+    bins, detail, segments = read_cnv_data_from_disk(sample_id, cnv_dir)
     plot = cnv_plot(
         sample_id,
         bins,
@@ -387,17 +316,217 @@ def display_click_data(clickData):
     plot = plot.update_layout(
         margin=dict(l=0, r=0, t=30, b=0),
     )
-    return json.dumps(clickData, indent=2), plot
+    return plot
+
+
+umap_fig = umap.umap_plt
+cnv_fig = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+LOGO = app.get_asset_url("mepylome.svg")
+navbar = dbc.Navbar(
+    dbc.Container(
+        [
+            html.A(
+                dbc.Row(
+                    [
+                        dbc.Col(html.Img(src=LOGO, height="30px")),
+                        dbc.Col(dbc.NavbarBrand("Navbar", className="ms-2")),
+                    ],
+                    align="center",
+                    className="g-0",
+                ),
+                style={"textDecoration": "none"},
+            ),
+            dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
+            # dbc.Collapse(
+            # search_bar,
+            # id="navbar-collapse",
+            # is_open=False,
+            # navbar=True,
+            # ),
+        ]
+    ),
+    color="dark",
+    dark=True,
+)
+side_navigation = dbc.Col(
+    [
+        dcc.Store(id="memory"),
+        dcc.Location(id="url", refresh=False),
+        html.Div(
+            [
+                dcc.Markdown(
+                    """
+                    **Click Data**
+                    Click on points in the graph.
+                """
+                ),
+                html.Pre(id="click-data", style=styles["pre"]),
+            ],
+            # className="six columns",
+        ),
+    ],
+    width={"size": 2},
+)
+plots = dbc.Col(
+    [
+        dcc.Graph(
+            id="umap",
+            figure=umap_fig,
+            config={
+                "scrollZoom": False,
+                "doubleClick": "reset",
+                "modeBarButtonsToRemove": ["lasso2d", "select"],
+                "displaylogo": False,
+            },
+            # style={"height": "75vh"},
+            # style={"width": "70vw", "height": "90vh"},
+        ),
+        dcc.Graph(
+            id="cnv",
+            figure={},
+            config={
+                "scrollZoom": False,
+                "doubleClick": "reset",
+                "modeBarButtonsToRemove": ["select"],
+                # "modeBarButtonsToRemove": ["lasso2d", "select"],
+                "displaylogo": False,
+            },
+            # style={"width": "30vw", "height": "45vh"},
+            # style={"width": "90%", "height": "65vh"},
+        ),
+    ],
+    width={"size": 10},
+)
+# app.layout = dbc.Container(
+# dbc.Row([side_navigation, plots]),
+# fluid=True,
+# )
+app.layout = html.Div(
+    [
+        navbar,
+        dbc.Container(
+            [
+                dbc.Row(
+                    [side_navigation, plots],
+                    style={"margin-top": "20px"},
+                ),
+            ],
+            fluid=True,
+        ),
+    ],
+)
+
+
+# app.layout = html.Div(
+# style={"display": "flex"},  # Use Flexbox for horizontal layout
+# children=[
+# # Left column
+# html.Div(
+# children=[
+# dcc.Store(id="memory"),
+# dcc.Location(id="url", refresh=False),
+# html.P(id="err", style={"color": "red"}),
+# html.Div(id="page"),
+# # dcc.Dropdown(
+# # options=[],
+# # value=None,
+# # placeholder="Select genes to highlight...",
+# # id="dropdown",
+# # multi=True,
+# # style={"width": "30vw"},
+# # ),
+# html.Div(
+# [
+# dcc.Markdown(
+# """
+# **Click Data**
+# Click on points in the graph.
+# """
+# ),
+# html.Pre(id="click-data", style=styles["pre"]),
+# ],
+# # className="six columns",
+# ),
+# ],
+# style={"flex": 2},  # Flex value determines the relative width
+# ),
+# # Right column
+# html.Div(
+# children=[
+# dcc.Graph(
+# id="umap",
+# figure=umap_fig,
+# config={
+# "scrollZoom": False,
+# "doubleClick": "reset",
+# "modeBarButtonsToRemove": ["lasso2d", "select"],
+# "displaylogo": False,
+# },
+# style={"height": "75vh"},
+# # style={"width": "70vw", "height": "90vh"},
+# ),
+# dcc.Graph(
+# id="cnv",
+# figure=cnv_fig,
+# config={
+# "scrollZoom": False,
+# "doubleClick": "reset",
+# "modeBarButtonsToRemove": ["select"],
+# # "modeBarButtonsToRemove": ["lasso2d", "select"],
+# "displaylogo": False,
+# },
+# # style={"width": "30vw", "height": "45vh"},
+# style={"width": "90%", "height": "65vh"},
+# ),
+# ],
+# style={"flex": 8},  # Flex value for the right column
+# ),
+# # className="six columns",
+# ],
+# )
+@callback(
+    [
+        Output("click-data", "children"),
+        Output("cnv", "figure"),
+    ],
+    Input("umap", "clickData"),
+)
+def display_click_data(click_data):
+    # print("click: ---0---")
+    if click_data is None:
+        return no_update, no_update
+    sample_id = None
+    if isinstance(click_data, dict):
+        # print("click: ---1---")
+        points = click_data.get("points", [])
+        if points and isinstance(points, list):
+            # print("click: ---2---")
+            first_point = points[0] if points else {}
+            sample_id = first_point.get("hovertext", None)
+            # try:
+            plot = get_cnv_plot(sample_id)
+            # print("click: ---3---")
+            return json.dumps(click_data, indent=2), plot
+            # except:
+            # pass
+    # print("click: ---4---")
+    # print()
+    return no_update, no_update
+
 
 app.run(debug=True, host=HOST, use_reloader=False)
+
+# app.css.append_css({
+# "external_url": "https://codepen.io/chriddyp/pen/bWLwgP.css"
+# })
 
 
 def open_browser_tab():
     webbrowser.open_new_tab(f"http://{HOST}:{PORT}/{init_sample_id}")
 
 
-
-#home
+# home
 id_ = "6042324058_R04C01"
 
 id_ = "7970376005_R03C01"
@@ -417,4 +546,117 @@ genes_df.Start -= 1
 genes = pr.PyRanges(genes_df)
 genes = genes[["Name"]]
 annotation = Annotation(manifest, gap=gap, detail=genes)
+
+
+df = pd.DataFrame(
+    {
+        "UMAP_X": np.random.rand(100),
+        "UMAP_Y": np.random.rand(100),
+        "Sample ID": ["Sample" + str(i) for i in range(100)],
+    }
+)
+
+external_stylesheets = [dbc.themes.BOOTSTRAP]
+app = Dash(__name__, external_stylesheets=external_stylesheets)
+
+
+left_column = dbc.Col(
+    [
+        html.H4("Options"),
+        dcc.Dropdown(
+            id="sample-dropdown",
+            options=[{"label": f"Sample {i}", "value": i} for i in range(10)],
+            multi=True,
+            placeholder="Select Sample IDs",
+        ),
+        html.Br(),
+        dbc.ButtonGroup(
+            [
+                dbc.Button("25k CpGs", color="primary"),
+                dbc.Button("50k CpGs", color="secondary"),
+                dbc.Button("75k CpGs", color="success"),
+            ],
+            size="lg",
+        ),
+        html.Br(),
+        html.Br(),
+        dcc.Dropdown(
+            id="reference-dropdown",
+            options=[
+                {"label": f"Reference {i}", "value": i} for i in range(5)
+            ],
+            placeholder="Select Reference Set",
+        ),
+        html.Br(),
+        dcc.Tabs(
+            [
+                dcc.Tab(
+                    label="Settings",
+                    children=[
+                        dcc.Input(
+                            type="text",
+                            placeholder="Enter IDAT directory",
+                            id="idat-dir",
+                        ),
+                        dcc.Input(
+                            type="text",
+                            placeholder="Enter save directory",
+                            id="save-dir",
+                        ),
+                        dbc.Button("Start", id="start-btn", color="primary"),
+                    ],
+                )
+            ],
+        ),
+    ],
+    width=3,
+)
+
+# Right column with plots
+right_column = dbc.Col(
+    [
+        html.H4("Plots"),
+        dcc.Graph(
+            id="umap-plot",
+            figure=px.scatter(
+                df,
+                x="UMAP_X",
+                y="UMAP_Y",
+                color="Sample ID",
+                title="UMAP Plot",
+            ),
+        ),
+        html.Div(id="cnv-plot", children=[]),  # Placeholder for CNV plot
+    ],
+    width=9,
+)
+
+# Main layout with the navbar and columns
+app.layout = html.Div(
+    [
+        navbar,
+        dbc.Container(
+            [
+                dbc.Row(
+                    [left_column, right_column],
+                    style={"margin-top": "20px"},
+                ),
+            ]
+        ),
+    ],
+)
+
+# Run the app
+if __name__ == "__main__":
+    app.run_server(debug=True, use_reloader=False)
+
+
+ref_dir = "/data/ref_IDAT"
+reference_methyl = ReferenceMethylData(ref_dir)
+reference_methyl[ArrayType.ILLUMINA_450K]
+
+
+cnv = CNV.set_all(sample_methyl, reference_methyl)
+
+
 

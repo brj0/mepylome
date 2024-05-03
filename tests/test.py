@@ -1,5 +1,6 @@
 import gzip
 import logging
+import inspect
 import os
 import pickle
 import re
@@ -13,6 +14,7 @@ from urllib.parse import urljoin
 import cbseg
 import numpy as np
 import pandas as pd
+from functools import wraps
 import pkg_resources
 import pyranges as pr
 import scipy.stats as stats
@@ -27,16 +29,18 @@ from scipy.stats import rankdata
 from sklearn.linear_model import LinearRegression
 
 import mepylome
-from mepylome import IdatParser
+from mepylome import _IdatParser
 
 # TODO too long for import
 from mepylome.dtypes import (
     CNV,
     Annotation,
+    memoize,
     ArrayType,
     Channel,
     Manifest,
     ManifestLoader,
+    IdatParser,
     MethylData,
     ProbeType,
     CNVPlot,
@@ -96,7 +100,7 @@ faulty = "/data/epidip_IDAT/10003886027_R05C02_Grn.idat"
 faulty = "/data/epidip_IDAT/206486310027_R05C01_Grn.idat"
 
 timer = Timer()
-idat_data = mepylome.IdatParser(smp1)
+idat_data = mepylome._IdatParser(smp1)
 timer.stop("Parsing IDAT")
 
 
@@ -318,52 +322,42 @@ timer.stop("*")
 
 cnv.plot()
 
+import dash
+import dash_bootstrap_components as dbc
 
-def get_id_tuple(f, args, kwargs, mark=object()):
-    l = [id(f)]
-    for arg in args:
-        l.append(id(arg))
-    l.append(id(mark))
-    for k, v in kwargs.items():
-        l.append(k)
-        if k == 'manifest' and hasattr(v, 'init_args'):
-            l.append(v.init_args)
-        else:
-            l.append(id(v))
-    return tuple(l)
+app = dash.Dash(
+    external_stylesheets=[dbc.themes.BOOTSTRAP]
+)
 
-def get_id_tuple(f, args, kwargs, mark=object()):
-    l = [id(f)]
-    for arg in args:
-        l.append(id(arg))
-    l.append(id(mark))
-    for k, v in kwargs:
-        l.append(k)
-        l.append(id(v))
-    return tuple(l)
+app.layout = dbc.Alert(
+    "Hello, Bootstrap!", className="m-5"
+)
 
-_memoized = {}
-def memoize(f):
-    def memoized(*args, **kwargs):
-        key = get_id_tuple(f, args, kwargs)
-        if key not in _memoized:
-            _memoized[key] = f(*args, **kwargs)
-        return _memoized[key]
-    return memoized
+app.run_server()
 
-@memoize
-class Test(object):
-    def __init__(self, somevalue, manifest=None):
-        self.somevalue = somevalue
-        time.sleep(1)
 
-t0=Test(1)
-t1=Test(1, manifest)
-manifest_ = manifest
-t2=Test(1, manifest_)
-t3=Test(1)
 
-tests = [Test(1), Test(2), Test(3), Test(2), Test(4)]
-for test in tests:
-    print(test.somevalue, id(test))
+
+
+
+
+smp0 = "/data/epidip_IDAT/6042324058_R03C02_Grn.idat"
+filepath_or_buffer = smp0
+idat_file = get_file_object(filepath_or_buffer)
+
+timer = Timer()
+
+
+timer.start()
+idat_data = mepylome._IdatParser(smp0)
+timer.stop("Parsing C++")
+
+timer.start()
+py_idat_data = IdatParser(smp0, intensity_only=True)
+timer.stop("Parsing Python")
+
+with np.printoptions(edgeitems=2):
+    x=f"{py_idat_data.illumina_ids}"
+    y=f"{py_idat_data.illumina_ids.__repr__()}"
+    z=f"{repr(py_idat_data.illumina_ids)}"
 

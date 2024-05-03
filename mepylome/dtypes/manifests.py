@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pyranges as pr
 
-from mepylome.dtypes import ArrayType, Channel, InfiniumDesignType, ProbeType
+from mepylome.dtypes import ArrayType, Channel, InfiniumDesignType, ProbeType, memoize
 from mepylome.utils import (
     download_file,
     ensure_directory_exists,
@@ -88,7 +88,7 @@ CONTROL_COLUMNS = (
     "Extended_Type",
 )
 
-
+@memoize
 class Manifest:
     """Provides an object interface to an Illumina array manifest file.
 
@@ -106,21 +106,21 @@ class Manifest:
         cannot be found.
     """
 
-    _cache = {}
+    # _cache = {}
 
-    def __new__(
-        cls,
-        array_type,
-        filepath=None,
-        verbose=True,
-    ):
-        cache_key = (array_type, filepath, verbose)
-        if cache_key in cls._cache:
-            return cls._cache[cache_key]
-        instance = super().__new__(cls)
-        # Cache the instance
-        cls._cache[cache_key] = instance
-        return instance
+    # def __new__(
+        # cls,
+        # array_type,
+        # filepath=None,
+        # verbose=True,
+    # ):
+        # cache_key = (array_type, filepath, verbose)
+        # if cache_key in cls._cache:
+            # return cls._cache[cache_key]
+        # instance = super().__new__(cls)
+        # # Cache the instance
+        # cls._cache[cache_key] = instance
+        # return instance
 
     def __init__(
         self,
@@ -128,8 +128,8 @@ class Manifest:
         filepath=None,
         verbose=True,
     ):
-        if hasattr(self, 'init_args'):
-            return
+        # if hasattr(self, 'init_args'):
+            # return
         self.init_args = (array_type, filepath, verbose)
         array_str_to_class = dict(
             zip(

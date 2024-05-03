@@ -1,4 +1,4 @@
-from _mepylome import IdatParser
+from _mepylome import IdatParser as _IdatParser
 from mepylome.dtypes import *
 
 # Suppress pyranges warnings
