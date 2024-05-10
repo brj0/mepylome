@@ -37,6 +37,8 @@ class Hash:
                     N,
                 )
                 return key
+        if isinstance(value, list):
+            return tuple(value)
 
     def __eq__(self, __value):
         return __value.key == self.key

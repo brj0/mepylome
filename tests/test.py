@@ -29,7 +29,6 @@ from scipy.stats import rankdata
 from sklearn.linear_model import LinearRegression
 
 import mepylome
-from mepylome import _IdatParser
 
 # TODO too long for import
 from mepylome.dtypes import (
@@ -100,7 +99,7 @@ faulty = "/data/epidip_IDAT/10003886027_R05C02_Grn.idat"
 faulty = "/data/epidip_IDAT/206486310027_R05C01_Grn.idat"
 
 timer = Timer()
-idat_data = mepylome._IdatParser(smp1)
+idat_data = IdatParser(smp1)
 timer.stop("Parsing IDAT")
 
 
@@ -353,11 +352,25 @@ idat_data = mepylome._IdatParser(smp0)
 timer.stop("Parsing C++")
 
 timer.start()
-py_idat_data = IdatParser(smp0, intensity_only=True)
+py_idat_data = IdatParser(smp0, intensity_only=False)
 timer.stop("Parsing Python")
 
 with np.printoptions(edgeitems=2):
     x=f"{py_idat_data.illumina_ids}"
     y=f"{py_idat_data.illumina_ids.__repr__()}"
     z=f"{repr(py_idat_data.illumina_ids)}"
+
+class X:
+    def __init__(self, a):
+        self.val=a
+
+x = X(0)
+def change_x():
+    # global x
+    x.val = 10
+
+print(x.val)
+change_x()
+print(x.val)
+
 

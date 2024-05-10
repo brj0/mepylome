@@ -1,10 +1,16 @@
 import colorsys
+import dash
+import dash_daq as daq
+import pathlib
+from dash import callback_context
 import hashlib
+import importlib
+import pkg_resources
 import json
 import random
-import importlib
 from functools import lru_cache, wraps
 from multiprocessing import Pool
+import os
 from pathlib import Path
 
 import dash_bootstrap_components as dbc
@@ -13,7 +19,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import umap
-from dash import Dash, Input, Output, callback, dcc, html, no_update
+from dash import Dash, Input, Output, callback, dcc, html, no_update, State
 from dash.exceptions import PreventUpdate
 from nanodip import Reference
 from tqdm import tqdm
@@ -21,20 +27,33 @@ from tqdm import tqdm
 from mepylome import CNV, Manifest, MethylData, RawData, idat_basepaths
 from mepylome.dtypes import (
     CHROMOSOME_DATA,
-    ReferenceMethylData,
     COLOR_MAP,
     IMPORTANT_GENES,
+    ArrayType,
+    Annotation,
     MANIFEST_TMP_DIR,
     ZIP_ENDING,
+    ReferenceMethylData,
     cnv_plot,
     read_cnv_data_from_disk,
+    cache,
+    memoize,
 )
+from mepylome.utils import ensure_directory_exists, Timer
+
+timer = Timer()
 
 # IDAT_DIR = "/data/epidip_IDAT"
 IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
 # IDAT_DIR = Path("~/MEGA/work/programming/data/epidip_IDAT").expanduser()
 PLOTLY_RENDER_MODE = "webgl"
 HOST = "localhost"
+
+HOME_DIR = pathlib.Path.home()
+DEFAULT_ANALYSIS_DIR = Path(HOME_DIR, "Documents", "mepylome", "analysis")
+DEFAULT_REFERENCE_DIR = Path(HOME_DIR, "Documents", "mepylome", "reference")
+DEFAULT_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output")
+DEFAULT_N_CPGS = 25000
 
 # Contains CpGs common to both 450k and EPIC arrays, excluding those on sex
 # chromosomes and cross-reactive probes (as identified in Chen et al., 2013).
@@ -46,11 +65,14 @@ CNV_LINK = (
 )
 CNV_LINK = "http://localhost:8050/%s"
 
+ACRONYMS = pkg_resources.resource_filename("mepylome", "data/methylation_class_acronyms.tsv.gz")
 
-from mepylome import idat_basepaths
 
+
+acronyms = pd.read_csv(ACRONYMS, sep="\t")
 ref_dir = "/data/ref_IDAT"
-ref_idat_basepaths = idat_basepaths(ref_dir)
+reference_methyl = ReferenceMethylData(ref_dir)
+# reference_methyl[ArrayType.ILLUMINA_450K]
 
 
 def random_color(var):
@@ -133,10 +155,10 @@ def umap_plot_from_data(umap_df, sample=None, reference=None, close_up=False):
         x="x",
         y="y",
         labels={
-            "x": "",
-            # "x": "UMAP 0",
-            "y": "",
-            # "y": "UMAP 1",
+            # "x": "",
+            "x": "UMAP 0",
+            # "y": "",
+            "y": "UMAP 1",
             "methylation_class": "WHO class",
         },
         title=umap_title,
@@ -155,7 +177,7 @@ def umap_plot_from_data(umap_df, sample=None, reference=None, close_up=False):
             y=umap_sample["y"],
             text=sample.name,
             showarrow=True,
-            arrowhead=1,
+            arrowhead=2,
         )
     umap_plot.update_yaxes(
         scaleanchor="x",
@@ -203,10 +225,15 @@ def umap_plot_from_data(umap_df, sample=None, reference=None, close_up=False):
 with open(CPG_450K_EPIC_OVERLAP, "r") as f:
     cpg_450k_epic = np.array(f.read().splitlines())
 
+class IdatAnnotation():
+    def __init__(self, filepath):
+        pass
+          
+
 # reference = Reference("AllIDATv2_20210804_HPAP_Sarc")
 reference = Reference("AllIDATv2_20210804")
 NR_CPGS = 9000
-random_cpg_sample = random.sample(reference.cpg_sites, NR_CPGS)
+random_cpg_sample = random.sample(list(cpg_450k_epic), NR_CPGS)
 
 
 files = IDAT_DIR
@@ -228,6 +255,10 @@ def extract_beta(data):
         return betas[cpg_mask]
     except ValueError as e:
         return (idat_file, e)
+
+
+def get_coordinates(sample_id):
+    return umap_plot.df[umap_plot.df.id == sample_id].iloc[0][["x", "y"]]
 
 
 class UMAPPlot:
@@ -267,7 +298,7 @@ class UMAPPlot:
         # idat_files = idat_files[:200]
         id_to_mc = dict(zip(ids_overlap, classes_overlap))
         id_to_desription = dict(zip(ids_overlap, descripton_overlap))
-        umap_df = pd.DataFrame(
+        self.df = pd.DataFrame(
             {
                 "methylation_class": [id_to_mc[x] for x in ids_overlap],
                 "description": [id_to_desription[x] for x in ids_overlap],
@@ -276,34 +307,78 @@ class UMAPPlot:
                 "y": umap_2d[:, 1],
             }
         )
-        self.umap_plt = umap_plot_from_data(umap_df)
-        self.umap_plt = self.umap_plt.update_layout(
+        self.plot = umap_plot_from_data(self.df)
+        self.plot = self.plot.update_layout(
             margin=dict(l=0, r=0, t=30, b=0),
         )
-        # self.umap_plt.show(config=dict({"scrollZoom": True}))
+        self.raw_plot = self.plot
+        self.cnv_id = None
+        self.dropdown_id = None
+    def highlight(self, dropdown_id=None, cnv_id=None):
+        if cnv_id is not None:
+            self.cnv_id = cnv_id
+        self.dropdown_id = [] if dropdown_id is None else dropdown_id
+        self.plot = go.Figure(self.raw_plot)
+        if self.dropdown_id is not None:
+            for id_ in self.dropdown_id:
+                x, y = get_coordinates(id_)
+                self.plot.add_annotation(
+                    x=x,
+                    y=y,
+                    text=f"{id_}",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowcolor="blue",
+                    font=dict(
+                        color="blue",
+                    ),
+                )
+        if self.cnv_id is not None:
+            x, y = get_coordinates(self.cnv_id)
+            self.plot.add_annotation(
+                x=x,
+                y=y,
+                text=f"CNV: {self.cnv_id}",
+                showarrow=True,
+                arrowhead=2,
+            )
+    def retrieve_zoom(self, current_plot):
+        self.plot.layout.xaxis = current_plot["layout"]["xaxis"]
+        self.plot.layout.yaxis = current_plot["layout"]["yaxis"]
+    def __repr__(self):
+        title = f"UMAPPlot():"
+        lines = [
+            title + "\n" + "*" * len(title),
+            f"cnv_id:\n{self.cnv_id}",
+            f"dropdown_id:\n{self.dropdown_id}",
+            f"df:\n{self.df}",
+        ]
+        return "\n\n".join(lines)
 
 
-styles = {"pre": {"border": "thin lightgrey solid", "overflowX": "scroll"}}
+umap_plot = UMAPPlot(cpgs, files, ids, classes, description)
 
 
-umap = UMAPPlot(cpgs, files, ids, classes, description)
+# umap_plot.plot.show()
+# umap_plot.highlight([id_])
+# p = umap_plot.highlight_cnv("7970368141_R02C01")
+# p.show()
 
-# umap.umap_plt.show(config=dict({"scrollZoom": True}))
 
-
+# @cache
 @lru_cache()
-def get_cnv_plot(sample_id):
+def get_cnv_plot(sample_id, genes_sel):
+    timer.start()
     cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
     cnv_filename = sample_id + ZIP_ENDING
     if not Path(cnv_dir, cnv_filename).exists():
         idat_base = Path(files, sample_id)
         sample_methyl = MethylData(file=idat_base)
         print("ID=", sample_id)
-        cnv = CNV.set_all(sample_methyl, ref_methyl, annotation)
+        cnv = CNV.set_all(sample_methyl, reference_methyl)
         ensure_directory_exists(cnv_dir)
         cnv.write(cnv_dir, cnv_filename)
     genes_fix = IMPORTANT_GENES
-    genes_sel = []
     bins, detail, segments = read_cnv_data_from_disk(sample_id, cnv_dir)
     plot = cnv_plot(
         sample_id,
@@ -311,220 +386,455 @@ def get_cnv_plot(sample_id):
         detail,
         segments,
         genes_fix,
-        genes_sel,
+        list(genes_sel),
     )
     plot = plot.update_layout(
         margin=dict(l=0, r=0, t=30, b=0),
     )
+    timer.stop("get_cnv_plot")
     return plot
 
 
-umap_fig = umap.umap_plt
-cnv_fig = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-LOGO = app.get_asset_url("mepylome.svg")
-navbar = dbc.Navbar(
-    dbc.Container(
-        [
-            html.A(
-                dbc.Row(
-                    [
-                        dbc.Col(html.Img(src=LOGO, height="30px")),
-                        dbc.Col(dbc.NavbarBrand("Navbar", className="ms-2")),
-                    ],
-                    align="center",
-                    className="g-0",
-                ),
-                style={"textDecoration": "none"},
-            ),
-            dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
-            # dbc.Collapse(
-            # search_bar,
-            # id="navbar-collapse",
-            # is_open=False,
-            # navbar=True,
-            # ),
-        ]
-    ),
-    color="dark",
-    dark=True,
-)
-side_navigation = dbc.Col(
-    [
-        dcc.Store(id="memory"),
-        dcc.Location(id="url", refresh=False),
-        html.Div(
-            [
-                dcc.Markdown(
-                    """
-                    **Click Data**
-                    Click on points in the graph.
-                """
-                ),
-                html.Pre(id="click-data", style=styles["pre"]),
-            ],
-            # className="six columns",
-        ),
-    ],
-    width={"size": 2},
-)
-plots = dbc.Col(
-    [
-        dcc.Graph(
-            id="umap",
-            figure=umap_fig,
-            config={
-                "scrollZoom": False,
-                "doubleClick": "reset",
-                "modeBarButtonsToRemove": ["lasso2d", "select"],
-                "displaylogo": False,
-            },
-            # style={"height": "75vh"},
-            # style={"width": "70vw", "height": "90vh"},
-        ),
-        dcc.Graph(
-            id="cnv",
-            figure={},
-            config={
-                "scrollZoom": False,
-                "doubleClick": "reset",
-                "modeBarButtonsToRemove": ["select"],
-                # "modeBarButtonsToRemove": ["lasso2d", "select"],
-                "displaylogo": False,
-            },
-            # style={"width": "30vw", "height": "45vh"},
-            # style={"width": "90%", "height": "65vh"},
-        ),
-    ],
-    width={"size": 10},
-)
-# app.layout = dbc.Container(
-# dbc.Row([side_navigation, plots]),
-# fluid=True,
+# def get_all_directories(start_dirs, depth):
+# dir_list = []
+# prev_level_dirs = [Path(p) for p in start_dirs]
+# for _ in range(depth):
+# next_level_dirs = []
+# for dir_ in prev_level_dirs:
+# next_level_dirs.extend(
+# [
+# p
+# for p in dir_.iterdir()
+# if p.is_dir() and not p.name.startswith(".")
+# ]
 # )
-app.layout = html.Div(
-    [
-        navbar,
+# prev_level_dirs = next_level_dirs
+# dir_list.extend(next_level_dirs)
+# return sorted(dir_list)
+
+
+annotation = Annotation(array_type=ArrayType.ILLUMINA_450K)
+detail = annotation.detail.df
+all_genes = detail.Name.tolist()
+
+
+EMPTY_FIGURE = go.Figure()
+EMPTY_FIGURE.update_layout(
+    xaxis=dict(visible=False),  # Hide the x-axis
+    yaxis=dict(visible=False),  # Hide the y-axis
+    plot_bgcolor="rgba(0, 0, 0, 0)",  # Make the background transparent
+    paper_bgcolor="rgba(0, 0, 0, 0)",  # Transparent plot paper
+    showlegend=False,  # No legend
+    margin=dict(l=0, r=0, t=0, b=0),  # No margins
+)
+
+
+def input_args_hash(*args):
+    result = "-".join([str(arg) for arg in args])
+    return hashlib.md5(result.encode()).hexdigest()[:32]
+
+def get_navbar():
+    return dbc.Navbar(
         dbc.Container(
             [
-                dbc.Row(
-                    [side_navigation, plots],
-                    style={"margin-top": "20px"},
+                html.A(
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                html.Img(
+                                    src="/assets/mepylome.svg",
+                                    height="30px",
+                                )
+                            ),
+                            dbc.Col(
+                                dbc.NavbarBrand(
+                                    "Methylation Analysis",
+                                    className="ms-2",
+                                )
+                            ),
+                        ],
+                        align="center",
+                        className="g-0",
+                    ),
+                    style={"textDecoration": "none"},
+                ),
+                dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
+            ]
+        ),
+        color="dark",
+        dark=True,
+    )
+
+
+def get_side_navivation(sample_ids):
+    return dbc.Col(
+        [
+            dbc.Tabs(
+                [
+                    dbc.Tab(
+                        label="Plot",
+                        children=[
+                            dcc.Store(id="memory"),
+                            dcc.Location(id="url", refresh=False),
+                            html.Br(),
+                            html.Br(),
+                            html.H6("Sample IDs to highlight in UMAP"),
+                            dcc.Dropdown(
+                                id="ids-to-highlight",
+                                options=sample_ids,
+                                multi=True,
+                                # placeholder="",
+                            ),
+                            html.Br(),
+                            html.H6("Genes to highlight in CNV"),
+                            dcc.Dropdown(
+                                id="selected-genes",
+                                options=all_genes,
+                                multi=True,
+                                # placeholder=" in CNV plot",
+                            ),
+                        ],
+                    ),
+                    dbc.Tab(
+                        label="Settings",
+                        children=[
+                            html.Br(),
+                            html.H6(
+                                f"Number of CpG sites (max. {len(cpg_450k_epic)})"
+                            ),
+                            html.Br(),
+                            # dcc.Slider(
+                            # 25000,
+                            # 75000,
+                            # value=50000,
+                            # # step=None,
+                            # marks={
+                            # 25000: "25k",
+                            # 50000: "50k",
+                            # 75000: "75k",
+                            # },
+                            # tooltip={
+                            # "placement": "top",
+                            # "always_visible": True,
+                            # },
+                            # ),
+                            dcc.Input(
+                                id="num-cpgs",
+                                type="number",
+                                min=1,
+                                max=len(cpg_450k_epic),
+                                step=1,
+                                value=DEFAULT_N_CPGS,
+                            ),
+                            html.Br(),
+                            html.Br(),
+                            html.H6("Choose analysis directory"),
+                            dbc.Input(
+                                id="analysis-dir",
+                                valid=True,
+                                value=str(DEFAULT_ANALYSIS_DIR),
+                                type="text",
+                            ),
+                            html.Div(id="analysis-path-validation"),
+                            html.Br(),
+                            html.H6("Choose reference directory"),
+                            dbc.Input(
+                                id="reference-dir",
+                                valid=True,
+                                value=str(DEFAULT_REFERENCE_DIR),
+                                type="text",
+                            ),
+                            html.Div(id="reference-path-validation"),
+                            html.Br(),
+                            html.H6("Choose IDAT preprocessing method"),
+                            dcc.Dropdown(
+                                id="preprocessing-method",
+                                options={
+                                    "illumina": "Illumina (fast)",
+                                    "swan": "SWAN",
+                                    "noob": "NOOB",
+                                    "raw": "No preprocessing",
+                                },
+                                value="illumina",
+                                multi=False,
+                            ),
+                            html.Br(),
+                            html.H6("Calculate CNV"),
+                            # dbc.Switch(id='precalculate-cnv', value=False),
+                            dcc.Dropdown(
+                                id="precalculate-cnv",
+                                options={
+                                    "on": (
+                                        "Precalculate all (better performance, "
+                                        "longer initialization)"
+                                    ),
+                                    "off": "When clicking on dots",
+                                },
+                                value="off",
+                                multi=False,
+                            ),
+                            html.Br(),
+                            html.Br(),
+                            dbc.Col(
+                                dbc.Button(
+                                    "Start",
+                                    id="start-button",
+                                    color="primary",
+                                ),
+                                # width=12,
+                            ),
+                            html.Div(id="output-div"),
+                        ],
+                    ),
+                ]
+            ),
+        ],
+        width={"size": 2},
+    )
+
+class MethylationAnalysis:
+    def __init__(
+        self,
+        n_cpgs=DEFAULT_N_CPGS,
+        analysis_dir=DEFAULT_ANALYSIS_DIR,
+        reference_dir=DEFAULT_REFERENCE_DIR,
+        prep="illumina",
+        precalculate_cnv=False,
+    ):
+        self.n_cpgs = n_cpgs
+        self.analysis_dir = analysis_dir
+        self.reference_dir = reference_dir
+        self.prep = prep
+        self.precalculate_cnv = precalculate_cnv
+        hash_key = input_args_hash(n_cpgs, analysis_dir, reference_dir, prep)
+        out_dir_name = f"{n_cpgs}-{prep}-{hash_key}"
+        self.out_dir = Path(analysis_dir, out_dir_name)
+        ensure_directory_exists(self.out_dir)
+        self.app = self.get_app()
+    def get_app(self):
+        app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+        app._favicon = "favicon.svg"
+        side_navigation = get_side_navivation(umap_plot.df.id)
+        dash_plots = dbc.Col(
+            [
+                dcc.Graph(
+                    id="umap",
+                    figure=umap_plot.plot,
+                    # figure=EMPTY_FIGURE,
+                    config={
+                        "scrollZoom": False,
+                        "doubleClick": "reset+autosize",
+                        "modeBarButtonsToRemove": ["lasso2d", "select"],
+                        "displaylogo": False,
+                    },
+                    # style={"width": "80%", "height": "60vh"},
+                ),
+                dcc.Graph(
+                    id="cnv",
+                    figure=EMPTY_FIGURE,
+                    config={
+                        "scrollZoom": False,
+                        "doubleClick": "reset",
+                        "modeBarButtonsToRemove": ["lasso2d", "select"],
+                        "displaylogo": False,
+                    },
+                    # style={"width": "100%", "height": "40vh"},
                 ),
             ],
-            fluid=True,
-        ),
-    ],
-)
+            width={"size": 10},
+        )
+        app.layout = html.Div(
+            [
+                get_navbar(),
+                dbc.Container(
+                    [
+                        dbc.Row(
+                            [side_navigation, dash_plots],
+                            style={"margin-top": "20px"},
+                        ),
+                    ],
+                    fluid=True,
+                ),
+            ],
+        )
+        @app.callback(
+            [
+                Output("umap", "figure"),
+                Output("cnv", "figure"),
+            ],
+            [
+                Input("umap", "clickData"),
+                Input("ids-to-highlight", "value"),
+                Input("selected-genes", "value"),
+            ],
+            State("umap", "figure"),
+        )
+        def display_cnv(click_data, ids_to_highlight, genes_sel, current_fig):
+            genes_sel = () if genes_sel is None else tuple(genes_sel)
+            trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
+            print("\n\nTRIGGER:", trigger)
+            print("ids_to_highlight:", ids_to_highlight)
+            print("genes_sel:", genes_sel)
+            print(umap_plot)
+            if trigger == "ids-to-highlight" and ids_to_highlight is not None:
+                umap_plot.highlight(dropdown_id=ids_to_highlight)
+                umap_plot.retrieve_zoom(current_fig)
+                return umap_plot.plot, no_update
+            if trigger == "umap" and isinstance(click_data, dict):
+                points = click_data.get("points", [])
+                if points and isinstance(points, list):
+                    first_point = points[0] if points else {}
+                    sample_id = first_point.get("hovertext", None)
+                    if sample_id is None:
+                        return no_update, no_update
+                    print("sample_id:", sample_id)
+                    print("---0---")
+                    umap_plot.highlight(
+                        cnv_id=sample_id, dropdown_id=ids_to_highlight
+                    )
+                    print("---1---")
+                    umap_plot.retrieve_zoom(current_fig)
+                    print("---2---")
+                    next_cnv = get_cnv_plot(sample_id, genes_sel)
+                    print("---3---")
+                    return umap_plot.plot, next_cnv
+            if trigger == "selected-genes" and genes_sel is not None:
+                next_cnv = get_cnv_plot(umap_plot.cnv_id, genes_sel)
+                genes_sel = genes_sel if genes_sel else []
+                return no_update, next_cnv
+            return no_update, no_update
+        @app.callback(
+            [
+                Output("analysis-dir", "valid"),
+                Output("analysis-path-validation", "children"),
+            ],
+            [Input("analysis-dir", "value")],
+            prevent_initial_call=True,
+        )
+        def validate_path(input_path):
+            try:
+                path = Path(input_path)
+                if path == DEFAULT_ANALYSIS_DIR:
+                    return True, f""
+                elif path.is_dir() and not os.access(path, os.W_OK):
+                    return False, f"Protected directory: {path}"
+                elif path.is_dir():
+                    return True, f""
+                else:
+                    return False, f"Not a directory: {path}"
+            except Exception:
+                return False, "Invalid path format"
+        @app.callback(
+            [
+                Output("reference-dir", "valid"),
+                Output("reference-path-validation", "children"),
+            ],
+            [Input("reference-dir", "value")],
+            prevent_initial_call=True,
+        )
+        def validate_path(input_path):
+            try:
+                path = Path(input_path)
+                if path == DEFAULT_REFERENCE_DIR:
+                    return True, f""
+                elif path.is_dir() and not os.access(path, os.W_OK):
+                    return False, f"Protected directory: {path}"
+                elif path.is_dir():
+                    return True, f""
+                else:
+                    return False, f"Not a directory: {path}"
+            except Exception:
+                return False, "Invalid path format"
+        @app.callback(
+            Output("output-div", "children"),
+            [Input("start-button", "n_clicks")],
+            [
+                State("analysis-dir", "value"),
+                State("reference-dir", "value"),
+                State("preprocessing-method", "value"),
+                State("analysis-dir", "valid"),
+                State("reference-dir", "valid"),
+            ],
+            prevent_initial_call=True,
+        )
+        def on_start_button_click(
+            n_clicks,
+            analysis_dir,
+            reference_dir,
+            prep,
+            analysis_dir_valid,
+            reference_dir_valid,
+        ):
+            print("BUTTON")
+            if n_clicks:
+                # Perform some action with the input values
+                print(
+                    f"Starting with number: {analysis_dir}, "
+                    f" file path: {reference_dir}"
+                    f" prep: {prep}"
+                    f" analysis_dir_valid: {analysis_dir_valid}"
+                    f" reference_dir_valid: {reference_dir_valid}"
+                )
+                return (
+                    f"Starting with number: {analysis_dir}, "
+                    f" file path: {reference_dir}"
+                    f" prep: {prep}"
+                    f" analysis_dir_valid: {analysis_dir_valid}"
+                    f" reference_dir_valid: {reference_dir_valid}"
+                )
+            return "Start button not clicked"
+        return app
+    def run_app(self):
+        self.app.run(debug=True, host=HOST, use_reloader=False)
+    def umap_2d_reduction(self, files, ids, classes, description=None):
+        cpgs = random.sample(list(cpg_index_450k), NR_CPGS)
+        all_idat_files = idat_basepaths(files)
+        name_to_file = {x.name: x for x in all_idat_files}
+        idat_files = [name_to_file.get(x, None) for x in ids]
+        overlap_idx = [i for i, x in enumerate(idat_files) if x is not None]
+        idat_overlap = [idat_files[x] for x in overlap_idx]
+        ids_overlap = [ids[x] for x in overlap_idx]
+        classes_overlap = [classes[x] for x in overlap_idx]
+        descripton_overlap = [description[x] for x in overlap_idx]
+        # Load all manifests
+        Manifest.load(["450k", "epic", "epicv2"])
+        cpg_mask = np.isin(cpg_450k_epic, cpgs)
+        with Pool() as pool:
+            betas_450k_results = list(
+                tqdm(
+                    pool.imap(
+                        extract_beta,
+                        zip(idat_overlap, [cpg_mask] * len(idat_overlap)),
+                    ),
+                    total=len(idat_overlap),
+                    desc="Reading IDAT files",
+                )
+            )
+        valid_betas = [x for x in betas_450k_results if len(x) == len(cpgs)]
+        valid_ids = [
+            i for i, x in enumerate(betas_450k_results) if len(x) == NR_CPGS
+        ]
+        methyl_mtx = np.vstack(valid_betas)
+        reference_ids = [Path(idat_overlap[x]).name for x in valid_ids]
+        cnv_df = pd.DataFrame(methyl_mtx, index=ids_overlap)
+        umap_2d = umap.UMAP(verbose=True).fit_transform(methyl_mtx)
+        # NR_CPGS = len(cpg_450k_epic)
+        # cpg_mask = np.ones(len(cpg_450k_epic), dtype=bool)
+        # idat_files = idat_files[:200]
+        id_to_mc = dict(zip(ids_overlap, classes_overlap))
+        id_to_desription = dict(zip(ids_overlap, descripton_overlap))
+        self.df = pd.DataFrame(
+            {
+                "methylation_class": [id_to_mc[x] for x in ids_overlap],
+                "description": [id_to_desription[x] for x in ids_overlap],
+                "id": cnv_df.index,
+                "x": umap_2d[:, 0],
+                "y": umap_2d[:, 1],
+            }
+        )
 
-
-# app.layout = html.Div(
-# style={"display": "flex"},  # Use Flexbox for horizontal layout
-# children=[
-# # Left column
-# html.Div(
-# children=[
-# dcc.Store(id="memory"),
-# dcc.Location(id="url", refresh=False),
-# html.P(id="err", style={"color": "red"}),
-# html.Div(id="page"),
-# # dcc.Dropdown(
-# # options=[],
-# # value=None,
-# # placeholder="Select genes to highlight...",
-# # id="dropdown",
-# # multi=True,
-# # style={"width": "30vw"},
-# # ),
-# html.Div(
-# [
-# dcc.Markdown(
-# """
-# **Click Data**
-# Click on points in the graph.
-# """
-# ),
-# html.Pre(id="click-data", style=styles["pre"]),
-# ],
-# # className="six columns",
-# ),
-# ],
-# style={"flex": 2},  # Flex value determines the relative width
-# ),
-# # Right column
-# html.Div(
-# children=[
-# dcc.Graph(
-# id="umap",
-# figure=umap_fig,
-# config={
-# "scrollZoom": False,
-# "doubleClick": "reset",
-# "modeBarButtonsToRemove": ["lasso2d", "select"],
-# "displaylogo": False,
-# },
-# style={"height": "75vh"},
-# # style={"width": "70vw", "height": "90vh"},
-# ),
-# dcc.Graph(
-# id="cnv",
-# figure=cnv_fig,
-# config={
-# "scrollZoom": False,
-# "doubleClick": "reset",
-# "modeBarButtonsToRemove": ["select"],
-# # "modeBarButtonsToRemove": ["lasso2d", "select"],
-# "displaylogo": False,
-# },
-# # style={"width": "30vw", "height": "45vh"},
-# style={"width": "90%", "height": "65vh"},
-# ),
-# ],
-# style={"flex": 8},  # Flex value for the right column
-# ),
-# # className="six columns",
-# ],
-# )
-@callback(
-    [
-        Output("click-data", "children"),
-        Output("cnv", "figure"),
-    ],
-    Input("umap", "clickData"),
-)
-def display_click_data(click_data):
-    # print("click: ---0---")
-    if click_data is None:
-        return no_update, no_update
-    sample_id = None
-    if isinstance(click_data, dict):
-        # print("click: ---1---")
-        points = click_data.get("points", [])
-        if points and isinstance(points, list):
-            # print("click: ---2---")
-            first_point = points[0] if points else {}
-            sample_id = first_point.get("hovertext", None)
-            # try:
-            plot = get_cnv_plot(sample_id)
-            # print("click: ---3---")
-            return json.dumps(click_data, indent=2), plot
-            # except:
-            # pass
-    # print("click: ---4---")
-    # print()
-    return no_update, no_update
-
-
-app.run(debug=True, host=HOST, use_reloader=False)
-
-# app.css.append_css({
-# "external_url": "https://codepen.io/chriddyp/pen/bWLwgP.css"
-# })
-
-
-def open_browser_tab():
-    webbrowser.open_new_tab(f"http://{HOST}:{PORT}/{init_sample_id}")
-
+self = MethylationAnalysis()
+self.run_app()
 
 # home
 id_ = "6042324058_R04C01"
@@ -532,131 +842,11 @@ id_ = "6042324058_R04C01"
 id_ = "7970376005_R03C01"
 
 
-ref0 = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02_Grn.idat"
-ref1 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01_Red.idat"
-GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
-GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
-refs_raw = RawData([ref0, ref1])
-ref_methyl = MethylData(refs_raw)
-sample_raw = RawData(smp0)
-gap = pr.PyRanges(pd.read_csv(GAPS))
-gap.Start -= 1
-genes_df = pd.read_csv(GENES, sep="\t")
-genes_df.Start -= 1
-genes = pr.PyRanges(genes_df)
-genes = genes[["Name"]]
-annotation = Annotation(manifest, gap=gap, detail=genes)
-
-
-df = pd.DataFrame(
-    {
-        "UMAP_X": np.random.rand(100),
-        "UMAP_Y": np.random.rand(100),
-        "Sample ID": ["Sample" + str(i) for i in range(100)],
-    }
-)
-
-external_stylesheets = [dbc.themes.BOOTSTRAP]
-app = Dash(__name__, external_stylesheets=external_stylesheets)
-
-
-left_column = dbc.Col(
-    [
-        html.H4("Options"),
-        dcc.Dropdown(
-            id="sample-dropdown",
-            options=[{"label": f"Sample {i}", "value": i} for i in range(10)],
-            multi=True,
-            placeholder="Select Sample IDs",
-        ),
-        html.Br(),
-        dbc.ButtonGroup(
-            [
-                dbc.Button("25k CpGs", color="primary"),
-                dbc.Button("50k CpGs", color="secondary"),
-                dbc.Button("75k CpGs", color="success"),
-            ],
-            size="lg",
-        ),
-        html.Br(),
-        html.Br(),
-        dcc.Dropdown(
-            id="reference-dropdown",
-            options=[
-                {"label": f"Reference {i}", "value": i} for i in range(5)
-            ],
-            placeholder="Select Reference Set",
-        ),
-        html.Br(),
-        dcc.Tabs(
-            [
-                dcc.Tab(
-                    label="Settings",
-                    children=[
-                        dcc.Input(
-                            type="text",
-                            placeholder="Enter IDAT directory",
-                            id="idat-dir",
-                        ),
-                        dcc.Input(
-                            type="text",
-                            placeholder="Enter save directory",
-                            id="save-dir",
-                        ),
-                        dbc.Button("Start", id="start-btn", color="primary"),
-                    ],
-                )
-            ],
-        ),
-    ],
-    width=3,
-)
-
-# Right column with plots
-right_column = dbc.Col(
-    [
-        html.H4("Plots"),
-        dcc.Graph(
-            id="umap-plot",
-            figure=px.scatter(
-                df,
-                x="UMAP_X",
-                y="UMAP_Y",
-                color="Sample ID",
-                title="UMAP Plot",
-            ),
-        ),
-        html.Div(id="cnv-plot", children=[]),  # Placeholder for CNV plot
-    ],
-    width=9,
-)
-
-# Main layout with the navbar and columns
-app.layout = html.Div(
-    [
-        navbar,
-        dbc.Container(
-            [
-                dbc.Row(
-                    [left_column, right_column],
-                    style={"margin-top": "20px"},
-                ),
-            ]
-        ),
-    ],
-)
-
-# Run the app
-if __name__ == "__main__":
-    app.run_server(debug=True, use_reloader=False)
-
-
-ref_dir = "/data/ref_IDAT"
-reference_methyl = ReferenceMethylData(ref_dir)
-reference_methyl[ArrayType.ILLUMINA_450K]
-
-
-cnv = CNV.set_all(sample_methyl, reference_methyl)
+n_cpgs = DEFAULT_N_CPGS
+analysis_dir = DEFAULT_ANALYSIS_DIR
+reference_dir = DEFAULT_REFERENCE_DIR
+prep = "illumina"
+precalculate_cnv = False
 
 
 

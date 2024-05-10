@@ -8,7 +8,6 @@ import pandas as pd
 from tqdm import tqdm
 from scipy.stats import rankdata
 
-from mepylome import _IdatParser
 from mepylome.dtypes import (
     ArrayType,
     memoize,
@@ -660,22 +659,24 @@ class MethylData:
             lines.append(f"intensity:\n{self.intensity}")
         return "\n\n".join(lines)
 
+
 @memoize
 class ReferenceMethylData:
     def __init__(self, files=None, prep="illumina"):
         idat_files = idat_basepaths(files)
         reference_files = collections.defaultdict(list)
         self._methyl = {}
-        for idat_file in tqdm(idat_files, desc="Categorizing IDAT files"):
+        for idat_file in tqdm(
+            idat_files, desc="Categorizing reference IDAT files"
+        ):
             raw_data = RawData(idat_file)
             array_type = raw_data.array_type
             reference_files[array_type].append(idat_file)
         for array_type, file_list in tqdm(
-            reference_files.items(), desc="Processing IDAT files"
+            reference_files.items(), desc="Processing reference IDAT files"
         ):
             raw_data = RawData(file_list)
             self._methyl[array_type] = MethylData(raw_data, prep=prep)
+
     def __getitem__(self, array_type):
         return self._methyl[array_type]
-
-
