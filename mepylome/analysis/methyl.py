@@ -21,7 +21,6 @@ import plotly.graph_objects as go
 import umap
 from dash import Dash, Input, Output, callback, dcc, html, no_update, State
 from dash.exceptions import PreventUpdate
-from nanodip import Reference
 from tqdm import tqdm
 
 from mepylome import CNV, Manifest, MethylData, RawData, idat_basepaths
@@ -44,13 +43,14 @@ from mepylome.utils import ensure_directory_exists, Timer
 timer = Timer()
 
 # IDAT_DIR = "/data/epidip_IDAT"
-IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
-# IDAT_DIR = Path("~/MEGA/work/programming/data/epidip_IDAT").expanduser()
+# IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
+IDAT_DIR = Path("~/MEGA/work/programming/data/epidip_IDAT").expanduser()
 PLOTLY_RENDER_MODE = "webgl"
 HOST = "localhost"
 
 HOME_DIR = pathlib.Path.home()
 DEFAULT_ANALYSIS_DIR = Path(HOME_DIR, "Documents", "mepylome", "analysis")
+DEFAULT_ANNOTATION_FILE = Path(DEFAULT_ANALYSIS_DIR, "annotation.csv")
 DEFAULT_REFERENCE_DIR = Path(HOME_DIR, "Documents", "mepylome", "reference")
 DEFAULT_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output")
 DEFAULT_N_CPGS = 25000
@@ -65,11 +65,12 @@ CNV_LINK = (
 )
 CNV_LINK = "http://localhost:8050/%s"
 
-ACRONYMS = pkg_resources.resource_filename("mepylome", "data/methylation_class_acronyms.tsv.gz")
+ACRONYMS = pkg_resources.resource_filename(
+    "mepylome", "data/methylation_class_acronyms.tsv.gz"
+)
 
 
 
-acronyms = pd.read_csv(ACRONYMS, sep="\t")
 ref_dir = "/data/ref_IDAT"
 reference_methyl = ReferenceMethylData(ref_dir)
 # reference_methyl[ArrayType.ILLUMINA_450K]
@@ -226,153 +227,121 @@ with open(CPG_450K_EPIC_OVERLAP, "r") as f:
     cpg_450k_epic = np.array(f.read().splitlines())
 
 class IdatAnnotation():
+    acronyms_df = pd.read_csv(ACRONYMS, sep="\t")
+    acronym_to_description = dict(
+        zip(acronyms_df.Methylation_Class, acronyms_df.Description)
+    )
     def __init__(self, filepath):
-        pass
-          
+        self.filepath = Path(filepath).expanduser()
+        self.annotation = IdatAnnotation.get_annotation(self.filepath)
+    @staticmethod
+    def get_annotation(filepath):
+        if filepath.suffix == ".xlsx":
+            annotation = pd.read_excel(
+                filepath,
+                header=None,
+                engine="openpyxl",
+            )
+        elif filepath.suffix in [".csv", ".tsv"]:
+            sep = "\t" if filepath.suffix == ".tsv" else ","
+            annotation = pd.read_csv(filepath, sep=sep)
+        else:
+            raise ValueError("Annotation files must be as 'xlsx', 'tsv' or 'csv' file")
+        if annotation.shape[1] < 2:
+            raise ValueError("The anottatino file must contain at least 2 columns")
+        def get_description(mc):
+            """Returns description of methylation class {mc}."""
+            if mc in [np.nan, ""]:
+                return ""
+            mc = mc.upper()
+            if mc in IdatAnnotation.acronym_to_description:
+                return IdatAnnotation.acronym_to_description[mc]
+            substrings = [
+                a for a in IdatAnnotation.acronym_to_description
+                if mc.startswith(a + "_")
+            ]
+            substrings.sort(key=len)
+            if substrings:
+                return IdatAnnotation.acronym_to_description[substrings[-1]]
+            return ""
+        if annotation.shape[1] == 2:
+            annotation["Description"] = annotation.iloc[:,1].apply(get_description)
+        if annotation.shape[1] == 3:
+            missing_idx = annotation.iloc[:,2].isin(["", None, np.nan])
+            annotation.loc[missing_idx, annotation.columns[2]] = annotation.loc[
+                missing_idx, annotation.columns[1]].apply(get_description)
+        annotation = annotation.iloc[:,:3]
+        annotation.columns = ["Id", "Methylation_Class", "Description"]
+        return annotation
+    @property
+    def id(self):
+        return self.annotation.Id.tolist()
+    @property
+    def methylation_class(self):
+        return self.annotation.Methylation_Class.tolist()
+    @property
+    def description(self):
+        return self.annotation.Description.tolist()
+    def __str__(self):
+        lines = [
+            f"IdatAnnotation():",
+            f"filepath: '{self.filepath}'",
+            f"annotation:\n{self.annotation}",
+        ]
+        return "\n".join(lines)
+    def __repr__(self):
+        return str(self)
 
-# reference = Reference("AllIDATv2_20210804_HPAP_Sarc")
-reference = Reference("AllIDATv2_20210804")
-NR_CPGS = 9000
-random_cpg_sample = random.sample(list(cpg_450k_epic), NR_CPGS)
+filepath = "~/Documents/mepylome/analysis/AllIDATv2_20210804.xlsx"
+filepath = "~/Documents/mepylome/analysis/annotation.csv"
 
+idat_annotation = IdatAnnotation(filepath)
 
-files = IDAT_DIR
-
-cpgs = cpg_450k_epic
-cpgs = random_cpg_sample
-
-ids = reference.specimens
-classes = reference.methylation_class
-description = reference.description
 
 
 def extract_beta(data):
-    idat_file, cpg_mask = data
+    idat_file, cpgs = data
     try:
         methyl = MethylData(file=idat_file)
-        betas_450k_df = methyl.converted_beta(cpgs=cpg_450k_epic, fill=0.49)
+        betas_450k_df = methyl.converted_beta(
+            cpgs=cpgs, fill=0.49
+        )
         betas = betas_450k_df.values.ravel()
-        return betas[cpg_mask]
+        return betas
     except ValueError as e:
         return (idat_file, e)
 
-
-def get_coordinates(sample_id):
-    return umap_plot.df[umap_plot.df.id == sample_id].iloc[0][["x", "y"]]
-
-
-class UMAPPlot:
-    def __init__(self, cpgs, files, ids, classes, description=None):
-        all_idat_files = idat_basepaths(files)
-        name_to_file = {x.name: x for x in all_idat_files}
-        idat_files = [name_to_file.get(x, None) for x in ids]
-        overlap_idx = [i for i, x in enumerate(idat_files) if x is not None]
-        idat_overlap = [idat_files[x] for x in overlap_idx]
-        ids_overlap = [ids[x] for x in overlap_idx]
-        classes_overlap = [classes[x] for x in overlap_idx]
-        descripton_overlap = [description[x] for x in overlap_idx]
-        # Load all manifests
-        Manifest.load(["450k", "epic", "epicv2"])
-        cpg_mask = np.isin(cpg_450k_epic, cpgs)
-        with Pool() as pool:
-            betas_450k_results = list(
-                tqdm(
-                    pool.imap(
-                        extract_beta,
-                        zip(idat_overlap, [cpg_mask] * len(idat_overlap)),
-                    ),
-                    total=len(idat_overlap),
-                    desc="Reading IDAT files",
-                )
+def read_betas(idat_ids, idat_files, cpgs):
+    # Load all manifests before parallelization
+    Manifest.load(["450k", "epic", "epicv2"])
+    with Pool() as pool:
+        betas_list = list(
+            tqdm(
+                pool.imap(
+                    extract_beta,
+                    zip(idat_files, [cpgs] * len(idat_files)),
+                ),
+                total=len(idat_files),
+                desc="Reading IDAT files",
             )
-        valid_betas = [x for x in betas_450k_results if len(x) == len(cpgs)]
-        valid_ids = [
-            i for i, x in enumerate(betas_450k_results) if len(x) == NR_CPGS
-        ]
-        methyl_mtx = np.vstack(valid_betas)
-        reference_ids = [Path(idat_overlap[x]).name for x in valid_ids]
-        cnv_df = pd.DataFrame(methyl_mtx, index=ids_overlap)
-        umap_2d = umap.UMAP(verbose=True).fit_transform(methyl_mtx)
-        # NR_CPGS = len(cpg_450k_epic)
-        # cpg_mask = np.ones(len(cpg_450k_epic), dtype=bool)
-        # idat_files = idat_files[:200]
-        id_to_mc = dict(zip(ids_overlap, classes_overlap))
-        id_to_desription = dict(zip(ids_overlap, descripton_overlap))
-        self.df = pd.DataFrame(
-            {
-                "methylation_class": [id_to_mc[x] for x in ids_overlap],
-                "description": [id_to_desription[x] for x in ids_overlap],
-                "id": cnv_df.index,
-                "x": umap_2d[:, 0],
-                "y": umap_2d[:, 1],
-            }
         )
-        self.plot = umap_plot_from_data(self.df)
-        self.plot = self.plot.update_layout(
-            margin=dict(l=0, r=0, t=30, b=0),
-        )
-        self.raw_plot = self.plot
-        self.cnv_id = None
-        self.dropdown_id = None
-    def highlight(self, dropdown_id=None, cnv_id=None):
-        if cnv_id is not None:
-            self.cnv_id = cnv_id
-        self.dropdown_id = [] if dropdown_id is None else dropdown_id
-        self.plot = go.Figure(self.raw_plot)
-        if self.dropdown_id is not None:
-            for id_ in self.dropdown_id:
-                x, y = get_coordinates(id_)
-                self.plot.add_annotation(
-                    x=x,
-                    y=y,
-                    text=f"{id_}",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowcolor="blue",
-                    font=dict(
-                        color="blue",
-                    ),
-                )
-        if self.cnv_id is not None:
-            x, y = get_coordinates(self.cnv_id)
-            self.plot.add_annotation(
-                x=x,
-                y=y,
-                text=f"CNV: {self.cnv_id}",
-                showarrow=True,
-                arrowhead=2,
-            )
-    def retrieve_zoom(self, current_plot):
-        self.plot.layout.xaxis = current_plot["layout"]["xaxis"]
-        self.plot.layout.yaxis = current_plot["layout"]["yaxis"]
-    def __repr__(self):
-        title = f"UMAPPlot():"
-        lines = [
-            title + "\n" + "*" * len(title),
-            f"cnv_id:\n{self.cnv_id}",
-            f"dropdown_id:\n{self.dropdown_id}",
-            f"df:\n{self.df}",
-        ]
-        return "\n\n".join(lines)
+    valid_ids = [
+        i for i, x in enumerate(betas_list) if len(x) == len(cpgs)
+    ]
+    valid_betas = [betas_list[i] for i in valid_ids]
+    methyl_mtx = np.vstack(valid_betas)
+    cnv_df = pd.DataFrame(methyl_mtx, index=idat_ids)
+    return cnv_df
 
 
-umap_plot = UMAPPlot(cpgs, files, ids, classes, description)
 
-
-# umap_plot.plot.show()
-# umap_plot.highlight([id_])
-# p = umap_plot.highlight_cnv("7970368141_R02C01")
-# p.show()
-
-
-# @cache
 @lru_cache()
-def get_cnv_plot(sample_id, genes_sel):
+def get_cnv_plot(files_dir, sample_id, genes_sel):
     timer.start()
     cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
     cnv_filename = sample_id + ZIP_ENDING
     if not Path(cnv_dir, cnv_filename).exists():
-        idat_base = Path(files, sample_id)
+        idat_base = Path(files_dir, sample_id)
         sample_methyl = MethylData(file=idat_base)
         print("ID=", sample_id)
         cnv = CNV.set_all(sample_methyl, reference_methyl)
@@ -395,27 +364,10 @@ def get_cnv_plot(sample_id, genes_sel):
     return plot
 
 
-# def get_all_directories(start_dirs, depth):
-# dir_list = []
-# prev_level_dirs = [Path(p) for p in start_dirs]
-# for _ in range(depth):
-# next_level_dirs = []
-# for dir_ in prev_level_dirs:
-# next_level_dirs.extend(
-# [
-# p
-# for p in dir_.iterdir()
-# if p.is_dir() and not p.name.startswith(".")
-# ]
-# )
-# prev_level_dirs = next_level_dirs
-# dir_list.extend(next_level_dirs)
-# return sorted(dir_list)
-
-
-annotation = Annotation(array_type=ArrayType.ILLUMINA_450K)
-detail = annotation.detail.df
-all_genes = detail.Name.tolist()
+def get_all_genes():
+    genomic_annotation = Annotation(array_type=ArrayType.ILLUMINA_450K)
+    detail = genomic_annotation.detail.df
+    return detail.Name.tolist()
 
 
 EMPTY_FIGURE = go.Figure()
@@ -427,11 +379,8 @@ EMPTY_FIGURE.update_layout(
     showlegend=False,  # No legend
     margin=dict(l=0, r=0, t=0, b=0),  # No margins
 )
+EMPTY_FIGURE = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
 
-
-def input_args_hash(*args):
-    result = "-".join([str(arg) for arg in args])
-    return hashlib.md5(result.encode()).hexdigest()[:32]
 
 def get_navbar():
     return dbc.Navbar(
@@ -489,7 +438,7 @@ def get_side_navivation(sample_ids):
                             html.H6("Genes to highlight in CNV"),
                             dcc.Dropdown(
                                 id="selected-genes",
-                                options=all_genes,
+                                options=get_all_genes(),
                                 multi=True,
                                 # placeholder=" in CNV plot",
                             ),
@@ -503,21 +452,6 @@ def get_side_navivation(sample_ids):
                                 f"Number of CpG sites (max. {len(cpg_450k_epic)})"
                             ),
                             html.Br(),
-                            # dcc.Slider(
-                            # 25000,
-                            # 75000,
-                            # value=50000,
-                            # # step=None,
-                            # marks={
-                            # 25000: "25k",
-                            # 50000: "50k",
-                            # 75000: "75k",
-                            # },
-                            # tooltip={
-                            # "placement": "top",
-                            # "always_visible": True,
-                            # },
-                            # ),
                             dcc.Input(
                                 id="num-cpgs",
                                 type="number",
@@ -546,6 +480,15 @@ def get_side_navivation(sample_ids):
                             ),
                             html.Div(id="reference-path-validation"),
                             html.Br(),
+                            html.H6("Choose output directory"),
+                            dbc.Input(
+                                id="output-dir",
+                                valid=True,
+                                value=str(DEFAULT_OUTPUT_DIR),
+                                type="text",
+                            ),
+                            html.Div(id="output-path-validation"),
+                            html.Br(),
                             html.H6("Choose IDAT preprocessing method"),
                             dcc.Dropdown(
                                 id="preprocessing-method",
@@ -560,7 +503,6 @@ def get_side_navivation(sample_ids):
                             ),
                             html.Br(),
                             html.H6("Calculate CNV"),
-                            # dbc.Switch(id='precalculate-cnv', value=False),
                             dcc.Dropdown(
                                 id="precalculate-cnv",
                                 options={
@@ -581,7 +523,6 @@ def get_side_navivation(sample_ids):
                                     id="start-button",
                                     color="primary",
                                 ),
-                                # width=12,
                             ),
                             html.Div(id="output-div"),
                         ],
@@ -592,35 +533,66 @@ def get_side_navivation(sample_ids):
         width={"size": 2},
     )
 
+def input_args_hash(*args):
+    result = "-".join(
+        [
+            str(arg.tolist()) if isinstance(arg, np.ndarray)
+            else str(arg) for arg in args
+        ]
+    )
+    return hashlib.md5(result.encode()).hexdigest()[:32]
+
+
 class MethylationAnalysis:
     def __init__(
         self,
+        cpgs=cpg_450k_epic,
         n_cpgs=DEFAULT_N_CPGS,
         analysis_dir=DEFAULT_ANALYSIS_DIR,
+        annotation=DEFAULT_ANNOTATION_FILE,
         reference_dir=DEFAULT_REFERENCE_DIR,
+        output_dir=DEFAULT_OUTPUT_DIR,
         prep="illumina",
         precalculate_cnv=False,
     ):
+        self.cpgs = cpgs
         self.n_cpgs = n_cpgs
         self.analysis_dir = analysis_dir
+        self.annotation_path = annotation
         self.reference_dir = reference_dir
+        self.output_dir = output_dir
         self.prep = prep
         self.precalculate_cnv = precalculate_cnv
-        hash_key = input_args_hash(n_cpgs, analysis_dir, reference_dir, prep)
+        hash_key = input_args_hash(
+            cpgs,
+            n_cpgs,
+            analysis_dir,
+            annotation,
+            reference_dir,
+            prep,
+        )
+        print(hash_key)
         out_dir_name = f"{n_cpgs}-{prep}-{hash_key}"
-        self.out_dir = Path(analysis_dir, out_dir_name)
+        self.out_dir = Path(output_dir, out_dir_name)
         ensure_directory_exists(self.out_dir)
+        self.umap_plot = EMPTY_FIGURE
+        self.cnv_plot = EMPTY_FIGURE
+        self.cnv_id = None
+        self.dropdown_id = None
+        self.umap_plot_path = Path(self.output_dir, out_dir_name, "umap_plot.csv")
+        self.ids = []
+        self.read_umap_plot_from_disk()
+        # self.umap_2d_reduction()
         self.app = self.get_app()
     def get_app(self):
         app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
         app._favicon = "favicon.svg"
-        side_navigation = get_side_navivation(umap_plot.df.id)
+        side_navigation = get_side_navivation(self.ids)
         dash_plots = dbc.Col(
             [
                 dcc.Graph(
                     id="umap",
-                    figure=umap_plot.plot,
-                    # figure=EMPTY_FIGURE,
+                    figure=self.umap_plot,
                     config={
                         "scrollZoom": False,
                         "doubleClick": "reset+autosize",
@@ -631,7 +603,7 @@ class MethylationAnalysis:
                 ),
                 dcc.Graph(
                     id="cnv",
-                    figure=EMPTY_FIGURE,
+                    figure=self.cnv_plot,
                     config={
                         "scrollZoom": False,
                         "doubleClick": "reset",
@@ -669,17 +641,17 @@ class MethylationAnalysis:
             ],
             State("umap", "figure"),
         )
-        def display_cnv(click_data, ids_to_highlight, genes_sel, current_fig):
+        def update_plots(click_data, ids_to_highlight, genes_sel, curr_umap_plot):
             genes_sel = () if genes_sel is None else tuple(genes_sel)
             trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
             print("\n\nTRIGGER:", trigger)
             print("ids_to_highlight:", ids_to_highlight)
             print("genes_sel:", genes_sel)
-            print(umap_plot)
+            # print(self.umap_df)
             if trigger == "ids-to-highlight" and ids_to_highlight is not None:
-                umap_plot.highlight(dropdown_id=ids_to_highlight)
-                umap_plot.retrieve_zoom(current_fig)
-                return umap_plot.plot, no_update
+                self.highlight(dropdown_id=ids_to_highlight)
+                self.retrieve_zoom(curr_umap_plot)
+                return self.umap_plot, no_update
             if trigger == "umap" and isinstance(click_data, dict):
                 points = click_data.get("points", [])
                 if points and isinstance(points, list):
@@ -689,19 +661,19 @@ class MethylationAnalysis:
                         return no_update, no_update
                     print("sample_id:", sample_id)
                     print("---0---")
-                    umap_plot.highlight(
+                    self.highlight(
                         cnv_id=sample_id, dropdown_id=ids_to_highlight
                     )
                     print("---1---")
-                    umap_plot.retrieve_zoom(current_fig)
+                    self.retrieve_zoom(curr_umap_plot)
                     print("---2---")
-                    next_cnv = get_cnv_plot(sample_id, genes_sel)
+                    self.cnv_plot = get_cnv_plot(self.analysis_dir, sample_id, genes_sel)
                     print("---3---")
-                    return umap_plot.plot, next_cnv
+                    return self.umap_plot, self.cnv_plot
             if trigger == "selected-genes" and genes_sel is not None:
-                next_cnv = get_cnv_plot(umap_plot.cnv_id, genes_sel)
+                self.cnv_plot = get_cnv_plot(self.analysis_dir, self.cnv_id, genes_sel)
                 genes_sel = genes_sel if genes_sel else []
-                return no_update, next_cnv
+                return no_update, self.cnv_plot
             return no_update, no_update
         @app.callback(
             [
@@ -711,7 +683,7 @@ class MethylationAnalysis:
             [Input("analysis-dir", "value")],
             prevent_initial_call=True,
         )
-        def validate_path(input_path):
+        def validate_analysis_path(input_path):
             try:
                 path = Path(input_path)
                 if path == DEFAULT_ANALYSIS_DIR:
@@ -732,10 +704,31 @@ class MethylationAnalysis:
             [Input("reference-dir", "value")],
             prevent_initial_call=True,
         )
-        def validate_path(input_path):
+        def validate_reference_path(input_path):
             try:
                 path = Path(input_path)
                 if path == DEFAULT_REFERENCE_DIR:
+                    return True, f""
+                elif path.is_dir() and not os.access(path, os.W_OK):
+                    return False, f"Protected directory: {path}"
+                elif path.is_dir():
+                    return True, f""
+                else:
+                    return False, f"Not a directory: {path}"
+            except Exception:
+                return False, "Invalid path format"
+        @app.callback(
+            [
+                Output("output-dir", "valid"),
+                Output("output-path-validation", "children"),
+            ],
+            [Input("output-dir", "value")],
+            prevent_initial_call=True,
+        )
+        def validate_reference_path(input_path):
+            try:
+                path = Path(input_path)
+                if path == DEFAULT_OUTPUT_DIR:
                     return True, f""
                 elif path.is_dir() and not os.access(path, os.W_OK):
                     return False, f"Protected directory: {path}"
@@ -751,6 +744,7 @@ class MethylationAnalysis:
             [
                 State("analysis-dir", "value"),
                 State("reference-dir", "value"),
+                State("output-dir", "value"),
                 State("preprocessing-method", "value"),
                 State("analysis-dir", "valid"),
                 State("reference-dir", "valid"),
@@ -761,6 +755,7 @@ class MethylationAnalysis:
             n_clicks,
             analysis_dir,
             reference_dir,
+            output_dir,
             prep,
             analysis_dir_valid,
             reference_dir_valid,
@@ -784,46 +779,23 @@ class MethylationAnalysis:
                 )
             return "Start button not clicked"
         return app
-    def run_app(self):
-        self.app.run(debug=True, host=HOST, use_reloader=False)
-    def umap_2d_reduction(self, files, ids, classes, description=None):
-        cpgs = random.sample(list(cpg_index_450k), NR_CPGS)
-        all_idat_files = idat_basepaths(files)
+    def umap_2d_reduction(self):
+        self.annotation = IdatAnnotation(self.annotation_path)
+        random_idx = sorted(random.sample(range(len(self.cpgs)), self.n_cpgs))
+        random_cpg_sample = [self.cpgs[x] for x in random_idx]
+        all_idat_files = idat_basepaths(self.analysis_dir)
         name_to_file = {x.name: x for x in all_idat_files}
-        idat_files = [name_to_file.get(x, None) for x in ids]
+        idat_files = [name_to_file.get(x, None) for x in self.annotation.id]
         overlap_idx = [i for i, x in enumerate(idat_files) if x is not None]
         idat_overlap = [idat_files[x] for x in overlap_idx]
-        ids_overlap = [ids[x] for x in overlap_idx]
-        classes_overlap = [classes[x] for x in overlap_idx]
-        descripton_overlap = [description[x] for x in overlap_idx]
-        # Load all manifests
-        Manifest.load(["450k", "epic", "epicv2"])
-        cpg_mask = np.isin(cpg_450k_epic, cpgs)
-        with Pool() as pool:
-            betas_450k_results = list(
-                tqdm(
-                    pool.imap(
-                        extract_beta,
-                        zip(idat_overlap, [cpg_mask] * len(idat_overlap)),
-                    ),
-                    total=len(idat_overlap),
-                    desc="Reading IDAT files",
-                )
-            )
-        valid_betas = [x for x in betas_450k_results if len(x) == len(cpgs)]
-        valid_ids = [
-            i for i, x in enumerate(betas_450k_results) if len(x) == NR_CPGS
-        ]
-        methyl_mtx = np.vstack(valid_betas)
-        reference_ids = [Path(idat_overlap[x]).name for x in valid_ids]
-        cnv_df = pd.DataFrame(methyl_mtx, index=ids_overlap)
-        umap_2d = umap.UMAP(verbose=True).fit_transform(methyl_mtx)
-        # NR_CPGS = len(cpg_450k_epic)
-        # cpg_mask = np.ones(len(cpg_450k_epic), dtype=bool)
-        # idat_files = idat_files[:200]
+        ids_overlap = [self.annotation.id[x] for x in overlap_idx]
+        classes_overlap = [self.annotation.methylation_class[x] for x in overlap_idx]
+        descripton_overlap = [self.annotation.description[x] for x in overlap_idx]
+        cnv_df = read_betas(ids_overlap, idat_overlap, random_cpg_sample)
+        umap_2d = umap.UMAP(verbose=True).fit_transform(cnv_df)
         id_to_mc = dict(zip(ids_overlap, classes_overlap))
         id_to_desription = dict(zip(ids_overlap, descripton_overlap))
-        self.df = pd.DataFrame(
+        self.umap_df = pd.DataFrame(
             {
                 "methylation_class": [id_to_mc[x] for x in ids_overlap],
                 "description": [id_to_desription[x] for x in ids_overlap],
@@ -832,8 +804,70 @@ class MethylationAnalysis:
                 "y": umap_2d[:, 1],
             }
         )
+        self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=False)
+        self.set_umap_plot()
+    def read_umap_plot_from_disk(self):
+        if self.umap_plot_path.exists():
+            self.umap_df = pd.read_csv(self.umap_plot_path, sep="\t")
+            self.set_umap_plot()
+    def set_umap_plot(self):
+        self.ids = self.umap_df.id
+        self.umap_plot = umap_plot_from_data(self.umap_df)
+        self.umap_plot = self.umap_plot.update_layout(
+            margin=dict(l=0, r=0, t=30, b=0),
+        )
+        self.raw_plot = self.umap_plot
+        self.cnv_id = None
+        self.dropdown_id = None
+    def get_coordinates(self, sample_id):
+        return self.umap_df[self.umap_df.id == sample_id].iloc[0][["x", "y"]]
+    def highlight(self, dropdown_id=None, cnv_id=None):
+        if cnv_id is not None:
+            self.cnv_id = cnv_id
+        self.dropdown_id = [] if dropdown_id is None else dropdown_id
+        self.umap_plot = go.Figure(self.raw_plot)
+        if self.dropdown_id is not None:
+            for id_ in self.dropdown_id:
+                x, y = self.get_coordinates(id_)
+                self.umap_plot.add_annotation(
+                    x=x,
+                    y=y,
+                    text=f"{id_}",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowcolor="blue",
+                    font=dict(
+                        color="blue",
+                    ),
+                )
+        if self.cnv_id is not None:
+            x, y = self.get_coordinates(self.cnv_id)
+            self.umap_plot.add_annotation(
+                x=x,
+                y=y,
+                text=f"CNV: {self.cnv_id}",
+                showarrow=True,
+                arrowhead=2,
+            )
+    def retrieve_zoom(self, current_plot):
+        self.umap_plot.layout.xaxis = current_plot["layout"]["xaxis"]
+        self.umap_plot.layout.yaxis = current_plot["layout"]["yaxis"]
+    def run_app(self):
+        self.app.run(debug=True, host=HOST, use_reloader=False)
+    def __repr__(self):
+        title = f"UMAPPlot():"
+        lines = [
+            title + "\n" + "*" * len(title),
+            f"cnv_id:\n{self.cnv_id}",
+            f"dropdown_id:\n{self.dropdown_id}",
+            f"umap_df:\n{self.umap_df}",
+        ]
+        return "\n\n".join(lines)
 
-self = MethylationAnalysis()
+
+
+self = MethylationAnalysis(analysis_dir=IDAT_DIR)
+# self.umap_2d_reduction()
 self.run_app()
 
 # home
