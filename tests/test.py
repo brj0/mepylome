@@ -169,10 +169,6 @@ cnv.set_detail()
 timer.stop("CNV set_detail")
 
 timer.start()
-cnv._set_detail()
-timer.stop("CNV set_detail")
-
-timer.start()
 cnv.set_segments()
 timer.stop("CNV set_segments")
 
@@ -187,7 +183,7 @@ file_name = "py_cnv.zip"
 file_dir = "/data/epidip_CNV_data/"
 
 timer.start()
-cnv.write(file_dir, file_name="py_cnv")
+cnv.write(Path(file_dir, "py_cnv"))
 timer.stop("zip write")
 
 
@@ -324,20 +320,11 @@ cnv.plot()
 import dash
 import dash_bootstrap_components as dbc
 
-app = dash.Dash(
-    external_stylesheets=[dbc.themes.BOOTSTRAP]
-)
+app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-app.layout = dbc.Alert(
-    "Hello, Bootstrap!", className="m-5"
-)
+app.layout = dbc.Alert("Hello, Bootstrap!", className="m-5")
 
 app.run_server()
-
-
-
-
-
 
 
 smp0 = "/data/epidip_IDAT/6042324058_R03C02_Grn.idat"
@@ -356,21 +343,24 @@ py_idat_data = IdatParser(smp0, intensity_only=False)
 timer.stop("Parsing Python")
 
 with np.printoptions(edgeitems=2):
-    x=f"{py_idat_data.illumina_ids}"
-    y=f"{py_idat_data.illumina_ids.__repr__()}"
-    z=f"{repr(py_idat_data.illumina_ids)}"
+    x = f"{py_idat_data.illumina_ids}"
+    y = f"{py_idat_data.illumina_ids.__repr__()}"
+    z = f"{repr(py_idat_data.illumina_ids)}"
+
 
 class X:
     def __init__(self, a):
-        self.val=a
+        self.val = a
+
 
 x = X(0)
+
+
 def change_x():
     # global x
     x.val = 10
 
+
 print(x.val)
 change_x()
 print(x.val)
-
-

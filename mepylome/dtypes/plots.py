@@ -315,7 +315,7 @@ def _find_genes_within_bins(bins, detail):
     )
 
 
-def read_cnv_data_from_disk(sample_id, cnv_dir):
+def read_cnv_data_from_disk(cnv_dir, sample_id):
     sample_zip = sample_id + ZIP_ENDING
     bins, detail, segments = get_df_from_zip(
         os.path.join(cnv_dir, sample_zip),
@@ -414,7 +414,7 @@ class CNVPlot:
             sample_id = url_path[1:]
             try:
                 bins, detail, segments = read_cnv_data_from_disk(
-                    sample_id, self.cnv_dir
+                    self.cnv_dir, sample_id
                 )
             except FileNotFoundError:
                 return no_update, no_update, f"Sample ID {sample_id} not found"

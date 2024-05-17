@@ -66,6 +66,8 @@ setup(
         "pandas",
         "pyranges",
         "scikit-learn",
+        "dash",
+        "dash_bootstrap_components",
     ],
     ext_modules=ext_modules,
     keywords="Illumina, Methylation, Infinum, Microarray, BeadChip",

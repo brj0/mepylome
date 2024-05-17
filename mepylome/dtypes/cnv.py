@@ -3,6 +3,7 @@ import heapq
 import importlib.resources as res
 import logging
 import zipfile
+import io
 from functools import lru_cache
 from pathlib import Path
 
@@ -42,36 +43,6 @@ def pd_hash(df):
 
 @memoize
 class Annotation:
-    # _cache = {}
-
-    # def __new__(
-        # cls,
-        # manifest=None,
-        # array_type=None,
-        # gap=Unset,
-        # detail=Unset,
-        # bin_size=50000,
-        # min_probes_per_bin=15,
-        # verbose=False,
-    # ):
-        # manifest_key = None if manifest is None else manifest.init_args
-        # gap_key = None if gap is None else pd_hash(gap.df)
-        # detail_key = None if detail is None else pd_hash(detail.df)
-        # cache_key = (
-            # manifest_key,
-            # array_type,
-            # gap_key,
-            # detail_key,
-            # bin_size,
-            # min_probes_per_bin,
-            # verbose,
-        # )
-        # if cache_key in cls._cache:
-            # return cls._cache[cache_key]
-        # instance = super().__new__(cls)
-        # # Cache the instance
-        # cls._cache[cache_key] = instance
-        # return instance
 
     def __init__(
         self,
@@ -83,9 +54,6 @@ class Annotation:
         min_probes_per_bin=15,
         verbose=False,
     ):
-        # if hasattr(self, 'initialized'):
-            # return
-        # self.initialized = True
         # TODO sort
         if manifest is None and array_type is None:
             raise ValueError("'manifest' or 'array_type' must be given")
@@ -280,71 +248,6 @@ class Annotation:
         df = df[df.N_probes != INVALID]
         return df[["Chromosome", "Start", "End", "N_probes"]]
 
-    @staticmethod
-    def _merge_bins_in_chromosome(df, min_probes_per_bin, verbose=False):
-        I_START = 0
-        I_END = 1
-        I_N_PROBES = 2
-        INVALID = np.iinfo(np.int64).max
-
-        matrix = df[["Start", "End", "N_probes"]].values.astype(np.int64)
-
-        while np.any(matrix[:, I_N_PROBES] < min_probes_per_bin):
-            i_min = np.argmin(matrix[:, I_N_PROBES])
-            n_probes_left = INVALID
-            n_probes_right = INVALID
-
-            # Left
-            if i_min > 0:
-                delta_left = np.argmax(
-                    matrix[i_min - 1 :: -1, I_N_PROBES] != INVALID
-                )
-                i_left = i_min - delta_left - 1
-                if (
-                    matrix[i_left, I_N_PROBES] != INVALID
-                    and matrix[i_min, I_START] == matrix[i_left, I_END]
-                ):
-                    n_probes_left = matrix[i_left, I_N_PROBES]
-
-            # Right
-            if i_min < len(matrix) - 1:
-                delta_right = np.argmax(
-                    matrix[i_min + 1 :, I_N_PROBES] != INVALID
-                )
-                i_right = i_min + delta_right + 1
-                if (
-                    matrix[i_right, I_N_PROBES] != INVALID
-                    and matrix[i_min, I_END] == matrix[i_right, I_START]
-                ):
-                    n_probes_right = matrix[i_right, I_N_PROBES]
-
-            # Invalid
-            if n_probes_left == INVALID and n_probes_right == INVALID:
-                matrix[i_min, I_N_PROBES] = INVALID
-                if verbose:
-                    row = (
-                        df.loc[i_min, ["Chromosome", "Start", "End"]]
-                        .astype(str)
-                        .tolist()
-                    )
-                    row_str = "-".join(row)
-                    print(f"Could not merge {row_str}. Removed instead.")
-                continue
-            elif n_probes_right == INVALID or n_probes_left <= n_probes_right:
-                i_merge = i_left
-            else:
-                i_merge = i_right
-            matrix[i_merge, I_N_PROBES] += matrix[i_min, I_N_PROBES]
-            matrix[i_merge, I_START] = min(
-                matrix[i_merge, I_START], matrix[i_min, I_START]
-            )
-            matrix[i_merge, I_END] = max(
-                matrix[i_merge, I_END], matrix[i_min, I_END]
-            )
-            matrix[i_min, I_N_PROBES] = INVALID
-        df[["Start", "End", "N_probes"]] = matrix
-        df = df[df.N_probes != INVALID]
-        return df
 
     def __repr__(self):
         # TODO
@@ -370,7 +273,7 @@ def indices(left_arr, right_arr):
 
 
 class CNV:
-    def __init__(self, sample, reference, annotation=None):
+    def __init__(self, sample, reference, annotation=None, verbose=False):
         if len(sample.probes) != 1:
             raise ValueError("sample must contain exactly 1 probe.")
         self.sample = sample
@@ -384,6 +287,7 @@ class CNV:
                 "'reference' must be of type 'MethylData' "
                 "or 'ReferenceMethylData'"
             )
+        self.verbose = verbose
         self.annotation = annotation
         if annotation is None:
             self.annotation = Annotation(array_type=sample.array_type)
@@ -416,20 +320,22 @@ class CNV:
         # Replace NaN values with 1
         nan_indices = np.isnan(intensity)
         if np.any(nan_indices):
-            print(f"{prefix}: Intensities that are NA, set to 1.")
             intensity[nan_indices] = 1
+            if self.verbose:
+                print(f"{prefix}: Intensities that are NA, set to 1.")
 
         # Replace values less than 1 with 1
         lt_one_indices = intensity < 1
         if np.any(lt_one_indices):
-            print(f"{prefix}: Intensities smaller than 0 set to 1.")
             intensity[lt_one_indices] = 1
+            if self.verbose:
+                print(f"{prefix}: Intensities smaller than 0 set to 1.")
 
         # Check abnormal low and high intensities
         mean_intensity = np.mean(intensity, axis=1)
-        if np.min(mean_intensity) < 5000:
+        if np.min(mean_intensity) < 5000 and self.verbose:
             print(f"{prefix}: Intensities are abnormally low (< 5000).")
-        if np.max(mean_intensity) > 50000:
+        if np.max(mean_intensity) > 50000 and self.verbose:
             print(f"{prefix}: Intensities are abnormally high (> 50000).")
         methyl_data.intensity = pd.DataFrame(
             intensity.T,
@@ -483,19 +389,6 @@ class CNV:
         df.loc[result.index, ["Median", "Var"]] = result.values
         self.bins = pr.PyRanges(df)
 
-    def _set_bins(self):
-        self.bins.bins_index = np.arange(len(self.bins.df))
-        overlap = self.bins.join(self.annotation.adjusted_manifest[["IlmnID"]])
-        overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
-        result = overlap.df.groupby("bins_index", dropna=False)["ratio"].agg(
-            ["median", "var"]
-        )
-        df = self.bins.df
-        df["Median"] = np.nan
-        df["Var"] = np.nan
-        df.loc[result.index, ["Median", "Var"]] = result.values
-        self.bins = pr.PyRanges(df)
-
     def set_detail(self):
         cpg_detail = self.annotation._cpg_detail.copy()
         idx = indices(self.ratio.index, cpg_detail.IlmnID.values)
@@ -514,24 +407,6 @@ class CNV:
         df["N_probes"] = df["N_probes"].astype(int)
         df = df.reset_index()
         self.detail = pr.PyRanges(df)
-
-    def _set_detail(self):
-        overlap = self.annotation.detail.join(
-            self.annotation.adjusted_manifest[["IlmnID"]]
-        )
-        overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
-        result = overlap.df.groupby("Name", dropna=False)["ratio"].agg(
-            ["median", "var", "count"]
-        )
-        df = self.annotation.detail.df.set_index("Name")
-        df["Median"] = np.nan
-        df["Var"] = np.nan
-        df["N_probes"] = 0
-        df.loc[result.index, ["Median", "Var", "N_probes"]] = result.values
-        df["N_probes"] = df["N_probes"].astype(int)
-        df = df.reset_index()
-        self.detail = pr.PyRanges(df)
-        self.detail = self.detail.sort()
 
     @staticmethod
     def get_segments(df):
@@ -569,7 +444,7 @@ class CNV:
         self.segments = pr.PyRanges(result)
         self.segments = self.segments.sort()
 
-    def write(self, file_dir, file_name=None, files="all"):
+    def _write(self, file_dir, file_name=None, files="all"):
         default = {"all", "bins", "detail", "segments", "metadata"}
         if not isinstance(files, list):
             files = [files]
@@ -607,11 +482,51 @@ class CNV:
                 zf.write(csv_path, arcname=csv_path.name)
                 csv_path.unlink()
 
+    def write(self, path, data="all"):
+        default = {"all", "bins", "detail", "segments", "metadata"}
+        if not isinstance(data, list):
+            data = [data]
+        data = set(data)
+        if "all" in data:
+            data = default
+        invalid = data - default
+        if invalid:
+            raise ValueError(
+                f"Invalid file(s) specified: {invalid}. "
+                f"Valid options are: {default}"
+            )
+        dfs_to_write = []
+        if "bins" in data:
+            dfs_to_write.append(("bins.csv", self.bins.df))
+        if "detail" in data:
+            dfs_to_write.append(("detail.csv", self.detail.df))
+        if "segments" in data:
+            dfs_to_write.append(("segments.csv", self.segments.df))
+        if "metadata" in data:
+            metadata_df = pd.DataFrame(
+                {"Array_type": [str(self.annotation.array_type)]},
+            )
+            dfs_to_write.append(("metadata.csv", metadata_df))
+        base_path = Path(path).expanduser()
+        if base_path.suffix == ".zip":
+            base_path = base_path.with_suffix("")
+        file_name = base_path.name
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            for df_name, df in dfs_to_write:
+                csv_bytes = df.to_csv(index=False).encode("utf-8")
+                zf.writestr(f"{file_name}_{df_name}", csv_bytes)
+        buffer.seek(0)
+        with open(base_path.with_suffix(".zip"), "wb") as f:
+            f.write(buffer.read())
+
     def plot(self):
         cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING
-        self.write(cnv_dir, cnv_file)
+        # self.write(cnv_dir, cnv_file)
+        cnv_path = Path(cnv_dir, cnv_file)
+        self.write(cnv_path)
         CNVPlot(cnv_dir, cnv_file)
 
     def __repr__(self):

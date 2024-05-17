@@ -677,6 +677,11 @@ class ReferenceMethylData:
         ):
             raw_data = RawData(file_list)
             self._methyl[array_type] = MethylData(raw_data, prep=prep)
-
     def __getitem__(self, array_type):
+        if array_type not in self._methyl:
+            raise ValueError(
+                f"No reference files found for array type {array_type.value}"
+            )
         return self._methyl[array_type]
+    # def __reduce__(self):
+            # return (self.__class__, (self.files, self.prep))
