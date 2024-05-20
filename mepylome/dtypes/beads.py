@@ -1,32 +1,24 @@
-import logging
+import collections
 from functools import reduce
 from pathlib import Path
 
-import collections
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from scipy.stats import rankdata
+from tqdm import tqdm
 
 from mepylome.dtypes import (
     ArrayType,
-    memoize,
-    IdatParser,
     Channel,
+    IdatParser,
     Manifest,
     ProbeType,
-    cache,
+    memoize,
 )
-from mepylome.utils import Timer, normexp_get_xs
+from mepylome.utils import normexp_get_xs
 
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
-
-# TODO probes start at 1 pyranges at 0
-
-LOGGER = logging.getLogger(__name__)
-
-beads_timer = Timer()
 
 
 def idat_basepaths(files):
@@ -150,7 +142,7 @@ class RawData:
         return self._red_df
 
     def __repr__(self):
-        title = f"RawData():"
+        title = "RawData():"
         lines = [
             title + "\n" + "*" * len(title),
             f"array_type: {self.array_type}",
@@ -165,7 +157,7 @@ class RawData:
         return "\n\n".join(lines)
 
 
-@cache
+@memoize
 def overlap_indices(left_arr, right_arr):
     if not isinstance(left_arr, pd.Index):
         left_arr = pd.Index(left_arr)
@@ -342,7 +334,7 @@ class MethylData:
         df["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
         self._unmethylated_df = df.set_index("IlmnID")
 
-    @cache
+    @memoize
     def cached_indices(manifest, illumina_ids):
         type_1 = manifest.probe_info(ProbeType.ONE)
         type_2 = manifest.probe_info(ProbeType.TWO)
@@ -379,7 +371,7 @@ class MethylData:
             "idx_2______": idx_2______,
         }
 
-    @cache
+    @memoize
     def cached_control_indices(manifest, illumina_ids):
         ids = pd.Index(illumina_ids)
         control_probes = manifest.control_data_frame
@@ -427,9 +419,11 @@ class MethylData:
 
     @staticmethod
     def swan_indices(manifest, methyl_index):
-        all_ncpgs = manifest.data_frame[["Probe_Type", "N_CpG"]].loc[
-            methyl_index
-        ]
+        all_ncpgs = (
+            manifest.data_frame[["Probe_Type", "N_CpG"]]
+            .loc[methyl_index]
+            .reset_index(drop=True)
+        )
         subset_sizes = all_ncpgs.groupby(
             ["Probe_Type", "N_CpG"], dropna=False
         ).size()
@@ -503,7 +497,7 @@ class MethylData:
                 swan[i, all_indices[probe_type]] = interp
         return swan
 
-    def preprocess_noob(self, offset=15, dye_corr=True, dye_method="single"):
+    def preprocess_noob(self, offset=15, dye_method="single"):
         self._methylated_df = None
         self._unmethylated_df = None
         self.preprocess_raw_cached()
@@ -586,6 +580,8 @@ class MethylData:
                 )
             grn_factor = ref / grn_avg
             red_factor = ref / red_avg
+        else:
+            raise ValueError("dye_method must be 'single' or 'reference'")
 
         red_factor = red_factor.reshape(-1, 1)
         methyl[:, ci["idx_1_red__"]] *= red_factor
@@ -642,7 +638,7 @@ class MethylData:
         return beta
 
     def __repr__(self):
-        title = f"RawData():"
+        title = "MethylData():"
         lines = [
             title + "\n" + "*" * len(title),
             f"array_type: {self.array_type}",
@@ -677,11 +673,13 @@ class ReferenceMethylData:
         ):
             raw_data = RawData(file_list)
             self._methyl[array_type] = MethylData(raw_data, prep=prep)
+
     def __getitem__(self, array_type):
         if array_type not in self._methyl:
             raise ValueError(
                 f"No reference files found for array type {array_type.value}"
             )
         return self._methyl[array_type]
+
     # def __reduce__(self):
-            # return (self.__class__, (self.files, self.prep))
+    # return (self.__class__, (self.files, self.prep))

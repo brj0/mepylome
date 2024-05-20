@@ -7,7 +7,14 @@ import numpy as np
 import pandas as pd
 import pyranges as pr
 
-from mepylome.dtypes import ArrayType, Channel, InfiniumDesignType, ProbeType, memoize
+from mepylome.dtypes import (
+    ArrayType,
+    Channel,
+    Chromosome,
+    InfiniumDesignType,
+    ProbeType,
+    memoize,
+)
 from mepylome.utils import (
     download_file,
     ensure_directory_exists,
@@ -16,7 +23,7 @@ from mepylome.utils import (
     reset_file,
 )
 
-__all__ = ["Manifest", "ManifestLoader"]
+__all__ = ["Manifest"]
 
 
 NONE = -1
@@ -27,34 +34,35 @@ MANIFEST_TMP_DIR = f"/tmp/mepylome"
 ENDING_CONTROL_PROBES = "_control-probes"
 
 
-ARRAY_FILENAME = {
-    "450k": "humanmethylation450_15017482_v1-2.csv.gz",
-    "epic": "infinium-methylationepic-v-1-0-b5-manifest-file.csv.gz",
-    "epicv2": "EPIC-8v2-0_A1.csv.gz",
-    "mouse": "MouseMethylation-12v1-0_A2.csv.gz",
+REMOTE_FILENAME = {
+    ArrayType.ILLUMINA_450K: "humanmethylation450_15017482_v1-2.csv.gz",
+    ArrayType.ILLUMINA_EPIC: "infinium-methylationepic-v-1-0-b5-manifest-file.csv.gz",
+    ArrayType.ILLUMINA_EPIC_V2: "EPIC-8v2-0_A1.csv.gz",
+    ArrayType.ILLUMINA_MOUSE: "MouseMethylation-12v1-0_A2.csv.gz",
 }
 
-ARRAY_URL = {
+SOURCE_URL = {
     ArrayType.ILLUMINA_450K: (
         "https://webdata.illumina.com/downloads/productfiles/humanmethylation450/humanmethylation450_15017482_v1-2.csv"
     ),
     ArrayType.ILLUMINA_EPIC: (
         "https://webdata.illumina.com/downloads/productfiles/methylationEPIC/infinium-methylationepic-v-1-0-b5-manifest-file-csv.zip"
     ),
-    ArrayType.ILLUMINA_MOUSE: (
-        "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip"
-    ),
     ArrayType.ILLUMINA_EPIC_V2: (
         "https://support.illumina.com.cn/content/dam/illumina-support/documents/downloads/productfiles/methylationepic/InfiniumMethylationEPICv2.0ProductFiles(ZIPFormat).zip"
     ),
+    ArrayType.ILLUMINA_MOUSE: (
+        "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip"
+    ),
 }
 
-ARRAY_TYPE_MANIFEST_FILENAMES = {
-    ArrayType.ILLUMINA_450K: ARRAY_FILENAME["450k"],
-    ArrayType.ILLUMINA_EPIC: ARRAY_FILENAME["epic"],
-    ArrayType.ILLUMINA_EPIC_V2: ARRAY_FILENAME["epicv2"],
-    ArrayType.ILLUMINA_MOUSE: ARRAY_FILENAME["mouse"],
+LOCAL_FILENAME = {
+    ArrayType.ILLUMINA_450K: "manifest-450k.csv.gz",
+    ArrayType.ILLUMINA_EPIC: "manifest-epic.csv.gz",
+    ArrayType.ILLUMINA_EPIC_V2: "manifest-epicv2.csv.gz",
+    ArrayType.ILLUMINA_MOUSE: "manifest-mouse.csv.gz",
 }
+
 
 PROBES_COLUMNS = [
     "IlmnID",
@@ -69,17 +77,6 @@ PROBES_COLUMNS = [
     "AlleleB_ProbeSeq",
 ]
 
-MANIFEST_COLUMNS = [
-    "IlmnID",
-    "AddressA_ID",
-    "AddressB_ID",
-    "Infinium_Design_Type",
-    "Color_Channel",
-    "Chromosome",
-    "Start",
-    "End",
-    "Probe_Type",
-]
 
 CONTROL_COLUMNS = (
     "Address_ID",
@@ -88,8 +85,11 @@ CONTROL_COLUMNS = (
     "Extended_Type",
 )
 
-@memoize
-class Manifest:
+def get_key(array_type, filepath):
+    return (str(array_type), str(filepath))
+
+
+class _Manifest:
     """Provides an object interface to an Illumina array manifest file.
 
     Arguments:
@@ -105,7 +105,6 @@ class Manifest:
         ValueError: The sample sheet is not formatted properly or a sample
         cannot be found.
     """
-
     # _cache = {}
 
     # def __new__(
@@ -114,13 +113,18 @@ class Manifest:
         # filepath=None,
         # verbose=True,
     # ):
-        # cache_key = (array_type, filepath, verbose)
+        # cache_key = get_key(array_type, filepath)
         # if cache_key in cls._cache:
             # return cls._cache[cache_key]
         # instance = super().__new__(cls)
         # # Cache the instance
         # cls._cache[cache_key] = instance
+        # print("---MANIFEST CACHED", cache_key)
         # return instance
+
+    # def __getnewargs__(self):
+        # """ Necessary for pickle"""
+        # return self.array_type, self.filepath, self.verbose
 
     def __init__(
         self,
@@ -128,35 +132,25 @@ class Manifest:
         filepath=None,
         verbose=True,
     ):
-        # if hasattr(self, 'init_args'):
+        # if hasattr(self, 'cache_key'):
             # return
-        self.init_args = (array_type, filepath, verbose)
-        array_str_to_class = dict(
-            zip(
-                list(ARRAY_FILENAME.keys()),
-                list(ARRAY_TYPE_MANIFEST_FILENAMES.keys()),
-            )
-        )
-        if array_type in array_str_to_class:
-            array_type = array_str_to_class[array_type]
-
-        # if array_type in Manifest._cache:
-            # self = Manifest(array_type)
-            # return
-        # Manifest._cache[array_type] = self
+        # self.cache_key = get_key(array_type, filepath)
+        if isinstance(array_type, str):
+            array_type = ArrayType(array_type)
 
         self.array_type = array_type
+        self.filepath = filepath
         self.verbose = verbose
 
-        if filepath is None:
+        if self.filepath is None:
             (
-                filepath,
+                self.filepath,
                 control_filepath,
             ) = self.get_processed_manifest(array_type)
         else:
-            control_filepath = self.get_control_path(filepath)
+            control_filepath = self.get_control_path(self.filepath)
 
-        self.__data_frame = self.read_probes(filepath)
+        self.__data_frame = self.read_probes(self.filepath)
         self.__control_data_frame = self.read_control_probes(control_filepath)
         self.__snp_data_frame = self.read_snp_probes()
         self.__methyl_probes = self.get_methyl_probes()
@@ -184,14 +178,23 @@ class Manifest:
         ]
         return "\n\n".join(lines)
 
+    # def __getstate__(self):
+        # state = self.__dict__.copy()
+        # return state
+
+    # def __setstate__(self, state):
+        # self.__dict__.update(state)
+
     @staticmethod
-    def load(array_types):
+    def load(
+        array_types=[
+            ArrayType.ILLUMINA_450K,
+            ArrayType.ILLUMINA_EPIC,
+            ArrayType.ILLUMINA_EPIC_V2,
+        ]
+    ):
         for array_type in array_types:
             _ = Manifest(array_type)
-
-    @property
-    def columns(self):
-        return MANIFEST_COLUMNS
 
     @property
     def data_frame(self):
@@ -221,31 +224,6 @@ class Manifest:
         return self.__methyl_probes
 
     @staticmethod
-    def download_default(array_type, on_lambda=False):
-        """Downloads the appropriate manifest file if one does not already exist.
-
-        Arguments:
-            array_type {ArrayType} -- The type of array to process.
-
-        Returns:
-            [PurePath] -- Path to the manifest file.
-        """
-        dir_path = Path(MANIFEST_DIR).expanduser()
-        if on_lambda:
-            dir_path = Path(MANIFEST_DIR_PATH_LAMBDA).expanduser()
-        filename = ARRAY_TYPE_MANIFEST_FILENAMES[array_type]
-        filepath = Path(dir_path).joinpath(filename)
-
-        if Path.exists(filepath):
-            return filepath
-
-        LOGGER.info(f"Downloading manifest: {Path(filename).stem}")
-        # src_url = urljoin(MANIFEST_REMOTE_PATH, filename)
-        # download_file(filename, src_url, dir_path)
-
-        return filepath
-
-    @staticmethod
     def get_processed_manifest(array_type):
         """Downloads the appropriate manifest file if one does not already exist.
 
@@ -255,27 +233,27 @@ class Manifest:
         Returns:
             tuple of PurePath: Paths to the manifest file and its control file.
         """
-        manifest_filename = ARRAY_TYPE_MANIFEST_FILENAMES[array_type]
-        manifest_filepath = Path(MANIFEST_DIR, manifest_filename).expanduser()
-        control_filepath = Manifest.get_control_path(manifest_filepath)
+        local_filename = LOCAL_FILENAME[array_type]
+        local_filepath = Path(MANIFEST_DIR, local_filename).expanduser()
+        control_filepath = Manifest.get_control_path(local_filepath)
 
-        if manifest_filepath.exists() and control_filepath.exists():
-            return manifest_filepath, control_filepath
+        if local_filepath.exists() and control_filepath.exists():
+            return local_filepath, control_filepath
 
         download_dir = Path(MANIFEST_TMP_DIR).expanduser()
 
-        source_url = ARRAY_URL[array_type]
+        source_url = SOURCE_URL[array_type]
         source_filename = Path(source_url).name
         LOGGER.info(f"Downloading manifest: {source_filename}")
         download_file(source_filename, source_url, download_dir)
 
         downloaded_filepath = Path(download_dir, source_filename).expanduser()
         # Remove the .gz suffix
-        manifest_name = manifest_filepath.with_suffix("").name
+        remote_filename = REMOTE_FILENAME[array_type].replace(".gz", "")
         Manifest.process_manifest(
             filepath=downloaded_filepath,
-            manifest_name=manifest_name,
-            dest_probes=manifest_filepath,
+            manifest_name=remote_filename,
+            dest_probes=local_filepath,
             dest_control=control_filepath,
         )
 
@@ -283,7 +261,7 @@ class Manifest:
         # TODO uncomment this
         # shutil.rmtree(MANIFEST_TMP_DIR)
 
-        return manifest_filepath, control_filepath
+        return local_filepath, control_filepath
 
     @staticmethod
     def get_control_path(probes_path):
@@ -300,6 +278,9 @@ class Manifest:
                 "CHR": "Chromosome",
             },
             inplace=True,
+        )
+        data_frame["Chromosome"] = Chromosome.pd_from_string(
+            data_frame["Chromosome"]
         )
         # IlmnID and Name are different in EPICv2
         data_frame.IlmnID = data_frame.Name
@@ -441,7 +422,7 @@ class Manifest:
             subset=["IlmnID"], keep="first", inplace=True
         )
         # data_frame.index.name = "_IlmnID"
-        data_frame.reset_index(inplace=True)  # , drop=True)
+        data_frame.reset_index(inplace=True, drop=True)
         return data_frame
 
     def read_control_probes(self, control_file):
@@ -470,19 +451,20 @@ class Manifest:
         return snp_df
 
     def get_data_types(self):
-        data_types = {key: str for key in self.columns}
-        data_types["AddressA_ID"] = np.int32
-        data_types["AddressB_ID"] = np.int32
-        data_types["Start"] = np.int32
-        data_types["End"] = np.int32
-        data_types["Probe_Type"] = np.int32
-        data_types["Color_Channel"] = np.int32
-        data_types["Infinium_Design_Type"] = np.int32
-        data_types["TypeI_N_CpG"] = np.int32
-        data_types["TypeII_N_CpG"] = np.int32
-        # data_types["Chromosome"] = np.str
-        # data_types["Chromosome"] = np.dtype("object")
-        return data_types
+        return {
+            "IlmnID": np.dtype(object),
+            "AddressA_ID": np.int32,
+            "AddressB_ID": np.int32,
+            "Infinium_Design_Type": np.int8,
+            "Color_Channel": np.int8,
+            "Chromosome": np.int8,
+            "Start": np.int32,
+            "TypeI_N_CpG": np.int8,
+            "TypeII_N_CpG": np.int8,
+            "N_CpG": np.int8,
+            "End": np.int32,
+            "Probe_Type": np.int8
+        }
 
     def probe_info(self, probe_type, channel=None):
         """used by infer_channel_switch. Given a probe type (I, II, SnpI,
@@ -540,25 +522,5 @@ class Manifest:
         return data_frame[probe_type_mask & channel_mask]
 
 
-class ManifestLoader:
-    _cache = {}
-
-    @classmethod
-    def get_manifest(cls, array_type):
-        array_str_to_class = dict(
-            zip(
-                list(ARRAY_FILENAME.keys()),
-                list(ARRAY_TYPE_MANIFEST_FILENAMES.keys()),
-            )
-        )
-        if array_type in array_str_to_class:
-            array_type = array_str_to_class[array_type]
-        if array_type not in cls._cache:
-            manifest = Manifest(array_type)
-            cls._cache[array_type] = manifest
-        return cls._cache[array_type]
-
-    @staticmethod
-    def load(array_types):
-        for array_type in array_types:
-            _ = ManifestLoader.get_manifest(array_type)
+# When using decorator, pickle wont work
+Manifest = memoize(_Manifest)

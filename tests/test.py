@@ -1,5 +1,6 @@
 import gzip
 import logging
+import pickle
 import inspect
 import os
 import pickle
@@ -34,11 +35,12 @@ import mepylome
 from mepylome.dtypes import (
     CNV,
     Annotation,
+    Chromosome,
     memoize,
     ArrayType,
+    ReferenceMethylData,
     Channel,
     Manifest,
-    ManifestLoader,
     IdatParser,
     MethylData,
     ProbeType,
@@ -54,6 +56,7 @@ from mepylome.utils import (
     get_file_object,
     reset_file,
 )
+from mepylome.analysis import MethylAnalysis
 
 
 # from methylprep.files.idat import IdatDataset
@@ -81,6 +84,7 @@ timer = Timer()
 
 
 ref_dir = "/data/ref_IDAT/cnvrefidat_450k"
+all_ref_dir = "/data/ref_IDAT/"
 smp0 = "/data/epidip_IDAT/6042324058_R03C02_Grn.idat"
 smp1 = "/data/epidip_IDAT/6042324058_R04C01_Red.idat"
 smp2 = "/data/epidip_IDAT/6042324058_R04C02_Red.idat"
@@ -187,7 +191,7 @@ cnv.write(Path(file_dir, "py_cnv"))
 timer.stop("zip write")
 
 
-quit()
+# quit()
 
 timer.start()
 # r = RawData(smp7)
@@ -364,3 +368,126 @@ def change_x():
 print(x.val)
 change_x()
 print(x.val)
+
+
+self = ReferenceMethylData(files=all_ref_dir, prep="swan")
+
+f = "/data/ref_IDAT/CNVrefidat_EPICv2/206909630108_R04C01"
+f = "/data/ref_IDAT/CNVrefidat_EPICv2/206909630108_R06C01"
+f = "/data/ref_IDAT/CNVrefidat_EPICv2/206909630108_R05C01"
+f = "/data/ref_IDAT/CNVrefidat_EPICv2/206909630108_R07C01"
+
+data = RawData(f)
+file = None
+prep = "swan"
+self = MethylData(data, prep=prep)
+
+
+# TODO EPIVv2 Chromosomes are different in csv! make Chromosome datatype?
+
+
+timer.start()
+X = Chromosome.pd_from_string(probes_df["CHR"])
+timer.stop("1")
+
+timer.start()
+X_ = Chromosome.pd_to_string(X)
+timer.stop("1")
+
+
+
+files= [
+    smp0,
+    smp1,
+    smp2,
+    smp3,
+    smp4,
+    smp5,
+    smp6,
+    smp7,
+    smp8,
+    ref0,
+    ref1,
+    ref2,
+    ref3,
+    ref4,
+]
+timer.start()
+for f in files:
+    x = MethylData(file=f)
+    print(x.array_type)
+    betas = x.converted_beta(cpgs=None, fill=0.49)
+    print("\n\n\n")
+
+timer.stop("END")
+
+
+
+def np_hash(array):
+    # if array.dtype != np.dtype("<U16"):
+    if array.dtype != np.dtype(object):
+        return array.tobytes()
+    else:
+        N = len(array)
+        L = 57
+        idx_left = [i * N // L for i in range(L)] + [-1]
+        key = (
+            tuple(array[x] for x in idx_left),
+            N,
+        )
+        return key
+
+def cache_key(arg):
+    type_map = {
+        "ArrayType": str,
+        "Manifest": lambda x: x.array_type,
+        "PosixPath": str,
+        "bool": str,
+        "int": str,
+        "str": str,
+        "RangeIndex": lambda x: x.values.tobytes(),
+        "ndarray": np_hash,
+    }
+    arg_type = arg.__class__.__name__ if hasattr(arg, "__class__") else None
+    return type_map.get(arg_type, id)(arg)
+
+x=manifest.data_frame.IlmnID.values
+x=manifest.data_frame.IlmnID.values.astype("<U16")
+x=manifest.data_frame.index.values
+
+timer.start()
+X=cache_key(x)
+timer.stop()
+array=x
+
+
+import pickle
+import sys
+path=Path("~/Desktop/mani.pkl").expanduser()
+m=Manifest("450k")
+m=Manifest("450k")
+# MyManifest = memoize(Manifest)
+# m=MyManifest("450k")
+with open(path, 'wb') as f:
+    pickle.dump(m,f)
+
+
+with open(path, 'rb') as f:
+    y = pickle.load(f)
+
+
+
+m.__class__#points to a class object with
+m.__qualname__ #set to 'Manifest' and 
+m.__module__# set to '__main__', but
+sys.modules['__main__'].Manifest
+
+
+
+
+IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
+IDAT_DIR = "/data/epidip_IDAT"
+reference_dir = "/data/ref_IDAT"
+self = MethylAnalysis(analysis_dir=IDAT_DIR, reference_dir=reference_dir)
+self.run_app()
+

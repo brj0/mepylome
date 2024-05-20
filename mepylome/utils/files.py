@@ -14,7 +14,6 @@ __all__ = [
     "get_file_object",
     "get_file_from_archive",
     "is_file_like",
-    "read_and_reset",
     "reset_file",
 ]
 
@@ -23,17 +22,6 @@ logger = logging.getLogger(__name__)
 # logging.basicConfig(level=logging.INFO)
 
 
-def read_and_reset(inner):
-    """Decorator that resets a file-like object back to the original
-    position after the function has been called."""
-
-    def wrapper(infile, *args, **kwargs):
-        current_position = infile.tell()
-        rval = inner(infile, *args, **kwargs)
-        infile.seek(current_position)
-        return rval
-
-    return wrapper
 
 
 def make_path_like(path_like):

@@ -1,6 +1,7 @@
 from dash import Dash, html, dcc, callback, Output, Input, no_update
 from dash.exceptions import PreventUpdate
 from mepylome.dtypes import MANIFEST_TMP_DIR, IMPORTANT_GENES, CHROMOSOME_DATA
+from mepylome.utils import Timer, ensure_directory_exists
 
 from plotly.io import write_json, from_json
 
@@ -26,6 +27,7 @@ PLOTLY_RENDER_MODE = "webgl"
 ZIP_ENDING = "_cnv.zip"
 THRESHOLD_BALANCED = 0.1
 
+ensure_directory_exists(MANIFEST_TMP_DIR)
 CNV_GRID = Path(MANIFEST_TMP_DIR, "grid.json")
 
 
@@ -69,22 +71,6 @@ genome = Genome()
 
 offset = {i.name: i.offset for i in genome}
 
-
-def get_df_from_zip(zip_file_path, extract=["bins", "detail", "segments"]):
-    """Reads the CNV data from a zip file without extraxtion on disk."""
-    zip_file = os.path.basename(zip_file_path)
-    csv_file_templ = zip_file.replace(ZIP_ENDING, "_cnv_%s.csv")
-    with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
-        extracted_dfs = []
-        for filename in extract:
-            with zip_ref.open(csv_file_templ % filename) as file_:
-                extracted_dfs.append(pd.read_csv(io.TextIOWrapper(file_)))
-    extracted_dfs = rename_cols(extracted_dfs)
-    if len(extract) == 1:
-        return extracted_dfs[0]
-    return extracted_dfs
-
-
 # TODO del
 def rename_cols(df_list):
     translate = {
@@ -100,6 +86,21 @@ def rename_cols(df_list):
         "x_mid": "X_mid",
     }
     return [df.rename(columns=translate) for df in df_list]
+
+
+def get_df_from_zip(zip_file_path, extract=["bins", "detail", "segments"]):
+    """Reads the CNV data from a zip file without extraxtion on disk."""
+    zip_file = os.path.basename(zip_file_path)
+    csv_file_templ = zip_file.replace(ZIP_ENDING, "_cnv_%s.csv")
+    with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+        extracted_dfs = []
+        for filename in extract:
+            with zip_ref.open(csv_file_templ % filename) as file_:
+                extracted_dfs.append(pd.read_csv(io.TextIOWrapper(file_)))
+    extracted_dfs = rename_cols(extracted_dfs)
+    if len(extract) == 1:
+        return extracted_dfs[0]
+    return extracted_dfs
 
 
 def add_offset(df, chrom_nm, col):
@@ -332,7 +333,7 @@ def read_cnv_data_from_disk(cnv_dir, sample_id):
     return bins, detail, segments
 
 
-def cnv_plot(sample_id, bins, detail, segments, genes_fix, genes_sel):
+def cnv_plot_from_data(sample_id, bins, detail, segments, genes_fix, genes_sel):
     # Base scatterplot
     bins, detail = find_genes_within_bins(bins, detail)
     scatter_df = bins[["X_mid", "Median", "Genes"]]
@@ -366,7 +367,7 @@ class CNVPlot:
     def __init__(self, cnv_dir, cnv_file, genes=IMPORTANT_GENES):
         self.cnv_dir = cnv_dir
         self.genes_fix = genes
-        # TODO
+        # TODO the same as methyl.py
         init_sample_id = cnv_file.replace(ZIP_ENDING, "")
         fig = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
         app = Dash(__name__)
@@ -418,7 +419,7 @@ class CNVPlot:
                 )
             except FileNotFoundError:
                 return no_update, no_update, f"Sample ID {sample_id} not found"
-            plot = cnv_plot(
+            plot = cnv_plot_from_data(
                 sample_id,
                 bins,
                 detail,

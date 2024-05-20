@@ -1,9 +1,8 @@
 import hashlib
 import heapq
-import importlib.resources as res
+import io
 import logging
 import zipfile
-import io
 from functools import lru_cache
 from pathlib import Path
 
@@ -16,25 +15,29 @@ from sklearn.linear_model import LinearRegression
 
 from mepylome.dtypes import (
     MANIFEST_TMP_DIR,
+    Chromosome,
     CNVPlot,
+    ArrayType,
     Manifest,
     MethylData,
     ReferenceMethylData,
-    cache,
     memoize,
 )
-from mepylome.utils import Timer, ensure_directory_exists
-
-cnv_timer = Timer()
-
-LOGGER = logging.getLogger(__name__)
-ZIP_ENDING = "_cnv.zip"
+from mepylome.utils import ensure_directory_exists
 
 
-GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
+logger = logging.getLogger(__name__)
+
+
+# Data copied from conumee
 GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
 
-Unset = object()
+# HG19 Gene data downloaded from:
+# https://grch37.ensembl.org/biomart/martview
+GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
+
+UNSET = object()
+ZIP_ENDING = "_cnv.zip"
 
 
 def pd_hash(df):
@@ -43,35 +46,38 @@ def pd_hash(df):
 
 @memoize
 class Annotation:
-
     def __init__(
         self,
         manifest=None,
         array_type=None,
-        gap=Unset,
-        detail=Unset,
+        gap=UNSET,
+        detail=UNSET,
         bin_size=50000,
         min_probes_per_bin=15,
         verbose=False,
     ):
-        # TODO sort
         if manifest is None and array_type is None:
             raise ValueError("'manifest' or 'array_type' must be given")
         self.bin_size = bin_size
         self.min_probes_per_bin = min_probes_per_bin
 
         self.gap = gap
-        if self.gap is Unset:
+        if self.gap is UNSET:
             self.gap = self.default_gaps()
 
         self.detail = detail
-        if self.detail is Unset:
+        if self.detail is UNSET:
             self.detail = self.default_detail()
         elif self.detail is not None:
+            # PyRanges ranges start at 0
+            self.detail.Start -= 1
             self.detail = self.detail.sort()
 
         self.verbose = verbose
         self.chromsizes = pr.data.chromsizes()
+
+        if isinstance(array_type, str):
+            array_type = ArrayType(array_type)
 
         self.array_type = array_type
         if array_type is None:
@@ -83,10 +89,10 @@ class Annotation:
 
         df = self.manifest.data_frame.copy()
         df = df[[x.startswith("cg") for x in df.IlmnID.values]]
-        df = df[
-            df.Chromosome.isin(["X", "Y"] + [str(x) for x in range(1, 23)])
-        ]
-        df.Chromosome = "chr" + df.Chromosome.astype(str)
+        df = df[Chromosome.is_valid_chromosome(df.Chromosome)]
+        df.Chromosome = Chromosome.pd_to_string(df.Chromosome)
+        # PyRanges ranges start at 0
+        df.Start -= 1
         self.adjusted_manifest = pr.PyRanges(df)
 
         # self.adjusted_manifest = self.adjusted_manifest.sort()
@@ -99,7 +105,7 @@ class Annotation:
             .set_index("bins_index")
         )
         if self.detail is None:
-             self._cpg_detail = pd.DataFrame(columns=["Name", "IlmnID"])
+            self._cpg_detail = pd.DataFrame(columns=["Name", "IlmnID"])
         else:
             self._cpg_detail = self.detail.join(
                 self.adjusted_manifest[["IlmnID"]]
@@ -126,14 +132,17 @@ class Annotation:
     @staticmethod
     @lru_cache()
     def default_gaps():
-        gap = pr.PyRanges(pd.read_csv(GAPS))
-        gap.Start -= 1
+        gap_df = pd.read_csv(GAPS)
+        # PyRanges ranges start at 0
+        gap_df.Start -= 1
+        gap = pr.PyRanges(gap_df)
         return gap
 
     @staticmethod
     @lru_cache()
     def default_detail():
         genes_df = pd.read_csv(GENES, sep="\t")
+        # PyRanges ranges start at 0
         genes_df.Start -= 1
         genes = pr.PyRanges(genes_df)
         return genes
@@ -248,10 +257,8 @@ class Annotation:
         df = df[df.N_probes != INVALID]
         return df[["Chromosome", "Start", "End", "N_probes"]]
 
-
     def __repr__(self):
-        # TODO
-        title = f"CNV():"
+        title = "Annotation():"
         lines = [
             title + "\n" + "*" * len(title),
             f"probes:\n{self.probes}",
@@ -267,7 +274,7 @@ class Annotation:
         return "\n\n".join(lines)
 
 
-@cache
+@memoize
 def indices(left_arr, right_arr):
     return left_arr.get_indexer(right_arr)
 
@@ -349,7 +356,9 @@ class CNV:
         smp_intensity = self.sample.intensity.iloc[smp_prob_idx].values.ravel()
         idx = self.sample.intensity.iloc[smp_prob_idx].index
         ref_prob_idx = indices(self.reference.intensity.index, probes)
-        ref_intensity = self.reference.intensity.iloc[ref_prob_idx,].values
+        ref_intensity = self.reference.intensity.iloc[
+            ref_prob_idx,
+        ].values
         # smp_intensity = self.sample.intensity.loc[probes].values.ravel()
         # idx = self.sample.intensity.loc[probes].index
         # ref_intensity = self.reference.intensity.loc[
@@ -360,8 +369,8 @@ class CNV:
         )
         if any(correlation >= 0.99):
             # TODO exclude
-            LOGGER.warning(
-                "Query sample also found in reference set. Excluded from fitting."
+            logger.warning(
+                "Query sample found in reference set. Excluded from fitting."
             )
         X = np.log2(ref_intensity)
         y = np.log2(smp_intensity)
@@ -530,13 +539,11 @@ class CNV:
         CNVPlot(cnv_dir, cnv_file)
 
     def __repr__(self):
-        # TODO
-        title = f"CNV():"
+        title = "CNV():"
         lines = [
             title + "\n" + "*" * len(title),
             f"sample:\n{self.sample.probes}",
             f"reference:\n{self.reference.probes}",
-            # f"annotation: {self.annotation}",
             f"_ratio: {self._ratio}",
             f"bins:\n{self.bins}",
             f"detail:\n{self.detail}",
