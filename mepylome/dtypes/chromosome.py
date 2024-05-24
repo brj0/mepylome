@@ -33,7 +33,7 @@ class Chromosome(IntEnum):
 
     @staticmethod
     def is_valid_chromosome(chrom):
-        return (0 < chrom) & (chrom < 25)
+        return (chrom > 0) & (chrom < 25)
 
     @staticmethod
     def pd_from_string(col):

@@ -1,36 +1,38 @@
-from .idat import IdatParser
+"""Module providing access to various data types and utilities."""
+
 from .arrays import ArrayType
+from .beads import MethylData, RawData, ReferenceMethylData, idat_basepaths
+from .cache import get_id_tuple, memoize
 from .chromosome import Chromosome
-from .genetic_data import *
-from .genetic_data import __all__ as config_vars
-from .controls import ControlProbe, ControlType
-from .probes import (
-    Channel,
-    ProbeType,
-    InfiniumDesignType,
+from .cnv import CNV, ZIP_ENDING, Annotation
+from .genetic_data import (
+    CHROMOSOME_DATA,
+    COLOR_MAP,
+    GAPS,
+    GENES,
+    IMPORTANT_GENES,
 )
-from .cache import memoize, get_id_tuple
-from .manifests import Manifest, MANIFEST_TMP_DIR
-
-from .beads import MethylData, RawData, idat_basepaths, ReferenceMethylData
-from .plots import CNVPlot, read_cnv_data_from_disk, cnv_plot_from_data
-from .cnv import CNV, Annotation, ZIP_ENDING, GENES, GAPS
-
+from .idat import IdatParser
+from .manifests import MANIFEST_TMP_DIR, Manifest
+from .plots import CNVPlot, cnv_plot_from_data, read_cnv_data_from_disk
+from .probes import Channel, InfiniumDesignType, ProbeType
 
 __all__ = [
     "Annotation",
     "ArrayType",
+    "CHROMOSOME_DATA",
     "CNV",
     "CNVPlot",
+    "COLOR_MAP",
     "Channel",
     "Chromosome",
-    "ControlProbe",
-    "ControlType",
     "GAPS",
     "GENES",
+    "IMPORTANT_GENES",
     "IdatParser",
     "InfiniumDesignType",
     "Manifest",
+    "MANIFEST_TMP_DIR",
     "MethylData",
     "ProbeType",
     "RawData",
@@ -42,4 +44,4 @@ __all__ = [
     "idat_basepaths",
     "memoize",
     "read_cnv_data_from_disk",
-] + config_vars
+]

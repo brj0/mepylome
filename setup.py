@@ -1,6 +1,5 @@
 import glob
 import os
-import re
 
 import numpy as np
 import pybind11
@@ -49,7 +48,7 @@ if add_cpp:
 else:
     ext_modules = []
 
-with open("README.md", "r") as f:
+with open("README.md") as f:
     long_description = f.read()
 
 setup(
@@ -64,10 +63,11 @@ setup(
         "cython",
         "numpy",
         "pandas",
+        "openpyxl",
         "tqdm",
         "pyranges",
         "scikit-learn",
-        "dash",
+        "dash>=2.16.0",
         "umap-learn",
         "dash_bootstrap_components",
     ],

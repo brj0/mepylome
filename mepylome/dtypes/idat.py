@@ -4,12 +4,12 @@ from enum import IntEnum, unique
 
 import numpy as np
 
-import mepylome
-from mepylome.utils import Timer, get_file_object
+from mepylome.utils.files import get_file_object
 
 LOGGER = logging.getLogger(__name__)
 
 __all__ = ["IdatParser"]
+
 
 def bytes_to_int(input_bytes, signed=False):
     return int.from_bytes(input_bytes, byteorder="little", signed=signed)
@@ -63,7 +63,6 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.WARNING)
 
 
-
 DEFAULT_IDAT_VERSION = 3
 DEFAULT_IDAT_FILE_ID = "IDAT"
 
@@ -98,7 +97,6 @@ class IdatParser:
         intensity_only=False,
     ):
         """Reads and parses the IDAT file."""
-
         self.intensity_only = intensity_only
         with get_file_object(filepath_or_buffer) as idat_file:
             self.file_size = os.fstat(idat_file.fileno()).st_size

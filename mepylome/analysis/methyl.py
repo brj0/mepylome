@@ -1,15 +1,47 @@
+"""Methylation analysis tools including a Dash-based browser application.
+
+This package provides a set of tools for conducting methylation analysis. The
+core functionality is encapsulated in the `MethylAnalysis` class, which
+facilitates analysis setup, management, and the execution of a web application
+for interactive exploration of methylation data.
+
+
+Classes:
+    MethylAnalysis: Main class for methylation analysis, providing methods for
+        setting up analysis parameters, reading data, and running a Dash-based
+        web application for data visualization.
+
+Usage:
+    from mepylome import MethylAnalysis
+
+    # Basic usage
+    analysis0 = MethylAnalysis()
+    analysis0.run_app()
+
+    # Usage if directories are known in advance
+    analysis1 = MethylAnalysis(
+        analysis_dir='/path/to/idat/dir',
+        reference_dir='/path/to/reference/idat/dir',
+        annotation_file='/path/to/annotation/spread/sheat/with/2/cols',
+        output_dir='/path/to/mepylome/output,
+    )
+    analysis1.run_app()
+
+"""
+
 import colorsys
 import hashlib
+import json
 import os
 import pathlib
 import random
+import subprocess
 import threading
 from functools import lru_cache
 from itertools import repeat
 from multiprocessing import Pool
 from pathlib import Path
 
-import dash
 import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
@@ -29,15 +61,18 @@ from dash import (
 )
 from tqdm import tqdm
 
-from mepylome import CNV, Manifest, MethylData, idat_basepaths
 from mepylome.dtypes import (
+    CNV,
     COLOR_MAP,
     IMPORTANT_GENES,
     ZIP_ENDING,
     Annotation,
     ArrayType,
+    Manifest,
+    MethylData,
     ReferenceMethylData,
     cnv_plot_from_data,
+    idat_basepaths,
     read_cnv_data_from_disk,
 )
 from mepylome.utils import Timer, ensure_directory_exists
@@ -54,6 +89,8 @@ DEFAULT_REFERENCE_DIR = Path(HOME_DIR, "Documents", "mepylome", "reference")
 DEFAULT_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output")
 DEFAULT_N_CPGS = 25000
 
+ERROR_ENDING = "_error.txt"
+
 ON = "on"
 OFF = "off"
 
@@ -62,6 +99,10 @@ OFF = "off"
 CPG_450K_EPIC_OVERLAP = (
     "/applications/reference_data/betaEPIC450Kmix_bin/index.csv"
 )
+with open(CPG_450K_EPIC_OVERLAP) as f:
+    CPG_450K = np.array(f.read().splitlines())
+
+
 CNV_LINK = (
     "http://s1665.rootserver.io/umapplot01/%s_CNV_IFPBasel_annotations.pdf"
 )
@@ -73,6 +114,15 @@ ACRONYMS = pkg_resources.resource_filename(
 
 
 class ProgressBar:
+    """A thread-safe progress bar.
+
+    Attributes:
+        cur_value (int): The current value of the progress bar.
+        max_value (int): The maximum value of the progress bar.
+        text (str): Optional text to display alongside the progress.
+        lock (threading.Lock): A lock to ensure thread safety.
+    """
+
     def __init__(self, max_value=100, text=""):
         self.cur_value = 0
         self.max_value = int(max_value)
@@ -120,6 +170,7 @@ class ProgressBar:
 
 def random_color(var):
     """Pseudorandom color based on hashed string.
+
     Args:
         var: string to hash
     Returns:
@@ -142,12 +193,14 @@ def random_color(var):
 
 
 def discrete_colors(names):
-    """
+    """Returns a colorscheme for all methylation classes.
+
     Generate a pseudorandom color scheme based on precalculated values to
     enhance readability for neighboring methylation groups.
 
     Args:
-        names (list of str): List of string elements.
+        names (list of str): List of string elements (corresponds to
+            methylation class acronyms).
 
     Returns:
         dict: Dictionary mapping each string element to its corresponding
@@ -161,9 +214,11 @@ def discrete_colors(names):
 
 def umap_plot_from_data(umap_df):
     """Create and return umap plot from UMAP data.
+
     Args:
         umap_df: pandas data frame containing UMAP matrix and
             attributes. First row,w corresponds to sample.
+
     Returns:
         UMAP plot as plotly object.
     """
@@ -200,11 +255,13 @@ def umap_plot_from_data(umap_df):
     return umap_plot
 
 
-with open(CPG_450K_EPIC_OVERLAP, "r") as f:
-    CPG_450K = np.array(f.read().splitlines())
-
-
 class IdatAnnotation:
+    """A class for handling IDAT file annotations.
+
+    Includes reading from various file formats and provides description
+    lookups for methylation classes.
+    """
+
     acronyms_df = pd.read_csv(ACRONYMS, sep="\t")
     columns = ["Id", "Methylation_Class", "Description"]
     acronym_to_description = dict(
@@ -220,26 +277,27 @@ class IdatAnnotation:
 
     @staticmethod
     def get_annotation(filepath):
+        columns = IdatAnnotation.columns
         if filepath.suffix == ".xlsx":
             annotation = pd.read_excel(
                 filepath,
                 header=None,
                 engine="openpyxl",
+                names=columns,
             )
         elif filepath.suffix in [".csv", ".tsv"]:
             sep = "\t" if filepath.suffix == ".tsv" else ","
-            annotation = pd.read_csv(filepath, sep=sep)
+            annotation = pd.read_csv(
+                filepath, sep=sep, header=None, names=columns
+            )
         else:
             raise ValueError(
                 "Annotation files must be as 'xlsx', 'tsv' or 'csv' file"
             )
-        if annotation.shape[1] < 2:
-            raise ValueError(
-                "The anottatino file must contain at least 2 columns"
-            )
+        annotation = annotation.iloc[:, : len(columns)]
 
         def get_description(mc):
-            """Returns description of methylation class {mc}."""
+            """Returns description of a methylation class."""
             if mc in [np.nan, ""]:
                 return ""
             mc = mc.upper()
@@ -255,19 +313,10 @@ class IdatAnnotation:
                 return IdatAnnotation.acronym_to_description[substrings[-1]]
             return ""
 
-        if annotation.shape[1] == 2:
-            annotation["Description"] = annotation.iloc[:, 1].apply(
-                get_description
-            )
-        if annotation.shape[1] == 3:
-            missing_idx = annotation.iloc[:, 2].isin(["", None, np.nan])
-            annotation.loc[
-                missing_idx, annotation.columns[2]
-            ] = annotation.loc[missing_idx, annotation.columns[1]].apply(
-                get_description
-            )
-        annotation = annotation.iloc[:, :3]
-        annotation.columns = IdatAnnotation.columns
+        missing_idx = annotation["Description"].isin(["", None, np.nan])
+        annotation.loc[missing_idx, "Description"] = annotation.loc[
+            missing_idx, "Methylation_Class"
+        ].apply(get_description)
         return annotation
 
     @property
@@ -334,11 +383,29 @@ def get_reference_methyl_data(reference_dir, prep):
 def write_single_cnv_to_disk(args):
     sample_dir, sample_id, reference_dir, cnv_dir, prep = args
     idat_basename = Path(sample_dir, sample_id)
-    sample_methyl = MethylData(file=idat_basename)
-    reference = get_reference_methyl_data(reference_dir, prep)
-    cnv = CNV.set_all(sample_methyl, reference)
-    cnv_filename = sample_id + ZIP_ENDING
-    cnv.write(Path(cnv_dir, cnv_filename))
+    try:
+        sample_methyl = MethylData(file=idat_basename)
+        reference = get_reference_methyl_data(reference_dir, prep)
+        cnv = CNV.set_all(sample_methyl, reference)
+        cnv_filename = sample_id + ZIP_ENDING
+        cnv.write(Path(cnv_dir, cnv_filename))
+    except Exception as error:
+        cnv_filename = sample_id + ERROR_ENDING
+        command = f"ls -lh {str(idat_basename)}*"
+        files_on_disk = subprocess.check_output(command, shell=True).decode(
+            "utf-8"
+        )
+        error_message = (
+            "During processing '"
+            + sample_id
+            + "' the following error occurred:\n\n"
+            + str(error)
+            + "\n\nCorresponding files on disk:\n"
+            + files_on_disk
+            + "\n\n\nTo recalculate, delete this file."
+        )
+        with open(Path(cnv_dir, cnv_filename), "w") as f:
+            f.write(error_message)
 
 
 def write_cnv_to_disk(
@@ -348,6 +415,7 @@ def write_cnv_to_disk(
         x
         for x in sample_ids
         if not Path(cnv_dir, str(x) + ZIP_ENDING).exists()
+        and not Path(cnv_dir, str(x) + ERROR_ENDING).exists()
     ]
     if len(new_sample_ids) == 0:
         return
@@ -385,7 +453,7 @@ def write_cnv_to_disk(
                 _ = tqdm_bar.update(1)
 
 
-@lru_cache()
+@lru_cache
 def get_cnv_plot(
     sample_dir,
     sample_id,
@@ -456,6 +524,7 @@ def get_navbar():
                     style={"textDecoration": "none"},
                 ),
                 dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
+                html.Div(id="dummy-output", style={"display": "none"}),
             ]
         ),
         color="dark",
@@ -547,10 +616,7 @@ def get_side_navivation(
                             dcc.Dropdown(
                                 id="precalculate-cnv",
                                 options={
-                                    ON: (
-                                        "Precalculate all (faster but "
-                                        "longer setup)"
-                                    ),
+                                    ON: ("Precalculate all (much " "longer!)"),
                                     OFF: "When clicking on dots",
                                 },
                                 value=ON if precalculate else OFF,
@@ -654,7 +720,7 @@ class MethylAnalysis:
         cpgs=CPG_450K,
         n_cpgs=DEFAULT_N_CPGS,
         analysis_dir=DEFAULT_ANALYSIS_DIR,
-        annotation=None,
+        annotation_file=None,
         reference_dir=DEFAULT_REFERENCE_DIR,
         output_dir=DEFAULT_OUTPUT_DIR,
         prep="illumina",
@@ -663,9 +729,10 @@ class MethylAnalysis:
         self.cpgs = cpgs
         self.n_cpgs = n_cpgs
         self.analysis_dir = analysis_dir
-        if annotation is None:
-            annotation = guess_annotation_file(analysis_dir)
-        self.annotation = IdatAnnotation(annotation)
+        if annotation_file is None:
+            annotation_file = guess_annotation_file(analysis_dir)
+        self.annotation_file = annotation_file
+        self.annotation = IdatAnnotation(annotation_file)
         self.reference_dir = reference_dir
         self.output_dir = output_dir
         ensure_directory_exists(self.output_dir)
@@ -688,7 +755,7 @@ class MethylAnalysis:
             self.cpgs,
             self.n_cpgs,
             self.analysis_dir,
-            self.annotation,
+            self.annotation_file,
             self.reference_dir,
             self.prep,
         )
@@ -698,9 +765,29 @@ class MethylAnalysis:
         self.cnv_dir = Path(self.current_run_dir, "cnv")
         ensure_directory_exists(self.cnv_dir)
         self.umap_plot_path = Path(self.current_run_dir, "umap_plot.csv")
+        print(f"Run dir set to {self.current_run_dir}")
+
+        # Write the metadata to a file
+        metadata = {"hash_key": hash_key}
+        for attr, value in vars(self).items():
+            if isinstance(value, np.ndarray):
+                metadata[attr] = f"{value}, shape={value.shape}"
+            else:
+                metadata[attr] = str(value)
+
+        metadata_file_path = Path(self.current_run_dir, "metadata.json")
+
+        with open(metadata_file_path, "w") as f:
+            json.dump(metadata, f, indent=4)
 
     def get_app(self):
-        app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+        current_dir = Path(__file__).resolve().parent
+        assets_folder = current_dir.parent / "data" / "assets"
+        app = Dash(
+            __name__,
+            assets_folder=assets_folder,
+            external_stylesheets=[dbc.themes.BOOTSTRAP],
+        )
         app._favicon = "favicon.svg"
         app.title = "mepylome"
         side_navigation = get_side_navivation(
@@ -782,7 +869,7 @@ class MethylAnalysis:
                 points = click_data.get("points", [])
                 if points and isinstance(points, list):
                     first_point = points[0] if points else {}
-                    sample_id = first_point.get("hovertext", None)
+                    sample_id = first_point.get("hovertext")
                     if sample_id is None:
                         return no_update, no_update, ""
                     self.highlight(
@@ -907,6 +994,7 @@ class MethylAnalysis:
                 Input("start-button", "n_clicks"),
             ],
             [
+                State("num-cpgs", "value"),
                 State("analysis-dir", "value"),
                 State("annotation-file", "value"),
                 State("reference-dir", "value"),
@@ -925,6 +1013,7 @@ class MethylAnalysis:
         )
         def on_start_button_click(
             n_clicks,
+            n_cpgs,
             analysis_dir,
             annotation,
             reference_dir,
@@ -937,6 +1026,9 @@ class MethylAnalysis:
             precalculate_cnv,
         ):
             if n_clicks:
+                # import pdb; pdb.set_trace()
+                if n_cpgs is not None:
+                    self.n_cpgs = n_cpgs
                 if analysis_dir_valid:
                     self.analysis_dir = analysis_dir
                 else:
@@ -996,22 +1088,31 @@ class MethylAnalysis:
             return no_update, no_update, "", {}
 
         @app.callback(
-            [dash.Input("running-state", "data")],
+            [
+                # Add a dummy output component
+                Output("dummy-output", "children")
+            ],
+            [Input("running-state", "data")],
             running=[
                 (Output("start-button", "disabled"), True, False),
             ],
         )
         def precalculate_cnv_wrapper(state):
-            if state and state.get("status", None) == "umap_done":
-                if self.precalculate_cnv:
-                    self.precalculate_all_cnvs()
+            if (
+                state
+                and state.get("status") == "umap_done"
+                and self.precalculate_cnv
+            ):
+                self.precalculate_all_cnvs()
+            # Dummy update
+            return no_update
 
         @app.callback(
             [
-                dash.Output("umap-progress-bar", "value"),
-                dash.Output("umap-progress-bar", "label"),
+                Output("umap-progress-bar", "value"),
+                Output("umap-progress-bar", "label"),
             ],
-            [dash.Input("clock", "n_intervals")],
+            [Input("clock", "n_intervals")],
         )
         def progress_bar_update(n):
             progress = self.prog_bar.get_progress()
@@ -1025,6 +1126,7 @@ class MethylAnalysis:
             x.name
             for x in idat_basepaths(self.analysis_dir)
             if not Path(self.cnv_dir, x.name + ZIP_ENDING).exists()
+            and not Path(self.cnv_dir, str(x) + ERROR_ENDING).exists()
         ]
         self.prog_bar.reset(len(sample_ids), text="(CNV)")
         write_cnv_to_disk(
@@ -1044,7 +1146,7 @@ class MethylAnalysis:
         random_cpg_sample = [self.cpgs[x] for x in random_idx]
         all_idat_files = idat_basepaths(self.analysis_dir)
         name_to_file = {x.name: x for x in all_idat_files}
-        idat_files = [name_to_file.get(x, None) for x in self.annotation.id]
+        idat_files = [name_to_file.get(x) for x in self.annotation.id]
         overlap_idx = [i for i, x in enumerate(idat_files) if x is not None]
         idat_overlap = [idat_files[x] for x in overlap_idx]
         ids_overlap = [self.annotation.id[x] for x in overlap_idx]
@@ -1138,6 +1240,7 @@ class MethylAnalysis:
         lines = [
             title + "\n" + "*" * len(title),
             f"cnv_id:\n{self.cnv_id}",
+            f"n_cpgs:\n{self.n_cpgs}",
             f"analysis_dir:\n{self.analysis_dir}",
             f"reference_dir:\n{self.reference_dir}",
             f"output_dir:\n{self.output_dir}",

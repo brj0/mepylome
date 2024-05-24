@@ -1,25 +1,20 @@
-from dash import Dash, html, dcc, callback, Output, Input, no_update
-from dash.exceptions import PreventUpdate
-from mepylome.dtypes import MANIFEST_TMP_DIR, IMPORTANT_GENES, CHROMOSOME_DATA
-from mepylome.utils import Timer, ensure_directory_exists
-
-from plotly.io import write_json, from_json
-
-import webbrowser
-import threading
-import bisect
-import threading
 import io
-import json
-import numpy as np
 import os
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import time
+import threading
+import webbrowser
 import zipfile
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from dash import Dash, Input, Output, callback, dcc, html, no_update
+from plotly.io import from_json
+
+from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
+from mepylome.dtypes.manifests import MANIFEST_TMP_DIR
+from mepylome.utils.files import ensure_directory_exists
 
 PORT = 8050
 HOST = "localhost"
@@ -67,25 +62,9 @@ class Genome:
         return str(self)
 
 
-genome = Genome()
+reference_genome = Genome()
 
-offset = {i.name: i.offset for i in genome}
-
-# TODO del
-def rename_cols(df_list):
-    translate = {
-        "chrom": "Chromosome",
-        "end": "End",
-        "len": "Len",
-        "mean": "Mean",
-        "median": "Median",
-        "name": "Name",
-        "nprobes": "N_probes",
-        "start": "Start",
-        "value": "Median",
-        "x_mid": "X_mid",
-    }
-    return [df.rename(columns=translate) for df in df_list]
+offset = {i.name: i.offset for i in reference_genome}
 
 
 def get_df_from_zip(zip_file_path, extract=["bins", "detail", "segments"]):
@@ -97,17 +76,18 @@ def get_df_from_zip(zip_file_path, extract=["bins", "detail", "segments"]):
         for filename in extract:
             with zip_ref.open(csv_file_templ % filename) as file_:
                 extracted_dfs.append(pd.read_csv(io.TextIOWrapper(file_)))
-    extracted_dfs = rename_cols(extracted_dfs)
     if len(extract) == 1:
         return extracted_dfs[0]
     return extracted_dfs
 
 
 def add_offset(df, chrom_nm, col):
+    """Calculates x-values of the CNV-plot."""
     return df[col] + df[chrom_nm].map(offset)
 
 
 def get_x_mid(df):
+    """Calculates the midpoint x-values of all chromosomes."""
     return df["Chromosome"].map(offset) + (df["Start"] + df["End"]) // 2
 
 
@@ -117,7 +97,7 @@ def cnv_grid(genome):
     """
     # Check if grid exists and return if available.
     if os.path.exists(CNV_GRID):
-        with open(CNV_GRID, "r") as f:
+        with open(CNV_GRID) as f:
             grid = from_json(f.read())
         return grid
 
@@ -159,13 +139,13 @@ def cnv_grid(genome):
 
 def cnv_bins_plot(data_frame, title, labels, genome):
     """Create CNV plot from CNV data.
+
     Args:
         data_frame: DataFrame with columns 'x', 'y', and 'hover_data'
         title: Title of plot
         labels: Touple of labels for x-axis and y-axis.
         genome: Reference Genome.
     """
-    t0 = time.time()
     grid = cnv_grid(genome)
     # Draw horizontal line.
     grid.add_hline(y=0, line_color="black", line_width=1)
@@ -192,6 +172,7 @@ def cnv_bins_plot(data_frame, title, labels, genome):
 
 
 def add_segments(plot, seg_df):
+    """Adds segments calculated by Circular Binary Segmentation (CBG)."""
     seg_lines = [
         go.Scattergl(
             x=[seg["X_start"], seg["X_end"]],
@@ -208,6 +189,12 @@ def add_segments(plot, seg_df):
 
 
 def add_genes(plot, genes):
+    """Add genes to the plot as bars with central crosses.
+
+    Args:
+        plot: The plot to which genes will be added.
+        genes (list): A list of genes to be added to the plot.
+    """
     scatter_genes = go.Scattergl(
         customdata=genes[
             [
@@ -250,6 +237,7 @@ def add_genes(plot, genes):
 
 
 def add_highlited_bins(plot, highlighted_bins):
+    """Changes the color of the specified bins."""
     highlighted_bins_scatter = go.Scattergl(
         x=highlighted_bins.X_mid,
         y=highlighted_bins.Median,
@@ -262,9 +250,24 @@ def add_highlited_bins(plot, highlighted_bins):
 
 
 def find_genes_within_bins(bins, detail):
+    """Determine genes overlapping with each bin and add them as a column.
+
+    Args:
+        bins (DataFrame): DataFrame containing bin information.
+        detail (DataFrame): DataFrame containing gene information.
+
+    Returns:
+        Tuple(DataFrame, DataFrame): A tuple containing the bins DataFrame with
+            assigned genes and the modified detail DataFrame.
+
+    Raises:
+        ValueError: If the 'bins' DataFrame is not sorted.
+    """
     bins["X_start"] = add_offset(bins, "Chromosome", "Start")
     bins["X_end"] = add_offset(bins, "Chromosome", "End")
-    bins = bins.sort_values("X_start")  # TODO del
+    if not bins.X_start.is_monotonic_increasing:
+        # bins = bins.sort_values("X_start")
+        raise ValueError("'bins' is not sorted")
     detail["X_start"] = add_offset(detail, "Chromosome", "Start")
     detail["X_end"] = add_offset(detail, "Chromosome", "End")
     detail["Start_bin"] = np.digitize(detail.X_start, bins.X_start) - 1
@@ -293,8 +296,8 @@ def find_genes_within_bins(bins, detail):
 
 
 def _find_genes_within_bins(bins, detail):
-    """Used for debugging: Does (almost) the same as find_genes_within_bins with
-    much easier code but 20x slower.
+    """Used for debugging: Does (almost) the same as find_genes_within_bins
+    with much easier code but 20x slower.
     """
     bins["X_start"] = add_offset(bins, "Chromosome", "Start")
     bins["X_end"] = add_offset(bins, "Chromosome", "End")
@@ -306,8 +309,8 @@ def _find_genes_within_bins(bins, detail):
             detail.loc[
                 # The the intervals have a nonempty intersection
                 ~(
-                    ((bin_row["X_end"] < detail["X_start"]))
-                    | ((detail["X_end"] < bin_row["X_start"]))
+                    (bin_row["X_end"] < detail["X_start"])
+                    | (detail["X_end"] < bin_row["X_start"])
                 ),
                 "Name",
             ].sort_values()
@@ -317,14 +320,13 @@ def _find_genes_within_bins(bins, detail):
 
 
 def read_cnv_data_from_disk(cnv_dir, sample_id):
+    """Reads the components of a zip-file generated by CNV.write."""
     sample_zip = sample_id + ZIP_ENDING
     bins, detail, segments = get_df_from_zip(
         os.path.join(cnv_dir, sample_zip),
         extract=["bins", "detail", "segments"],
     )
-    # TODO del
-    # bins = probes
-    # Calculate some x-values
+    # Calculate some plot x-values
     bins["X_mid"] = get_x_mid(bins)
     detail["X_mid"] = get_x_mid(detail)
     segments["X_start"] = add_offset(segments, "Chromosome", "Start")
@@ -333,7 +335,23 @@ def read_cnv_data_from_disk(cnv_dir, sample_id):
     return bins, detail, segments
 
 
-def cnv_plot_from_data(sample_id, bins, detail, segments, genes_fix, genes_sel):
+def cnv_plot_from_data(
+    sample_id, bins, detail, segments, genes_fix, genes_sel
+):
+    """Generate a CNV plot from data calculated by the class CNV.
+
+    Args:
+        sample_id (str): The sample ID for the plot.
+        bins (DataFrame): DataFrame containing bin information.
+        detail (DataFrame): DataFrame containing gene information.
+        segments (DataFrame): DataFrame containing segment information.
+        genes_fix (list): List of genes to include in the plot.
+        genes_sel (list): List of genes to include in the plot and highlight
+            all associated bins.
+
+    Returns:
+        Plotly Figure: A Plotly figure representing the CNV plot.
+    """
     # Base scatterplot
     bins, detail = find_genes_within_bins(bins, detail)
     scatter_df = bins[["X_mid", "Median", "Genes"]]
@@ -342,7 +360,7 @@ def cnv_plot_from_data(sample_id, bins, detail, segments, genes_fix, genes_sel):
         data_frame=scatter_df,
         title=f"Sample ID: {sample_id}",
         labels=("", ""),
-        genome=genome,
+        genome=reference_genome,
     )
     # Highlight bins adjacent to the added genes
     genes_sel = genes_sel if genes_sel else []
@@ -357,20 +375,24 @@ def cnv_plot_from_data(sample_id, bins, detail, segments, genes_fix, genes_sel):
     genes_to_plot = genes_fix + genes_sel
     gene_detail = detail[detail["Name"].isin(genes_to_plot)].copy()
     plot = add_genes(plot, gene_detail)
-    # plot = plot.update_layout(
-        # margin=dict(l=0, r=0, t=30, b=0),
-    # )
     return plot
 
 
 class CNVPlot:
     def __init__(self, cnv_dir, cnv_file, genes=IMPORTANT_GENES):
         self.cnv_dir = cnv_dir
+        self.cnv_file = cnv_file
         self.genes_fix = genes
-        # TODO the same as methyl.py
-        init_sample_id = cnv_file.replace(ZIP_ENDING, "")
+        self.app = self.get_app()
+
+    def get_app(self):
+        current_dir = Path(__file__).resolve().parent
+        assets_folder = current_dir.parent / "data" / "assets"
+        app = Dash(__name__, assets_folder=assets_folder)
+        # app._favicon = str(favicon_path)
+        app._favicon = "favicon.svg"
+        app.title = "mepylome"
         fig = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
-        app = Dash(__name__)
         app.layout = html.Div(
             [
                 dcc.Store(id="memory"),
@@ -429,8 +451,13 @@ class CNVPlot:
             )
             return plot, detail.sort_values(by="Name").Name, ""
 
+        return app
+
+    def run_app(self):
+        init_sample_id = self.cnv_file.replace(ZIP_ENDING, "")
+
         def open_browser_tab():
             webbrowser.open_new_tab(f"http://{HOST}:{PORT}/{init_sample_id}")
 
         threading.Timer(1, open_browser_tab).start()
-        app.run(debug=True, host=HOST, use_reloader=False)
+        self.app.run(debug=True, host=HOST, use_reloader=False)

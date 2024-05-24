@@ -1,21 +1,18 @@
 import random
 from multiprocessing import Pool
-from pathlib import Path
 
 import numpy as np
 from nanodip import Reference
 from tqdm import tqdm
 
-from mepylome import ManifestLoader, MethylData, RawData, idat_basepaths
-from pathlib import Path
-
+from mepylome import MethylData, idat_basepaths
 
 IDAT_DIR = "/data/epidip_IDAT"
 IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
 
 INDEX_FILE = "/applications/reference_data/betaEPIC450Kmix_bin/index.csv"
 
-with open(INDEX_FILE, "r") as f:
+with open(INDEX_FILE) as f:
     cpg_index_450k = np.array(f.read().splitlines())
 
 
@@ -34,7 +31,6 @@ random_cpg_sample = random.sample(reference.cpg_sites, NR_CPGS)
 cpg_mask = np.isin(cpg_index_450k, random_cpg_sample)
 
 
-
 def extract_beta(idat_file):
     try:
         methyl = MethylData(file=idat_file)
@@ -44,20 +40,15 @@ def extract_beta(idat_file):
     except ValueError as e:
         return (idat_file, e)
 
+
 with Pool() as pool:
     betas_450k_results = list(
         tqdm(
-            pool.imap(
-                extract_beta, idat_files
-            ),
+            pool.imap(extract_beta, idat_files),
             total=len(idat_files),
         )
     )
 
-valid_betas = [x for x in betas_450k_results if len(x)==NR_CPGS]
+valid_betas = [x for x in betas_450k_results if len(x) == NR_CPGS]
 
 methyl_mtx = np.vstack(valid_betas)
-
-
-
-

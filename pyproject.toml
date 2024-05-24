@@ -5,5 +5,45 @@ requires = [
     "numpy>=1.10.0",
     "pybind11>=2.0",
 ]
-
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle - missing docstring
+    "D",
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # pandas-vet
+    "PD",
+    # Pylint
+    "PL",
+]
+ignore = [
+    # Relax the convention by _not_ requiring documentation for every function parameter.
+    "D417",
+    # Missing docstring in `__init__`
+    "D107",
+    # Missing docstring in public method
+    "D102",
+    # Missing docstring in magic method
+    "D105",
+    # Use `.to_numpy()` instead of `.values`
+    "PD011",
+
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

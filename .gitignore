@@ -172,3 +172,6 @@ Makefile
 _Makefile
 callgrind.out.*
 gmon.out
+
+# Ruff
+.ruff_cache/

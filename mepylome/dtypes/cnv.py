@@ -9,32 +9,20 @@ from pathlib import Path
 import cbseg
 import numpy as np
 import pandas as pd
-import pkg_resources
 import pyranges as pr
 from sklearn.linear_model import LinearRegression
 
-from mepylome.dtypes import (
-    MANIFEST_TMP_DIR,
-    Chromosome,
-    CNVPlot,
-    ArrayType,
-    Manifest,
-    MethylData,
-    ReferenceMethylData,
-    memoize,
-)
-from mepylome.utils import ensure_directory_exists
-
+from mepylome.dtypes.arrays import ArrayType
+from mepylome.dtypes.beads import MethylData, ReferenceMethylData
+from mepylome.dtypes.cache import memoize
+from mepylome.dtypes.chromosome import Chromosome
+from mepylome.dtypes.genetic_data import GAPS, GENES
+from mepylome.dtypes.manifests import MANIFEST_TMP_DIR, Manifest
+from mepylome.dtypes.plots import CNVPlot
+from mepylome.utils.files import ensure_directory_exists
 
 logger = logging.getLogger(__name__)
 
-
-# Data copied from conumee
-GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
-
-# HG19 Gene data downloaded from:
-# https://grch37.ensembl.org/biomart/martview
-GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
 
 UNSET = object()
 ZIP_ENDING = "_cnv.zip"
@@ -95,7 +83,6 @@ class Annotation:
         df.Start -= 1
         self.adjusted_manifest = pr.PyRanges(df)
 
-        # self.adjusted_manifest = self.adjusted_manifest.sort()
         self.probes = self.adjusted_manifest.IlmnID.values
         self.bins = self.make_bins()
         self.bins.bins_index = np.arange(len(self.bins.df))
@@ -130,7 +117,7 @@ class Annotation:
         return annotation
 
     @staticmethod
-    @lru_cache()
+    @lru_cache
     def default_gaps():
         gap_df = pd.read_csv(GAPS)
         # PyRanges ranges start at 0
@@ -139,7 +126,7 @@ class Annotation:
         return gap
 
     @staticmethod
-    @lru_cache()
+    @lru_cache
     def default_detail():
         genes_df = pd.read_csv(GENES, sep="\t")
         # PyRanges ranges start at 0
@@ -238,7 +225,7 @@ class Annotation:
                     row_str = "-".join(row)
                     print(f"Could not merge {row_str}. Removed instead.")
                 continue
-            elif n_probes_right == INVALID or n_probes_left <= n_probes_right:
+            if n_probes_right == INVALID or n_probes_left <= n_probes_right:
                 i_merge = i_left
             else:
                 i_merge = i_right
@@ -275,8 +262,18 @@ class Annotation:
 
 
 @memoize
-def indices(left_arr, right_arr):
+def cached_index(left_arr, right_arr):
+    """Cached index of elements in left_array based on their presence in
+    right_array.
+    """
     return left_arr.get_indexer(right_arr)
+
+
+def pd_loc(pd_df, pd_col):
+    """Cached version of pd_df.loc[pd_col]. Speeds up computation time
+    considerably.
+    """
+    return pd_df.iloc[cached_index(pd_df.index, pd_col.values)]
 
 
 class CNV:
@@ -351,27 +348,19 @@ class CNV:
         )
 
     def fit(self):
-        probes = self.probes.values
-        smp_prob_idx = indices(self.sample.intensity.index, probes)
-        smp_intensity = self.sample.intensity.iloc[smp_prob_idx].values.ravel()
-        idx = self.sample.intensity.iloc[smp_prob_idx].index
-        ref_prob_idx = indices(self.reference.intensity.index, probes)
-        ref_intensity = self.reference.intensity.iloc[
-            ref_prob_idx,
-        ].values
-        # smp_intensity = self.sample.intensity.loc[probes].values.ravel()
-        # idx = self.sample.intensity.loc[probes].index
-        # ref_intensity = self.reference.intensity.loc[
-        # probes,
-        # ].values
+        smp_intensity = pd_loc(
+            self.sample.intensity, self.probes
+        ).values.ravel()
+        idx = pd_loc(self.sample.intensity, self.probes).index
+        ref_intensity = pd_loc(self.reference.intensity, self.probes).values
         correlation = np.array(
             [np.corrcoef(smp_intensity, z)[0, 1] for z in ref_intensity.T]
         )
         if any(correlation >= 0.99):
-            # TODO exclude
             logger.warning(
                 "Query sample found in reference set. Excluded from fitting."
             )
+            ref_intensity = ref_intensity[:, correlation < 0.99]
         X = np.log2(ref_intensity)
         y = np.log2(smp_intensity)
         reg = LinearRegression().fit(X, y)
@@ -386,9 +375,7 @@ class CNV:
 
     def set_bins(self):
         cpg_bins = self.annotation._cpg_bins.copy()
-        idx = indices(self.ratio.index, cpg_bins.IlmnID.values)
-        cpg_bins["ratio"] = self.ratio.iloc[idx].ratio.values
-        # cpg_bins["ratio"] = self.ratio.loc[cpg_bins.IlmnID].ratio.values
+        cpg_bins["ratio"] = pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
         )
@@ -400,8 +387,9 @@ class CNV:
 
     def set_detail(self):
         cpg_detail = self.annotation._cpg_detail.copy()
-        idx = indices(self.ratio.index, cpg_detail.IlmnID.values)
-        cpg_detail["ratio"] = self.ratio.iloc[idx].ratio.values
+        cpg_detail["ratio"] = pd_loc(
+            self.ratio, cpg_detail.IlmnID
+        ).ratio.values
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
         )
@@ -409,10 +397,10 @@ class CNV:
         df["Median"] = np.nan
         df["Var"] = np.nan
         df["N_probes"] = 0
-        idx = indices(df.index, result.index.values)
-        df.iloc[
-            idx, df.columns.get_indexer(["Median", "Var", "N_probes"])
-        ] = result.values
+        idx = cached_index(df.index, result.index.values)
+        df.iloc[idx, df.columns.get_indexer(["Median", "Var", "N_probes"])] = (
+            result.values
+        )
         df["N_probes"] = df["N_probes"].astype(int)
         df = df.reset_index()
         self.detail = pr.PyRanges(df)
@@ -424,8 +412,8 @@ class CNV:
         seg = cbseg.segment(bin_values, shuffles=1000, p=0.001)
         seg_df = pd.DataFrame(
             [
-                [chrom, df.Start.iloc[l.start], df.End.iloc[l.end - 1]]
-                for l in seg
+                [chrom, df.Start.iloc[s.start], df.End.iloc[s.end - 1]]
+                for s in seg
             ],
             columns=["Chromosome", "Start", "End"],
         )
@@ -452,44 +440,6 @@ class CNV:
         )
         self.segments = pr.PyRanges(result)
         self.segments = self.segments.sort()
-
-    def _write(self, file_dir, file_name=None, files="all"):
-        default = {"all", "bins", "detail", "segments", "metadata"}
-        if not isinstance(files, list):
-            files = [files]
-        files = set(files)
-        if "all" in files:
-            files = default
-        invalid = files - default
-        if invalid:
-            raise ValueError(
-                f"Invalid file(s) specified: {invalid}. "
-                f"Valid options are: {default}"
-            )
-        dfs_to_write = []
-        if "bins" in files:
-            dfs_to_write.append(("bins.csv", self.bins.df))
-        if "detail" in files:
-            dfs_to_write.append(("detail.csv", self.detail.df))
-        if "segments" in files:
-            dfs_to_write.append(("segments.csv", self.segments.df))
-        if "metadata" in files:
-            metadata_df = pd.DataFrame(
-                {"Array_type": [str(self.annotation.array_type)]},
-            )
-            dfs_to_write.append(("metadata.csv", metadata_df))
-        file_dir = Path(file_dir).expanduser()
-        if file_name is None:
-            file_name = self.probe + ZIP_ENDING
-        base_path = Path(file_dir).joinpath(file_name)
-        if base_path.suffix == ".zip":
-            base_path = base_path.with_suffix("")
-        with zipfile.ZipFile(base_path.with_suffix(".zip"), "w") as zf:
-            for filename, df in dfs_to_write:
-                csv_path = Path(str(base_path) + "_" + filename)
-                df.to_csv(csv_path, index=False)
-                zf.write(csv_path, arcname=csv_path.name)
-                csv_path.unlink()
 
     def write(self, path, data="all"):
         default = {"all", "bins", "detail", "segments", "metadata"}
@@ -533,10 +483,10 @@ class CNV:
         cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING
-        # self.write(cnv_dir, cnv_file)
         cnv_path = Path(cnv_dir, cnv_file)
         self.write(cnv_path)
-        CNVPlot(cnv_dir, cnv_file)
+        cnv_plot = CNVPlot(cnv_dir, cnv_file)
+        cnv_plot.run_app()
 
     def __repr__(self):
         title = "CNV():"

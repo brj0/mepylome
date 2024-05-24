@@ -1,47 +1,50 @@
+"""Module for handling Illumina array manifest files.
+
+This module provides functionality for reading and processing Illumina array
+manifest files, which contain information about probes and their
+characteristics.
+
+Usage:
+
+    manifest = Manifest("450k")
+    print(manifest)
+    manifest = Manifest(ArrayType.ILLUMINA_EPIC)
+    type_1 = manifest.probe_info(ProbeType.ONE)
+    Manifest.load() # Downloads all human manifests when first used
+"""
+
 import logging
-import pickle
+import tempfile
 from pathlib import Path
-from urllib.parse import urljoin
 
 import numpy as np
 import pandas as pd
 import pyranges as pr
 
-from mepylome.dtypes import (
-    ArrayType,
-    Channel,
-    Chromosome,
-    InfiniumDesignType,
-    ProbeType,
-    memoize,
-)
-from mepylome.utils import (
+from mepylome.dtypes.arrays import ArrayType
+from mepylome.dtypes.cache import memoize
+from mepylome.dtypes.chromosome import Chromosome
+from mepylome.dtypes.probes import Channel, InfiniumDesignType, ProbeType
+from mepylome.utils.files import (
     download_file,
     ensure_directory_exists,
-    get_file_from_archive,
-    get_file_object,
+    get_csv_file,
     reset_file,
 )
 
 __all__ = ["Manifest"]
 
 
-NONE = -1
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
-MANIFEST_DIR = f"~/.mepylome/manifest_files"
-MANIFEST_TMP_DIR = f"/tmp/mepylome"
+
+MANIFEST_DIR = Path.home() / ".mepylome" / "manifest_files"
+MANIFEST_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
+
 ENDING_CONTROL_PROBES = "_control-probes"
+NONE = -1
 
-
-REMOTE_FILENAME = {
-    ArrayType.ILLUMINA_450K: "humanmethylation450_15017482_v1-2.csv.gz",
-    ArrayType.ILLUMINA_EPIC: "infinium-methylationepic-v-1-0-b5-manifest-file.csv.gz",
-    ArrayType.ILLUMINA_EPIC_V2: "EPIC-8v2-0_A1.csv.gz",
-    ArrayType.ILLUMINA_MOUSE: "MouseMethylation-12v1-0_A2.csv.gz",
-}
-
-SOURCE_URL = {
+MANIFEST_URL = {
     ArrayType.ILLUMINA_450K: (
         "https://webdata.illumina.com/downloads/productfiles/humanmethylation450/humanmethylation450_15017482_v1-2.csv"
     ),
@@ -54,6 +57,13 @@ SOURCE_URL = {
     ArrayType.ILLUMINA_MOUSE: (
         "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip"
     ),
+}
+
+REMOTE_FILENAME = {
+    ArrayType.ILLUMINA_450K: "humanmethylation450_15017482_v1-2.csv",
+    ArrayType.ILLUMINA_EPIC: "infinium-methylationepic-v-1-0-b5-manifest-file.csv",
+    ArrayType.ILLUMINA_EPIC_V2: "EPIC-8v2-0_A1.csv",
+    ArrayType.ILLUMINA_MOUSE: "MouseMethylation-12v1-0_A2.csv",
 }
 
 LOCAL_FILENAME = {
@@ -85,46 +95,53 @@ CONTROL_COLUMNS = (
     "Extended_Type",
 )
 
+
 def get_key(array_type, filepath):
+    """Returns a hash key for memoization."""
     return (str(array_type), str(filepath))
 
 
 class _Manifest:
     """Provides an object interface to an Illumina array manifest file.
 
-    Arguments:
-        array_type {ArrayType} -- The type of array to process.
-        values are styled like ArrayType.ILLUMINA_27K, ArrayType.ILLUMINA_EPIC
-        or ArrayType('epic'), ArrayType('mouse')
+    This class provides functionality for reading and processing Illumina array
+    manifest files. If the manifest is used for the first time, the data is
+    automatically downloaded, transformed, and saved locally, which may take
+    some time.
 
-    Keyword Arguments:
-        filepath {file-like} -- a pre-existing manifest filepath
-        (default: {None})
+    Args:
+        array_type (str or ArrayType): The type of array to process. Use either
+            ArrayType (ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC,
+            ArrayType.ILLUMINA_EPIC_V2) or corresponding string ('450k',
+            'epic', 'epicv2')
 
-    Raises:
-        ValueError: The sample sheet is not formatted properly or a sample
-        cannot be found.
+        filepath (str or Path): A pre-existing manifest filepath (default:
+            None)
+
+        verbose: If True, enables verbose output. (default: True)
     """
+
+    # Alternative caching
     # _cache = {}
 
     # def __new__(
-        # cls,
-        # array_type,
-        # filepath=None,
-        # verbose=True,
+    # cls,
+    # array_type,
+    # filepath=None,
+    # verbose=True,
     # ):
-        # cache_key = get_key(array_type, filepath)
-        # if cache_key in cls._cache:
-            # return cls._cache[cache_key]
-        # instance = super().__new__(cls)
-        # # Cache the instance
-        # cls._cache[cache_key] = instance
-        # print("---MANIFEST CACHED", cache_key)
-        # return instance
+    # cache_key = get_key(array_type, filepath)
+    # if cache_key in cls._cache:
+    # return cls._cache[cache_key]
+    # instance = super().__new__(cls)
+    # # Cache the instance
+    # cls._cache[cache_key] = instance
+    # print("---MANIFEST CACHED", cache_key)
+    # return instance
 
     # def __getnewargs__(self):
-        # """ Necessary for pickle"""
-        # return self.array_type, self.filepath, self.verbose
+    # # Necessary for pickle
+    # return self.array_type, self.filepath, self.verbose
 
     def __init__(
         self,
@@ -132,8 +149,9 @@ class _Manifest:
         filepath=None,
         verbose=True,
     ):
+        # Alternative caching
         # if hasattr(self, 'cache_key'):
-            # return
+        # return
         # self.cache_key = get_key(array_type, filepath)
         if isinstance(array_type, str):
             array_type = ArrayType(array_type)
@@ -148,7 +166,7 @@ class _Manifest:
                 control_filepath,
             ) = self.get_processed_manifest(array_type)
         else:
-            control_filepath = self.get_control_path(self.filepath)
+            control_filepath = self.get_control_path(Path(self.filepath))
 
         self.__data_frame = self.read_probes(self.filepath)
         self.__control_data_frame = self.read_control_probes(control_filepath)
@@ -156,6 +174,7 @@ class _Manifest:
         self.__methyl_probes = self.get_methyl_probes()
 
     def get_methyl_probes(self):
+        """Returns all type I and II probes."""
         type_1 = self.probe_info(ProbeType.ONE)
         type_2 = self.probe_info(ProbeType.TWO)
         locus_names = np.sort(
@@ -178,33 +197,35 @@ class _Manifest:
         ]
         return "\n\n".join(lines)
 
-    # def __getstate__(self):
-        # state = self.__dict__.copy()
-        # return state
-
-    # def __setstate__(self, state):
-        # self.__dict__.update(state)
-
     @staticmethod
-    def load(
-        array_types=[
-            ArrayType.ILLUMINA_450K,
-            ArrayType.ILLUMINA_EPIC,
-            ArrayType.ILLUMINA_EPIC_V2,
-        ]
-    ):
+    def load(array_types=None):
+        """Loads all manifests of the specified types into memory."""
+        if array_types is None:
+            array_types = [
+                ArrayType.ILLUMINA_450K,
+                ArrayType.ILLUMINA_EPIC,
+                ArrayType.ILLUMINA_EPIC_V2,
+            ]
+        if not isinstance(array_types, list):
+            array_types = [array_types]
         for array_type in array_types:
+            # Must use Manifest not _Manifest
             _ = Manifest(array_type)
 
     @property
     def data_frame(self):
+        """Pandas data frame of all manifest probes."""
         return self.__data_frame
 
     @property
     def control_data_frame(self):
+        """Pandas data frame of all manifest control probes."""
         return self.__control_data_frame
 
     def control_address(self, control_type=None):
+        """Returns address IDs of all control probes with the specified
+        type.
+        """
         if control_type is None:
             return self.__control_data_frame.Address_ID
         # Ensure control_type is a list-like object
@@ -217,40 +238,44 @@ class _Manifest:
 
     @property
     def snp_data_frame(self):
+        """SNP probes from the manifest data frame."""
         return self.__snp_data_frame
 
     @property
     def methylation_probes(self):
+        """All type I and II probes."""
         return self.__methyl_probes
 
     @staticmethod
     def get_processed_manifest(array_type):
-        """Downloads the appropriate manifest file if one does not already exist.
+        """Downloads the appropriate manifest file if one does not already
+        exist and returns paths to probes and control probes.
 
         Args:
-            array_type (ArrayType): The type of array to process.
+            array_type: The type of array to process.
 
         Returns:
-            tuple of PurePath: Paths to the manifest file and its control file.
+            tuple of paths: Local paths to the manifest file and its control
+                file.
         """
         local_filename = LOCAL_FILENAME[array_type]
         local_filepath = Path(MANIFEST_DIR, local_filename).expanduser()
-        control_filepath = Manifest.get_control_path(local_filepath)
+        control_filepath = _Manifest.get_control_path(local_filepath)
 
         if local_filepath.exists() and control_filepath.exists():
             return local_filepath, control_filepath
 
         download_dir = Path(MANIFEST_TMP_DIR).expanduser()
 
-        source_url = SOURCE_URL[array_type]
+        source_url = MANIFEST_URL[array_type]
         source_filename = Path(source_url).name
-        LOGGER.info(f"Downloading manifest: {source_filename}")
-        download_file(source_filename, source_url, download_dir)
+        logger.info("Downloading manifest: %s", source_filename)
+        download_file(source_url, Path(download_dir, source_filename))
 
         downloaded_filepath = Path(download_dir, source_filename).expanduser()
         # Remove the .gz suffix
-        remote_filename = REMOTE_FILENAME[array_type].replace(".gz", "")
-        Manifest.process_manifest(
+        remote_filename = REMOTE_FILENAME[array_type]
+        _Manifest.process_manifest(
             filepath=downloaded_filepath,
             manifest_name=remote_filename,
             dest_probes=local_filepath,
@@ -265,13 +290,18 @@ class _Manifest:
 
     @staticmethod
     def get_control_path(probes_path):
+        """Converts probes path to the control probes path for locally saved
+        control probes.
+        """
         split_filename = probes_path.name.split(".")
         split_filename[0] += ENDING_CONTROL_PROBES
         return Path(probes_path.parent, ".".join(split_filename))
 
     @staticmethod
     def process_probes(data_frame):
-        # TODO Chromosomes not consistent
+        """Transforms probes from the original manifest file to a more
+        efficient internal format.
+        """
         data_frame.rename(
             columns={
                 "MAPINFO": "Start",
@@ -291,7 +321,6 @@ class _Manifest:
         )
         data_frame["Infinium_Design_Type"] = data_frame[
             "Infinium_Design_Type"
-            # TODO drop Infinium_Design_Type
         ].replace({"I": InfiniumDesignType.I, "II": InfiniumDesignType.II})
         data_frame["TypeI_N_CpG"] = np.maximum(
             0, data_frame["AlleleB_ProbeSeq"].fillna("").str.count("CG") - 1
@@ -335,10 +364,8 @@ class _Manifest:
         )
 
         def get_probe_type(name, infinium_type):
-            """returns one of (I, II, SnpI, SnpII, Control)
-            .from_manifest_values() returns probe type using either the
-            Infinium_Design_Type (I or II) or the name
-            (starts with 'rs' == SnpI) and 'Control' is none of the above.
+            """Determines the probe type (I, II, SnpI, SnpII or Control)
+            from IlmnID and Infinium_Design_Type.
             """
             probe_type = ProbeType.from_manifest_values(name, infinium_type)
             return probe_type.value
@@ -348,16 +375,28 @@ class _Manifest:
             data_frame.IlmnID.values,
             data_frame["Infinium_Design_Type"].values,
         )
+        # TODO drop Infinium_Design_Type
         probes_ranges = pr.PyRanges(data_frame).sort()
         return probes_ranges.df
 
     @staticmethod
     def process_manifest(filepath, manifest_name, dest_probes, dest_control):
+        """Processes the manifest file and saves the processed probes and
+        controls.
+
+        Args:
+            filepath (Path): Path to the archived manifest file.
+            manifest_name (str): Name of the manifest file inside the archive.
+            dest_probes (Path): Local destination path to save the processed
+                probes.
+            dest_control (Path): Local destination path to save the processed
+                control probes.
+        """
         ensure_directory_exists(dest_probes)
         ensure_directory_exists(dest_control)
-        with get_file_from_archive(filepath, manifest_name) as manifest_file:
+        with get_csv_file(filepath, manifest_name) as manifest_file:
             # Process probes
-            Manifest.seek_to_start(manifest_file)
+            _Manifest.seek_to_start(manifest_file)
             probes_df = pd.read_csv(
                 manifest_file,
                 low_memory=False,
@@ -365,10 +404,10 @@ class _Manifest:
             )
             n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
             probes_df = probes_df[:n_probes]
-            probes_df = Manifest.process_probes(probes_df)
+            probes_df = _Manifest.process_probes(probes_df)
             probes_df.to_csv(dest_probes, index=False)
             # Process controls
-            Manifest.seek_to_start(manifest_file)
+            _Manifest.seek_to_start(manifest_file)
             controls_df = pd.read_csv(
                 manifest_file,
                 header=None,
@@ -384,8 +423,9 @@ class _Manifest:
 
     @staticmethod
     def seek_to_start(manifest_file):
-        """find the start of the data part of the manifest. first left-most
-        column must be "IlmnID" to be found.
+        """Move the file pointer to the start of the data section in the
+        manifest file. The function searches for the first occurrence of the
+        left-most column named "IlmnID".
         """
         reset_file(manifest_file)
 
@@ -394,7 +434,7 @@ class _Manifest:
 
         while not header_line.startswith(b"IlmnID"):
             current_pos = manifest_file.tell()
-            if not header_line:  # EOF
+            if not header_line:
                 raise EOFError(
                     "The first (left-most) column in your manifest must "
                     "contain 'IlmnID'. This defines the header row."
@@ -407,10 +447,10 @@ class _Manifest:
             manifest_file.seek(current_pos - 1)
 
     def read_probes(self, probes_file):
-        # TODO better do this before saving gz
+        """Reads and returns probes from local file {probes_file}."""
         if self.verbose:
-            LOGGER.info(
-                f"Reading manifest file: {Path(probes_file.name).stem}"
+            logger.info(
+                "Reading manifest file: %s", Path(probes_file.name).stem
             )
 
         data_frame = pd.read_csv(
@@ -421,19 +461,14 @@ class _Manifest:
         data_frame.drop_duplicates(
             subset=["IlmnID"], keep="first", inplace=True
         )
-        # data_frame.index.name = "_IlmnID"
         data_frame.reset_index(inplace=True, drop=True)
         return data_frame
 
     def read_control_probes(self, control_file):
-        """Unlike other probes, control probes have no IlmnID because they're
-        not locus-specific.  they also use arbitrary columns, ignoring the
-        header at start of manifest file.
-        """
+        """Reads and returns control probes from local file {control_file}."""
         data_frame = pd.read_csv(
             control_file,
             dtype=self.get_data_types(),
-            # index_col=0,
         )
         # Use int32 instead of int64 to improve performance of indexing
         data_frame["Address_ID"] = (
@@ -442,15 +477,13 @@ class _Manifest:
         return data_frame
 
     def read_snp_probes(self):
-        """Unlike cpg and control probes, these rs probes are NOT sequential in
-        all arrays.
-        """
+        """Extracts SNP probes from the manifest data frame."""
         snp_df = self.data_frame.copy()
-        # TODO use int
         snp_df = snp_df[snp_df.IlmnID.str.match("rs", na=False)]
         return snp_df
 
     def get_data_types(self):
+        """Returns data types for the manifest columns."""
         return {
             "IlmnID": np.dtype(object),
             "AddressA_ID": np.int32,
@@ -463,20 +496,31 @@ class _Manifest:
             "TypeII_N_CpG": np.int8,
             "N_CpG": np.int8,
             "End": np.int32,
-            "Probe_Type": np.int8
+            "Probe_Type": np.int8,
         }
 
     def probe_info(self, probe_type, channel=None):
-        """used by infer_channel_switch. Given a probe type (I, II, SnpI,
-        SnpII, Control) and a channel (Channel.RED | Channel.GRN), this will
-        return info needed to map probes to their names (e.g. cg0031313 or
-        rs00542420), which are NOT in the idat files.
+        """Retrieves information about probes of a specified type and channel.
+
+        Args:
+            probe_type (ProbeType): The type of probe (I, II, SnpI, SnpII,
+                Control).
+            channel (Channel, optional): The color channel (RED or GRN).
+                Defaults to None.
+
+        Returns:
+            DataFrame: DataFrame containing information about the specified
+                probes.
+
+        Raises:
+            ValueError: If probe_type is not a valid ProbeType or if channel is
+            not a valid Channel.
         """
         if not isinstance(probe_type, ProbeType):
-            raise Exception("probe_type is not a valid ProbeType")
+            raise ValueError("probe_type is not a valid ProbeType")
 
         if channel and not isinstance(channel, Channel):
-            raise Exception("channel not a valid Channel")
+            raise ValueError("channel not a valid Channel")
 
         data_frame = self.data_frame
         probe_type_mask = data_frame["Probe_Type"].values == probe_type.value
@@ -487,40 +531,8 @@ class _Manifest:
         channel_mask = data_frame["Color_Channel"].values == channel.value
         return data_frame[probe_type_mask & channel_mask]
 
-    def _probe_info(self, probe_types, channel=None):
-        """Retrieve probe information based on probe types and channel."""
-        data_frame = self.data_frame
-        if isinstance(probe_types, ProbeType):
-            probe_type_mask = (
-                data_frame["Probe_Type"].values == probe_types.value
-            )
 
-        else:
-            if not isinstance(probe_types, list):
-                raise ValueError(
-                    "probe_types must be a ProbeType or a list of ProbeType"
-                )
-            if not all(
-                isinstance(probe_type, ProbeType) for probe_type in probe_types
-            ):
-                raise ValueError(f"{probe_type} is not a valid ProbeType")
-
-            probe_type_values = np.array(
-                [probe_type.value for probe_type in probe_types]
-            )
-            probe_type_mask = np.isin(
-                data_frame["Probe_Type"].values, probe_type_values
-            )
-
-        if channel and not isinstance(channel, Channel):
-            raise ValueError("channel not a valid Channel")
-
-        if channel is None:
-            return data_frame[probe_type_mask]
-
-        channel_mask = data_frame["Color_Channel"].values == channel.value
-        return data_frame[probe_type_mask & channel_mask]
-
-
-# When using decorator, pickle wont work
+# Memoized version of the _Manifest class, enabling efficient caching of class
+# instances. Directly utilizing memoize instead of as a decorator preserves the
+# class's pickling capability.
 Manifest = memoize(_Manifest)

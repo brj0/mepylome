@@ -1,5 +1,4 @@
-"""
-Processes all new IDAT files and generate beta values compatible with the 450k
+"""Processes all new IDAT files and generate beta values compatible with the 450k
 array.
 
 Author: Jon Brugger
@@ -70,7 +69,7 @@ def write_error_file(filepath, error):
 def process_idat_file(idat_basepath):
     filepath = result_filepath(idat_basepath)
     if Path(filepath).exists():
-        if BETA_BIN_FILE_SIZE == Path(filepath).stat().st_size:
+        if Path(filepath).stat().st_size == BETA_BIN_FILE_SIZE:
             logger.info("Betas allready caluclated: " + filepath.name)
             return
         else:
@@ -89,7 +88,7 @@ def process_idat_file_safe(idat_basepath):
         write_error_file(idat_basepath, error=e)
 
 
-with open(INDEX_FILE, "r") as f:
+with open(INDEX_FILE) as f:
     cpg_index_450k = np.array(f.read().splitlines())
 
 

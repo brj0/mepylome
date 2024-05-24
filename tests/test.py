@@ -1,21 +1,21 @@
 import gzip
-import logging
-import pickle
 import inspect
+import logging
 import os
 import pickle
 import re
 import time
 import timeit
 import warnings
-from functools import reduce
+from functools import reduce, wraps
 from pathlib import Path
 from urllib.parse import urljoin
 
 import cbseg
+import dash
+import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
-from functools import wraps
 import pkg_resources
 import pyranges as pr
 import scipy.stats as stats
@@ -29,35 +29,34 @@ from cbseg import (
 from scipy.stats import rankdata
 from sklearn.linear_model import LinearRegression
 
-import mepylome
 
-# TODO too long for import
-from mepylome.dtypes import (
+from mepylome import (
     CNV,
     Annotation,
-    Chromosome,
-    memoize,
+    MethylAnalysis,
     ArrayType,
-    ReferenceMethylData,
     Channel,
-    Manifest,
+    Chromosome,
+    CNVPlot,
     IdatParser,
+    Manifest,
     MethylData,
     ProbeType,
-    CNVPlot,
     RawData,
+    ReferenceMethylData,
     cache,
+    memoize,
 )
 from mepylome.utils import (
-    download_file,
-    Timer,
-    ensure_directory_exists,
-    get_file_from_archive,
     get_file_object,
     reset_file,
+    get_csv_file,
+    ensure_directory_exists,
+    download_file,
+    Timer,
 )
-from mepylome.analysis import MethylAnalysis
 
+logger = logging.getLogger(__name__)
 
 # from methylprep.files.idat import IdatDataset
 # from methylprep.models.probes import Channel
@@ -191,7 +190,14 @@ cnv.write(Path(file_dir, "py_cnv"))
 timer.stop("zip write")
 
 
-# quit()
+IDAT_DIR = "/data/epidip_IDAT"
+IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
+reference_dir = "/data/ref_IDAT"
+self = MethylAnalysis(analysis_dir=IDAT_DIR, reference_dir=reference_dir)
+self.run_app()
+
+
+quit()
 
 timer.start()
 # r = RawData(smp7)
@@ -210,7 +216,7 @@ timer.stop("3")
 
 
 cn = CNV(m, ref_methyl, annotation)
-timer.stop("2")
+imer.stop("2")
 cn.fit()
 timer.stop("3")
 
@@ -258,7 +264,6 @@ with open(filepath, "rb") as f:
 timer.stop("pickel")
 
 
-from nanodip.config import BETA_VALUES
 
 OUTPUT_DIR = "/data/epidip_CpGs_mepylome/"
 ENDING_BETAS = "_betas_filtered.bin"
@@ -290,22 +295,6 @@ grn_idat_files = [
 # self = MethylData(raw, prep="raw")
 
 
-timer.start()
-for _ in range(100):
-    z = manifest.probe_info(ProbeType.ONE)
-
-timer.stop("1")
-
-timer.start()
-for _ in range(100):
-    z1 = manifest._probe_info([ProbeType.ONE])
-
-timer.stop("1")
-
-np.all(z1.values == z.values)
-
-
-raw = RawData([ref0, ref1])
 
 timer.start()
 self = MethylData(raw, prep="noob")
@@ -319,24 +308,6 @@ timer.start()
 self = MethylData(sample_raw, prep="swan")
 timer.stop("*")
 
-cnv.plot()
-
-import dash
-import dash_bootstrap_components as dbc
-
-app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
-
-app.layout = dbc.Alert("Hello, Bootstrap!", className="m-5")
-
-app.run_server()
-
-
-smp0 = "/data/epidip_IDAT/6042324058_R03C02_Grn.idat"
-filepath_or_buffer = smp0
-idat_file = get_file_object(filepath_or_buffer)
-
-timer = Timer()
-
 
 timer.start()
 idat_data = mepylome._IdatParser(smp0)
@@ -346,148 +317,44 @@ timer.start()
 py_idat_data = IdatParser(smp0, intensity_only=False)
 timer.stop("Parsing Python")
 
-with np.printoptions(edgeitems=2):
-    x = f"{py_idat_data.illumina_ids}"
-    y = f"{py_idat_data.illumina_ids.__repr__()}"
-    z = f"{repr(py_idat_data.illumina_ids)}"
 
 
-class X:
-    def __init__(self, a):
-        self.val = a
-
-
-x = X(0)
-
-
-def change_x():
-    # global x
-    x.val = 10
-
-
-print(x.val)
-change_x()
-print(x.val)
-
-
-self = ReferenceMethylData(files=all_ref_dir, prep="swan")
-
-f = "/data/ref_IDAT/CNVrefidat_EPICv2/206909630108_R04C01"
-f = "/data/ref_IDAT/CNVrefidat_EPICv2/206909630108_R06C01"
-f = "/data/ref_IDAT/CNVrefidat_EPICv2/206909630108_R05C01"
-f = "/data/ref_IDAT/CNVrefidat_EPICv2/206909630108_R07C01"
-
-data = RawData(f)
-file = None
-prep = "swan"
-self = MethylData(data, prep=prep)
-
-
-# TODO EPIVv2 Chromosomes are different in csv! make Chromosome datatype?
-
-
-timer.start()
-X = Chromosome.pd_from_string(probes_df["CHR"])
-timer.stop("1")
-
-timer.start()
-X_ = Chromosome.pd_to_string(X)
-timer.stop("1")
-
-
-
-files= [
-    smp0,
-    smp1,
-    smp2,
-    smp3,
-    smp4,
-    smp5,
-    smp6,
-    smp7,
-    smp8,
-    ref0,
-    ref1,
-    ref2,
-    ref3,
-    ref4,
-]
-timer.start()
-for f in files:
-    x = MethylData(file=f)
-    print(x.array_type)
-    betas = x.converted_beta(cpgs=None, fill=0.49)
-    print("\n\n\n")
-
-timer.stop("END")
-
-
-
-def np_hash(array):
-    # if array.dtype != np.dtype("<U16"):
-    if array.dtype != np.dtype(object):
-        return array.tobytes()
-    else:
-        N = len(array)
-        L = 57
-        idx_left = [i * N // L for i in range(L)] + [-1]
-        key = (
-            tuple(array[x] for x in idx_left),
-            N,
-        )
-        return key
-
-def cache_key(arg):
-    type_map = {
-        "ArrayType": str,
-        "Manifest": lambda x: x.array_type,
-        "PosixPath": str,
-        "bool": str,
-        "int": str,
-        "str": str,
-        "RangeIndex": lambda x: x.values.tobytes(),
-        "ndarray": np_hash,
-    }
-    arg_type = arg.__class__.__name__ if hasattr(arg, "__class__") else None
-    return type_map.get(arg_type, id)(arg)
-
-x=manifest.data_frame.IlmnID.values
-x=manifest.data_frame.IlmnID.values.astype("<U16")
-x=manifest.data_frame.index.values
-
-timer.start()
-X=cache_key(x)
-timer.stop()
-array=x
-
-
-import pickle
-import sys
-path=Path("~/Desktop/mani.pkl").expanduser()
-m=Manifest("450k")
-m=Manifest("450k")
-# MyManifest = memoize(Manifest)
-# m=MyManifest("450k")
-with open(path, 'wb') as f:
-    pickle.dump(m,f)
-
-
-with open(path, 'rb') as f:
-    y = pickle.load(f)
-
-
-
-m.__class__#points to a class object with
-m.__qualname__ #set to 'Manifest' and 
-m.__module__# set to '__main__', but
-sys.modules['__main__'].Manifest
+m = MethylData(file=[smp0])
+r = MethylData(file=[smp0, smp1, smp2, smp3, smp4])
+r = MethylData(file=[smp1, smp2, smp3, smp4])
+self = CNV.set_all(m, r)
+self.fit()
 
 
 
 
-IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
-IDAT_DIR = "/data/epidip_IDAT"
-reference_dir = "/data/ref_IDAT"
-self = MethylAnalysis(analysis_dir=IDAT_DIR, reference_dir=reference_dir)
-self.run_app()
+from dash import Dash, dcc, html, Input, Output, State, callback
+import time
 
+app = Dash(__name__)
+
+app.layout = html.Div([
+    html.Div(dcc.Input(id='input-on-submit-text', type='text')),
+    html.Button('Submit', id='submit-button', n_clicks=0),
+    html.Div(id='container-output-text',
+             children='Enter a value and press submit')
+])
+
+
+@callback(
+    Output('container-output-text', 'children'),
+    Input('submit-button', 'n_clicks'),
+    State('input-on-submit-text', 'value'),
+    prevent_initial_call=True,
+    running=[(Output("submit-button", "disabled"), True, False)]
+)
+def update_output(n_clicks, value):
+    time.sleep(5)
+    return 'The input value was "{}" and the button has been clicked {} times'.format(
+        value,
+        n_clicks
+    )
+
+
+HOST = "localhost"
+app.run(debug=True, host=HOST, use_reloader=False)

@@ -7,15 +7,12 @@ import pandas as pd
 from scipy.stats import rankdata
 from tqdm import tqdm
 
-from mepylome.dtypes import (
-    ArrayType,
-    Channel,
-    IdatParser,
-    Manifest,
-    ProbeType,
-    memoize,
-)
-from mepylome.utils import normexp_get_xs
+from mepylome.dtypes.arrays import ArrayType
+from mepylome.dtypes.cache import memoize
+from mepylome.dtypes.idat import IdatParser
+from mepylome.dtypes.manifests import Manifest
+from mepylome.dtypes.probes import Channel, ProbeType
+from mepylome.utils.varia import normexp_get_xs
 
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
@@ -175,7 +172,8 @@ class MethylData:
             raise ValueError("'data' or 'file' must be given.")
         if data is None:
             data = RawData(file)
-        # TODO remove _grn and _red
+        elif not isinstance(data, RawData):
+            raise ValueError("'data' is not of type 'RawData'.")
         self._grn = data._grn
         self._red = data._red
         self.array_type = data.array_type
@@ -550,6 +548,8 @@ class MethylData:
 
         methyl[:, ci["idx_2______"]] = xs_grn["xs"][:, slice_grn_2]
         unmethyl[:, ci["idx_2______"]] = xs_red["xs"][:, slice_red_2]
+
+        # Dye correction
 
         cci = MethylData.cached_control_indices(self.manifest, self.ids)
 

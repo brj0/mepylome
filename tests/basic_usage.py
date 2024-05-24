@@ -1,7 +1,4 @@
-"""
-Basic usage of the package
-"""
-
+"""Basic usage of the package"""
 
 import pandas as pd
 import pkg_resources
@@ -15,8 +12,6 @@ from mepylome import (
     MethylData,
     RawData,
 )
-
-
 
 # 0) Genetic data
 
@@ -37,7 +32,6 @@ genes = pr.PyRanges(pd.read_csv(GENES, sep="\t"))
 genes.Start -= 1
 
 
-
 # 1) IDAT files
 
 # Idat file
@@ -52,12 +46,10 @@ reference1 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01"
 reference_dir = "/data/ref_IDAT/cnvrefidat_450k"
 
 
-
 # 2) Parsing IDAT
 
 # The idat file must contain the full path with _Red.idat/_Grn.idat ending
 idat_data = IdatParser(sample)
-
 
 
 # 3) Manifest data
@@ -65,7 +57,6 @@ idat_data = IdatParser(sample)
 manifest = ManifestLoader.get_manifest("450k")
 # manifest = ManifestLoader.get_manifest("epic")
 # manifest = ManifestLoader.get_manifest("epicv2")
-
 
 
 # 4) The raw methylation data
@@ -79,21 +70,17 @@ raw_reference = RawData([reference0, reference1])
 raw_sample = RawData(sample)
 
 
-
 # 5) The preprocessed methylation data
 ref_methyl_data = MethylData(raw_reference)
 sample_methyl = MethylData(raw_sample)
-
 
 
 # 6) Beta value
 beta = sample_methyl.beta
 
 
-
 # 7) Annotation object
 annotation = Annotation(manifest, gap=gap, detail=genes)
-
 
 
 # 8) CNV

@@ -1,8 +1,19 @@
+"""Contains auxiliary functions and a debug timer.
+
+Usage:
+    timer = Timer()
+    timer.start()
+    # process to be measured
+    timer.stop("process_name")
+"""
+
 import time
-from scipy.stats import norm
+
 import numpy as np
+from scipy.stats import norm
 
 __all__ = ["Timer", "normexp_get_xs"]
+
 
 class Timer:
     """Measures the time elapsed in milliseconds."""
@@ -23,8 +34,34 @@ class Timer:
         return delta_time
 
 
-
 def huber(y, k=1.5, tol=1.0e-6):
+    """Compute Huber's M-estimator of location with MAD scale.
+
+    Code adapted from
+    https://github.com/cran/MASS/blob/master/R/huber.R
+
+    Args:
+        y (array-like): Vector of data values.
+        k (float, optional): Winsorizes at `k` standard deviations. Default is
+            1.5.
+        tol (float, optional): Convergence tolerance. Default is 1.0e-6.
+
+    Returns:
+        tuple: A tuple containing:
+            - mu (float): Location estimate (mean).
+            - s (float): MAD scale estimate (standard deviation).
+
+    Raises:
+        ValueError: If the scale (MAD) is zero for the given sample.
+
+    References:
+        Huber, P. J. (1981). _Robust Statistics._ Wiley.
+        Venables, W. N. and Ripley, B. D. (2002). _Modern Applied Statistics
+            with S._ Fourth edition. Springer.
+
+    Examples:
+        >>> huber(chem)
+    """
     y = y[~np.isnan(y)]
     mu = np.median(y)
     s = np.median(np.abs(y - mu)) * 1.4826
@@ -40,6 +77,44 @@ def huber(y, k=1.5, tol=1.0e-6):
 
 
 def normexp_signal(par, x):
+    """Expected Signal Given Observed Foreground Under Normal+Exp Model.
+
+    Adjust foreground intensities for observed background using Normal+Exp
+    Model.
+
+    Code adapted from:
+    https://github.com/gangwug/limma/blob/master/R/background-normexp.R
+
+    Args:
+        par (array-like): Numeric vector containing the parameters of the
+            Normal+Exp distribution.
+                - par[0]: mu
+                - par[1]: log sigma
+                - par[2]: log alpha
+        x (array-like): Numeric vector of (background corrected) intensities.
+
+    Returns:
+        array-like: Numeric vector containing adjusted intensities.
+
+    Raises:
+        ValueError: If alpha or sigma are non-positive.
+
+    References:
+        Ritchie, M. E., Silver, J., Oshlack, A., Silver, J., Holmes, M.,
+        Diyagama, D., Holloway, A., and Smyth, G. K. (2007). A comparison of
+        background correction methods for two-colour microarrays.
+        _Bioinformatics_ 23, 2700-2707.
+        <http://bioinformatics.oxfordjournals.org/content/23/20/2700>
+
+        Silver, JD, Ritchie, ME, and Smyth, GK (2009). Microarray background
+        correction: maximum likelihood estimation for the normal-exponential
+        convolution. _Biostatistics_ 10, 352-363.
+        <http://biostatistics.oxfordjournals.org/content/10/2/352>
+
+    Examples:
+        >>> normexp_signal([1, np.log(2), np.log(3)], 4)
+        2.3735035872302235
+    """
     mu = par[0]
     sigma = np.exp(par[1])
     sigma2 = sigma * sigma
@@ -64,15 +139,20 @@ def normexp_signal(par, x):
 
 
 def normexp_get_xs(xf, controls=None, offset=50, param=None):
+    """Used in NOOB.
+
+    Adapted from
+    https://github.com/hansenlab/minfi/blob/devel/R/preprocessNoob.R
+    """
     n_probes = xf.shape[0]
     if param is None:
         if controls is None:
-            ValueError("'controls' or 'param' must be given")
+            raise ValueError("'controls' or 'param' must be given")
         alpha = np.empty(n_probes)
         mu = np.empty(n_probes)
         sigma = np.empty(n_probes)
         for i in range(n_probes):
-            mu[i], sigma[i] = huber(controls[i,:])
+            mu[i], sigma[i] = huber(controls[i, :])
             alpha[i] = max(huber(xf[i, :])[0] - mu[i], 10)
         param = np.column_stack((mu, np.log(sigma), np.log(alpha)))
     result = np.empty(xf.shape)
@@ -82,4 +162,3 @@ def normexp_get_xs(xf, controls=None, offset=50, param=None):
         "xs": result + offset,
         "param": param,
     }
-
