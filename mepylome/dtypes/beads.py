@@ -18,6 +18,14 @@ ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
 
 
+def is_valid_idat_basepath(basepath):
+    if not isinstance(basepath, list):
+        basepath = [basepath]
+    return all(
+        Path(str(x) + ENDING_GRN).exists() and Path(str(x) + ENDING_GRN) for x in basepath
+    )
+
+
 def idat_basepaths(files):
     # If basenames is dir take all files in it
     if isinstance(files, list):

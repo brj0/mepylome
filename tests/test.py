@@ -30,33 +30,13 @@ from scipy.stats import rankdata
 from sklearn.linear_model import LinearRegression
 
 
-from mepylome import (
-    CNV,
-    Annotation,
-    MethylAnalysis,
-    ArrayType,
-    Channel,
-    Chromosome,
-    CNVPlot,
-    IdatParser,
-    Manifest,
-    MethylData,
-    ProbeType,
-    RawData,
-    ReferenceMethylData,
-    cache,
-    memoize,
-)
-from mepylome.utils import (
-    get_file_object,
-    reset_file,
-    get_csv_file,
-    ensure_directory_exists,
-    download_file,
-    Timer,
-)
+from mepylome import *
+from mepylome.utils import *
+from  mepylome.analysis.methyl import *
 
 logger = logging.getLogger(__name__)
+
+pdp = lambda x: print(x.to_string())
 
 # from methylprep.files.idat import IdatDataset
 # from methylprep.models.probes import Channel
@@ -109,6 +89,9 @@ timer.stop("Parsing IDAT")
 GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
 GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
 
+
+quit()
+
 timer.start()
 # refs_raw = RawData(ref_dir)
 refs_raw = RawData([ref0, ref1])
@@ -118,7 +101,6 @@ timer.start()
 ref_methyl = MethylData(refs_raw)
 timer.stop("MethylData ref")
 
-# quit()
 
 manifest = Manifest("450k")
 # manifest = ManifestLoader.get_manifest("epic")
@@ -189,15 +171,24 @@ timer.start()
 cnv.write(Path(file_dir, "py_cnv"))
 timer.stop("zip write")
 
+quit()
 
 IDAT_DIR = "/data/epidip_IDAT"
 IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
 reference_dir = "/data/ref_IDAT"
+IDAT_DIR = "/data/idat_CSA"
 self = MethylAnalysis(analysis_dir=IDAT_DIR, reference_dir=reference_dir)
+
+
+# self.make_umap()
+# self.make_cnv_plot("10006823130_R05C01")
+# self.make_cnv_plot("7878191040_R01C01")
+
+# is_valid_idat_basepath(Path(self.analysis_dir, "10006823130_R05C01"))
+# is_valid_idat_basepath(Path(self.analysis_dir, "7878191040_R01C01"))
 self.run_app()
 
 
-quit()
 
 timer.start()
 # r = RawData(smp7)
@@ -274,27 +265,6 @@ grn_idat_files = [
     if str(x).endswith(ENDING_BETAS)
 ]
 
-# Time passed: 9.987592697143555 ms (Parsing IDAT)
-# Time passed: 1480.562686920166 ms (RawData ref)
-# Time passed: 392.32563972473145 ms (MethylData ref)
-# Time passed: 7.627725601196289 ms (RawData sample)
-# Time passed: 79.34379577636719 ms (MethylData sample)
-# Time passed: 410.3200435638428 ms (beta 1)
-# Time passed: 10.120391845703125 ms (beta 2)
-# Time passed: 5241.268873214722 ms (Annotation)
-# sample: Intensities smaller than 0 set to 1.
-# reference: Intensities smaller than 0 set to 1.
-# Time passed: 32.681941986083984 ms (CNV)
-# Time passed: 462.5887870788574 ms (CNV fit)
-# Time passed: 314.4857883453369 ms (CNV set_bins)
-# Time passed: 329.61559295654297 ms (CNV set_detail)
-# Time passed: 1489.6526336669922 ms (CNV set_detail)
-# Time passed: 2024.538516998291 ms (CNV set_segments)
-
-
-# self = MethylData(raw, prep="raw")
-
-
 
 timer.start()
 self = MethylData(raw, prep="noob")
@@ -325,36 +295,35 @@ r = MethylData(file=[smp1, smp2, smp3, smp4])
 self = CNV.set_all(m, r)
 self.fit()
 
+filepath = Path("/data/idat_CSA/details_CSA-project_May2024.xlsx")
+filepath = Path("/data/idat_CSA/details_CSA-project_May2024.csv")
 
 
 
-from dash import Dash, dcc, html, Input, Output, State, callback
-import time
 
-app = Dash(__name__)
+IDAT_DIR = "/data/epidip_IDAT"
+# IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT_116"
+# IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
 
-app.layout = html.Div([
-    html.Div(dcc.Input(id='input-on-submit-text', type='text')),
-    html.Button('Submit', id='submit-button', n_clicks=0),
-    html.Div(id='container-output-text',
-             children='Enter a value and press submit')
-])
+IDAT_DIR = "/data/idat_CSA/"
+reference_dir = "/data/ref_IDAT"
+self = MethylAnalysis(analysis_dir=IDAT_DIR, reference_dir=reference_dir)
 
+self.make_umap()
+self.run_app()
 
-@callback(
-    Output('container-output-text', 'children'),
-    Input('submit-button', 'n_clicks'),
-    State('input-on-submit-text', 'value'),
-    prevent_initial_call=True,
-    running=[(Output("submit-button", "disabled"), True, False)]
-)
-def update_output(n_clicks, value):
-    time.sleep(5)
-    return 'The input value was "{}" and the button has been clicked {} times'.format(
-        value,
-        n_clicks
-    )
+self.set_betas(save=True)
+
+idat_dir = "/home/dr_b/MEGA/work/programming/data/epidip_IDAT"
+annotation = "/home/dr_b/MEGA/work/programming/data/epidip_IDAT/annotation.xlsx"
+annotation = "/home/dr_b/MEGA/work/programming/data/epidip_IDAT/annotation.csv"
+self = IdatFiles(idat_dir, annotation)
+
+idat_dir = "/data/idat_CSA/"
+# self = IdatFiles(idat_dir)
 
 
-HOST = "localhost"
-app.run(debug=True, host=HOST, use_reloader=False)
+# TODO mehrere Tabellen in umap graph / annotation
+# TODO cpgs als bin speichern
+# TODO Farbauswahl nach Columne
+

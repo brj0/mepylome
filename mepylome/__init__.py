@@ -71,5 +71,11 @@ __all__ = [
     "idat_basepaths",
     "memoize",
     "read_cnv_data_from_disk",
-    "_IdatParser",
 ]
+
+# Conditionally add _IdatParser to __all__ if it exists
+try:
+    _ = _IdatParser
+    __all__.append("_IdatParser")
+except NameError:
+    pass
