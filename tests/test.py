@@ -32,7 +32,7 @@ from sklearn.linear_model import LinearRegression
 
 from mepylome import *
 from mepylome.utils import *
-from  mepylome.analysis.methyl import *
+from mepylome.analysis.methyl import *
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +189,6 @@ self = MethylAnalysis(analysis_dir=IDAT_DIR, reference_dir=reference_dir)
 self.run_app()
 
 
-
 timer.start()
 # r = RawData(smp7)
 r = RawData([ref0, ref1])
@@ -255,7 +254,6 @@ with open(filepath, "rb") as f:
 timer.stop("pickel")
 
 
-
 OUTPUT_DIR = "/data/epidip_CpGs_mepylome/"
 ENDING_BETAS = "_betas_filtered.bin"
 
@@ -288,7 +286,6 @@ py_idat_data = IdatParser(smp0, intensity_only=False)
 timer.stop("Parsing Python")
 
 
-
 m = MethylData(file=[smp0])
 r = MethylData(file=[smp0, smp1, smp2, smp3, smp4])
 r = MethylData(file=[smp1, smp2, smp3, smp4])
@@ -299,15 +296,47 @@ filepath = Path("/data/idat_CSA/details_CSA-project_May2024.xlsx")
 filepath = Path("/data/idat_CSA/details_CSA-project_May2024.csv")
 
 
-
-
+# 0 Home
 IDAT_DIR = "/data/epidip_IDAT"
-# IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT_116"
-# IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
+reference_dir = "/data/ref_IDAT"
+self = MethylAnalysis(
+    analysis_dir=IDAT_DIR, reference_dir=reference_dir, overlap=False
+)
 
+# 1 Brain
+IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT"
+reference_dir = "/data/ref_IDAT"
+self = MethylAnalysis(
+    analysis_dir=IDAT_DIR,
+    reference_dir=reference_dir,
+    overlap=True,
+    save_betas=True,
+)
+
+# 2 Chondrosarcoma
 IDAT_DIR = "/data/idat_CSA/"
 reference_dir = "/data/ref_IDAT"
-self = MethylAnalysis(analysis_dir=IDAT_DIR, reference_dir=reference_dir)
+self = MethylAnalysis(
+    analysis_dir=IDAT_DIR,
+    reference_dir=reference_dir,
+    overlap=False,
+    cpgs=Manifest("epic").get_methyl_probes(),
+)
+
+# 3 10 Samples
+IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT_10"
+reference_dir = "/data/ref_IDAT"
+self = MethylAnalysis(
+    analysis_dir=IDAT_DIR, reference_dir=reference_dir, overlap=False
+)
+
+# 4 166 Samples
+IDAT_DIR = "/mnt/ws528695/data/epidip_IDAT_116"
+reference_dir = "/data/ref_IDAT"
+self = MethylAnalysis(
+    analysis_dir=IDAT_DIR, reference_dir=reference_dir, overlap=False
+)
+
 
 self.make_umap()
 self.run_app()
@@ -315,7 +344,9 @@ self.run_app()
 self.set_betas(save=True)
 
 idat_dir = "/home/dr_b/MEGA/work/programming/data/epidip_IDAT"
-annotation = "/home/dr_b/MEGA/work/programming/data/epidip_IDAT/annotation.xlsx"
+annotation = (
+    "/home/dr_b/MEGA/work/programming/data/epidip_IDAT/annotation.xlsx"
+)
 annotation = "/home/dr_b/MEGA/work/programming/data/epidip_IDAT/annotation.csv"
 self = IdatFiles(idat_dir, annotation)
 
@@ -323,7 +354,21 @@ idat_dir = "/data/idat_CSA/"
 # self = IdatFiles(idat_dir)
 
 
-# TODO mehrere Tabellen in umap graph / annotation
-# TODO cpgs als bin speichern
-# TODO Farbauswahl nach Columne
+timer.start()
+array_types = set()
+for path in self.idat_files.path.values():
+    array_types.add(RawData(path).array_type)
 
+timer.stop()
+
+
+
+
+
+def reorder_columns_by_variance(df):
+    variances = df.var()
+    sorted_columns = variances.sort_values(ascending=False).index
+    df_reordered = df[sorted_columns]
+    return df_reordered
+
+x = reorder_columns_by_variance(self.betas_df)

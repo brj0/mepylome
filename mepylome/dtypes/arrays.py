@@ -12,6 +12,7 @@ class ArrayType(Enum):
     ILLUMINA_EPIC = "epic"
     ILLUMINA_EPIC_V2 = "epicv2"
     ILLUMINA_MOUSE = "mouse"
+    INVALID = "invalid"
 
     def __str__(self):
         return self.value

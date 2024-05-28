@@ -7,6 +7,7 @@ from .beads import (
     ReferenceMethylData,
     idat_basepaths,
     is_valid_idat_basepath,
+    overlap_indices,
 )
 from .cache import get_id_tuple, memoize
 from .chromosome import Chromosome
@@ -50,5 +51,6 @@ __all__ = [
     "idat_basepaths",
     "is_valid_idat_basepath",
     "memoize",
+    "overlap_indices",
     "read_cnv_data_from_disk",
 ]

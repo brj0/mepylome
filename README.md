@@ -1,5 +1,5 @@
 <picture>
-  <img alt="Mepylome Logo" src="/mepylome/analysis/assets/mepylome.svg" width="300">
+  <img alt="Mepylome Logo" src="/mepylome/data/assets/mepylome.svg" width="300">
 </picture>
 
 -----------------

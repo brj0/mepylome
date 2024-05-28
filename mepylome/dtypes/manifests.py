@@ -15,6 +15,7 @@ Usage:
 
 import logging
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -173,11 +174,12 @@ class _Manifest:
         self.__snp_data_frame = self.read_snp_probes()
         self.__methyl_probes = self.get_methyl_probes()
 
+    @lru_cache
     def get_methyl_probes(self):
         """Returns all type I and II probes."""
         type_1 = self.probe_info(ProbeType.ONE)
         type_2 = self.probe_info(ProbeType.TWO)
-        locus_names = np.sort(
+        idx = np.sort(
             np.concatenate(
                 [
                     type_1.IlmnID.index,
@@ -185,7 +187,7 @@ class _Manifest:
                 ]
             )
         )
-        return self.__data_frame.iloc[locus_names]["IlmnID"].values
+        return self.__data_frame.iloc[idx]["IlmnID"].values
 
     def __repr__(self):
         title = f"Manifest({self.array_type}):"

@@ -17,6 +17,8 @@ from mepylome.utils.varia import normexp_get_xs
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
 
+NEUTRAL_BETA = 0.49
+
 
 def is_valid_idat_basepath(basepath):
     if not isinstance(basepath, list):
@@ -612,7 +614,7 @@ class MethylData:
             beta.T, columns=self.probes, index=self.methyl_ilmnid
         )
 
-    def converted_beta(self, cpgs=None, fill=0.49):
+    def converted_beta(self, cpgs=None, fill=NEUTRAL_BETA):
         if cpgs is None:
             cpgs = self.manifest.methylation_probes
         beta = self.get_beta(self.methyl, self.unmethyl)
