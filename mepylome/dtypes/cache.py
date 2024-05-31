@@ -60,7 +60,7 @@ def memoize(f):
                     self.__dict__[attr_name] = attr_value.__func__
 
         def __call__(self, *args, **kwargs):
-            """Generate key"""
+            """Generate key."""
             complete_kwargs = {**self.init_defaults, **kwargs}
             key = get_id_tuple(self.cls, args, complete_kwargs)
             if key not in self._cache:

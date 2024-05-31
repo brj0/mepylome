@@ -10,7 +10,6 @@ Usage:
 import time
 
 import numpy as np
-from scipy.stats import norm
 
 __all__ = ["Timer", "normexp_get_xs"]
 
@@ -115,6 +114,7 @@ def normexp_signal(par, x):
         >>> normexp_signal([1, np.log(2), np.log(3)], 4)
         2.3735035872302235
     """
+    from scipy.stats import norm
     mu = par[0]
     sigma = np.exp(par[1])
     sigma2 = sigma * sigma

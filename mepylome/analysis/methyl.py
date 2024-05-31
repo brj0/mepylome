@@ -31,11 +31,9 @@ Usage:
 
 import colorsys
 import hashlib
-import pickle
-import json
 import os
 import pathlib
-import random
+import pickle
 import subprocess
 import threading
 from functools import lru_cache
@@ -49,7 +47,6 @@ import pandas as pd
 import pkg_resources
 import plotly.express as px
 import plotly.graph_objects as go
-import umap
 from dash import (
     Dash,
     Input,
@@ -68,13 +65,14 @@ from mepylome.dtypes import (
     IMPORTANT_GENES,
     ZIP_ENDING,
     Annotation,
-    is_valid_idat_basepath,
     ArrayType,
     Manifest,
     MethylData,
+    RawData,
     ReferenceMethylData,
     cnv_plot_from_data,
     idat_basepaths,
+    is_valid_idat_basepath,
     overlap_indices,
     read_cnv_data_from_disk,
 )
@@ -83,7 +81,6 @@ from mepylome.utils import Timer, ensure_directory_exists
 timer = Timer()
 
 PLOTLY_RENDER_MODE = "webgl"
-HOST = "localhost"
 
 HOME_DIR = pathlib.Path.home()
 DEFAULT_ANALYSIS_DIR = Path(HOME_DIR, "Documents", "mepylome", "analysis")
@@ -108,9 +105,6 @@ with open(CPG_450K_EPIC_OVERLAP) as f:
     CPG_450K = np.array(f.read().splitlines())
 
 
-CNV_LINK = (
-    "http://s1665.rootserver.io/umapplot01/%s_CNV_IFPBasel_annotations.pdf"
-)
 CNV_LINK = "http://localhost:8050/%s"
 
 ACRONYMS = pkg_resources.resource_filename(
@@ -403,7 +397,7 @@ def extract_beta(data):
 def methyl_mtx_from_all_cpgs(betas_list, cpgs, fill=NEUTRAL_BETA):
     array_types = set(x[1] for x in betas_list)
     all_cpgs = {
-        array_type: Manifest(array_type).get_methyl_probes()
+        array_type: Manifest(array_type).get_cpgs()
         for array_type in array_types
     }
     left_idx = {}
@@ -446,12 +440,11 @@ def get_betas(pbar, idat_files, cpgs, prep, save=False, betas_path=None):
         i for i, x in enumerate(betas_list) if x[1] != ArrayType.INVALID
     ]
     valid_ids = [idat_files.ids[i] for i in valid_idx]
-    valid_betas = [betas_list[i] for i in valid_idx]
     all_cpgs_in_betas = betas_path is not None and (
         betas_path.exists() or save
     )
-    # TODO BUG if cpgs=None
     if all_cpgs_in_betas:
+        valid_betas = [betas_list[i] for i in valid_idx]
         methyl_mtx = methyl_mtx_from_all_cpgs(valid_betas, cpgs)
     else:
         valid_betas = [betas_list[i][0] for i in valid_idx]
@@ -622,6 +615,7 @@ def get_side_navigation(
     n_cpgs,
     prep,
     precalculate,
+    cpg_selection,
 ):
     return dbc.Col(
         [
@@ -701,6 +695,17 @@ def get_side_navigation(
                                     OFF: "When clicking on dots",
                                 },
                                 value=ON if precalculate else OFF,
+                                multi=False,
+                            ),
+                            html.Br(),
+                            html.H6("How should CpG's be selected"),
+                            dcc.Dropdown(
+                                id="cpg-selection",
+                                options={
+                                    "random": "By random",
+                                    "top": "Take best (most varying) CpG's",
+                                },
+                                value=cpg_selection,
                                 multi=False,
                             ),
                             html.Br(),
@@ -803,12 +808,26 @@ def input_args_hash(*args):
     return hashlib.md5(result.encode()).hexdigest()[:32]
 
 
+def extract_sub_dataframe(data_frame, arr, fill=0.49):
+    result_np = np.full((len(data_frame.index), len(arr)), fill)
+    left_idx, right_idx = overlap_indices(arr, data_frame.columns)
+    result_np[:, left_idx] = data_frame.values[:, right_idx]
+    result = pd.DataFrame(result_np, columns=arr, index=data_frame.index)
+    return result
+
+
+def reorder_columns_by_variance(data_frame):
+    variances = data_frame.var()
+    sorted_columns = variances.sort_values(ascending=False).index
+    reordered = data_frame[sorted_columns]
+    return reordered
+
+
 class MethylAnalysis:
     def __init__(
         self,
-        # TODO not good for epic
-        cpgs=CPG_450K,
-        n_cpgs=DEFAULT_N_CPGS,
+        cpgs="auto",
+        n_cpgs=None,
         analysis_dir=DEFAULT_ANALYSIS_DIR,
         annotation=None,
         reference_dir=DEFAULT_REFERENCE_DIR,
@@ -817,9 +836,11 @@ class MethylAnalysis:
         precalculate_cnv=False,
         save_betas=False,
         overlap=False,
+        cpg_selection="random",
+        host="localhost",
+        port=8050,
     ):
-        self.cpgs = cpgs
-        self.n_cpgs = n_cpgs
+        self.umap_cpgs = None
         self.analysis_dir = analysis_dir
         self.idat_paths = None
         if annotation is None:
@@ -831,6 +852,18 @@ class MethylAnalysis:
         self.idat_files = IdatFiles(
             self.analysis_dir, self.annotation, self.overlap
         )
+        self.cpgs = self.get_cpgs(cpgs)
+        self.n_cpgs = n_cpgs
+        if n_cpgs is None:
+            self.n_cpgs = len(self.cpgs)
+        self.cpg_selection = cpg_selection
+        if self.cpg_selection not in ["top", "random"]:
+            raise ValueError(
+                "Invalid 'cpg_selection' (expected: 'top' or 'random')"
+            )
+        self.host = host
+        self.port = port
+        self.umap_color_columns = None
         self.reference_dir = reference_dir
         self.output_dir = output_dir
         ensure_directory_exists(self.output_dir)
@@ -841,25 +874,54 @@ class MethylAnalysis:
         self.save_betas = save_betas
         self.umap_plot = EMPTY_FIGURE
         self.umap_plot_path = None
+        self.betas_df = None
+        self.betas_df_all_cpgs = None
         self.betas_path = None
         self.umap_df = None
         self.cnv_plot = EMPTY_FIGURE
-        self.raw_plot = None
+        self.raw_umap_plot = None
         self.cnv_id = None
         self.dropdown_id = None
         self.ids = []
+        self.ids_to_highlight = None
         self.prog_bar = ProgressBar()
         self.app = None
 
-        self.update_run_output_dir()
+        self.update_output_paths()
         self.read_umap_plot_from_disk()
 
-    def update_run_output_dir(self):
+    def get_cpgs(self, input_var):
+        if isinstance(input_var, np.ndarray):
+            return input_var
+        valid_parms = ["auto", "450k", "epic", "epicv2"]
+        if isinstance(input_var, str):
+            input_var = [input_var]
+        if "auto" in input_var:
+            input_var = set()
+            for path in self.idat_files.path.values():
+                input_var.add(RawData(path).array_type.value)
+            print(f"The following array types were detected: {input_var}")
+        if len(input_var) > 0 and all(x in valid_parms for x in input_var):
+            input_var = valid_parms if "all" in input_var else input_var
+            cpg_sets = []
+            for array_type in valid_parms[1:]:
+                if array_type in input_var:
+                    cpg_sets.append(set(Manifest(array_type).get_cpgs()))
+            cpgs = set.intersection(*cpg_sets)
+            return np.array(list(cpgs))
+        raise ValueError(
+            "'cpgs' must be numpy array or a list of strings in {valid_parms}"
+        )
+        return np.array(input_var)
+
+    def update_output_paths(self):
+        old_betas_path = self.betas_path
         umap_hash_key = input_args_hash(
             self.cpgs,
             self.n_cpgs,
             self.analysis_dir,
             self.prep,
+            self.cpg_selection,
         )
         betas_hash_key = input_args_hash(
             self.analysis_dir,
@@ -870,7 +932,10 @@ class MethylAnalysis:
             self.reference_dir,
             self.prep,
         )
-        umap_dir_name = f"umap-{self.n_cpgs}-{self.prep}-{umap_hash_key}"
+        umap_dir_name = (
+            f"umap-{self.n_cpgs}-{self.prep}-{self.cpg_selection}-"
+            f"{umap_hash_key}"
+        )
         self.umap_dir = Path(self.output_dir, f"{umap_dir_name}")
         ensure_directory_exists(self.umap_dir)
 
@@ -882,22 +947,27 @@ class MethylAnalysis:
         self.betas_path = Path(
             self.output_dir, f"betas-{self.prep}-{betas_hash_key}.pkl"
         )
+        if old_betas_path != self.betas_path:
+            self.betas_df_all_cpgs = None
 
     def make_umap(self):
-        self.update_run_output_dir()
+        self.update_output_paths()
         self.idat_files = IdatFiles(
             self.analysis_dir, self.annotation, self.overlap
         )
-        if self.read_umap_plot_from_disk():
-            return
+        # if self.read_umap_plot_from_disk():
+        # return
         if len(self.idat_files) == 0:
             raise ValueError("No valid samples found")
-        self.prog_bar.reset(len(self.idat_files), text="(UMAP)")
 
-        random_idx = sorted(random.sample(range(len(self.cpgs)), self.n_cpgs))
-        random_cpg_sample = [self.cpgs[x] for x in random_idx]
+        self.prog_bar.reset(len(self.idat_files), text="(betas)")
+        self.set_betas()
+        self.prog_bar.reset(1, 1)
+        self.compute_umap()
+        self.make_umap_plot()
 
-        self.set_betas(random_cpg_sample)
+    def compute_umap(self):
+        import umap
 
         umap_2d = umap.UMAP(verbose=True).fit_transform(self.betas_df)
         umap_df = pd.DataFrame(
@@ -912,24 +982,55 @@ class MethylAnalysis:
             ],
             axis=1,
         )
-        DIAGNOSIS = 2
-        self.umap_df["Umap_color"] = self.umap_df.iloc[:, DIAGNOSIS]
+        if self.umap_color_columns is None:
+            self.umap_color_columns = self.umap_df.columns[2]
         self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
-        self.make_umap_plot()
-        self.prog_bar.reset(1, 1)
 
-    def set_betas(self, cpgs=None):
-        self.betas_df = get_betas(
-            self.prog_bar,
-            self.idat_files,
-            cpgs,
-            self.prep,
-            self.save_betas,
-            self.betas_path,
-        )
+    def set_betas(self):
+        self.update_output_paths()
+
+        def get_random_cpgs():
+            random_idx = np.sort(
+                np.random.choice(len(self.cpgs), self.n_cpgs, replace=False)
+            )
+            return self.cpgs[random_idx]
+
+        def _get_betas(cpgs):
+            return get_betas(
+                self.prog_bar,
+                self.idat_files,
+                cpgs,
+                self.prep,
+                self.save_betas,
+                self.betas_path,
+            )
+
+        def _extract_sub_dataframe():
+            if self.cpg_selection == "random":
+                return extract_sub_dataframe(
+                    self.betas_df_all_cpgs, self.umap_cpgs
+                )
+            return self.betas_df_all_cpgs.iloc[:, : self.n_cpgs]
+
+        if self.cpg_selection == "random":
+            self.umap_cpgs = get_random_cpgs()
+
+        if self.betas_df_all_cpgs is not None:
+            self.betas_df = _extract_sub_dataframe()
+
+        elif self.save_betas or self.cpg_selection == "top":
+            self.betas_df_all_cpgs = _get_betas(self.cpgs)
+            if self.cpg_selection == "top":
+                self.betas_df_all_cpgs = reorder_columns_by_variance(
+                    self.betas_df_all_cpgs
+                )
+            self.betas_df = _extract_sub_dataframe()
+
+        else:
+            self.betas_df = _get_betas(self.umap_cpgs)
 
     def read_umap_plot_from_disk(self):
-        self.update_run_output_dir()
+        self.update_output_paths()
         if self.umap_plot_path.exists():
             self.umap_df = pd.read_csv(
                 self.umap_plot_path, sep="\t", index_col=0
@@ -941,24 +1042,30 @@ class MethylAnalysis:
 
     def make_umap_plot(self):
         self.ids = self.umap_df.index
+        self.umap_df["Umap_color"] = self.idat_files.compound_class(
+            self.umap_color_columns
+        )
         self.umap_plot = umap_plot_from_data(self.umap_df)
         self.umap_plot = self.umap_plot.update_layout(
             margin=dict(l=0, r=0, t=30, b=0),
         )
-        self.raw_plot = self.umap_plot
-        self.cnv_id = None
+        self.raw_umap_plot = self.umap_plot
+        # self.cnv_id = None
         self.dropdown_id = None
+        self.umap_plot_highlight()
 
     def get_coordinates(self, sample_id):
         return self.umap_df[self.umap_df.index == sample_id].iloc[0][
             ["Umap_x", "Umap_y"]
         ]
 
-    def umap_plot_highlight(self, ids=None, cnv_id=None):
+    def umap_plot_highlight(self, cnv_id=None):
         if cnv_id is not None:
             self.cnv_id = cnv_id
-        self.dropdown_id = [] if ids is None else ids
-        self.umap_plot = go.Figure(self.raw_plot)
+        self.dropdown_id = (
+            [] if self.ids_to_highlight is None else self.ids_to_highlight
+        )
+        self.umap_plot = go.Figure(self.raw_umap_plot)
         for id_ in self.dropdown_id:
             x, y = self.get_coordinates(id_)
             self.umap_plot.add_annotation(
@@ -1002,7 +1109,7 @@ class MethylAnalysis:
         )
 
     def precalculate_all_cnvs(self):
-        self.update_run_output_dir()
+        self.update_output_paths()
         sample_ids = [
             x.name
             for x in idat_basepaths(self.analysis_dir)
@@ -1040,6 +1147,7 @@ class MethylAnalysis:
             self.n_cpgs,
             self.prep,
             self.precalculate_cnv,
+            self.cpg_selection,
         )
         dash_plots = dbc.Col(
             [
@@ -1047,7 +1155,7 @@ class MethylAnalysis:
                     id="umap-plot",
                     figure=self.umap_plot,
                     config={
-                        "scrollZoom": False,
+                        "scrollZoom": True,
                         "doubleClick": "reset+autosize",
                         "modeBarButtonsToRemove": ["lasso2d", "select"],
                         "displaylogo": False,
@@ -1059,7 +1167,7 @@ class MethylAnalysis:
                     id="cnv-plot",
                     figure=self.cnv_plot,
                     config={
-                        "scrollZoom": False,
+                        "scrollZoom": True,
                         "doubleClick": "reset",
                         "modeBarButtonsToRemove": ["lasso2d", "select"],
                         "displaylogo": False,
@@ -1102,28 +1210,25 @@ class MethylAnalysis:
         def update_plots(
             click_data,
             ids_to_highlight,
-            annotation_columns,
+            umap_color_columns,
             genes_sel,
             curr_umap_plot,
             curr_cnv_plot,
         ):
             genes_sel = tuple(genes_sel) if genes_sel else ()
             trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
+            self.ids_to_highlight = ids_to_highlight
             if trigger == "ids-to-highlight" and ids_to_highlight is not None:
-                self.umap_plot_highlight(ids=ids_to_highlight)
+                self.umap_plot_highlight()
                 self.retrieve_zoom(curr_umap_plot)
                 return self.umap_plot, no_update, ""
             if (
                 trigger == "umap-annotation-color"
-                and annotation_columns is not None
+                and umap_color_columns is not None
             ):
-                self.umap_df["Umap_color"] = self.idat_files.compound_class(
-                    annotation_columns
-                )
+                self.umap_color_columns = umap_color_columns
                 self.make_umap_plot()
-                self.umap_plot_highlight(
-                    ids=ids_to_highlight, cnv_id=self.cnv_id
-                )
+                self.umap_plot_highlight(cnv_id=self.cnv_id)
                 self.retrieve_zoom(curr_umap_plot)
                 return self.umap_plot, no_update, ""
             if trigger == "umap-plot" and isinstance(click_data, dict):
@@ -1133,9 +1238,7 @@ class MethylAnalysis:
                     sample_id = first_point.get("hovertext")
                     if sample_id is None:
                         return no_update, no_update, ""
-                    self.umap_plot_highlight(
-                        ids=ids_to_highlight, cnv_id=sample_id
-                    )
+                    self.umap_plot_highlight(cnv_id=sample_id)
                     self.retrieve_zoom(curr_umap_plot)
                     try:
                         self.make_cnv_plot(sample_id, genes_sel)
@@ -1149,6 +1252,8 @@ class MethylAnalysis:
                     return no_update, self.cnv_plot, ""
                 except Exception as e:
                     print("selected-genes failed:", e)
+                    print("self.cnv_id:", self.cnv_id)
+                    print("genes_sel:", genes_sel)
                     return no_update, no_update, str(e)
             return self.umap_plot, self.cnv_plot, ""
 
@@ -1252,6 +1357,7 @@ class MethylAnalysis:
                 State("reference-dir", "valid"),
                 State("annotation-file", "valid"),
                 State("precalculate-cnv", "value"),
+                State("cpg-selection", "value"),
             ],
             prevent_initial_call=True,
             running=[
@@ -1271,6 +1377,7 @@ class MethylAnalysis:
             reference_dir_valid,
             annotation_file_valid,
             precalculate_cnv,
+            cpg_selection,
         ):
             if not n_clicks:
                 return no_update, no_update, "", {}
@@ -1291,6 +1398,8 @@ class MethylAnalysis:
                 error_message = "Invalid preprocessing method."
             elif precalculate_cnv is None:
                 error_message = "Invalid precalculation method."
+            elif cpg_selection is None:
+                error_message = "Invalid CpG selection method."
 
             if error_message:
                 return no_update, no_update, error_message, {}
@@ -1300,6 +1409,7 @@ class MethylAnalysis:
             self.reference_dir = reference_dir
             self.prep = prep
             self.precalculate_cnv = precalculate_cnv == ON
+            self.cpg_selection = cpg_selection
             if (
                 self.analysis_dir != analysis_dir
                 or self.annotation != annotation
@@ -1358,7 +1468,7 @@ class MethylAnalysis:
 
     def run_app(self):
         self.app = self.get_app()
-        self.app.run(debug=True, host=HOST, use_reloader=False)
+        self.app.run(debug=True, host=self.host, use_reloader=False)
 
     def __repr__(self):
         title = "MethylAnalysis():"
@@ -1371,10 +1481,12 @@ class MethylAnalysis:
             f"output_dir:\n{self.output_dir}",
             f"umap_dir:\n{self.umap_dir}",
             f"cnv_dir:\n{self.cnv_dir}",
-            f"cnv_dir:\n{self.cnv_dir}",
+            f"umap_dir:\n{self.umap_dir}",
+            f"umap_color_columns:\n{self.umap_color_columns}",
             f"annotation:\n{self.annotation}",
             f"prep:\n{self.prep}",
             f"precalculate_cnv:\n{self.precalculate_cnv}",
+            f"cpg_selection:\n{self.cpg_selection}",
             f"umap_df:\n{self.umap_df}",
         ]
         return "\n\n".join(lines)

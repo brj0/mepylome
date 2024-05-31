@@ -9,15 +9,11 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, callback, dcc, html, no_update
-from plotly.io import from_json
 
 from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
 from mepylome.dtypes.manifests import MANIFEST_TMP_DIR
 from mepylome.utils.files import ensure_directory_exists
 
-PORT = 8050
-HOST = "localhost"
 PLOTLY_RENDER_MODE = "webgl"
 ZIP_ENDING = "_cnv.zip"
 THRESHOLD_BALANCED = 0.1
@@ -95,6 +91,8 @@ def cnv_grid(genome):
     """Returns chromosome grid layout for CNV Plot as plotly object and
     saves it on disk. If available grid is directly read from disk.
     """
+    from plotly.io import from_json
+
     # Check if grid exists and return if available.
     if os.path.exists(CNV_GRID):
         with open(CNV_GRID) as f:
@@ -195,6 +193,8 @@ def add_genes(plot, genes):
         plot: The plot to which genes will be added.
         genes (list): A list of genes to be added to the plot.
     """
+    # Draw NaN's with value 0
+    genes["Median"].fillna(0, inplace=True)
     scatter_genes = go.Scattergl(
         customdata=genes[
             [
@@ -379,13 +379,24 @@ def cnv_plot_from_data(
 
 
 class CNVPlot:
-    def __init__(self, cnv_dir, cnv_file, genes=IMPORTANT_GENES):
+    def __init__(
+        self,
+        cnv_dir,
+        cnv_file,
+        genes=IMPORTANT_GENES,
+        host="localhost",
+        port=8050,
+    ):
         self.cnv_dir = cnv_dir
         self.cnv_file = cnv_file
         self.genes_fix = genes
+        self.host = host
+        self.port = port
         self.app = self.get_app()
 
     def get_app(self):
+        from dash import Dash, Input, Output, callback, dcc, html, no_update
+
         current_dir = Path(__file__).resolve().parent
         assets_folder = current_dir.parent / "data" / "assets"
         app = Dash(__name__, assets_folder=assets_folder)
@@ -457,7 +468,9 @@ class CNVPlot:
         init_sample_id = self.cnv_file.replace(ZIP_ENDING, "")
 
         def open_browser_tab():
-            webbrowser.open_new_tab(f"http://{HOST}:{PORT}/{init_sample_id}")
+            webbrowser.open_new_tab(
+                f"http://{self.host}:{self.port}/{init_sample_id}"
+            )
 
         threading.Timer(1, open_browser_tab).start()
-        self.app.run(debug=True, host=HOST, use_reloader=False)
+        self.app.run(debug=True, host=self.host, use_reloader=False)

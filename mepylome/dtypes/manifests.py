@@ -172,10 +172,10 @@ class _Manifest:
         self.__data_frame = self.read_probes(self.filepath)
         self.__control_data_frame = self.read_control_probes(control_filepath)
         self.__snp_data_frame = self.read_snp_probes()
-        self.__methyl_probes = self.get_methyl_probes()
+        self.__methyl_probes = self.get_cpgs()
 
     @lru_cache
-    def get_methyl_probes(self):
+    def get_cpgs(self):
         """Returns all type I and II probes."""
         type_1 = self.probe_info(ProbeType.ONE)
         type_2 = self.probe_info(ProbeType.TWO)

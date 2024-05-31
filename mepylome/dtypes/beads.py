@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import rankdata
 from tqdm import tqdm
 
 from mepylome.dtypes.arrays import ArrayType
@@ -16,6 +15,7 @@ from mepylome.utils.varia import normexp_get_xs
 
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
+ENDING_GZ = ".gz"
 
 NEUTRAL_BETA = 0.49
 
@@ -24,7 +24,15 @@ def is_valid_idat_basepath(basepath):
     if not isinstance(basepath, list):
         basepath = [basepath]
     return all(
-        Path(str(x) + ENDING_GRN).exists() and Path(str(x) + ENDING_GRN) for x in basepath
+        (
+            Path(str(x) + ENDING_GRN).exists()
+            or Path(str(x) + ENDING_GRN + ENDING_GZ).exists()
+        )
+        and (
+            Path(str(x) + ENDING_RED).exists()
+            or Path(str(x) + ENDING_RED + ENDING_GZ).exists()
+        )
+        for x in basepath
     )
 
 
@@ -32,14 +40,17 @@ def idat_basepaths(files):
     # If basenames is dir take all files in it
     if isinstance(files, list):
         _files = files
-    elif Path(files).is_dir():
-        _files = Path(files).rglob(f"*{ENDING_GRN}")
+    elif Path(files).expanduser().is_dir():
+        _files = Path(files).expanduser().rglob("*_[GR][re][nd].idat*")
     else:
         _files = [files]
     # Remove file endings
     _files = [
         Path(
-            str(name).replace(ENDING_GRN, "").replace(ENDING_RED, "")
+            str(name)
+            .replace(ENDING_GZ, "")
+            .replace(ENDING_GRN, "")
+            .replace(ENDING_RED, "")
         ).expanduser()
         for name in _files
     ]
@@ -48,28 +59,41 @@ def idat_basepaths(files):
     return _files
 
 
+def idat_paths_from_basenames(basenames):
+    grn_idat_files = np.array(
+        [Path(str(name) + ENDING_GRN) for name in basenames]
+    )
+    red_idat_files = np.array(
+        [Path(str(name) + ENDING_RED) for name in basenames]
+    )
+
+    def check_and_fix(files):
+        not_existing = [i for i, path in enumerate(files) if not path.exists()]
+        files[not_existing] = [
+            x.parent / (x.name + ENDING_GZ) for x in files[not_existing]
+        ]
+        not_found = next(
+            (x for x in files[not_existing] if not x.exists()), None
+        )
+        return not_found
+
+    not_found = check_and_fix(grn_idat_files)
+    not_found = (
+        check_and_fix(red_idat_files) if not_found is None else not_found
+    )
+    if not_found is not None:
+        idat_file = str(not_found).replace(ENDING_GZ, "")
+        raise FileNotFoundError(f"IDAT file not found: {idat_file}.")
+    return grn_idat_files, red_idat_files
+
+
 class RawData:
     def __init__(self, basenames):
         _basenames = idat_basepaths(basenames)
 
-        self.probes = [path.name for path in _basenames]
+        self.probes = [path.name.replace(ENDING_GZ, "") for path in _basenames]
 
-        grn_idat_files = [Path(str(name) + ENDING_GRN) for name in _basenames]
-        red_idat_files = [Path(str(name) + ENDING_RED) for name in _basenames]
-
-        # Check if all idat files exist
-        not_found = next(
-            (
-                path
-                for path in grn_idat_files + red_idat_files
-                if not path.exists()
-            ),
-            None,
-        )
-        if not_found is not None:
-            raise FileNotFoundError(
-                f"The following file does not exist: {not_found}"
-            )
+        grn_idat_files, red_idat_files = idat_paths_from_basenames(_basenames)
 
         grn_idat = [
             IdatParser(str(filepath), intensity_only=True)
@@ -166,6 +190,21 @@ class RawData:
 
 @memoize
 def overlap_indices(left_arr, right_arr):
+    """Compute the indices of overlapping elements between two arrays.
+
+    This function finds the common elements (indices) between two input arrays
+    and returns their positions in both arrays. It uses pandas Index objects
+    and memoization for performance improvement.
+
+    Example:
+        >>> left_arr = ['a', 'b', 'c', 'd']
+        >>> right_arr = ['b', 'c', 'e']
+        >>> left_idx, right_idx = overlap_indices(left_arr, right_arr)
+        >>> print(left_idx)
+        [1 2]
+        >>> print(right_idx)
+        [0 1]
+    """
     if not isinstance(left_arr, pd.Index):
         left_arr = pd.Index(left_arr)
     if not isinstance(right_arr, pd.Index):
@@ -471,6 +510,8 @@ class MethylData:
     def _preprocess_swan(
         intensity, bg_intensity, all_indices, random_subset_indices
     ):
+        from scipy.stats import rankdata
+
         random_subset_one = all_indices[ProbeType.ONE][
             random_subset_indices[ProbeType.ONE]
         ]

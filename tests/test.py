@@ -90,7 +90,7 @@ GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
 GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
 
 
-quit()
+# quit()
 
 timer.start()
 # refs_raw = RawData(ref_dir)
@@ -300,7 +300,10 @@ filepath = Path("/data/idat_CSA/details_CSA-project_May2024.csv")
 IDAT_DIR = "/data/epidip_IDAT"
 reference_dir = "/data/ref_IDAT"
 self = MethylAnalysis(
-    analysis_dir=IDAT_DIR, reference_dir=reference_dir, overlap=False
+    analysis_dir=IDAT_DIR,
+    reference_dir=reference_dir,
+    overlap=False,
+    cpgs=["450k", "epic", "epicv2"],
 )
 
 # 1 Brain
@@ -311,6 +314,7 @@ self = MethylAnalysis(
     reference_dir=reference_dir,
     overlap=True,
     save_betas=True,
+    # cpgs=["450k", "epic"],
 )
 
 # 2 Chondrosarcoma
@@ -319,8 +323,10 @@ reference_dir = "/data/ref_IDAT"
 self = MethylAnalysis(
     analysis_dir=IDAT_DIR,
     reference_dir=reference_dir,
+    n_cpgs=25000,
+    save_betas=True,
     overlap=False,
-    cpgs=Manifest("epic").get_methyl_probes(),
+    cpgs=Manifest("epic").get_cpgs(),
 )
 
 # 3 10 Samples
@@ -337,11 +343,17 @@ self = MethylAnalysis(
     analysis_dir=IDAT_DIR, reference_dir=reference_dir, overlap=False
 )
 
+# GSE140686_RAW
+IDAT_DIR = "/home/bruggerj/Downloads/GSE140686_RAW"
+reference_dir = "/data/ref_IDAT"
+self = MethylAnalysis(
+    analysis_dir=IDAT_DIR, reference_dir=reference_dir, overlap=False
+)
 
 self.make_umap()
 self.run_app()
 
-self.set_betas(save=True)
+self.set_betas()
 
 idat_dir = "/home/dr_b/MEGA/work/programming/data/epidip_IDAT"
 annotation = (
@@ -355,20 +367,34 @@ idat_dir = "/data/idat_CSA/"
 
 
 timer.start()
-array_types = set()
-for path in self.idat_files.path.values():
-    array_types.add(RawData(path).array_type)
 
-timer.stop()
+d = timer.stop()
 
+print(d / len(self.idat_files))
 
 
+self.set_betas()
+
+self.betas_df = reorder_columns_by_variance(self.betas_df).iloc[:, :30000]
+
+df = self.betas_df_all_cpgs = self.betas_df.copy()
+arr = self.umap_cpgs
 
 
-def reorder_columns_by_variance(df):
-    variances = df.var()
-    sorted_columns = variances.sort_values(ascending=False).index
-    df_reordered = df[sorted_columns]
-    return df_reordered
+idatgz_file = Path(
+    # "~/Downloads/GSE140686_RAW/GSM4181923_202073190102_R02C01_Grn.idat.gz"
+    "~/MEGA/work/programming/data/3998523055_R04C02_Grn.idat.gz"
+).expanduser()
+idat_file = idatgz_file.with_suffix("")
 
-x = reorder_columns_by_variance(self.betas_df)
+timer.start()
+idat = IdatParser(idatgz_file)
+timer.stop("idat.gz")
+
+timer.start()
+idat = IdatParser(idat_file)
+timer.stop("idat")
+
+# TODO include zipped idats
+
+

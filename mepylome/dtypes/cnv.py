@@ -10,7 +10,6 @@ import cbseg
 import numpy as np
 import pandas as pd
 import pyranges as pr
-from sklearn.linear_model import LinearRegression
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.beads import MethylData, ReferenceMethylData
@@ -348,6 +347,7 @@ class CNV:
         )
 
     def fit(self):
+        from sklearn.linear_model import LinearRegression
         smp_intensity = pd_loc(
             self.sample.intensity, self.probes
         ).values.ravel()
@@ -409,7 +409,7 @@ class CNV:
     def get_segments(df):
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
-        seg = cbseg.segment(bin_values, shuffles=1000, p=0.001)
+        seg = cbseg.segment(bin_values, shuffles=1000, p=0.0001)
         seg_df = pd.DataFrame(
             [
                 [chrom, df.Start.iloc[s.start], df.End.iloc[s.end - 1]]
