@@ -76,6 +76,11 @@ setup(
     license="GPL-3.0 license",
     author="Jon Brugger",
     url="https://github.com/brj0/mepylome",
+    extras_require={
+        "cgb": ["ailist==1.0.4", "cbseg"],
+    },
+    # Include package data such as csv-Files, images, ...
+    include_package_data=True,
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",

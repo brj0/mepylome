@@ -1,9 +1,12 @@
 # To upload this project to PyPI, follow these steps:
 #
-# python setup.py sdist
+# python setup.py sdist bdist_wheel
 # twine upload dist/*
 #
 # When prompted for the username, provide __token__
 
 # Includes the header files in the resulting .gz file for PyPI
 include src/*.h
+
+# Includes data
+include mepylome/data/*
