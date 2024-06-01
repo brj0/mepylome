@@ -36,6 +36,7 @@ import pathlib
 import pickle
 import subprocess
 import threading
+import webbrowser
 from functools import lru_cache
 from itertools import repeat
 from multiprocessing import Pool
@@ -104,8 +105,6 @@ CPG_450K_EPIC_OVERLAP = (
 with open(CPG_450K_EPIC_OVERLAP) as f:
     CPG_450K = np.array(f.read().splitlines())
 
-
-CNV_LINK = "http://localhost:8050/%s"
 
 ACRONYMS = pkg_resources.resource_filename(
     "mepylome", "data/methylation_class_acronyms.tsv.gz"
@@ -301,7 +300,11 @@ class IdatFiles:
         if annotation is None:
             annotation = guess_annotation_file(idat_dir)
         self.annotation = Path(annotation).expanduser()
-        self.path = {x.name: x for x in idat_basepaths(idat_dir)}
+        self.path = {
+            x.name: x
+            for x in idat_basepaths(idat_dir)
+            if is_valid_idat_basepath(x)
+        }
         self.annotation_df = None
         self.annotated_ids = self.get_annotated_ids()
         if overlap and self.annotated_ids is not None:
@@ -617,6 +620,8 @@ def get_side_navigation(
     precalculate,
     cpg_selection,
 ):
+    n_cpgs_max = np.inf if len(cpgs) == 0 else len(cpgs)
+    n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
     return dbc.Col(
         [
             dbc.Tabs(
@@ -625,13 +630,12 @@ def get_side_navigation(
                         label="Settings",
                         children=[
                             html.Br(),
-                            html.H6(f"Number of CpG sites (max. {len(cpgs)})"),
-                            html.Br(),
+                            html.H6(f"Number of CpG sites{n_cpgs_max_str}"),
                             dcc.Input(
                                 id="num-cpgs",
                                 type="number",
                                 min=1,
-                                max=len(cpgs),
+                                max=n_cpgs_max,
                                 step=1,
                                 value=n_cpgs,
                             ),
@@ -720,19 +724,7 @@ def get_side_navigation(
                                         ),
                                         width={"size": 6},
                                     ),
-                                    # dbc.Col(
-                                    # dbc.Button(
-                                    # "Stop",
-                                    # id="stop-button",
-                                    # color="danger",
-                                    # ),
-                                    # width={"size": 6},
-                                    # ),
                                 ],
-                                # style={
-                                # "margin-bottom": "10px",
-                                # "justify-content": "center",
-                                # },
                             ),
                             dcc.Store(id="running-state"),
                             html.Div(id="output-div"),
@@ -801,7 +793,7 @@ def guess_annotation_file(directory):
 def input_args_hash(*args):
     result = "-".join(
         [
-            str(arg.tolist()) if isinstance(arg, np.ndarray) else str(arg)
+            str(arg.tolist()[:10]) if isinstance(arg, np.ndarray) else str(arg)
             for arg in args
         ]
     )
@@ -826,19 +818,20 @@ def reorder_columns_by_variance(data_frame):
 class MethylAnalysis:
     def __init__(
         self,
-        cpgs="auto",
-        n_cpgs=None,
         analysis_dir=DEFAULT_ANALYSIS_DIR,
         annotation=None,
         reference_dir=DEFAULT_REFERENCE_DIR,
         output_dir=DEFAULT_OUTPUT_DIR,
         prep="illumina",
+        cpgs="auto",
+        n_cpgs=DEFAULT_N_CPGS,
         precalculate_cnv=False,
         save_betas=False,
         overlap=False,
         cpg_selection="random",
         host="localhost",
         port=8050,
+        debug=False,
     ):
         self.umap_cpgs = None
         self.analysis_dir = analysis_dir
@@ -854,8 +847,6 @@ class MethylAnalysis:
         )
         self.cpgs = self.get_cpgs(cpgs)
         self.n_cpgs = n_cpgs
-        if n_cpgs is None:
-            self.n_cpgs = len(self.cpgs)
         self.cpg_selection = cpg_selection
         if self.cpg_selection not in ["top", "random"]:
             raise ValueError(
@@ -863,6 +854,7 @@ class MethylAnalysis:
             )
         self.host = host
         self.port = port
+        self.debug = debug
         self.umap_color_columns = None
         self.reference_dir = reference_dir
         self.output_dir = output_dir
@@ -900,8 +892,11 @@ class MethylAnalysis:
             input_var = set()
             for path in self.idat_files.path.values():
                 input_var.add(RawData(path).array_type.value)
+            input_var = list(input_var)
             print(f"The following array types were detected: {input_var}")
-        if len(input_var) > 0 and all(x in valid_parms for x in input_var):
+        if all(x in valid_parms for x in input_var):
+            if len(input_var) == 0:
+                return np.array([])
             input_var = valid_parms if "all" in input_var else input_var
             cpg_sets = []
             for array_type in valid_parms[1:]:
@@ -910,14 +905,13 @@ class MethylAnalysis:
             cpgs = set.intersection(*cpg_sets)
             return np.array(list(cpgs))
         raise ValueError(
-            "'cpgs' must be numpy array or a list of strings in {valid_parms}"
+            f"'cpgs' must be numpy array or a list of strings in {valid_parms}"
         )
-        return np.array(input_var)
 
     def update_output_paths(self):
         old_betas_path = self.betas_path
         umap_hash_key = input_args_hash(
-            self.cpgs,
+            np.sort(self.cpgs),
             self.n_cpgs,
             self.analysis_dir,
             self.prep,
@@ -1466,9 +1460,15 @@ class MethylAnalysis:
 
         return app
 
-    def run_app(self):
+    def run_app(self, open_tab=False):
         self.app = self.get_app()
-        self.app.run(debug=True, host=self.host, use_reloader=False)
+        if open_tab:
+
+            def open_browser_tab():
+                webbrowser.open_new_tab(f"http://{self.host}:{self.port}")
+
+            threading.Timer(1, open_browser_tab).start()
+        self.app.run(debug=self.debug, host=self.host, use_reloader=False)
 
     def __repr__(self):
         title = "MethylAnalysis():"

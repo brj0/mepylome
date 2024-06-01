@@ -87,4 +87,7 @@ setup(
         "Topic :: Scientific/Engineering",
         "Topic :: Software Development",
     ],
+    entry_points={
+        "console_scripts": ["mepylome=mepylome.analysis.cli:start_mepylome"]
+    },
 )

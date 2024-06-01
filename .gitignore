@@ -175,3 +175,5 @@ gmon.out
 
 # Ruff
 .ruff_cache/
+
+trash/
