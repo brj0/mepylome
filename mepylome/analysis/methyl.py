@@ -31,6 +31,7 @@ Usage:
 
 import colorsys
 import hashlib
+import logging
 import os
 import pathlib
 import pickle
@@ -390,7 +391,7 @@ def extract_beta(data):
     idat_file, cpgs, prep = data
     try:
         methyl = MethylData(file=idat_file, prep=prep)
-        betas_450k_df = methyl.converted_beta(cpgs=cpgs, fill=NEUTRAL_BETA)
+        betas_450k_df = methyl.betas_for_cpgs(cpgs=cpgs, fill=NEUTRAL_BETA)
         betas = betas_450k_df.values.ravel()
         return betas, methyl.array_type
     except ValueError as e:
@@ -400,7 +401,7 @@ def extract_beta(data):
 def methyl_mtx_from_all_cpgs(betas_list, cpgs, fill=NEUTRAL_BETA):
     array_types = set(x[1] for x in betas_list)
     all_cpgs = {
-        array_type: Manifest(array_type).get_cpgs()
+        array_type: Manifest(array_type).methylation_probes
         for array_type in array_types
     }
     left_idx = {}
@@ -467,7 +468,7 @@ def write_single_cnv_to_disk(args):
     try:
         sample_methyl = MethylData(file=idat_basename)
         reference = get_reference_methyl_data(reference_dir, prep)
-        cnv = CNV.set_all(sample_methyl, reference)
+        cnv = CNV.set_all(sample_methyl, reference, do_segmentation=True)
         cnv_filename = sample_id + ZIP_ENDING
         cnv.write(Path(cnv_dir, cnv_filename))
     except Exception as error:
@@ -901,7 +902,7 @@ class MethylAnalysis:
             cpg_sets = []
             for array_type in valid_parms[1:]:
                 if array_type in input_var:
-                    cpg_sets.append(set(Manifest(array_type).get_cpgs()))
+                    cpg_sets.append(set(Manifest(array_type).methylation_probes))
             cpgs = set.intersection(*cpg_sets)
             return np.array(list(cpgs))
         raise ValueError(
@@ -1468,6 +1469,11 @@ class MethylAnalysis:
                 webbrowser.open_new_tab(f"http://{self.host}:{self.port}")
 
             threading.Timer(1, open_browser_tab).start()
+
+        # Don't show all the flask logging statements.
+        log = logging.getLogger('werkzeug')
+        log.setLevel(logging.ERROR)
+
         self.app.run(debug=self.debug, host=self.host, use_reloader=False)
 
     def __repr__(self):

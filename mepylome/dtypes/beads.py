@@ -1,3 +1,27 @@
+"""Contains classes and function for processing Illumina methylation beads.
+
+It includes methods for extracting methylation information, various
+preprocessing techniques, normalization, and data handling.
+
+Classes:
+    RawData: Class for extracting raw intensity data from IDAT files.
+    MethylData: Class for handling the raw intensity data, with various
+        preprocessing options.
+    ReferenceMethylData: Stores and manages (CNV-neutral) reference methylation
+        data for different array types.
+
+
+Examples:
+    raw_data = RawData("path/to/idat_file")
+    methyl_data = MethylData(raw_data, prep="illumina")
+
+    # Equivalent shorter version:
+    methyl_data = MethylData(file="path/to/idat_file", prep="illumina")
+
+    reference = ReferenceMethylData(files=reference_dir, prep="illumina")
+"""
+
+
 import collections
 from functools import reduce
 from pathlib import Path
@@ -21,6 +45,7 @@ NEUTRAL_BETA = 0.49
 
 
 def is_valid_idat_basepath(basepath):
+    """Checks if the given basepath(s) point to valid IDAT files."""
     if not isinstance(basepath, list):
         basepath = [basepath]
     return all(
@@ -37,10 +62,35 @@ def is_valid_idat_basepath(basepath):
 
 
 def idat_basepaths(files):
-    # If basenames is dir take all files in it
+    """Returns unique basepaths from IDAT files or directory.
+
+    This function processes a list of IDAT files or a directory containing IDAT
+    files and returns their basepaths by removing the file endings. The
+    function ensures that there are no duplicate basepaths in the returned list
+    and maintains the order of the files as they appear in the input.
+
+    Args:
+        files (path or list): A file or directory path or a list of file paths.
+
+    Returns:
+        list: A list of unique basepaths corresponding to the provided IDAT
+            files. If a directory is provided, all IDAT files are recursively
+            considered.
+
+    Example:
+        >>> idat_basepaths("/path/to/idat/dir")
+        [PosixPath('/path/to/idat/file1'), PosixPath('/path/to/idat/file2')]
+
+        >>> idat_basepaths(["/path1/file1_Grn.idat", "/path2/file2_Red.idat"])
+        [PosixPath('/path1/file1'), PosixPath('/path2/file2')]
+
+        >>> idat_basepaths("/path/to/idat/file_Grn.idat.gz")
+        [PosixPath('/path/to/idat/file')]
+    """
     if isinstance(files, list):
         _files = files
     elif Path(files).expanduser().is_dir():
+        # If basenames is dir take all files in it
         _files = Path(files).expanduser().rglob("*_[GR][re][nd].idat*")
     else:
         _files = [files]
@@ -60,6 +110,17 @@ def idat_basepaths(files):
 
 
 def idat_paths_from_basenames(basenames):
+    """Returns paths to green and red IDAT files.
+
+    Args:
+        basenames (list): List of basepaths for IDAT files.
+
+    Returns:
+        tuple: Paths to green and red IDAT files.
+
+    Raises:
+        FileNotFoundError: If any IDAT file is not found.
+    """
     grn_idat_files = np.array(
         [Path(str(name) + ENDING_GRN) for name in basenames]
     )
@@ -88,7 +149,38 @@ def idat_paths_from_basenames(basenames):
 
 
 class RawData:
+    """Represents raw intensity data extracted from IDAT files.
+
+    This class initializes with a list of basepaths to IDAT files and parses
+    them to extract raw intensity data from the green and red channels.
+
+    Attributes:
+        array_type (str): Type of Illumina array.
+        manifest (Manifest): Manifest associated with the array.
+        probes (list): List of probe names corresponding to the IDAT files.
+        ids (array): Array of probe IDs.
+        _grn (array): Array of raw intensity values from the green channel.
+        _red (array): Array of raw intensity values from the red channel.
+
+    Properties:
+        grn (DataFrame): DataFrame of raw intensity values indexed by probe IDs
+            for the green channel.
+        red (DataFrame): DataFrame of raw intensity values indexed by probe IDs
+            for the red channel.
+
+    Methods:
+        __init__(basenames): Initializes the RawData object with basepaths to
+            IDAT files.
+
+    Example:
+        >>> raw_data = RawData([idat_basepath0, idat_basepath1])
+    """
     def __init__(self, basenames):
+        """Initializes RawData with basepaths to IDAT files.
+
+        Args:
+            basenames (list): List of basepaths to IDAT files.
+        """
         _basenames = idat_basepaths(basenames)
 
         self.probes = [path.name.replace(ENDING_GZ, "") for path in _basenames]
@@ -216,7 +308,50 @@ def overlap_indices(left_arr, right_arr):
 
 
 class MethylData:
+    """Represents methylated and unmethylated intensity data from RawData.
+
+    This class provides methods for preprocessing Illumina methylation data and
+    computing beta values from methylated and unmethylated intensities.
+
+    Properties:
+        grn (DataFrame): DataFrame of normalized intensity for the green
+            channel, indexed by probe IDs.
+        red (DataFrame): DataFrame of normalized intensity for the red
+            channel, indexed by probe IDs.
+        methylated (DataFrame): DataFrame of methylated intensity values
+            indexed by IlmnID.
+        unmethylated (DataFrame): DataFrame of unmethylated intensity values
+            indexed by IlmnID.
+
+    Methods:
+        __init__: Initializes the MethylData object.
+        preprocess_illumina(): Performs preprocessing usings Illuminas method.
+        preprocess_swan(): Performs preprocessing using the SWAN method.
+        preprocess_noob(offset=15, dye_method="single"): Performs preprocessing
+            using the Noob method.
+        beta(): Computes beta values from methylated and unmethylated
+            intensities.
+        betas_for_cpgs(cpgs=None, fill=NEUTRAL_BETA): Computes beta values for
+            specific CpG sites.
+    """
+
     def __init__(self, data=None, file=None, prep="illumina"):
+        """Initializes the MethylData object.
+
+        If 'data' is not provided, it will attempt to create a RawData object
+        using the specified 'file'.
+
+        Args:
+            data (RawData): RawData object containing raw intensity data.
+            file (str): Path to file or dir or list of paths containing raw
+                intensity data.
+            prep (str): Preprocessing method. Options: "illumina", "swan",
+                "noob".
+
+        Raises:
+            ValueError: If neither 'data' nor 'file' is provided.
+            ValueError: If 'data' is provided but is not of type 'RawData'.
+        """
         if data is None and file is None:
             raise ValueError("'data' or 'file' must be given.")
         if data is None:
@@ -247,6 +382,7 @@ class MethylData:
 
     @property
     def grn(self):
+        """Normalized intensity for the green channel, indexed by probe IDs."""
         if self._grn_df is None:
             self._grn_df = pd.DataFrame(
                 self._grn.T,
@@ -258,6 +394,7 @@ class MethylData:
 
     @property
     def red(self):
+        """Normalized intensity for the red channel, indexed by probe IDs."""
         if self._red_df is None:
             self._red_df = pd.DataFrame(
                 self._red.T,
@@ -269,6 +406,7 @@ class MethylData:
 
     @property
     def methylated(self):
+        """Methylated intensity values indexed by IlmnID."""
         if self._methylated_df is None:
             self._methylated_df = pd.DataFrame(
                 self.methyl.T,
@@ -281,6 +419,7 @@ class MethylData:
 
     @property
     def unmethylated(self):
+        """Unmethylated intensity values indexed by IlmnID."""
         if self._unmethylated_df is None:
             self._unmethylated_df = pd.DataFrame(
                 self.unmethyl.T,
@@ -292,6 +431,15 @@ class MethylData:
         return self._unmethylated_df
 
     def preprocess_illumina(self):
+        """Performs preprocessing usings Illuminas method.
+
+        This function implements preprocessing for Illumina methylation
+        microarrays as used in Genome Studio, the standard software provided by
+        Illumina.
+
+        Details:
+            This implementation is adapted from 'minfi'.
+        """
         self._methylated_df = None
         self._unmethylated_df = None
         self.illumina_control_normalization()
@@ -299,6 +447,7 @@ class MethylData:
         self.preprocess_raw_cached()
 
     def illumina_control_normalization(self, reference=0):
+        """Performs normalization using control probes."""
         at_controls = self.manifest.control_address(["NORM_A", "NORM_T"])
         cg_controls = self.manifest.control_address(["NORM_C", "NORM_G"])
 
@@ -319,6 +468,7 @@ class MethylData:
         self._red = red_factor[:, np.newaxis] * self._red
 
     def illumina_bg_correction(self):
+        """Performs background normalization using negative control probes."""
         neg_controls = self.manifest.control_address("NEGATIVE")
 
         grn_bg = np.sort(
@@ -332,6 +482,11 @@ class MethylData:
         self._red = np.maximum(self._red - red_bg[:, np.newaxis], 0)
 
     def preprocess_raw(self):
+        """Calculates methylated/unmethylated arrays without preprocessing.
+
+        Converts the Red/Green channel for an Illumina methylation array
+        into methylation signal, without using any normalization.
+        """
         type_1 = self.manifest.probe_info(ProbeType.ONE)
         type_2 = self.manifest.probe_info(ProbeType.TWO)
         type_1_red = type_1[type_1.Color_Channel.values == Channel.RED.value]
@@ -352,37 +507,49 @@ class MethylData:
         )
 
     def preprocess_raw_methylated(self, man_idx_np, t1_grn, t1_red, t2):
+        """Calculates methylated data frame without preprocessing."""
         red = self.red
         grn = self.grn
-        df = pd.DataFrame(
+        result = pd.DataFrame(
             np.nan,
             index=man_idx_np,
             columns=red.columns,
             dtype="float32",
         )
-        df.loc[t1_red.index] = red.loc[t1_red["AddressB_ID"].values].values
-        df.loc[t1_grn.index] = grn.loc[t1_grn["AddressB_ID"].values].values
-        df.loc[t2.index] = grn.loc[t2["AddressA_ID"].values].values
-        df["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
-        self._methylated_df = df.set_index("IlmnID")
+        result.loc[t1_red.index] = red.loc[t1_red["AddressB_ID"].values].values
+        result.loc[t1_grn.index] = grn.loc[t1_grn["AddressB_ID"].values].values
+        result.loc[t2.index] = grn.loc[t2["AddressA_ID"].values].values
+        result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
+        self._methylated_df = result.set_index("IlmnID")
 
     def preprocess_raw_unmethylated(self, man_idx_np, t1_grn, t1_red, t2):
+        """Calculates unmethylated data frame without preprocessing."""
         red = self.red
         grn = self.grn
-        df = pd.DataFrame(
+        result = pd.DataFrame(
             np.nan,
             index=man_idx_np,
             columns=red.columns,
             dtype="float32",
         )
-        df.loc[t1_red.index] = red.loc[t1_red["AddressA_ID"].values].values
-        df.loc[t1_grn.index] = grn.loc[t1_grn["AddressA_ID"].values].values
-        df.loc[t2.index] = red.loc[t2["AddressA_ID"].values].values
-        df["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
-        self._unmethylated_df = df.set_index("IlmnID")
+        result.loc[t1_red.index] = red.loc[t1_red["AddressA_ID"].values].values
+        result.loc[t1_grn.index] = grn.loc[t1_grn["AddressA_ID"].values].values
+        result.loc[t2.index] = red.loc[t2["AddressA_ID"].values].values
+        result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
+        self._unmethylated_df = result.set_index("IlmnID")
 
     @memoize
     def cached_indices(manifest, illumina_ids):
+        """Cache the indices required for data processing.
+
+        Args:
+            manifest (Manifest): Manifest object.
+            illumina_ids (array): Array of Illumina IDs.
+
+        Returns:
+            dict: Cached indices including probe indices, Illumina IDs indices,
+                and probe type indices.
+        """
         type_1 = manifest.probe_info(ProbeType.ONE)
         type_2 = manifest.probe_info(ProbeType.TWO)
         type_1_red = type_1[type_1.Color_Channel.values == Channel.RED.value]
@@ -420,6 +587,15 @@ class MethylData:
 
     @memoize
     def cached_control_indices(manifest, illumina_ids):
+        """Cache the control indices required for data processing.
+
+        Args:
+            manifest (Manifest): Manifest object.
+            illumina_ids (array): Array of Illumina IDs.
+
+        Returns:
+            dict: Cached indices.
+        """
         ids = pd.Index(illumina_ids)
         control_probes = manifest.control_data_frame
         control_probes = control_probes[
@@ -439,6 +615,14 @@ class MethylData:
         }
 
     def preprocess_raw_cached(self):
+        """Calculates methylated/unmethylated arrays without preprocessing.
+
+        Converts the Red/Green channel for an Illumina methylation array
+        into methylation signal, without using any normalization.
+
+        Note:
+            Fast version of preprocess_raw.
+        """
         ci = MethylData.cached_indices(self.manifest, self.ids)
         self.methyl = np.full((len(self.probes), len(ci["idx"])), np.nan)
         self.methyl[:, ci["idx_1_red__"]] = self._red[:, ci["ids_1_red_b"]]
@@ -452,6 +636,7 @@ class MethylData:
         self.methyl_ilmnid = self.manifest.data_frame.IlmnID.values[ci["idx"]]
 
     def swan_bg_intensity(self):
+        """Intensity background normalization used for SWAN preprocessing."""
         neg_controls = self.manifest.control_address("NEGATIVE")
         grn_med = np.median(
             self._grn[:, np.isin(self.ids, neg_controls, assume_unique=True)],
@@ -480,7 +665,7 @@ class MethylData:
         for probe_type in [ProbeType.ONE, ProbeType.TWO]:
             all_ncpts_type = all_ncpgs[all_ncpgs.Probe_Type == probe_type]
             all_indices[probe_type] = all_ncpts_type.index.values
-            all_ncpts_type.reset_index(drop=True, inplace=True)
+            all_ncpts_type = all_ncpts_type.reset_index(drop=True)
             indices = []
             for ncpgs in range(1, 4):
                 ids = all_ncpts_type.index[all_ncpts_type.N_CpG == ncpgs]
@@ -492,6 +677,36 @@ class MethylData:
         return all_indices, random_subset_indices
 
     def preprocess_swan(self):
+        """Subset-quantile Within Array Normalization (SWAN).
+
+        Details:
+            The SWAN method has two parts. First, an average quantile
+            distribution is created using a subset of probes defined to be
+            biologically similar based on the number of CpGs underlying the
+            probe body. This is achieved by randomly selecting N Infinium I and
+            II probes that have 1, 2 and 3 underlying CpGs, where N is the
+            minimum number of probes in the 6 sets of Infinium I and II probes
+            with 1, 2 or 3 probe body CpGs. This results in a pool of 3N
+            Infinium I and 3N Infinium II probes. The subset for each probe
+            type is then sorted by increasing intensity.  The value of each of
+            the 3N pairs of observations is subsequently assigned to be the
+            mean intensity of the two probe types for that row or “quantile”.
+            This is the standard quantile procedure. The intensities of the
+            remaining probes are then separately adjusted for each probe type
+            using linear interpolation between the subset probes.
+
+
+            Implementation adapted from 'minfi'
+
+        Note:
+            SWAN uses a random subset of probes for between array
+            normalization. To achieve reproducible results, set the seed.
+
+        References:
+            J Maksimovic, L Gordon and A Oshlack (2012). SWAN: Subset quantile
+            Within-Array Normalization for Illumina Infinium
+            HumanMethylation450 BeadChips. Genome Biology 13, R44.
+        """
         self._methylated_df = None
         self._unmethylated_df = None
         self.preprocess_raw_cached()
@@ -510,6 +725,7 @@ class MethylData:
     def _preprocess_swan(
         intensity, bg_intensity, all_indices, random_subset_indices
     ):
+        """Main function for preprocess_swan."""
         from scipy.stats import rankdata
 
         random_subset_one = all_indices[ProbeType.ONE][
@@ -547,6 +763,24 @@ class MethylData:
         return swan
 
     def preprocess_noob(self, offset=15, dye_method="single"):
+        """The Noob preprocessing method.
+
+        Description:
+            Noob (normal-exponential out-of-band) is a background correction
+            method with dye-bias normalization.
+
+        Args:
+            offset (float): An offset for the normexp background correction.
+            dye_method (str): How should dye bias correction be done: "single"
+                for single sample approach, or "reference" for a reference
+                array.
+
+        References:
+            TJ Triche, DJ Weisenberger, D Van Den Berg, PW Laird and KD
+            Siegmund _Low-level processing of Illumina Infinium DNA
+            Methylation BeadArrays_.  Nucleic Acids Res (2013) 41, e90.
+            doi:10.1093/nar/gkt090.
+        """
         self._methylated_df = None
         self._unmethylated_df = None
         self.preprocess_raw_cached()
@@ -650,15 +884,30 @@ class MethylData:
 
     @property
     def beta(self):
-        beta = self.get_beta(self.methyl, self.unmethyl)
+        """Returns beta values."""
+        beta = self._get_beta(self.methyl, self.unmethyl)
         return pd.DataFrame(
             beta.T, columns=self.probes, index=self.methyl_ilmnid
         )
 
-    def converted_beta(self, cpgs=None, fill=NEUTRAL_BETA):
+    def betas_for_cpgs(self, cpgs=None, fill=NEUTRAL_BETA):
+        """Calculates beta values for specified CpGs.
+
+        Args:
+            cpgs (array-like): Array of CpG IDs.
+            fill (float): Value to fill for CpGs not found in the used
+                manifest.
+
+        Returns:
+            pandas.DataFrame: DataFrame containing beta values for specified
+                CpGs.
+
+        Nore:
+            If 'cpgs' is None, all CpGs from the used manifest are considered.
+        """
         if cpgs is None:
             cpgs = self.manifest.methylation_probes
-        beta = self.get_beta(self.methyl, self.unmethyl)
+        beta = self._get_beta(self.methyl, self.unmethyl)
         converted = np.full((len(self.probes), len(cpgs)), fill)
         left_idx, right_idx = overlap_indices(cpgs, self.methyl_ilmnid)
         converted[:, left_idx] = beta[:, right_idx]
@@ -666,7 +915,7 @@ class MethylData:
         return pd.DataFrame(converted.T, columns=self.probes, index=cpgs)
 
     @staticmethod
-    def get_beta(
+    def _get_beta(
         methylated, unmethylated, offset=0, beta_threshold=0, min_zero=True
     ):
         assert offset >= 0, "offset must be non-negative"
@@ -709,6 +958,25 @@ class MethylData:
 
 @memoize
 class ReferenceMethylData:
+    """Stores and manages reference cases for different array types.
+
+    This class categorizes and processes reference IDAT files to create
+    MethylData objects for different array types. It is intended for CNV
+    neutral reference cases used in CNV calculation.
+
+    Args:
+        files (list): List of file paths to IDAT files or directory containing
+            IDAT files.
+        prep (str): Preprocessing method. Options: "illumina", "swan", "noob".
+
+    Attributes:
+        _methyl (dict): Internal dictionary to cache MethylData objects for
+            each array type.
+
+    Raises:
+        ValueError: If no reference files are found for the specified array
+            type.
+    """
     def __init__(self, files=None, prep="illumina"):
         idat_files = idat_basepaths(files)
         reference_files = collections.defaultdict(list)
@@ -731,6 +999,3 @@ class ReferenceMethylData:
                 f"No reference files found for array type {array_type.value}"
             )
         return self._methyl[array_type]
-
-    # def __reduce__(self):
-    # return (self.__class__, (self.files, self.prep))

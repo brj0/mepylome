@@ -34,7 +34,7 @@ cpg_mask = np.isin(cpg_index_450k, random_cpg_sample)
 def extract_beta(idat_file):
     try:
         methyl = MethylData(file=idat_file)
-        betas_450k_df = methyl.converted_beta(cpgs=cpg_index_450k, fill=0.49)
+        betas_450k_df = methyl.betas_for_cpgs(cpgs=cpg_index_450k, fill=0.49)
         betas = betas_450k_df.values.ravel()
         return betas[cpg_mask]
     except ValueError as e:

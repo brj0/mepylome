@@ -28,9 +28,11 @@ class InfiniumDesignType(IntEnum):
 
 @unique
 class ProbeType(IntEnum):
-    """Represents the probe type depending on Infinium_Design_Type (I or II)
-    and the probe name. Probes starting with 'cg' are regular probes, probes
-    starting with 'rs' are categorized as SNP probes.
+    """Represents probe type, distinguishing between regular and SNP probes.
+
+    The probe type depends on the Infinium_Design_Type (I or II) and the probe
+    name. Probes starting with 'cg' are regular probes, probes starting with
+    'rs' are categorized as SNP probes.
     """
 
     ONE = 1

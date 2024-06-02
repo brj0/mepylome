@@ -1,3 +1,5 @@
+"""This module contains genetic data."""
+
 import pkg_resources
 
 __all__ = ["CHROMOSOME_DATA", "COLOR_MAP", "IMPORTANT_GENES", "GAPS", "GENES"]

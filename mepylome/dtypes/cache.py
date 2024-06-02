@@ -1,9 +1,37 @@
+"""Utility functions for caching and memoization.
+
+Utility functions and classes for caching and memoization to optimize
+performance by storing and reusing computed results.
+"""
+
 import inspect
 
 import numpy as np
 
 
 def np_hash(array):
+    """Generates a hashable key for a NumPy array.
+
+    This function creates a hashable key from a NumPy array by converting it to
+    bytes if the data type is not an object. If the array's data type is an
+    object (used for IlmnID), it samples 57 evenly spaced elements from the
+    array along with the last element and combines them into a tuple with the
+    array's length to form the key.
+
+    Args:
+        array (numpy.ndarray): The input array for which to generate the
+            hashable key.
+
+    Returns:
+        tuple: A hashable key representing the array.
+
+    Note:
+        If 'array' is an object, collisions are possible.
+
+    Example:
+        >>> arr = np.array([1, 2, 3, 4, 5])
+        >>> np_hash(arr)
+    """
     if array.dtype != np.dtype(object):
         return array.tobytes()
     full_len = len(array)
@@ -17,6 +45,19 @@ def np_hash(array):
 
 
 def cache_key(arg):
+    """Generates a cache key for a given argument based on its type.
+
+    Args:
+        arg: The input argument, which can be of various types such as
+            ArrayType, Manifest, PosixPath, bool, int, NoneType, str,
+            RangeIndex, Index, or ndarray.
+
+    Returns:
+        The cache key for the argument.
+
+    Warning:
+        If arg is a numpy array of object type, the key may not be unique.
+    """
     type_map = {
         "ArrayType": str,
         "Manifest": lambda x: x.array_type.value,
@@ -34,6 +75,27 @@ def cache_key(arg):
 
 
 def get_id_tuple(f, args, kwargs):
+    """Generates a identifier tuple for a class/function and its arguments.
+
+    This function creates a tuple that uniquely identifies a function call
+    based on the function reference, its positional arguments, and keyword
+    arguments. The keyword arguments are sorted by key to ensure a consistent
+    order.
+
+    Args:
+        f: The function reference.
+        args: A list of positional arguments passed to the function.
+        kwargs: A dictionary of keyword arguments passed to the function. The
+            keyword argument 'verbose' is excluded from the identifier.
+
+    Returns:
+        tuple: A tuple representing the unique identifier for the function
+            call.
+
+    Warning:
+        If arg is a numpy array of object type (used in IlmnID), the key may
+        not be unique.
+    """
     id_list = [cache_key(f)]
     id_list.extend(cache_key(arg) for arg in args)
     # Sort keyword arguments by key to ensure consistent order
@@ -43,6 +105,27 @@ def get_id_tuple(f, args, kwargs):
 
 
 def memoize(f):
+    """Memoization decorator for classes and functions.
+
+    Description:
+        The `memoize` function is a decorator that provides memoization for
+        class instantiation and functions. It caches instances of the decorated
+        class or function based on the arguments provided. If an instance or
+        function result with the same arguments already exists in the cache, it
+        returns the cached instance or result instead of creating a new one.
+
+    Args:
+        f (Union[class, function]): The class or function to be decorated with
+        memoization.
+
+    Returns:
+        Memoize: A memoized version of the input class or function.
+
+    Note:
+        Adapted from:
+        https://stackoverflow.com/questions/10879137/how-can-i-memoize-a-class-instantiation-in-python
+    """
+
     class Memoize:
         def __init__(self, cls):
             self.cls = cls
@@ -68,7 +151,7 @@ def memoize(f):
             return self._cache[key]
 
         def __instancecheck__(self, other):
-            """Make isinstance() work"""
+            """Make isinstance() work."""
             return isinstance(other, self.cls)
 
     return Memoize(f)

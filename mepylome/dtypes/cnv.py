@@ -1,4 +1,24 @@
-import hashlib
+"""Provides CNV analysis functionality including segmentation and plotting.
+
+This module provides classes and functions for copy number variation (CNV)
+analysis.
+
+Classes:
+- Annotation: Class representing the genoic annotation.
+- CNV: Class for representing CNV data and performing analysis.
+
+Usage:
+    sample_methyl = MethylData(file="path/to/idat/file")
+    reference_methyl = MethylData(file="path/to/idat/reference/dir")
+
+    cnv = CNV(sample_methyl, reference_methyl)
+    cnv.fit()
+    cnv.set_bins()
+    cnv.set_detail()
+    cnv.set_segments()
+    cnv.plot()
+"""
+
 import heapq
 import io
 import logging
@@ -6,7 +26,6 @@ import zipfile
 from functools import lru_cache
 from pathlib import Path
 
-import cbseg
 import numpy as np
 import pandas as pd
 import pyranges as pr
@@ -27,12 +46,25 @@ UNSET = object()
 ZIP_ENDING = "_cnv.zip"
 
 
-def pd_hash(df):
-    return hashlib.sha1(pd.util.hash_pandas_object(df).values).hexdigest()
-
-
 @memoize
 class Annotation:
+    """Genomic annotations for CNV such as as binning and gene locations.
+
+    Attributes:
+        manifest (Manifest): The manifest to use.
+        array_type (str): The array type of the manifest.
+        probes (list): The Illumina ID's of the manifest after adjusting the
+            manifest to relevant genomic ranges.
+        gap (pyranges.PyRanges): The genomic gaps except for the CNV analysis.
+        detail (pyranges.PyRanges): Detailed annotation information (usually
+            genes).
+        bin_size (int): The base-pair size of the bins.
+        min_probes_per_bin (int): The minimum number of probes per bin.
+        verbose (bool): Whether to display verbose output during annotation
+            processing.
+        chromsizes (dict): Dictionary containing chromosome sizes.
+    """
+
     def __init__(
         self,
         manifest=None,
@@ -43,6 +75,24 @@ class Annotation:
         min_probes_per_bin=15,
         verbose=False,
     ):
+        """Initializes the Annotation object.
+
+        Args:
+            manifest (Manifest, optional): The manifest containing annotation
+                details. Can be determined from array_type.
+            array_type (str, optional): The type of array used for annotation.
+                Can be determined from manifest.
+            gap (pyranges.PyRanges): The genomic gaps. If unset default values
+                will be used.
+            detail (pyranges.PyRanges, optional): Detailed annotation (usually
+                genes).
+            bin_size (int, optional): The base-pair size of annotation bins.
+                Defaults to 50000.
+            min_probes_per_bin (int, optional): The minimum number of probes
+                per bin. Defaults to 15.
+            verbose (bool, optional): Whether to display verbose output during
+                annotation processing. Defaults to False.
+        """
         if manifest is None and array_type is None:
             raise ValueError("'manifest' or 'array_type' must be given")
         self.bin_size = bin_size
@@ -74,13 +124,19 @@ class Annotation:
         if manifest is None:
             self.manifest = Manifest(array_type)
 
-        df = self.manifest.data_frame.copy()
-        df = df[[x.startswith("cg") for x in df.IlmnID.values]]
-        df = df[Chromosome.is_valid_chromosome(df.Chromosome)]
-        df.Chromosome = Chromosome.pd_to_string(df.Chromosome)
+        manifest_df = self.manifest.data_frame.copy()
+        manifest_df = manifest_df[
+            [x.startswith("cg") for x in manifest_df.IlmnID.values]
+        ]
+        manifest_df = manifest_df[
+            Chromosome.is_valid_chromosome(manifest_df.Chromosome)
+        ]
+        manifest_df.Chromosome = Chromosome.pd_to_string(
+            manifest_df.Chromosome
+        )
         # PyRanges ranges start at 0
-        df.Start -= 1
-        self.adjusted_manifest = pr.PyRanges(df)
+        manifest_df.Start -= 1
+        self.adjusted_manifest = pr.PyRanges(manifest_df)
 
         self.probes = self.adjusted_manifest.IlmnID.values
         self.bins = self.make_bins()
@@ -97,27 +153,14 @@ class Annotation:
                 self.adjusted_manifest[["IlmnID"]]
             ).df[["Name", "IlmnID"]]
 
-    @classmethod
-    def from_array_type(
-        cls,
-        array_type,
-        bin_size=50000,
-        min_probes_per_bin=15,
-        verbose=False,
-    ):
-        annotation = cls(
-            Manifest(array_type),
-            gap=Annotation.default_gaps(),
-            detail=Annotation.default_detail(),
-            bin_size=bin_size,
-            min_probes_per_bin=min_probes_per_bin,
-            verbose=verbose,
-        )
-        return annotation
-
     @staticmethod
     @lru_cache
     def default_gaps():
+        """Default genomic gaps.
+
+        Details:
+            The default value of conumee2.
+        """
         gap_df = pd.read_csv(GAPS)
         # PyRanges ranges start at 0
         gap_df.Start -= 1
@@ -127,6 +170,11 @@ class Annotation:
     @staticmethod
     @lru_cache
     def default_detail():
+        """Default PyRanges object including gene names with coordinates.
+
+        Details:
+            Data downloaded from: https://grch37.ensembl.org/biomart/martview
+        """
         genes_df = pd.read_csv(GENES, sep="\t")
         # PyRanges ranges start at 0
         genes_df.Start -= 1
@@ -134,6 +182,7 @@ class Annotation:
         return genes
 
     def make_bins(self):
+        """Creates equidistant bins and then removes genomic gaps."""
         bins = pr.gf.tile_genome(self.chromsizes, int(5e4))
         bins = bins[bins.Chromosome != "chrM"]
         if self.gap is not None:
@@ -142,6 +191,7 @@ class Annotation:
         return bins
 
     def merge_bins(self, bins):
+        """Merges adjacent bins until all contain a minimum of probes."""
         bins = bins.count_overlaps(
             self.adjusted_manifest[["IlmnID"]], overlap_col="N_probes"
         )
@@ -154,23 +204,36 @@ class Annotation:
         return bins
 
     @staticmethod
-    def merge_bins_in_chromosome(df, min_probes_per_bin, verbose=False):
+    def merge_bins_in_chromosome(bin_df, min_probes_per_bin, verbose=False):
+        """Merges adjacent bins until all contain a minimum of probes.
+
+        Args:
+            bin_df (DataFrame): DataFrame containing bin information for a
+                single chromosome.
+            min_probes_per_bin (int): Minimum number of probes per bin required
+                for merging.
+            verbose (bool, optional): Whether to print verbose output. Defaults
+                to False.
+
+        Returns:
+            DataFrame: Merged bins in the chromosome.
+        """
         I_START, I_END, I_N_PROBES, I_LEFT, I_RIGHT = range(5)
         INVALID = np.iinfo(np.int64).max
 
         # Calculate Left and Right neighbors
-        df["Left"] = df.index - 1
-        df["Right"] = df.index + 1
+        bin_df["Left"] = bin_df.index - 1
+        bin_df["Right"] = bin_df.index + 1
 
         # Need to regularly extract minimum; use min-heap
         heap = [
             (x, y)
-            for x, y in zip(df.N_probes, df.index)
+            for x, y in zip(bin_df.N_probes, bin_df.index)
             if x < min_probes_per_bin
         ]
         heapq.heapify(heap)
 
-        matrix = df[
+        matrix = bin_df[
             ["Start", "End", "N_probes", "Left", "Right"]
         ].values.astype(np.int64)
 
@@ -217,7 +280,7 @@ class Annotation:
                 update_neighbors(i_left, i_min, i_right)
                 if verbose:
                     row = (
-                        df.loc[i_min, ["Chromosome", "Start", "End"]]
+                        bin_df.loc[i_min, ["Chromosome", "Start", "End"]]
                         .astype(str)
                         .tolist()
                     )
@@ -239,9 +302,9 @@ class Annotation:
 
             update_neighbors(i_left, i_min, i_right)
 
-        df[["Start", "End", "N_probes"]] = matrix[:, :3]
-        df = df[df.N_probes != INVALID]
-        return df[["Chromosome", "Start", "End", "N_probes"]]
+        bin_df[["Start", "End", "N_probes"]] = matrix[:, :3]
+        bin_df = bin_df[bin_df.N_probes != INVALID]
+        return bin_df[["Chromosome", "Start", "End", "N_probes"]]
 
     def __repr__(self):
         title = "Annotation():"
@@ -262,21 +325,60 @@ class Annotation:
 
 @memoize
 def cached_index(left_arr, right_arr):
-    """Cached index of elements in left_array based on their presence in
-    right_array.
+    """Cached indices to improve speed of pandas loc/iloc operations.
+
+    Return the cached indices of elements in left_array based on their presence
+    in right_array.
     """
     return left_arr.get_indexer(right_arr)
 
 
 def pd_loc(pd_df, pd_col):
-    """Cached version of pd_df.loc[pd_col]. Speeds up computation time
-    considerably.
-    """
+    """Cached version of pd_df.loc[pd_col] to speed up computation."""
     return pd_df.iloc[cached_index(pd_df.index, pd_col.values)]
 
 
 class CNV:
+    """Class for Copy Number Variation (CNV) analysis.
+
+    Attributes:
+        sample (MethylData): MethylData object representing the sample.
+        reference (MethylData): MethylData object representing the CNV-
+            neutral references.
+        annotation (Annotation): Annotation object containing genomic
+            annotation information.
+        verbose (bool): Whether to print verbose output.
+        bins (PyRanges): PyRanges object representing genomic bins.
+        probes (Index): Index of probe IDs.
+        coef: Coefficient of linear regression.
+        _ratio: Difference between observed sample intensity and expected
+            intensity calculated by linear regression from references.
+        ratio: The values from _ratio as DataFrame with Illumina ID's as
+            indices.
+        noise: Noise level. A quality measure for the sample bead.
+        detail: Detailed information (usually Genes).
+        segments: Segments calculated by circular binary segmentation.
+
+    """
+
     def __init__(self, sample, reference, annotation=None, verbose=False):
+        """Initializes the CNV object.
+
+        Args:
+            sample (MethylData): MethylData object representing the sample.
+            reference (MethylData or ReferenceMethylData): MethylData object
+                representing the reference, or ReferenceMethylData object for
+                multiple references.
+            annotation (Annotation, optional): Annotation object containing
+                genomic annotation information. Defaults to annotation
+                associated with the sample array type.
+            verbose (bool, optional): Whether to print verbose output. Defaults
+                to False.
+
+        Raises:
+            ValueError: If sample does not contain exactly 1 probe, or if
+                reference is not of type MethylData or ReferenceMethylData.
+        """
         if len(sample.probes) != 1:
             raise ValueError("sample must contain exactly 1 probe.")
         self.sample = sample
@@ -306,15 +408,34 @@ class CNV:
         self.segments = None
 
     @classmethod
-    def set_all(cls, sample, reference, annotation=None):
+    def set_all(cls, sample, reference, annotation=None, do_segmentation=True):
+        """Create a CNV object and perform CNV analysis.
+
+        Args:
+            sample (MethylData): MethylData object representing the sample.
+            reference (MethylData or ReferenceMethylData): MethylData object
+                representing the reference, or ReferenceMethylData object for
+                multiple references.
+            annotation (Annotation, optional): Annotation object containing
+                genomic annotation information. Defaults to annotation
+                associated with the sample array type.
+            do_segmentation (bool, optional): Indicates whether to perform
+                segmentation, which can be computationally intensive. Defaults
+                to True.
+
+        Returns:
+            CNV: CNV object with fitted data and optionally segmented.
+        """
         cnv = cls(sample, reference, annotation)
         cnv.fit()
         cnv.set_bins()
         cnv.set_detail()
-        cnv.set_segments()
+        if do_segmentation:
+            cnv.set_segments()
         return cnv
 
     def set_itensity(self, methyl_data):
+        """Calculates intensity values from methylation data."""
         if hasattr(methyl_data, "intensity"):
             return
         intensity = methyl_data.methyl + methyl_data.unmethyl
@@ -347,7 +468,13 @@ class CNV:
         )
 
     def fit(self):
+        """Fits linear regression model to calculate CNV at every CpG site.
+
+        This method fits a linear regression model to the intensity data of the
+        sample and reference and calculates the CNV at every CpG site.
+        """
         from sklearn.linear_model import LinearRegression
+
         smp_intensity = pd_loc(
             self.sample.intensity, self.probes
         ).values.ravel()
@@ -374,18 +501,32 @@ class CNV:
         )
 
     def set_bins(self):
+        """Calculates CNV within each bin based on the results of 'fit'.
+
+        This method calculates copy number variation (CNV) within each bin
+        by taking the median of the ratios obtained from the linear regression
+        model fit in the 'fit' method.
+        """
         cpg_bins = self.annotation._cpg_bins.copy()
         cpg_bins["ratio"] = pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
         )
-        df = self.bins.df
-        df["Median"] = np.nan
-        df["Var"] = np.nan
-        df.loc[result.index, ["Median", "Var"]] = result.values
-        self.bins = pr.PyRanges(df)
+        bins_df = self.bins.df
+        bins_df["Median"] = np.nan
+        bins_df["Var"] = np.nan
+        bins_df.loc[result.index, ["Median", "Var"]] = result.values
+        self.bins = pr.PyRanges(bins_df)
 
     def set_detail(self):
+        """Calculates CNV for the detail object based on the results of 'fit'.
+
+        This method calculates copy number variation (CNV) for the detail
+        object (usually genes) by aggregating the ratios obtained from the
+        linear regression model fit in the 'fit' method for each genomic region
+        specified in the detail object. The result includes the median ratio,
+        variance, and count of probes within each region.
+        """
         cpg_detail = self.annotation._cpg_detail.copy()
         cpg_detail["ratio"] = pd_loc(
             self.ratio, cpg_detail.IlmnID
@@ -393,20 +534,39 @@ class CNV:
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
         )
-        df = self.annotation.detail.df.set_index("Name")
-        df["Median"] = np.nan
-        df["Var"] = np.nan
-        df["N_probes"] = 0
-        idx = cached_index(df.index, result.index.values)
-        df.iloc[idx, df.columns.get_indexer(["Median", "Var", "N_probes"])] = (
-            result.values
-        )
-        df["N_probes"] = df["N_probes"].astype(int)
-        df = df.reset_index()
-        self.detail = pr.PyRanges(df)
+        detail_df = self.annotation.detail.df.set_index("Name")
+        detail_df["Median"] = np.nan
+        detail_df["Var"] = np.nan
+        detail_df["N_probes"] = 0
+        idx = cached_index(detail_df.index, result.index.values)
+        detail_df.iloc[
+            idx, detail_df.columns.get_indexer(["Median", "Var", "N_probes"])
+        ] = result.values
+        detail_df["N_probes"] = detail_df["N_probes"].astype(int)
+        detail_df = detail_df.reset_index()
+        self.detail = pr.PyRanges(detail_df)
 
     @staticmethod
     def get_segments(df):
+        """Performs circular binary segmentation to identify CNV segments.
+
+        This method applies the circular binary segmentation (CBS) algorithm
+        to identify copy number variation (CNV) segments based on the median
+        values of genomic bins. The CBS algorithm is a time-intensive
+        operation that segments genomic regions based on change-points in
+        intensity values.
+
+        Args:
+            df (DataFrame): DataFrame containing the median values of
+                genomic bins.
+
+        Returns:
+            DataFrame: DataFrame containing CNV segments with columns for
+                chromosome, start position, and end position.
+
+        """
+        import cbseg
+
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
         seg = cbseg.segment(bin_values, shuffles=1000, p=0.0001)
@@ -420,6 +580,13 @@ class CNV:
         return seg_df
 
     def set_segments(self):
+        """Sets CNV segments based on circular binary segmentation.
+
+        This method applies the circular binary segmentation (CBS) algorithm
+        to identify copy number variation (CNV) segments in the dataset.
+        It calculates the CNV segments for each chromosome and stores them
+        in the 'segments' attribute of the object.
+        """
         segments = self.bins.apply(self.get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
@@ -442,6 +609,21 @@ class CNV:
         self.segments = self.segments.sort()
 
     def write(self, path, data="all"):
+        """Writes CNV data to disk as a zip file.
+
+        This method writes the CNV data to disk as a zip file containing
+        CSV files. It allows specifying which data to include in the zip
+        file, such as bins, detail, segments, and metadata.
+
+        Args:
+            path (str): The path to save the zip file.
+            data (str or list of str, optional): Specifies which data to
+                include in the zip file. Valid options are "all", "bins",
+                "detail", "segments", and "metadata". Defaults to "all".
+
+        Raises:
+            ValueError: If an invalid data option is specified.
+        """
         default = {"all", "bins", "detail", "segments", "metadata"}
         if not isinstance(data, list):
             data = [data]
@@ -455,11 +637,11 @@ class CNV:
                 f"Valid options are: {default}"
             )
         dfs_to_write = []
-        if "bins" in data:
+        if "bins" in data and self.bins is not None:
             dfs_to_write.append(("bins.csv", self.bins.df))
-        if "detail" in data:
+        if "detail" in data and self.detail is not None:
             dfs_to_write.append(("detail.csv", self.detail.df))
-        if "segments" in data:
+        if "segments" in data and self.segments is not None:
             dfs_to_write.append(("segments.csv", self.segments.df))
         if "metadata" in data:
             metadata_df = pd.DataFrame(
@@ -480,6 +662,7 @@ class CNV:
             f.write(buffer.read())
 
     def plot(self):
+        """Generates and displays a plot of the CNV data."""
         cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING

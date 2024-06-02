@@ -1,3 +1,5 @@
+"""Contains utilities to generate CNV plots."""
+
 import io
 import os
 import threading
@@ -63,15 +65,21 @@ reference_genome = Genome()
 offset = {i.name: i.offset for i in reference_genome}
 
 
-def get_df_from_zip(zip_file_path, extract=["bins", "detail", "segments"]):
+def get_df_from_zip(zip_file_path, extract=None):
     """Reads the CNV data from a zip file without extraxtion on disk."""
+    if extract is None:
+        extract = ["bins", "detail", "segments"]
+    zip_file_path = Path(zip_file_path).expanduser()
     zip_file = os.path.basename(zip_file_path)
     csv_file_templ = zip_file.replace(ZIP_ENDING, "_cnv_%s.csv")
     with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
         extracted_dfs = []
         for filename in extract:
-            with zip_ref.open(csv_file_templ % filename) as file_:
-                extracted_dfs.append(pd.read_csv(io.TextIOWrapper(file_)))
+            try:
+                with zip_ref.open(csv_file_templ % filename) as file_:
+                    extracted_dfs.append(pd.read_csv(io.TextIOWrapper(file_)))
+            except KeyError:
+                extracted_dfs.append(None)
     if len(extract) == 1:
         return extracted_dfs[0]
     return extracted_dfs
@@ -88,9 +96,7 @@ def get_x_mid(df):
 
 
 def cnv_grid(genome):
-    """Returns chromosome grid layout for CNV Plot as plotly object and
-    saves it on disk. If available grid is directly read from disk.
-    """
+    """Returns chromosome grid for CNV Plot as a cached plotly object."""
     from plotly.io import from_json
 
     # Check if grid exists and return if available.
@@ -171,6 +177,8 @@ def cnv_bins_plot(data_frame, title, labels, genome):
 
 def add_segments(plot, seg_df):
     """Adds segments calculated by Circular Binary Segmentation (CBG)."""
+    if seg_df is None:
+        return plot
     seg_lines = [
         go.Scattergl(
             x=[seg["X_start"], seg["X_end"]],
@@ -194,7 +202,7 @@ def add_genes(plot, genes):
         genes (list): A list of genes to be added to the plot.
     """
     # Draw NaN's with value 0
-    genes["Median"].fillna(0, inplace=True)
+    genes["Median"] = genes["Median"].fillna(0)
     scatter_genes = go.Scattergl(
         customdata=genes[
             [
@@ -296,8 +304,9 @@ def find_genes_within_bins(bins, detail):
 
 
 def _find_genes_within_bins(bins, detail):
-    """Used for debugging: Does (almost) the same as find_genes_within_bins
-    with much easier code but 20x slower.
+    """Does (almost) the same as find_genes_within_bins (but 20x slower).
+
+    Function is used for debugging as it is much easier to read.
     """
     bins["X_start"] = add_offset(bins, "Chromosome", "Start")
     bins["X_end"] = add_offset(bins, "Chromosome", "End")
@@ -327,11 +336,14 @@ def read_cnv_data_from_disk(cnv_dir, sample_id):
         extract=["bins", "detail", "segments"],
     )
     # Calculate some plot x-values
-    bins["X_mid"] = get_x_mid(bins)
-    detail["X_mid"] = get_x_mid(detail)
-    segments["X_start"] = add_offset(segments, "Chromosome", "Start")
-    segments["X_end"] = add_offset(segments, "Chromosome", "End")
-    detail["Len"] = detail["End"] - detail["Start"]
+    if bins is not None:
+        bins["X_mid"] = get_x_mid(bins)
+    if detail is not None:
+        detail["X_mid"] = get_x_mid(detail)
+        detail["Len"] = detail["End"] - detail["Start"]
+    if segments is not None:
+        segments["X_start"] = add_offset(segments, "Chromosome", "Start")
+        segments["X_end"] = add_offset(segments, "Chromosome", "End")
     return bins, detail, segments
 
 
@@ -379,6 +391,21 @@ def cnv_plot_from_data(
 
 
 class CNVPlot:
+    """Creates an interactive plot for visualizing CNV data using Dash.
+
+    This class sets up a Dash application to visualize copy number variation
+    (CNV) data, including highlighting interactively genes.
+
+    Attributes:
+        cnv_dir (str): Path to the directory containing CNV data.
+        cnv_file (str): Name of the CNV file in the directory.
+        genes_fix (list): List of genes to highlight. Defaults to
+            IMPORTANT_GENES.
+        host (str): Host address for running the Dash app. Defaults to
+            "localhost".
+        port (int): Port number for running the Dash app. Defaults to 8050.
+        app (Dash): Dash application object created for the CNV plot.
+    """
     def __init__(
         self,
         cnv_dir,
@@ -387,6 +414,18 @@ class CNVPlot:
         host="localhost",
         port=8050,
     ):
+        """Initializes a CNVPlot object.
+
+        Args:
+            cnv_dir (str): Path to the directory containing CNV data.
+            cnv_file (str): Name of the CNV file in the directory.
+            genes (list, optional): List of genes to highlight. Defaults to
+                IMPORTANT_GENES.
+            host (str, optional): Host address for running the Dash app.
+                Defaults to "localhost".
+            port (int, optional): Port number for running the Dash app.
+                Defaults to 8050.
+        """
         self.cnv_dir = cnv_dir
         self.cnv_file = cnv_file
         self.genes_fix = genes
@@ -395,6 +434,7 @@ class CNVPlot:
         self.app = self.get_app()
 
     def get_app(self):
+        """Generates the dash app."""
         from dash import Dash, Input, Output, callback, dcc, html, no_update
 
         current_dir = Path(__file__).resolve().parent
@@ -465,6 +505,7 @@ class CNVPlot:
         return app
 
     def run_app(self):
+        """Opens new tab and runs app in browser."""
         init_sample_id = self.cnv_file.replace(ZIP_ENDING, "")
 
         def open_browser_tab():

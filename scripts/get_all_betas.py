@@ -1,5 +1,6 @@
-"""Processes all new IDAT files and generate beta values compatible with the 450k
-array.
+"""Processes all new IDAT files and generate beta values.
+
+The generated beta files are compatible with the 450k array.
 
 Author: Jon Brugger
 Date: 2024-03
@@ -76,7 +77,7 @@ def process_idat_file(idat_basepath):
             logger.info("Recalulate faulty betas: " + filepath.name)
     raw = RawData(idat_basepath)
     methyl = MethylData(raw)
-    betas_450k_df = methyl.converted_beta(cpgs=cpg_index_450k, fill=0.49)
+    betas_450k_df = methyl.betas_for_cpgs(cpgs=cpg_index_450k, fill=0.49)
     betas_450k_np = betas_450k_df.iloc[:, 0].values
     betas_450k_np.tofile(filepath)
 

@@ -15,7 +15,6 @@ Usage:
 
 import logging
 import tempfile
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -172,22 +171,7 @@ class _Manifest:
         self.__data_frame = self.read_probes(self.filepath)
         self.__control_data_frame = self.read_control_probes(control_filepath)
         self.__snp_data_frame = self.read_snp_probes()
-        self.__methyl_probes = self.get_cpgs()
-
-    @lru_cache
-    def get_cpgs(self):
-        """Returns all type I and II probes."""
-        type_1 = self.probe_info(ProbeType.ONE)
-        type_2 = self.probe_info(ProbeType.TWO)
-        idx = np.sort(
-            np.concatenate(
-                [
-                    type_1.IlmnID.index,
-                    type_2.IlmnID.index,
-                ]
-            )
-        )
-        return self.__data_frame.iloc[idx]["IlmnID"].values
+        self.__methyl_probes = None
 
     def __repr__(self):
         title = f"Manifest({self.array_type}):"
@@ -225,9 +209,7 @@ class _Manifest:
         return self.__control_data_frame
 
     def control_address(self, control_type=None):
-        """Returns address IDs of all control probes with the specified
-        type.
-        """
+        """Returns address IDs of all control probes of the specified type."""
         if control_type is None:
             return self.__control_data_frame.Address_ID
         # Ensure control_type is a list-like object
@@ -246,15 +228,26 @@ class _Manifest:
     @property
     def methylation_probes(self):
         """All type I and II probes."""
+        if self.__methyl_probes is None:
+            type_1 = self.probe_info(ProbeType.ONE)
+            type_2 = self.probe_info(ProbeType.TWO)
+            idx = np.sort(
+                np.concatenate(
+                    [
+                        type_1.IlmnID.index,
+                        type_2.IlmnID.index,
+                    ]
+                )
+            )
+            self.__methyl_probes = self.__data_frame.iloc[idx]["IlmnID"].values
         return self.__methyl_probes
 
     @staticmethod
     def get_processed_manifest(array_type):
-        """Downloads the appropriate manifest file if one does not already
-        exist and returns paths to probes and control probes.
+        """Downloads the appropriate manifest file if necessary.
 
         Args:
-            array_type: The type of array to process.
+            array_type: The manifest array type.
 
         Returns:
             tuple of paths: Local paths to the manifest file and its control
@@ -285,31 +278,25 @@ class _Manifest:
         )
 
         # Remove downloaded files
-        # TODO uncomment this
         # shutil.rmtree(MANIFEST_TMP_DIR)
 
         return local_filepath, control_filepath
 
     @staticmethod
     def get_control_path(probes_path):
-        """Converts probes path to the control probes path for locally saved
-        control probes.
-        """
+        """Converts probes path to the control probes path."""
         split_filename = probes_path.name.split(".")
         split_filename[0] += ENDING_CONTROL_PROBES
         return Path(probes_path.parent, ".".join(split_filename))
 
     @staticmethod
     def process_probes(data_frame):
-        """Transforms probes from the original manifest file to a more
-        efficient internal format.
-        """
-        data_frame.rename(
+        """Transforms manifest probes to a more efficient internal format."""
+        data_frame = data_frame.rename(
             columns={
                 "MAPINFO": "Start",
                 "CHR": "Chromosome",
             },
-            inplace=True,
         )
         data_frame["Chromosome"] = Chromosome.pd_from_string(
             data_frame["Chromosome"]
@@ -361,14 +348,12 @@ class _Manifest:
             data_frame[int_cols].fillna(NONE).astype("int32")
         )
         data_frame["End"] = data_frame["Start"]
-        data_frame.drop(
-            columns=["AlleleA_ProbeSeq", "AlleleB_ProbeSeq"], inplace=True
+        data_frame = data_frame.drop(
+            columns=["AlleleA_ProbeSeq", "AlleleB_ProbeSeq"]
         )
 
         def get_probe_type(name, infinium_type):
-            """Determines the probe type (I, II, SnpI, SnpII or Control)
-            from IlmnID and Infinium_Design_Type.
-            """
+            """Determines the probe type (I, II, SnpI, SnpII or Control)."""
             probe_type = ProbeType.from_manifest_values(name, infinium_type)
             return probe_type.value
 
@@ -383,11 +368,10 @@ class _Manifest:
 
     @staticmethod
     def process_manifest(filepath, manifest_name, dest_probes, dest_control):
-        """Processes the manifest file and saves the processed probes and
-        controls.
+        """Processes the manifest file and saves it locally to disk.
 
         Args:
-            filepath (Path): Path to the archived manifest file.
+            filepath (Path): Path to the downloaded manifest archive.
             manifest_name (str): Name of the manifest file inside the archive.
             dest_probes (Path): Local destination path to save the processed
                 probes.
@@ -425,9 +409,11 @@ class _Manifest:
 
     @staticmethod
     def seek_to_start(manifest_file):
-        """Move the file pointer to the start of the data section in the
-        manifest file. The function searches for the first occurrence of the
-        left-most column named "IlmnID".
+        """Move the manifest file pointer to the start of the data section.
+
+        Details:
+            The function searches for the first occurrence of the left-most
+            column named "IlmnID".
         """
         reset_file(manifest_file)
 
@@ -460,10 +446,10 @@ class _Manifest:
             dtype=self.get_data_types(),
         )
         # TODO epicv2 has duplicated ID's for example c='cg22367159'
-        data_frame.drop_duplicates(
-            subset=["IlmnID"], keep="first", inplace=True
+        data_frame = data_frame.drop_duplicates(
+            subset=["IlmnID"], keep="first"
         )
-        data_frame.reset_index(inplace=True, drop=True)
+        data_frame = data_frame.reset_index(drop=True)
         return data_frame
 
     def read_control_probes(self, control_file):

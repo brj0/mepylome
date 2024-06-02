@@ -1,9 +1,13 @@
+"""Contains the ArrayType used to represent different Illumina array types."""
+
 from enum import Enum, unique
 
 
 @unique
 class ArrayType(Enum):
-    """Enum representing different Illumina array types with method to infer
+    """Provides constants for the different Illumina array types.
+
+    Enum representing different Illumina array types with method to infer
     type from probe count.
     """
 

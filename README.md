@@ -72,7 +72,6 @@ mepylome
 
 For a more streamlined experience, specify the analysis IDAT files directory, reference IDAT directory, and CpG array type. This command also improves UMAP speed by saving betas to disk:
 
-sh
 ```sh
 mepylome -a /path/to/idats -r /path/to/ref -c 450k -s
 ```

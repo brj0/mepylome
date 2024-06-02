@@ -37,9 +37,7 @@ def make_path_like(path_like):
 
 
 def require_path(inner):
-    """Decorator that ensure the argument provided to the inner function
-    is a Path instance.
-    """
+    """Decorator that ensures the provided argument is a path."""
 
     def wrapped(orig_path, *args, **kwargs):
         path_like = make_path_like(orig_path)
@@ -50,9 +48,7 @@ def require_path(inner):
 
 @require_path
 def ensure_directory_exists(path_like):
-    """Ensures the ancestor directories of the provided path
-    exist, making them if they do not.
-    """
+    """Ensures the ancestor directories of the provided path exist."""
     if path_like.exists():
         return
 
@@ -64,8 +60,7 @@ def ensure_directory_exists(path_like):
 
 
 def download_file(src_url, dest, overwrite=False):
-    """Download a file from a URL and save it to a specified destination
-    directory.
+    """Download a file from a URL and save it to a destination directory.
 
     Args:
         src_url (str): The URL from which the file will be downloaded.

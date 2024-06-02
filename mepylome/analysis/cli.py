@@ -11,7 +11,6 @@ Usage:
 """
 
 import argparse
-import logging
 
 
 def print_welcome_message():
@@ -136,10 +135,6 @@ def start_mepylome():
 
     print_welcome_message()
     from .methyl import MethylAnalysis
-
-    # Don't show all the flask logging statements.
-    log = logging.getLogger('werkzeug')
-    log.setLevel(logging.ERROR)
 
     methyl_analysis = MethylAnalysis(**methyl_analysis_args)
     methyl_analysis.run_app(open_tab=True)
