@@ -33,7 +33,6 @@ import colorsys
 import hashlib
 import logging
 import os
-import pathlib
 import pickle
 import subprocess
 import threading
@@ -63,7 +62,6 @@ from tqdm import tqdm
 
 from mepylome.dtypes import (
     CNV,
-    COLOR_MAP,
     IMPORTANT_GENES,
     ZIP_ENDING,
     Annotation,
@@ -84,12 +82,21 @@ timer = Timer()
 
 PLOTLY_RENDER_MODE = "webgl"
 
-HOME_DIR = pathlib.Path.home()
+HOME_DIR = Path.home()
 DEFAULT_ANALYSIS_DIR = Path(HOME_DIR, "Documents", "mepylome", "analysis")
 DEFAULT_ANNOTATION_FILE = Path(DEFAULT_ANALYSIS_DIR, "annotation.csv")
 DEFAULT_REFERENCE_DIR = Path(HOME_DIR, "Documents", "mepylome", "reference")
 DEFAULT_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output")
 DEFAULT_N_CPGS = 25000
+
+EMPTY_PATH = Path(HOME_DIR, "Documents", "mepylome", "None")
+_EMPTY_PATH = Path("None")
+
+
+DEFAULT_REFERENCE_DIR = _EMPTY_PATH
+DEFAULT_ANNOTATION_FILE = _EMPTY_PATH
+DEFAULT_ANALYSIS_DIR = _EMPTY_PATH
+# DEFAULT_OUTPUT_DIR = _EMPTY_PATH
 
 ERROR_ENDING = "_error.txt"
 
@@ -110,6 +117,26 @@ with open(CPG_450K_EPIC_OVERLAP) as f:
 ACRONYMS = pkg_resources.resource_filename(
     "mepylome", "data/methylation_class_acronyms.tsv.gz"
 )
+
+UMAP_METRICS = [
+    "euclidean",
+    "manhattan",
+    "cosine",
+    "chebyshev",
+    "canberra",
+    "braycurtis",
+    "correlation",
+    "hamming",
+    "jaccard",
+    "dice",
+    "kulsinski",
+    "ll_dirichlet",
+    "hellinger",
+    "rogerstanimoto",
+    "sokalmichener",
+    "sokalsneath",
+    "yule",
+]
 
 
 class ProgressBar:
@@ -144,6 +171,9 @@ class ProgressBar:
 
     def get_progress(self):
         with self.lock:
+            if self.max_value == 0:
+                print("ProgressBar: max_value is 0")
+                return 100
             progress = self.cur_value * 100 // self.max_value
             return progress
 
@@ -171,48 +201,43 @@ class ProgressBar:
         return str(self)
 
 
-def random_color(var):
-    """Pseudorandom color based on hashed string.
+
+def random_color(string, i, N, rand):
+    """Generate a random RGB color for a given string-name.
+
+    Ensures the color is unique and distributed across the hue spectrum.
 
     Args:
-        var: string to hash
+        string (str): The input string to generate the color for.
+        i (int): The index of the current string-name.
+        N (int): The total number of string-names.
+        rand (int): A random offset
+
     Returns:
-        Tripple of rgb color.
+        tuple: The RGB color as a tuple of integers.
     """
-    hash_str = hashlib.md5(bytes(var, "utf-8")).digest()
-    hash1 = int.from_bytes(hash_str[:8], byteorder="big")
-    hash2 = int.from_bytes(hash_str[8:12], byteorder="big")
-    hash3 = int.from_bytes(hash_str[12:], byteorder="big")
-    hue = hash1 % 365
-    saturation = hash2 % 91 + 10
-    lightness = hash3 % 41 + 30
+    hash_value = hash(string)
+    hue = (360 * i // N + rand) % 360
+    saturation = (hash_value & 0xFFFF) % 91 + 10
+    lightness = (hash_value >> 16 & 0xFFFF) % 41 + 30
     # hsl has to be transformed to rgb for plotly, since otherwise not all
     # colors are displayed correctly, probably due to plotly bug.
     rgb_frac = colorsys.hls_to_rgb(
-        hue / 364, lightness / 100, saturation / 100
+        hue / 360, lightness / 100, saturation / 100
     )
-    rgb = tuple(int(255 * x) for x in rgb_frac)
-    return rgb
+    return tuple(int(255 * x) for x in rgb_frac)
 
 
 def discrete_colors(names):
-    """Returns a colorscheme for all methylation classes.
-
-    Generate a pseudorandom color scheme based on precalculated values to
-    enhance readability for neighboring methylation groups.
-
-    Args:
-        names (list of str): List of string elements (corresponds to
-            methylation class acronyms).
-
-    Returns:
-        dict: Dictionary mapping each string element to its corresponding
-            color.
-    """
+    """Returns a colorscheme for all methylation classes."""
+    sorted_names = sorted(names, key=hash)
+    N = len(sorted_names)
+    rand = hash(tuple(sorted_names))
     return {
-        var: COLOR_MAP[var] if var in COLOR_MAP else f"rgb{random_color(var)}"
-        for var in set(names)
+        var: f"rgb{random_color(var, i, N, rand)}"
+        for i, var in enumerate(sorted_names)
     }
+
 
 
 def umap_plot_from_data(umap_df):
@@ -259,127 +284,91 @@ def umap_plot_from_data(umap_df):
     return umap_plot
 
 
-def adjust_columns(df, num_cols):
-    if len(df.columns) < num_cols:
-        for i in range(num_cols - len(df.columns)):
-            df[f"new_col_{i}"] = ""
-    return df
+class IdatHandler:
+    """A class for handling IDAT files with annotation.
 
-
-def description_from_acronym(df_col):
-    acronyms_df = pd.read_csv(ACRONYMS, sep="\t")
-    acronym_to_description = dict(
-        zip(acronyms_df.Methylation_Class, acronyms_df.Description)
-    )
-
-    def get_description(mc):
-        """Returns description of a methylation class from acronym."""
-        if mc in [np.nan, ""]:
-            return ""
-        mc = mc.upper()
-        if mc in acronym_to_description:
-            return acronym_to_description[mc]
-        substrings = [
-            a for a in acronym_to_description if mc.startswith(a + "_")
-        ]
-        substrings.sort(key=len)
-        if substrings:
-            return acronym_to_description[substrings[-1]]
-        return ""
-
-    return df_col.apply(get_description)
-
-
-class IdatFiles:
-    """A class for handling IDAT file annotations.
-
-    Includes reading from various file formats and provides description
-    lookups for methylation classes.
+    Includes reading annotation from various file formats and provides
+    description lookups for methylation classes.
     """
 
-    def __init__(self, idat_dir, annotation=None, overlap=False):
-        if annotation is None:
-            annotation = guess_annotation_file(idat_dir)
-        self.annotation = Path(annotation).expanduser()
-        self.path = {
+    def __init__(self, idat_dir, annotation_file=None, overlap=False):
+        self.idat_dir = idat_dir
+        if annotation_file is None:
+            annotation_file = guess_annotation_file(self.idat_dir)
+        self.annotation_file = Path(str(annotation_file)).expanduser()
+        self.overlap = overlap
+
+        self.sample_paths = {
             x.name: x
-            for x in idat_basepaths(idat_dir)
+            for x in idat_basepaths(self.idat_dir)
             if is_valid_idat_basepath(x)
         }
         self.annotation_df = None
-        self.annotated_ids = self.get_annotated_ids()
-        if overlap and self.annotated_ids is not None:
+        self.annotated_samples = self.load_annotated_samples()
+        if self.overlap and self.annotated_samples is not None:
             ids_annotation = self.annotation_df.index
-            self.path = {
-                x: i for x, i in self.path.items() if x in ids_annotation
+            self.sample_paths = {
+                x: i
+                for x, i in self.sample_paths.items()
+                if x in ids_annotation
             }
-            self.annotated_ids = self.annotated_ids.loc[self.path.keys()]
+            self.annotated_samples = self.annotated_samples.loc[
+                self.sample_paths.keys()
+            ]
 
     def __len__(self):
-        return len(self.path)
+        return len(self.sample_paths)
 
-    def get_annotated_ids(self):
-        df = pd.DataFrame(index=self.path.keys())
-        if self.annotation.exists():
-            if self.annotation.suffix == ".xlsx":
+    def load_annotated_samples(self):
+        result_df = pd.DataFrame(index=self.sample_paths.keys())
+        if self.annotation_file.exists():
+            if self.annotation_file.suffix == ".xlsx":
                 self.annotation_df = pd.read_excel(
-                    self.annotation,
+                    self.annotation_file,
                     engine="openpyxl",
                     index_col=0,
                 )
-            elif self.annotation.suffix in [".csv", ".tsv"]:
-                sep = "\t" if self.annotation.suffix == ".tsv" else ","
+            elif self.annotation_file.suffix in [".csv", ".tsv"]:
+                sep = "\t" if self.annotation_file.suffix == ".tsv" else ","
                 self.annotation_df = pd.read_csv(
-                    self.annotation, sep=sep, index_col=0
+                    self.annotation_file, sep=sep, index_col=0
                 )
             else:
-                raise ValueError(
-                    "Annotation files must be as 'xlsx', 'tsv' or 'csv' file"
-                )
-            df = df.join(self.annotation_df)
-            df = df.fillna("")
-        if len(df.columns) == 0:
-            df["Methylation_Class"] = ""
-            df["Description"] = ""
-        if len(df.columns) == 1:
-            df["Description"] = description_from_acronym(df.iloc[:, 0])
-        df = df.fillna("")
-        return df
+                self.annotation_df = result_df#TODO
+                # raise ValueError(
+                    # "Annotation files must be as 'xlsx', 'tsv' or 'csv' file"
+                # )
+            result_df = result_df.join(self.annotation_df)
+            result_df = result_df.fillna("")
+        if len(result_df.columns) == 0:
+            result_df["Methylation_Class"] = "NO_DIAGNOSIS"
+        result_df = result_df.fillna("")
+        return result_df
 
     @property
     def ids(self):
-        return self.annotated_ids.index.tolist()
+        return self.annotated_samples.index.tolist()
 
     @property
     def properties(self):
-        return self.annotated_ids.columns.tolist()
-
-    @property
-    def methylation_class(self, columns=None):
-        return self.annotated_ids.iloc[:, 0].tolist()
-
-    @property
-    def description(self, columns=None):
-        if columns is None:
-            return self.annotated_ids.iloc[:, 1].tolist()
-        return self.annotated_ids[columns].tolist()
+        return self.annotated_samples.columns.tolist()
 
     def compound_class(self, columns=None):
         if columns is None:
-            return self.annotated_ids.iloc[:, 0].tolist()
+            return self.annotated_samples.iloc[:, 0].tolist()
         if not isinstance(columns, list):
             columns = [columns]
         return (
-            self.annotated_ids[columns]
+            self.annotated_samples[columns]
             .apply(lambda row: "|".join(row.values.astype(str)), axis=1)
             .tolist()
         )
 
     def __str__(self):
         lines = [
-            "IdatFiles():",
-            f"annotation: '{self.annotation}'",
-            f"annotated_ids:\n{self.annotated_ids}",
+            "IdatHandler():",
+            f"annotation_file: '{self.annotation_file}'",
+            f"annotated_samples:\n{self.annotated_samples}",
         ]
         return "\n".join(lines)
 
@@ -418,7 +407,7 @@ def methyl_mtx_from_all_cpgs(betas_list, cpgs, fill=NEUTRAL_BETA):
     # return pd.DataFrame(converted.T, columns=cpgs, index=cpgs)
 
 
-def get_betas(pbar, idat_files, cpgs, prep, save=False, betas_path=None):
+def get_betas(pbar, idat_handler, cpgs, prep, save=False, betas_path=None):
     if betas_path is not None and betas_path.exists():
         with open(betas_path, "rb") as f:
             betas_list = pickle.load(f)
@@ -428,11 +417,15 @@ def get_betas(pbar, idat_files, cpgs, prep, save=False, betas_path=None):
         betas_list = []
         _cpgs = None if save else cpgs
         with Pool() as pool, tqdm(
-            total=len(idat_files), desc="Reading IDAT files"
+            total=len(idat_handler), desc="Reading IDAT files"
         ) as tqdm_bar:
             for betas in pool.imap(
                 extract_beta,
-                zip(idat_files.path.values(), repeat(_cpgs), repeat(prep)),
+                zip(
+                    idat_handler.sample_paths.values(),
+                    repeat(_cpgs),
+                    repeat(prep),
+                ),
             ):
                 betas_list.append(betas)
                 pbar.increment()
@@ -443,7 +436,7 @@ def get_betas(pbar, idat_files, cpgs, prep, save=False, betas_path=None):
     valid_idx = [
         i for i, x in enumerate(betas_list) if x[1] != ArrayType.INVALID
     ]
-    valid_ids = [idat_files.ids[i] for i in valid_idx]
+    valid_ids = [idat_handler.ids[i] for i in valid_idx]
     all_cpgs_in_betas = betas_path is not None and (
         betas_path.exists() or save
     )
@@ -620,6 +613,9 @@ def get_side_navigation(
     prep,
     precalculate,
     cpg_selection,
+    n_neighbors,
+    metric,
+    min_dist,
 ):
     n_cpgs_max = np.inf if len(cpgs) == 0 else len(cpgs)
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
@@ -642,7 +638,7 @@ def get_side_navigation(
                             ),
                             html.Br(),
                             html.Br(),
-                            html.H6("Choose analysis directory"),
+                            html.H6("Analysis directory"),
                             dbc.Input(
                                 id="analysis-dir",
                                 valid=True,
@@ -651,7 +647,7 @@ def get_side_navigation(
                             ),
                             html.Div(id="analysis-path-validation"),
                             html.Br(),
-                            html.H6("Choose annotation file"),
+                            html.H6("Annotation file"),
                             dbc.Input(
                                 id="annotation-file",
                                 valid=True,
@@ -660,9 +656,7 @@ def get_side_navigation(
                             ),
                             html.Div(id="annotation-file-validation"),
                             html.Br(),
-                            html.H6(
-                                "Choose reference directory (CNV neutral cases)"
-                            ),
+                            html.H6("Reference directory (CNV neutral cases)"),
                             dbc.Input(
                                 id="reference-dir",
                                 value=str(reference_dir),
@@ -670,7 +664,7 @@ def get_side_navigation(
                             ),
                             html.Div(id="reference-path-validation"),
                             html.Br(),
-                            html.H6("Choose output directory"),
+                            html.H6("Output directory"),
                             dbc.Input(
                                 id="output-dir",
                                 valid=True,
@@ -679,7 +673,7 @@ def get_side_navigation(
                             ),
                             html.Div(id="output-path-validation"),
                             html.Br(),
-                            html.H6("Choose IDAT preprocessing method"),
+                            html.H6("IDAT preprocessing method"),
                             dcc.Dropdown(
                                 id="preprocessing-method",
                                 options={
@@ -714,6 +708,7 @@ def get_side_navigation(
                                 multi=False,
                             ),
                             html.Br(),
+                            dbc.Progress(value=0, id="umap-progress-bar"),
                             html.Br(),
                             dbc.Row(
                                 [
@@ -735,15 +730,56 @@ def get_side_navigation(
                                 n_intervals=0,
                                 max_intervals=-1,
                             ),
-                            html.Br(),
-                            html.Br(),
-                            dbc.Progress(value=0, id="umap-progress-bar"),
                         ],
                     ),
                     dbc.Tab(
-                        label="Plot",
+                        label="UMAP",
                         children=[
-                            dcc.Location(id="url", refresh=False),
+                            # dcc.Location(id="url", refresh=False),
+                            html.Br(),
+                            html.H5("Determine UMAP settings."),
+                            html.Br(),
+                            html.H6(
+                                "n_neighbors",
+                                style={"font-family": "monospace"},
+                            ),
+                            dcc.Input(
+                                id="umap-n_neighbors",
+                                type="number",
+                                min=2,
+                                max=100,
+                                step=1,
+                                value=n_neighbors,
+                            ),
+                            html.Br(),
+                            html.Br(),
+                            html.H6(
+                                "metric", style={"font-family": "monospace"}
+                            ),
+                            dcc.Dropdown(
+                                id="umap-metric",
+                                value=metric,
+                                options=UMAP_METRICS,
+                            ),
+                            html.Br(),
+                            html.H6(
+                                "min_dist", style={"font-family": "monospace"}
+                            ),
+                            dcc.Input(
+                                id="umap-min_dist",
+                                type="number",
+                                min=0,
+                                max=1,
+                                step=0.01,
+                                value=min_dist,
+                            ),
+                            html.Br(),
+                        ],
+                    ),
+                    dbc.Tab(
+                        label="Highlight",
+                        children=[
+                            # dcc.Location(id="url", refresh=False),
                             html.Br(),
                             html.Br(),
                             html.H6("Sample IDs to highlight in UMAP"),
@@ -781,14 +817,13 @@ def guess_annotation_file(directory):
     files = list(directory_path.glob("*"))
     csv_files = [f for f in files if f.suffix == ".csv"]
     xlsx_files = [f for f in files if f.suffix == ".xlsx"]
-    xls_files = [f for f in files if f.suffix == ".xls"]
     if csv_files:
         return csv_files[0]
     if xlsx_files:
         return xlsx_files[0]
-    if xls_files:
-        return xls_files[0]
-    return DEFAULT_ANNOTATION_FILE
+    return None
+    #TODO
+    # return DEFAULT_ANNOTATION_FILE
 
 
 def input_args_hash(*args):
@@ -829,23 +864,23 @@ class MethylAnalysis:
         precalculate_cnv=False,
         save_betas=False,
         overlap=False,
-        cpg_selection="random",
+        cpg_selection="top",
         host="localhost",
         port=8050,
         debug=False,
+        umap_parms=None,
     ):
         self.umap_cpgs = None
         self.analysis_dir = analysis_dir
+        self._old_analysis_dir = analysis_dir
         self.idat_paths = None
         if annotation is None:
             annotation = guess_annotation_file(analysis_dir)
-        if not Path(annotation).exists():
+        if annotation is None or not Path(annotation).exists():
             print("No annotation file found")
         self.annotation = annotation
         self.overlap = overlap
-        self.idat_files = IdatFiles(
-            self.analysis_dir, self.annotation, self.overlap
-        )
+        self._idat_handler = None
         self.cpgs = self.get_cpgs(cpgs)
         self.n_cpgs = n_cpgs
         self.cpg_selection = cpg_selection
@@ -858,8 +893,8 @@ class MethylAnalysis:
         self.debug = debug
         self.umap_color_columns = None
         self.reference_dir = reference_dir
-        self.output_dir = output_dir
-        ensure_directory_exists(self.output_dir)
+        self.output_dir = Path(output_dir)
+        # ensure_directory_exists(self.output_dir)
         self.cnv_dir = None
         self.umap_dir = None
         self.prep = prep
@@ -871,6 +906,7 @@ class MethylAnalysis:
         self.betas_df_all_cpgs = None
         self.betas_path = None
         self.umap_df = None
+        self.umap_parms = {} if umap_parms is None else umap_parms
         self.cnv_plot = EMPTY_FIGURE
         self.raw_umap_plot = None
         self.cnv_id = None
@@ -880,10 +916,37 @@ class MethylAnalysis:
         self.prog_bar = ProgressBar()
         self.app = None
 
-        self.update_output_paths()
+        self.set_umap_parms()
+        self.update_paths()
         self.read_umap_plot_from_disk()
 
-    def get_cpgs(self, input_var):
+    @property
+    def idat_handler(self):
+        if (
+            self._idat_handler is None
+            or self.analysis_dir != self._idat_handler.idat_dir
+            or self.annotation != self._idat_handler.annotation_file
+            or self.overlap != self._idat_handler.overlap
+        ):
+            self._idat_handler = IdatHandler(
+                self.analysis_dir, self.annotation, self.overlap
+            )
+        return self._idat_handler
+
+    @idat_handler.setter
+    def idat_handler(self, value):
+        self._idat_handler = value
+
+    def set_umap_parms(self):
+        default = {
+            "metric": "euclidean",
+            "min_dist": 0.1,
+            "n_neighbors": 15,
+            "verbose": True,
+        }
+        self.umap_parms = {**default, **self.umap_parms}
+
+    def get_cpgs(self, input_var="auto"):
         if isinstance(input_var, np.ndarray):
             return input_var
         valid_parms = ["auto", "450k", "epic", "epicv2"]
@@ -891,7 +954,7 @@ class MethylAnalysis:
             input_var = [input_var]
         if "auto" in input_var:
             input_var = set()
-            for path in self.idat_files.path.values():
+            for path in self.idat_handler.sample_paths.values():
                 input_var.add(RawData(path).array_type.value)
             input_var = list(input_var)
             print(f"The following array types were detected: {input_var}")
@@ -902,15 +965,20 @@ class MethylAnalysis:
             cpg_sets = []
             for array_type in valid_parms[1:]:
                 if array_type in input_var:
-                    cpg_sets.append(set(Manifest(array_type).methylation_probes))
+                    cpg_sets.append(
+                        set(Manifest(array_type).methylation_probes)
+                    )
             cpgs = set.intersection(*cpg_sets)
             return np.array(list(cpgs))
         raise ValueError(
             f"'cpgs' must be numpy array or a list of strings in {valid_parms}"
         )
 
-    def update_output_paths(self):
+    def update_paths(self):
+        if not self.output_dir.exists():
+            return
         old_betas_path = self.betas_path
+        old_analysis_dir = self.analysis_dir
         umap_hash_key = input_args_hash(
             np.sort(self.cpgs),
             self.n_cpgs,
@@ -945,44 +1013,73 @@ class MethylAnalysis:
         if old_betas_path != self.betas_path:
             self.betas_df_all_cpgs = None
 
-    def make_umap(self):
-        self.update_output_paths()
-        self.idat_files = IdatFiles(
-            self.analysis_dir, self.annotation, self.overlap
-        )
-        # if self.read_umap_plot_from_disk():
-        # return
-        if len(self.idat_files) == 0:
-            raise ValueError("No valid samples found")
+        if self._old_analysis_dir != self.analysis_dir:
+            self._old_analysis_dir = self.analysis_dir
+            self.cpgs = self.get_cpgs()
+            self.betas_df_all_cpgs = None
+            self.betas_df = None
 
-        self.prog_bar.reset(len(self.idat_files), text="(betas)")
+    def make_umap(self):
+        self.prog_bar.reset(len(self.idat_handler), text="(betas)")
         self.set_betas()
         self.prog_bar.reset(1, 1)
-        self.compute_umap()
-        self.make_umap_plot()
+        umap_2d = self.compute_umap()
+        self.make_umap_plot(umap_2d)
 
     def compute_umap(self):
         import umap
 
-        umap_2d = umap.UMAP(verbose=True).fit_transform(self.betas_df)
-        umap_df = pd.DataFrame(
-            umap_2d,
-            columns=["Umap_x", "Umap_y"],
-            index=self.idat_files.ids,
+        return umap.UMAP(**self.umap_parms).fit_transform(self.betas_df)
+
+    def make_umap_plot(self, umap_2d=None):
+        if umap_2d is not None:
+            umap_df = pd.DataFrame(
+                umap_2d,
+                columns=["Umap_x", "Umap_y"],
+                index=self.idat_handler.ids,
+            )
+            self.umap_df = pd.concat(
+                [
+                    umap_df,
+                    self.idat_handler.annotated_samples,
+                ],
+                axis=1,
+            )
+            if self.umap_color_columns is None:
+                self.umap_color_columns = self.umap_df.columns[2]
+            self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
+
+        if self.umap_df is None:
+            raise AttributeError("'umap_df' not set")
+        self.ids = self.umap_df.index
+        self.umap_df["Umap_color"] = self.idat_handler.compound_class(
+            self.umap_color_columns
         )
-        self.umap_df = pd.concat(
-            [
-                umap_df,
-                self.idat_files.annotated_ids,
-            ],
-            axis=1,
+        self.umap_plot = umap_plot_from_data(self.umap_df)
+        self.umap_plot = self.umap_plot.update_layout(
+            margin=dict(l=0, r=0, t=30, b=0),
         )
-        if self.umap_color_columns is None:
-            self.umap_color_columns = self.umap_df.columns[2]
-        self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
+        self.raw_umap_plot = self.umap_plot
+        # self.cnv_id = None
+        self.dropdown_id = None
+        self.umap_plot_highlight()
+
+    def read_umap_plot_from_disk(self):
+        self.update_paths()
+        if self.umap_plot_path is not None and self.umap_plot_path.exists():
+            self.umap_df = pd.read_csv(
+                self.umap_plot_path, sep="\t", index_col=0
+            )
+            self.umap_df = self.umap_df.fillna("")
+            self.make_umap_plot()
+            return True
+        return False
 
     def set_betas(self):
-        self.update_output_paths()
+        if len(self.idat_handler) == 0:
+            raise ValueError("No valid samples found")
+
+        self.update_paths()
 
         def get_random_cpgs():
             random_idx = np.sort(
@@ -993,7 +1090,7 @@ class MethylAnalysis:
         def _get_betas(cpgs):
             return get_betas(
                 self.prog_bar,
-                self.idat_files,
+                self.idat_handler,
                 cpgs,
                 self.prep,
                 self.save_betas,
@@ -1015,39 +1112,13 @@ class MethylAnalysis:
 
         elif self.save_betas or self.cpg_selection == "top":
             self.betas_df_all_cpgs = _get_betas(self.cpgs)
-            if self.cpg_selection == "top":
-                self.betas_df_all_cpgs = reorder_columns_by_variance(
-                    self.betas_df_all_cpgs
-                )
+            self.betas_df_all_cpgs = reorder_columns_by_variance(
+                self.betas_df_all_cpgs
+            )
             self.betas_df = _extract_sub_dataframe()
 
         else:
             self.betas_df = _get_betas(self.umap_cpgs)
-
-    def read_umap_plot_from_disk(self):
-        self.update_output_paths()
-        if self.umap_plot_path.exists():
-            self.umap_df = pd.read_csv(
-                self.umap_plot_path, sep="\t", index_col=0
-            )
-            self.umap_df = self.umap_df.fillna("")
-            self.make_umap_plot()
-            return True
-        return False
-
-    def make_umap_plot(self):
-        self.ids = self.umap_df.index
-        self.umap_df["Umap_color"] = self.idat_files.compound_class(
-            self.umap_color_columns
-        )
-        self.umap_plot = umap_plot_from_data(self.umap_df)
-        self.umap_plot = self.umap_plot.update_layout(
-            margin=dict(l=0, r=0, t=30, b=0),
-        )
-        self.raw_umap_plot = self.umap_plot
-        # self.cnv_id = None
-        self.dropdown_id = None
-        self.umap_plot_highlight()
 
     def get_coordinates(self, sample_id):
         return self.umap_df[self.umap_df.index == sample_id].iloc[0][
@@ -1089,7 +1160,7 @@ class MethylAnalysis:
         self.umap_plot.layout.yaxis = current_plot["layout"]["yaxis"]
 
     def make_cnv_plot(self, sample_id, genes_sel=None):
-        idat_basepath = self.idat_files.path[sample_id]
+        idat_basepath = self.idat_handler.sample_paths[sample_id]
         if not is_valid_idat_basepath(idat_basepath):
             raise FileNotFoundError(
                 f"Sample {sample_id} not found in {self.analysis_dir}"
@@ -1104,7 +1175,7 @@ class MethylAnalysis:
         )
 
     def precalculate_all_cnvs(self):
-        self.update_output_paths()
+        self.update_paths()
         sample_ids = [
             x.name
             for x in idat_basepaths(self.analysis_dir)
@@ -1113,7 +1184,7 @@ class MethylAnalysis:
         ]
         self.prog_bar.reset(len(sample_ids), text="(CNV)")
         write_cnv_to_disk(
-            list(self.idat_files.path.values()),
+            list(self.idat_handler.sample_paths.values()),
             self.reference_dir,
             self.cnv_dir,
             self.prep,
@@ -1133,9 +1204,9 @@ class MethylAnalysis:
         app.title = "mepylome"
         side_navigation = get_side_navigation(
             self.ids,
-            self.idat_files.properties,
+            self.idat_handler.properties,
             self.analysis_dir,
-            self.idat_files.annotation,
+            self.idat_handler.annotation_file,
             self.reference_dir,
             self.output_dir,
             self.cpgs,
@@ -1143,6 +1214,9 @@ class MethylAnalysis:
             self.prep,
             self.precalculate_cnv,
             self.cpg_selection,
+            self.umap_parms["n_neighbors"],
+            self.umap_parms["metric"],
+            self.umap_parms["min_dist"],
         )
         dash_plots = dbc.Col(
             [
@@ -1151,10 +1225,12 @@ class MethylAnalysis:
                     figure=self.umap_plot,
                     config={
                         "scrollZoom": True,
-                        "doubleClick": "reset+autosize",
+                        "doubleClick": "autosize",
+                        # "doubleClick": "reset+autosize",
                         "modeBarButtonsToRemove": ["lasso2d", "select"],
                         "displaylogo": False,
                     },
+                    style={"height": "70vh"},
                     # style={"width": "80%", "height": "60vh"},
                 ),
                 html.Div(id="umap-error"),
@@ -1222,10 +1298,14 @@ class MethylAnalysis:
                 and umap_color_columns is not None
             ):
                 self.umap_color_columns = umap_color_columns
-                self.make_umap_plot()
-                self.umap_plot_highlight(cnv_id=self.cnv_id)
-                self.retrieve_zoom(curr_umap_plot)
-                return self.umap_plot, no_update, ""
+                try:
+                    self.make_umap_plot()
+                    self.umap_plot_highlight(cnv_id=self.cnv_id)
+                    self.retrieve_zoom(curr_umap_plot)
+                    return self.umap_plot, no_update, ""
+                except AttributeError as exc:
+                    return no_update, no_update, no_update
+
             if trigger == "umap-plot" and isinstance(click_data, dict):
                 points = click_data.get("points")
                 if isinstance(points, list):
@@ -1275,6 +1355,7 @@ class MethylAnalysis:
             [
                 Output("annotation-file", "valid"),
                 Output("annotation-file-validation", "children"),
+                Output("umap-annotation-color", "options"),
             ],
             [Input("annotation-file", "value")],
             prevent_initial_call=False,
@@ -1283,12 +1364,14 @@ class MethylAnalysis:
             try:
                 path = Path(input_path)
                 if path.exists() and not os.access(path, os.W_OK):
-                    return False, f"Protected file: {path}"
+                    return False, f"Protected file: {path}", no_update
                 if path.exists():
-                    return True, ""
-                return False, f"Not a file: {path}"
+                    self.annotation = path
+                    return True, "", self.idat_handler.properties
+                    # return True, "", no_update
+                return False, f"Not a file: {path}", no_update
             except Exception:
-                return False, "Invalid path format"
+                return False, "Invalid path format", no_update
 
         @app.callback(
             [
@@ -1400,22 +1483,16 @@ class MethylAnalysis:
                 return no_update, no_update, error_message, {}
 
             self.n_cpgs = n_cpgs
-            self.output_dir = output_dir
+            self.output_dir = Path(output_dir)
             self.reference_dir = reference_dir
             self.prep = prep
             self.precalculate_cnv = precalculate_cnv == ON
             self.cpg_selection = cpg_selection
-            if (
-                self.analysis_dir != analysis_dir
-                or self.annotation != annotation
-            ):
-                self.analysis_dir = analysis_dir
-                self.annotation = annotation
-                self.idat_files = IdatFiles(
-                    self.analysis_dir, self.annotation, self.overlap
-                )
+            self.analysis_dir = analysis_dir
+            self.annotation = annotation
 
             try:
+                ensure_directory_exists(self.output_dir)
                 self.make_umap()
                 return (
                     self.umap_plot,
@@ -1426,6 +1503,23 @@ class MethylAnalysis:
             except Exception as e:
                 print(f"An error occurred: {e}")
             return no_update, no_update, "", {}
+
+        @app.callback(
+            [
+                Input("umap-n_neighbors", "value"),
+                Input("umap-metric", "value"),
+                Input("umap-min_dist", "value"),
+            ],
+            prevent_initial_call=True,
+        )
+        def update_umap_parms(
+            n_neighbors,
+            metric,
+            min_dist,
+        ):
+            self.umap_parms["n_neighbors"] = n_neighbors
+            self.umap_parms["metric"] = metric
+            self.umap_parms["min_dist"] = min_dist
 
         @app.callback(
             [
@@ -1471,8 +1565,8 @@ class MethylAnalysis:
             threading.Timer(1, open_browser_tab).start()
 
         # Don't show all the flask logging statements.
-        log = logging.getLogger('werkzeug')
-        log.setLevel(logging.ERROR)
+        logger = logging.getLogger("werkzeug")
+        logger.setLevel(logging.ERROR)
 
         self.app.run(debug=self.debug, host=self.host, use_reloader=False)
 

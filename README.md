@@ -60,6 +60,8 @@ Refer to tests/basic_usage.py for a detailed example.
 
 ### Methylation analysis: Command-line interface
 
+To perform the analysis, you must define an analysis directory that contains the IDAT files you want to analyze. Additionally, you need an annotation file (preferably in CSV format rather than XLSX) with a header where the first column is the Sentrix ID. It is best to place this annotation file within the analysis directory. Furthermore, you should have a directory with CNV-neutral reference cases for CNV analysis.
+
 #### Basic usage:
 
 To start the interface, run the following command (you'll need to manually copy directories into the interface):
@@ -104,4 +106,4 @@ This project is licensed under the [GPL-3.0 license](LICENSE).
 
 ## Acknowledgements
 
-Mepylome is strongly influenced by [minfi] (https://github.com/hansenlab/minfi) and [conumee2] (https://github.com/hovestadtlab/conumee2). Some functionalities, such as the manifest handler and parser, are adapted from [methylprep](https://github.com/FoxoTech/methylprep).
+Mepylome is strongly influenced by [minfi](https://github.com/hansenlab/minfi) and [conumee2](https://github.com/hovestadtlab/conumee2). Some functionalities, such as the manifest handler and parser, are adapted from [methylprep](https://github.com/FoxoTech/methylprep).
