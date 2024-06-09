@@ -53,7 +53,7 @@ with open("README.md") as f:
 
 setup(
     name="mepylome",
-    version="0.0.0",
+    version="0.0.1",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
     package_data={"mepylome": ["data/*.gz"]},

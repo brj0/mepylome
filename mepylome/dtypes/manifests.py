@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 MANIFEST_DIR = Path.home() / ".mepylome" / "manifest_files"
-MANIFEST_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
+MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
 
 ENDING_CONTROL_PROBES = "_control-probes"
 NONE = -1
@@ -260,7 +260,7 @@ class _Manifest:
         if local_filepath.exists() and control_filepath.exists():
             return local_filepath, control_filepath
 
-        download_dir = Path(MANIFEST_TMP_DIR).expanduser()
+        download_dir = Path(MEPYLOME_TMP_DIR).expanduser()
 
         source_url = MANIFEST_URL[array_type]
         source_filename = Path(source_url).name
@@ -278,7 +278,7 @@ class _Manifest:
         )
 
         # Remove downloaded files
-        # shutil.rmtree(MANIFEST_TMP_DIR)
+        # shutil.rmtree(MEPYLOME_TMP_DIR)
 
         return local_filepath, control_filepath
 

@@ -35,7 +35,7 @@ from mepylome.dtypes.beads import MethylData, ReferenceMethylData
 from mepylome.dtypes.cache import memoize
 from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.genetic_data import GAPS, GENES
-from mepylome.dtypes.manifests import MANIFEST_TMP_DIR, Manifest
+from mepylome.dtypes.manifests import MEPYLOME_TMP_DIR, Manifest
 from mepylome.dtypes.plots import CNVPlot
 from mepylome.utils.files import ensure_directory_exists
 
@@ -663,7 +663,7 @@ class CNV:
 
     def plot(self):
         """Generates and displays a plot of the CNV data."""
-        cnv_dir = Path(MANIFEST_TMP_DIR, "cnv")
+        cnv_dir = Path(MEPYLOME_TMP_DIR, "cnv")
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING
         cnv_path = Path(cnv_dir, cnv_file)

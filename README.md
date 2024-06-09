@@ -56,7 +56,79 @@ pip install .[cgb]
 ## Usage
 
 ### Parsing and methylation extraction
-Refer to tests/basic_usage.py for a detailed example.
+
+
+```python
+# 1) IDAT files
+
+# Idat file
+sample = "/data/epidip_IDAT/6042324058_R03C02_Grn.idat"
+
+# Reference files (either basename like below or full pathname of at least
+# one of the Red/Grn pairs).
+reference0 = "/data/ref_IDAT/cnvrefidat_450k/3999997083_R02C02"
+reference1 = "/data/ref_IDAT/cnvrefidat_450k/5775446049_R06C01"
+
+# Alternatively a directory can be given. All files within will be used.
+reference_dir = "/data/ref_IDAT/cnvrefidat_450k"
+
+
+# 2) Parsing IDAT
+
+# The idat file must contain the full path with _Red.idat/_Grn.idat ending
+idat_data = IdatParser(sample)
+
+
+# 3) Manifest data
+
+manifest_450k = ManifestLoader.get_manifest("450k")
+manifest_epic = ManifestLoader.get_manifest("epic")
+manifest_epicv2 = ManifestLoader.get_manifest("epicv2")
+
+
+# 4) The raw methylation data
+
+raw_reference = RawData([reference0, reference1])
+
+# Alternative using reference directory
+raw_reference = RawData(reference_dir)
+
+# Sample data must include 1 idat-pair
+raw_sample = RawData(sample)
+
+
+# 5) The preprocessed methylation data
+sample_methyl = MethylData(raw_sample)
+ref_methyl_data = MethylData(raw_reference)
+
+
+# 6) Beta value
+beta = sample_methyl.beta
+
+
+# 7) Annotation object
+annotation = Annotation(manifest, gap=gap, detail=genes)
+
+
+# 8) CNV
+cnv = CNV(sample_methyl, ref_methyl_data)
+
+# Apply linear regression model
+cnv.fit()
+
+# Get CNV for all bins
+cnv.set_bins()
+
+# Get CNV for all genes
+cnv.set_detail()
+
+# Segment Genome using binary circular segmentation algorithm
+cnv.set_segments()
+
+# Show CNV plot
+cnv.plot()
+```
+
 
 ### Methylation analysis: Command-line interface
 

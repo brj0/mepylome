@@ -35,6 +35,7 @@ import logging
 import os
 import pickle
 import subprocess
+import tempfile
 import threading
 import webbrowser
 from functools import lru_cache
@@ -45,7 +46,6 @@ from pathlib import Path
 import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
-import pkg_resources
 import plotly.express as px
 import plotly.graph_objects as go
 from dash import (
@@ -80,43 +80,19 @@ from mepylome.utils import Timer, ensure_directory_exists
 
 timer = Timer()
 
+
+MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
+
+DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "output")
+INVALID_PATH = Path("None")
+
 PLOTLY_RENDER_MODE = "webgl"
-
-HOME_DIR = Path.home()
-DEFAULT_ANALYSIS_DIR = Path(HOME_DIR, "Documents", "mepylome", "analysis")
-DEFAULT_ANNOTATION_FILE = Path(DEFAULT_ANALYSIS_DIR, "annotation.csv")
-DEFAULT_REFERENCE_DIR = Path(HOME_DIR, "Documents", "mepylome", "reference")
-DEFAULT_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output")
 DEFAULT_N_CPGS = 25000
-
-EMPTY_PATH = Path(HOME_DIR, "Documents", "mepylome", "None")
-_EMPTY_PATH = Path("None")
-
-
-DEFAULT_REFERENCE_DIR = _EMPTY_PATH
-DEFAULT_ANNOTATION_FILE = _EMPTY_PATH
-DEFAULT_ANALYSIS_DIR = _EMPTY_PATH
-# DEFAULT_OUTPUT_DIR = _EMPTY_PATH
-
+NEUTRAL_BETA = 0.49
 ERROR_ENDING = "_error.txt"
 
 ON = "on"
 OFF = "off"
-
-NEUTRAL_BETA = 0.49
-
-# Contains CpGs common to both 450k and EPIC arrays, excluding those on sex
-# chromosomes and cross-reactive probes (as identified in Chen et al., 2013).
-CPG_450K_EPIC_OVERLAP = (
-    "/applications/reference_data/betaEPIC450Kmix_bin/index.csv"
-)
-with open(CPG_450K_EPIC_OVERLAP) as f:
-    CPG_450K = np.array(f.read().splitlines())
-
-
-ACRONYMS = pkg_resources.resource_filename(
-    "mepylome", "data/methylation_class_acronyms.tsv.gz"
-)
 
 UMAP_METRICS = [
     "euclidean",
@@ -251,8 +227,6 @@ def umap_plot_from_data(umap_df):
         UMAP plot as plotly object.
     """
     methyl_classes = np.sort(umap_df["Umap_color"].unique())
-    # methyl_classes = umap_df[color_columns].iloc[:,0]
-    # umap_df["Umap_color"] = umap_df[color_columns].iloc[:,0]
     color_map = discrete_colors(methyl_classes)
     category_orders = {"Umap_color": methyl_classes}
     umap_plot = px.scatter(
@@ -292,7 +266,7 @@ class IdatHandler:
     """
 
     def __init__(self, idat_dir, annotation_file=None, overlap=False):
-        self.idat_dir = idat_dir
+        self.idat_dir = Path(idat_dir)
         if annotation_file is None:
             annotation_file = guess_annotation_file(self.idat_dir)
         self.annotation_file = Path(str(annotation_file)).expanduser()
@@ -315,6 +289,7 @@ class IdatHandler:
             self.annotated_samples = self.annotated_samples.loc[
                 self.sample_paths.keys()
             ]
+        self.selected_columns = self.annotated_samples.columns[0]
 
     def __len__(self):
         return len(self.sample_paths)
@@ -334,10 +309,7 @@ class IdatHandler:
                     self.annotation_file, sep=sep, index_col=0
                 )
             else:
-                self.annotation_df = result_df#TODO
-                # raise ValueError(
-                    # "Annotation files must be as 'xlsx', 'tsv' or 'csv' file"
-                # )
+                self.annotation_df = result_df
             result_df = result_df.join(self.annotation_df)
             result_df = result_df.fillna("")
         if len(result_df.columns) == 0:
@@ -369,6 +341,7 @@ class IdatHandler:
             "IdatHandler():",
             f"annotation_file: '{self.annotation_file}'",
             f"annotated_samples:\n{self.annotated_samples}",
+            f"selected_columns:\n{self.selected_columns}",
         ]
         return "\n".join(lines)
 
@@ -377,6 +350,7 @@ class IdatHandler:
 
 
 def extract_beta(data):
+    """Extracts beta values for specified CpGs from an IDAT file."""
     idat_file, cpgs, prep = data
     try:
         methyl = MethylData(file=idat_file, prep=prep)
@@ -388,6 +362,19 @@ def extract_beta(data):
 
 
 def methyl_mtx_from_all_cpgs(betas_list, cpgs, fill=NEUTRAL_BETA):
+    """Creates a methylation matrix from a list of beta values.
+
+    Args:
+        betas_list (list): List of tuples containing beta values and array
+            types.
+        cpgs (list): List of CpGs to include in the matrix.
+        fill (float, optional): Value to fill missing beta values. Defaults to
+            NEUTRAL_BETA.
+
+    Returns:
+        np.ndarray: A 2D array representing the methylation matrix for the
+            specified CpGs.
+    """
     array_types = set(x[1] for x in betas_list)
     all_cpgs = {
         array_type: Manifest(array_type).methylation_probes
@@ -404,10 +391,25 @@ def methyl_mtx_from_all_cpgs(betas_list, cpgs, fill=NEUTRAL_BETA):
         converted[i, left_idx[array_type]] = beta[right_idx[array_type]]
     converted[np.isnan(converted)] = fill
     return converted
-    # return pd.DataFrame(converted.T, columns=cpgs, index=cpgs)
 
 
 def get_betas(pbar, idat_handler, cpgs, prep, save=False, betas_path=None):
+    """Extracts and processes beta values from IDAT files.
+
+    Args:
+        pbar (ProgressBar): Progress bar for tracking progress.
+        idat_handler (IdatHandler): Handler for IDAT file paths and metadata.
+        cpgs (list): List of CpGs to include in the output matrix.
+        prep (str): Prepreparation method for the MethylData.
+        save (bool, optional): Whether to save the extracted betas to a file.
+            Defaults to False.
+        betas_path (Path, optional): Path to save/load the betas. Defaults to
+            None.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the beta values for the specified
+            CpGs.
+    """
     if betas_path is not None and betas_path.exists():
         with open(betas_path, "rb") as f:
             betas_list = pickle.load(f)
@@ -452,10 +454,18 @@ def get_betas(pbar, idat_handler, cpgs, prep, save=False, betas_path=None):
 
 @lru_cache(maxsize=None)
 def get_reference_methyl_data(reference_dir, prep):
-    return ReferenceMethylData(files=reference_dir, prep=prep)
+    """Loads and caches CNV-neutral reference data."""
+    try:
+        reference = ReferenceMethylData(files=reference_dir, prep=prep)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"File in reference dir {reference_dir} not found: {exc}"
+        ) from exc
+    return reference
 
 
 def write_single_cnv_to_disk(args):
+    """Performs CNV analysis on a single sample and writes results to disk."""
     idat_basename, reference_dir, cnv_dir, prep = args
     sample_id = idat_basename.name
     try:
@@ -484,6 +494,20 @@ def write_single_cnv_to_disk(args):
 
 
 def write_cnv_to_disk(sample_path, reference_dir, cnv_dir, prep, pbar=None):
+    """Generate and save CNV-analysis output files for given samples.
+
+    Saves CNV data with a ZIP_ENDING extension, or an error message with an
+    ERROR_ENDING extension. Processes unseen samples, avoiding existing CNV and
+    samples that lead to an error. Uses single-threading for one sample, and
+    multi-threading for multiple samples. 
+
+    Args:
+        sample_path (list): Paths to sample IDAT files.
+        reference_dir (str): Directory with CNV neural reference data.
+        cnv_dir (str): Directory to save CNV data.
+        prep (str): Prepreparation method for MethylData.
+        pbar (optional): Progress bar for tracking progress.
+    """
     new_idat_paths = [
         x
         for x in sample_path
@@ -532,6 +556,18 @@ def get_cnv_plot(
     cnv_dir,
     genes_sel,
 ):
+    """Generate and return a CNV plot for a given sample.
+
+    Args:
+        sample_path (Path): Path to the sample IDAT file.
+        reference_dir (str): Directory with reference data.
+        prep (str): Prepreparation method for MethylData.
+        cnv_dir (str): Directory to save CNV data.
+        genes_sel (list): List of genes to highlight in the plot.
+
+    Returns:
+        plotly.graph_objs.Figure: CNV plotly figure.
+    """
     sample_id = sample_path.name
     write_cnv_to_disk([sample_path], reference_dir, cnv_dir, prep)
     bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
@@ -550,9 +586,8 @@ def get_cnv_plot(
 
 
 def get_all_genes():
-    genomic_annotation = Annotation(array_type=ArrayType.ILLUMINA_450K)
-    detail = genomic_annotation.detail.df
-    return detail.Name.tolist()
+    """Returns a list of names for all genes."""
+    return Annotation.default_detail().df.Name.tolist()
 
 
 EMPTY_FIGURE = go.Figure()
@@ -568,6 +603,7 @@ EMPTY_FIGURE = go.Figure(layout=go.Layout(yaxis=dict(range=[-2, 2])))
 
 
 def get_navbar():
+    """Returns a navigation bar with a logo and title."""
     return dbc.Navbar(
         dbc.Container(
             [
@@ -617,6 +653,7 @@ def get_side_navigation(
     metric,
     min_dist,
 ):
+    """Generates a side navigation panel for setting up parameters."""
     n_cpgs_max = np.inf if len(cpgs) == 0 else len(cpgs)
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
     return dbc.Col(
@@ -735,7 +772,6 @@ def get_side_navigation(
                     dbc.Tab(
                         label="UMAP",
                         children=[
-                            # dcc.Location(id="url", refresh=False),
                             html.Br(),
                             html.H5("Determine UMAP settings."),
                             html.Br(),
@@ -779,7 +815,6 @@ def get_side_navigation(
                     dbc.Tab(
                         label="Highlight",
                         children=[
-                            # dcc.Location(id="url", refresh=False),
                             html.Br(),
                             html.Br(),
                             html.H6("Sample IDs to highlight in UMAP"),
@@ -813,6 +848,7 @@ def get_side_navigation(
 
 
 def guess_annotation_file(directory):
+    """Returns the first csv or xlsx file in the given directory."""
     directory_path = Path(directory)
     files = list(directory_path.glob("*"))
     csv_files = [f for f in files if f.suffix == ".csv"]
@@ -821,12 +857,11 @@ def guess_annotation_file(directory):
         return csv_files[0]
     if xlsx_files:
         return xlsx_files[0]
-    return None
-    #TODO
-    # return DEFAULT_ANNOTATION_FILE
+    return INVALID_PATH
 
 
-def input_args_hash(*args):
+def input_args_id(*args):
+    """Returns a unique identifier for a set of arguments."""
     result = "-".join(
         [
             str(arg.tolist()[:10]) if isinstance(arg, np.ndarray) else str(arg)
@@ -836,15 +871,27 @@ def input_args_hash(*args):
     return hashlib.md5(result.encode()).hexdigest()[:32]
 
 
-def extract_sub_dataframe(data_frame, arr, fill=0.49):
-    result_np = np.full((len(data_frame.index), len(arr)), fill)
-    left_idx, right_idx = overlap_indices(arr, data_frame.columns)
+def extract_sub_dataframe(data_frame, columns, fill=0.49):
+    """Extracts a sub-dataframe based on the intersection of provided columns.
+
+    Args:
+        data_frame (pd.DataFrame): The original DataFrame.
+        columns (list or array): The column names to be extracted.
+        fill (float, optional): The value to fill for non-overlapping columns.
+            Defaults to 0.49.
+
+    Returns:
+        pd.DataFrame: The sub-dataframe with the specified columns.
+    """
+    result_np = np.full((len(data_frame.index), len(columns)), fill)
+    left_idx, right_idx = overlap_indices(columns, data_frame.columns)
     result_np[:, left_idx] = data_frame.values[:, right_idx]
-    result = pd.DataFrame(result_np, columns=arr, index=data_frame.index)
+    result = pd.DataFrame(result_np, columns=columns, index=data_frame.index)
     return result
 
 
 def reorder_columns_by_variance(data_frame):
+    """Reorders data frame by descending column variance."""
     variances = data_frame.var()
     sorted_columns = variances.sort_values(ascending=False).index
     reordered = data_frame[sorted_columns]
@@ -854,9 +901,9 @@ def reorder_columns_by_variance(data_frame):
 class MethylAnalysis:
     def __init__(
         self,
-        analysis_dir=DEFAULT_ANALYSIS_DIR,
-        annotation=None,
-        reference_dir=DEFAULT_REFERENCE_DIR,
+        analysis_dir=INVALID_PATH,
+        annotation=INVALID_PATH,
+        reference_dir=INVALID_PATH,
         output_dir=DEFAULT_OUTPUT_DIR,
         prep="illumina",
         cpgs="auto",
@@ -871,14 +918,14 @@ class MethylAnalysis:
         umap_parms=None,
     ):
         self.umap_cpgs = None
-        self.analysis_dir = analysis_dir
-        self._old_analysis_dir = analysis_dir
+        self.analysis_dir = Path(analysis_dir)
+        self._old_analysis_dir = self.analysis_dir
         self.idat_paths = None
-        if annotation is None:
+        if annotation == INVALID_PATH:
             annotation = guess_annotation_file(analysis_dir)
         if annotation is None or not Path(annotation).exists():
             print("No annotation file found")
-        self.annotation = annotation
+        self.annotation = Path(annotation)
         self.overlap = overlap
         self._idat_handler = None
         self.cpgs = self.get_cpgs(cpgs)
@@ -891,10 +938,8 @@ class MethylAnalysis:
         self.host = host
         self.port = port
         self.debug = debug
-        self.umap_color_columns = None
-        self.reference_dir = reference_dir
+        self.reference_dir = Path(reference_dir)
         self.output_dir = Path(output_dir)
-        # ensure_directory_exists(self.output_dir)
         self.cnv_dir = None
         self.umap_dir = None
         self.prep = prep
@@ -978,19 +1023,18 @@ class MethylAnalysis:
         if not self.output_dir.exists():
             return
         old_betas_path = self.betas_path
-        old_analysis_dir = self.analysis_dir
-        umap_hash_key = input_args_hash(
+        umap_hash_key = input_args_id(
             np.sort(self.cpgs),
             self.n_cpgs,
             self.analysis_dir,
             self.prep,
             self.cpg_selection,
         )
-        betas_hash_key = input_args_hash(
+        betas_hash_key = input_args_id(
             self.analysis_dir,
             self.prep,
         )
-        cnv_hash_key = input_args_hash(
+        cnv_hash_key = input_args_id(
             self.analysis_dir,
             self.reference_dir,
             self.prep,
@@ -1045,22 +1089,19 @@ class MethylAnalysis:
                 ],
                 axis=1,
             )
-            if self.umap_color_columns is None:
-                self.umap_color_columns = self.umap_df.columns[2]
             self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
 
         if self.umap_df is None:
             raise AttributeError("'umap_df' not set")
         self.ids = self.umap_df.index
         self.umap_df["Umap_color"] = self.idat_handler.compound_class(
-            self.umap_color_columns
+            self.idat_handler.selected_columns
         )
         self.umap_plot = umap_plot_from_data(self.umap_df)
         self.umap_plot = self.umap_plot.update_layout(
             margin=dict(l=0, r=0, t=30, b=0),
         )
         self.raw_umap_plot = self.umap_plot
-        # self.cnv_id = None
         self.dropdown_id = None
         self.umap_plot_highlight()
 
@@ -1164,6 +1205,10 @@ class MethylAnalysis:
         if not is_valid_idat_basepath(idat_basepath):
             raise FileNotFoundError(
                 f"Sample {sample_id} not found in {self.analysis_dir}"
+            )
+        if not self.reference_dir.exists():
+            raise FileNotFoundError(
+                f"Reference dir {self.reference_dir} does not exist"
             )
         genes_sel = () if genes_sel is None else tuple(genes_sel)
         self.cnv_plot = get_cnv_plot(
@@ -1297,13 +1342,13 @@ class MethylAnalysis:
                 trigger == "umap-annotation-color"
                 and umap_color_columns is not None
             ):
-                self.umap_color_columns = umap_color_columns
+                self.idat_handler.selected_columns= umap_color_columns
                 try:
                     self.make_umap_plot()
                     self.umap_plot_highlight(cnv_id=self.cnv_id)
                     self.retrieve_zoom(curr_umap_plot)
                     return self.umap_plot, no_update, ""
-                except AttributeError as exc:
+                except AttributeError:
                     return no_update, no_update, no_update
 
             if trigger == "umap-plot" and isinstance(click_data, dict):
@@ -1320,6 +1365,8 @@ class MethylAnalysis:
                         return self.umap_plot, self.cnv_plot, ""
                     except Exception as e:
                         print("umap failed:", e)
+                        print("sample_id:", sample_id)
+                        print("MethylAnalysis:", self)
                         return no_update, no_update, str(e)
             if trigger == "selected-genes" and genes_sel is not None:
                 try:
@@ -1346,6 +1393,7 @@ class MethylAnalysis:
                 if path.is_dir() and not os.access(path, os.W_OK):
                     return False, f"Protected directory: {path}"
                 if path.is_dir():
+                    self.analysis_dir = Path(path)
                     return True, ""
                 return False, f"Not a directory: {path}"
             except Exception:
@@ -1366,9 +1414,8 @@ class MethylAnalysis:
                 if path.exists() and not os.access(path, os.W_OK):
                     return False, f"Protected file: {path}", no_update
                 if path.exists():
-                    self.annotation = path
+                    self.annotation = Path(path)
                     return True, "", self.idat_handler.properties
-                    # return True, "", no_update
                 return False, f"Not a file: {path}", no_update
             except Exception:
                 return False, "Invalid path format", no_update
@@ -1387,6 +1434,7 @@ class MethylAnalysis:
                 if path.is_dir() and not os.access(path, os.W_OK):
                     return False, f"Protected directory: {path}"
                 if path.is_dir():
+                    self.reference_dir = Path(path)
                     return True, ""
                 return False, f"Not a directory: {path}"
             except Exception:
@@ -1404,10 +1452,12 @@ class MethylAnalysis:
             try:
                 path = Path(input_path)
                 if path == DEFAULT_OUTPUT_DIR:
+                    self.output_dir = Path(path)
                     return True, ""
                 if path.is_dir() and not os.access(path, os.W_OK):
                     return False, f"Protected directory: {path}"
                 if path.is_dir():
+                    self.output_dir = Path(path)
                     return True, ""
                 return False, f"Not a directory: {path}"
             except Exception:
@@ -1462,16 +1512,12 @@ class MethylAnalysis:
 
             error_message = None
 
-            if n_clicks is None:
+            if n_cpgs is None:
                 error_message = "Invalid no. of CpGs."
             elif not analysis_dir_valid:
                 error_message = "Invalid analysis path."
             elif not output_dir_valid:
                 error_message = "Invalid Output path."
-            elif not reference_dir_valid:
-                error_message = "Invalid Reference path."
-            elif not annotation_file_valid:
-                error_message = "Invalid annotation path."
             elif prep is None:
                 error_message = "Invalid preprocessing method."
             elif precalculate_cnv is None:
@@ -1484,12 +1530,12 @@ class MethylAnalysis:
 
             self.n_cpgs = n_cpgs
             self.output_dir = Path(output_dir)
-            self.reference_dir = reference_dir
+            self.reference_dir = Path(reference_dir)
             self.prep = prep
             self.precalculate_cnv = precalculate_cnv == ON
             self.cpg_selection = cpg_selection
-            self.analysis_dir = analysis_dir
-            self.annotation = annotation
+            self.analysis_dir = Path(analysis_dir)
+            self.annotation = Path(annotation)
 
             try:
                 ensure_directory_exists(self.output_dir)
@@ -1582,7 +1628,7 @@ class MethylAnalysis:
             f"umap_dir:\n{self.umap_dir}",
             f"cnv_dir:\n{self.cnv_dir}",
             f"umap_dir:\n{self.umap_dir}",
-            f"umap_color_columns:\n{self.umap_color_columns}",
+            f"selected_columns:\n{self.idat_handler.selected_columns}",
             f"annotation:\n{self.annotation}",
             f"prep:\n{self.prep}",
             f"precalculate_cnv:\n{self.precalculate_cnv}",

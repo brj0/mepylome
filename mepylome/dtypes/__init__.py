@@ -14,13 +14,12 @@ from .chromosome import Chromosome
 from .cnv import CNV, ZIP_ENDING, Annotation
 from .genetic_data import (
     CHROMOSOME_DATA,
-    COLOR_MAP,
     GAPS,
     GENES,
     IMPORTANT_GENES,
 )
 from .idat import IdatParser
-from .manifests import MANIFEST_TMP_DIR, Manifest
+from .manifests import MEPYLOME_TMP_DIR, Manifest
 from .plots import CNVPlot, cnv_plot_from_data, read_cnv_data_from_disk
 from .probes import Channel, InfiniumDesignType, ProbeType
 
@@ -30,7 +29,6 @@ __all__ = [
     "CHROMOSOME_DATA",
     "CNV",
     "CNVPlot",
-    "COLOR_MAP",
     "Channel",
     "Chromosome",
     "GAPS",
@@ -39,7 +37,7 @@ __all__ = [
     "IdatParser",
     "InfiniumDesignType",
     "Manifest",
-    "MANIFEST_TMP_DIR",
+    "MEPYLOME_TMP_DIR",
     "MethylData",
     "ProbeType",
     "RawData",

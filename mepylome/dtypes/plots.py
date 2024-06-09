@@ -13,15 +13,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
-from mepylome.dtypes.manifests import MANIFEST_TMP_DIR
+from mepylome.dtypes.manifests import MEPYLOME_TMP_DIR
 from mepylome.utils.files import ensure_directory_exists
 
 PLOTLY_RENDER_MODE = "webgl"
 ZIP_ENDING = "_cnv.zip"
 THRESHOLD_BALANCED = 0.1
 
-ensure_directory_exists(MANIFEST_TMP_DIR)
-CNV_GRID = Path(MANIFEST_TMP_DIR, "grid.json")
+ensure_directory_exists(MEPYLOME_TMP_DIR)
+CNV_GRID = Path(MEPYLOME_TMP_DIR, "grid.json")
 
 
 class Genome:

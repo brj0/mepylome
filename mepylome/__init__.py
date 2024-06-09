@@ -15,7 +15,6 @@ with suppress(ModuleNotFoundError):
 from mepylome.dtypes import (
     CHROMOSOME_DATA,
     CNV,
-    COLOR_MAP,
     GAPS,
     GENES,
     IMPORTANT_GENES,
@@ -50,7 +49,6 @@ __all__ = [
     "CHROMOSOME_DATA",
     "CNV",
     "CNVPlot",
-    "COLOR_MAP",
     "Channel",
     "Chromosome",
     "GAPS",
