@@ -59,7 +59,6 @@ setup(
     version="0.1.0",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
-    package_data={"mepylome": ["data/*.gz"]},
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[

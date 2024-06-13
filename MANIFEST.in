@@ -9,4 +9,4 @@
 include src/*.h
 
 # Includes data
-include mepylome/data/*
+recursive-include mepylome/data/ *
