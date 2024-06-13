@@ -21,24 +21,20 @@ LOGGER = logging.getLogger(__name__)
 __all__ = ["IdatParser"]
 
 
-def bytes_to_int(input_bytes, signed=False):
-    return int.from_bytes(input_bytes, byteorder="little", signed=signed)
-
-
 def read_byte(infile):
-    return bytes_to_int(infile.read(1), signed=False)
+    return int.from_bytes(infile.read(1), byteorder="little", signed=False)
 
 
 def read_short(infile):
-    return bytes_to_int(infile.read(2), signed=False)
+    return int.from_bytes(infile.read(2), byteorder="little", signed=False)
 
 
 def read_int(infile):
-    return bytes_to_int(infile.read(4), signed=True)
+    return int.from_bytes(infile.read(4), byteorder="little", signed=True)
 
 
 def read_long(infile):
-    return bytes_to_int(infile.read(8), signed=True)
+    return int.from_bytes(infile.read(8), byteorder="little", signed=True)
 
 
 def read_char(infile, num_bytes):
@@ -59,14 +55,14 @@ def read_string(infile):
 
 def read_array(infile, dtype, n):
     dtype = np.dtype(dtype)
-    # np.readfile is not able to read from gzopene-d file
-    alldata = infile.read(dtype.itemsize * n)
-    if len(alldata) != dtype.itemsize * n:
-        raise EOFError("End of file reached before number of results parsed")
-    readdata = np.frombuffer(alldata, dtype, n)
-    if readdata.size != n:
-        raise EOFError("End of file reached before number of results parsed")
-    return readdata
+    total_size = dtype.itemsize * n
+    alldata = infile.read(total_size)
+
+    if len(alldata) != total_size:
+        msg = "End of file reached before number of results parsed"
+        raise EOFError(msg)
+
+    return np.frombuffer(alldata, dtype)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -117,6 +113,7 @@ class IdatParser:
     def __init__(
         self,
         filepath_or_buffer,
+        *,
         intensity_only=False,
     ):
         """Reads and parses the IDAT file."""
@@ -131,18 +128,18 @@ class IdatParser:
         file_type = read_char(idat_file, len(DEFAULT_IDAT_FILE_ID))
         # Assert file is indeed IDAT format
         if file_type != DEFAULT_IDAT_FILE_ID:
-            raise ValueError(
-                "Parser could not open file as its not a valid IDAT file."
-            )
+            msg = "Parser could not open file as its not a valid IDAT file."
+            raise ValueError(msg)
 
         idat_version = read_long(idat_file)
 
         # Assert correct IDAT file version
         if idat_version != DEFAULT_IDAT_VERSION:
-            raise ValueError(
+            msg = (
                 "Parser could not open file as its not a version 3 "
                 "IDAT file."
             )
+            raise ValueError(msg)
 
         self.num_fields = read_int(idat_file)
 
@@ -239,17 +236,17 @@ class IdatParser:
                 f"IdatParser(\n"
                 f"    file_size: {self.file_size}\n"
                 f"    num_fields: {self.num_fields}\n"
-                f"    illumina_ids: {repr(self.illumina_ids)}\n"
-                f"    probe_means: {repr(self.probe_means)}\n"
+                f"    illumina_ids: {self.illumina_ids!r}\n"
+                f"    probe_means: {self.probe_means!r}\n"
             )
 
             if self.intensity_only:
                 return result + ")"
 
             return result + (
-                f"    std_dev: {repr(self.std_dev)}\n"
-                f"    n_beads: {repr(self.n_beads)}\n"
-                f"    mid_block: {repr(self.mid_block)}\n"
+                f"    std_dev: {self.std_dev!r}\n"
+                f"    n_beads: {self.n_beads!r}\n"
+                f"    mid_block: {self.mid_block!r}\n"
                 f"    red_green: {self.red_green}\n"
                 f"    mostly_null: {self.mostly_null}\n"
                 f"    barcode: {self.barcode}\n"

@@ -423,10 +423,11 @@ class _Manifest:
         while not header_line.startswith(b"IlmnID"):
             current_pos = manifest_file.tell()
             if not header_line:
-                raise EOFError(
+                msg = (
                     "The first (left-most) column in your manifest must "
                     "contain 'IlmnID'. This defines the header row."
                 )
+                raise EOFError(msg)
             header_line = manifest_file.readline()
 
         if current_pos == 0:
@@ -449,8 +450,7 @@ class _Manifest:
         data_frame = data_frame.drop_duplicates(
             subset=["IlmnID"], keep="first"
         )
-        data_frame = data_frame.reset_index(drop=True)
-        return data_frame
+        return data_frame.reset_index(drop=True)
 
     def read_control_probes(self, control_file):
         """Reads and returns control probes from local file {control_file}."""
@@ -467,8 +467,7 @@ class _Manifest:
     def read_snp_probes(self):
         """Extracts SNP probes from the manifest data frame."""
         snp_df = self.data_frame.copy()
-        snp_df = snp_df[snp_df.IlmnID.str.match("rs", na=False)]
-        return snp_df
+        return snp_df[snp_df.IlmnID.str.match("rs", na=False)]
 
     def get_data_types(self):
         """Returns data types for the manifest columns."""
@@ -505,10 +504,12 @@ class _Manifest:
             not a valid Channel.
         """
         if not isinstance(probe_type, ProbeType):
-            raise ValueError("probe_type is not a valid ProbeType")
+            msg = "probe_type is not a valid ProbeType"
+            raise TypeError(msg)
 
         if channel and not isinstance(channel, Channel):
-            raise ValueError("channel not a valid Channel")
+            msg = "channel not a valid Channel"
+            raise TypeError(msg)
 
         data_frame = self.data_frame
         probe_type_mask = data_frame["Probe_Type"].values == probe_type.value

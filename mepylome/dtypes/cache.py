@@ -37,11 +37,10 @@ def np_hash(array):
     full_len = len(array)
     sample_len = 57
     idx_left = [i * full_len // sample_len for i in range(sample_len)] + [-1]
-    key = (
+    return (
         tuple(array[x] for x in idx_left),
         full_len,
     )
-    return key
 
 
 def cache_key(arg):

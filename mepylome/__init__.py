@@ -11,7 +11,6 @@ from contextlib import suppress
 with suppress(ModuleNotFoundError):
     from _mepylome import IdatParser as _IdatParser
 
-# from mepylome.analysis import MethylAnalysis
 from mepylome.dtypes import (
     CHROMOSOME_DATA,
     CNV,
@@ -57,7 +56,6 @@ __all__ = [
     "IdatParser",
     "InfiniumDesignType",
     "Manifest",
-    # "MethylAnalysis",
     "MethylData",
     "ProbeType",
     "RawData",
@@ -74,6 +72,6 @@ __all__ = [
 # Conditionally add _IdatParser to __all__ if it exists
 try:
     _ = _IdatParser
-    __all__.append("_IdatParser")
+    __all__ += ["_IdatParser"]
 except NameError:
     pass

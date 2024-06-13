@@ -65,7 +65,8 @@ def huber(y, k=1.5, tol=1.0e-6):
     mu = np.median(y)
     s = np.median(np.abs(y - mu)) * 1.4826
     if s == 0:
-        raise ValueError("Cannot estimate scale: MAD is zero for this sample")
+        msg = "Cannot estimate scale: MAD is zero for this sample"
+        raise ValueError(msg)
     while True:
         yy = np.clip(y, mu - k * s, mu + k * s)
         mu1 = np.mean(yy)
@@ -120,9 +121,11 @@ def normexp_signal(par, x):
     sigma2 = sigma * sigma
     alpha = np.exp(par[2])
     if alpha <= 0:
-        raise ValueError("alpha must be positive")
+        msg = "alpha must be positive"
+        raise ValueError(msg)
     if sigma <= 0:
-        raise ValueError("sigma must be positive")
+        msg = "sigma must be positive"
+        raise ValueError(msg)
     mu_sf = x - mu - sigma2 / alpha
     log_dnorm = norm.logpdf(0, loc=mu_sf, scale=sigma)
     log_pnorm = norm.logsf(0, loc=mu_sf, scale=sigma)
@@ -147,7 +150,8 @@ def normexp_get_xs(xf, controls=None, offset=50, param=None):
     n_probes = xf.shape[0]
     if param is None:
         if controls is None:
-            raise ValueError("'controls' or 'param' must be given")
+            msg = "'controls' or 'param' must be given"
+            raise ValueError(msg)
         alpha = np.empty(n_probes)
         mu = np.empty(n_probes)
         sigma = np.empty(n_probes)

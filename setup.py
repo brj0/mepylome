@@ -1,5 +1,5 @@
-import glob
 import os
+from pathlib import Path
 
 import numpy as np
 import pybind11
@@ -33,9 +33,12 @@ else:
         "-march=native",
     ]
 
+sources = list(map(str, Path("pybindings").glob("*.cpp"))) + list(
+    map(str, Path("src").glob("*.cpp"))
+)
 cpp_extension = Extension(
     name="_mepylome",
-    sources=glob.glob("pybindings/*.cpp") + glob.glob("src/*.cpp"),
+    sources=sources,
     include_dirs=include_dirs,
     extra_compile_args=compile_args,
     extra_link_args=["-fopenmp"],

@@ -69,28 +69,20 @@ class Chromosome(IntEnum):
     def pd_from_string(col):
         """Converts chromosome strings to Chromosome enum values."""
         chrom_map = {
-            **{str(i): Chromosome(i) for i in range(0, 23)},
-            **{"chr" + str(i): Chromosome(i) for i in range(0, 23)},
-            **{
-                "X": Chromosome.CHRX,
-                "Y": Chromosome.CHRY,
-                "M": Chromosome.CHRM,
-            },
-            **{
-                "x": Chromosome.CHRX,
-                "y": Chromosome.CHRY,
-                "m": Chromosome.CHRM,
-            },
-            **{
-                "chrX": Chromosome.CHRX,
-                "chrY": Chromosome.CHRY,
-                "chrM": Chromosome.CHRM,
-            },
-            **{
-                "chrx": Chromosome.CHRX,
-                "chry": Chromosome.CHRY,
-                "chrm": Chromosome.CHRM,
-            },
+            **{str(i): Chromosome(i) for i in range(23)},
+            **{"chr" + str(i): Chromosome(i) for i in range(23)},
+            "X": Chromosome.CHRX,
+            "Y": Chromosome.CHRY,
+            "M": Chromosome.CHRM,
+            "x": Chromosome.CHRX,
+            "y": Chromosome.CHRY,
+            "m": Chromosome.CHRM,
+            "chrX": Chromosome.CHRX,
+            "chrY": Chromosome.CHRY,
+            "chrM": Chromosome.CHRM,
+            "chrx": Chromosome.CHRX,
+            "chry": Chromosome.CHRY,
+            "chrm": Chromosome.CHRM,
         }
         return col.map(chrom_map).fillna(Chromosome.INVALID).astype(int)
 
@@ -98,11 +90,9 @@ class Chromosome(IntEnum):
     def pd_to_string(col):
         """Converts Chromosome enum values to chromosome strings."""
         chrom_map = {
-            **{Chromosome(i): "chr" + str(i) for i in range(0, 23)},
-            **{
-                Chromosome.CHRX: "chrX",
-                Chromosome.CHRY: "chrY",
-                Chromosome.CHRM: "chrM",
-            },
+            **{Chromosome(i): "chr" + str(i) for i in range(23)},
+            Chromosome.CHRX: "chrX",
+            Chromosome.CHRY: "chrY",
+            Chromosome.CHRM: "chrM",
         }
         return col.map(chrom_map).fillna("NaN")

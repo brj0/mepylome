@@ -42,4 +42,5 @@ class ArrayType(Enum):
         if 315000 <= probe_count <= 362000:
             return cls.ILLUMINA_MOUSE
 
-        raise ValueError(f"Unknown array type: {probe_count} probes detected")
+        msg = f"Unknown array type: {probe_count} probes detected"
+        raise ValueError(msg)

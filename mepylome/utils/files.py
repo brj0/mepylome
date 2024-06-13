@@ -33,7 +33,8 @@ def make_path_like(path_like):
     try:
         return Path(path_like)
     except TypeError as exc:
-        raise TypeError(f"could not convert to Path: {path_like}") from exc
+        msg = f"could not convert to Path: {path_like}"
+        raise TypeError(msg) from exc
 
 
 def require_path(inner):
@@ -84,10 +85,10 @@ def download_file(src_url, dest, overwrite=False):
             f"Downloading manifest from {src_url} to {dest_dir}.\n"
             "Can take several minutes..."
         )
-        with urlopen(src_url) as response, open(dest_path, "wb") as out_file:
+        with urlopen(src_url) as response, dest_path.open("wb") as out_file:
             shutil.copyfileobj(response, out_file)
     except URLError as e:
-        logger.error(e)
+        logger.exception(e)
         logger.info(
             "Downloading manifest from %s failed. Please correct "
             "url in source code", src_url
@@ -165,13 +166,11 @@ def get_csv_file(file_or_archive, filename):
             )
             if file_match:
                 return archive.open(file_match, "r")
-            raise FileNotFoundError(
-                f"File '{filename}' not found in the ZIP archive."
-            )
+            msg = f"File '{filename}' not found in the ZIP archive."
+            raise FileNotFoundError(msg)
     else:
-        raise ValueError(
-            "Unsupported file type. Only '.csv' and '.zip' are supported."
-        )
+        msg = "Unsupported file type. Only '.csv' and '.zip' are supported."
+        raise ValueError(msg)
 
 
 def reset_file(filepath_or_buffer):

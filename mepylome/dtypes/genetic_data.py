@@ -2,7 +2,7 @@
 
 import pkg_resources
 
-__all__ = ["CHROMOSOME_DATA", "COLOR_MAP", "IMPORTANT_GENES", "GAPS", "GENES"]
+__all__ = ["CHROMOSOME_DATA", "IMPORTANT_GENES", "GAPS", "GENES"]
 
 # Data copied from conumee
 GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")

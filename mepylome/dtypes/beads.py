@@ -21,7 +21,6 @@ Examples:
     reference = ReferenceMethylData(files=reference_dir, prep="illumina")
 """
 
-
 import collections
 from functools import reduce
 from pathlib import Path
@@ -105,8 +104,7 @@ def idat_basepaths(files):
         for name in _files
     ]
     # Remove duplicates, keep ordering
-    _files = list(dict.fromkeys(_files))
-    return _files
+    return list(dict.fromkeys(_files))
 
 
 def idat_paths_from_basenames(basenames):
@@ -133,10 +131,7 @@ def idat_paths_from_basenames(basenames):
         files[not_existing] = [
             x.parent / (x.name + ENDING_GZ) for x in files[not_existing]
         ]
-        not_found = next(
-            (x for x in files[not_existing] if not x.exists()), None
-        )
-        return not_found
+        return next((x for x in files[not_existing] if not x.exists()), None)
 
     not_found = check_and_fix(grn_idat_files)
     not_found = (
@@ -144,7 +139,8 @@ def idat_paths_from_basenames(basenames):
     )
     if not_found is not None:
         idat_file = str(not_found).replace(ENDING_GZ, "")
-        raise FileNotFoundError(f"IDAT file not found: {idat_file}.")
+        msg = f"IDAT file not found: {idat_file}."
+        raise FileNotFoundError(msg)
     return grn_idat_files, red_idat_files
 
 
@@ -175,6 +171,7 @@ class RawData:
     Example:
         >>> raw_data = RawData([idat_basepath0, idat_basepath1])
     """
+
     def __init__(self, basenames):
         """Initializes RawData with basepaths to IDAT files.
 
@@ -202,17 +199,16 @@ class RawData:
         ]
 
         if len(set(array_types)) != 1:
-            raise ValueError("Array types must all be the same.")
+            msg = "Array types must all be the same."
+            raise ValueError(msg)
 
         self.array_type = array_types[0]
 
         all_illumina_ids = [idat.illumina_ids for idat in grn_idat + red_idat]
 
         if all(
-            [
-                np.array_equal(all_illumina_ids[0], arr)
-                for arr in all_illumina_ids
-            ]
+            np.array_equal(all_illumina_ids[0], arr)
+            for arr in all_illumina_ids
         ):
             self.ids = all_illumina_ids[0]
             self._grn = np.array([idat.probe_means for idat in grn_idat])
@@ -353,11 +349,13 @@ class MethylData:
             ValueError: If 'data' is provided but is not of type 'RawData'.
         """
         if data is None and file is None:
-            raise ValueError("'data' or 'file' must be given.")
+            msg = "'data' or 'file' must be given."
+            raise ValueError(msg)
         if data is None:
             data = RawData(file)
         elif not isinstance(data, RawData):
-            raise ValueError("'data' is not of type 'RawData'.")
+            msg = "'data' is not of type 'RawData'."
+            raise ValueError(msg)
         self._grn = data._grn
         self._red = data._red
         self.array_type = data.array_type
@@ -378,7 +376,8 @@ class MethylData:
         elif prep == "raw":
             self.preprocess_raw_cached()
         else:
-            raise ValueError(f"invalid 'prep' value {prep}")
+            msg = f"invalid 'prep' value {prep}"
+            raise ValueError(msg)
 
     @property
     def grn(self):
@@ -564,6 +563,7 @@ class MethylData:
                 )
             )
         )
+        ilmnid = manifest.data_frame.IlmnID.values[idx.values]
         ids = pd.Index(illumina_ids)
         ids_1_red_a = ids.get_indexer(type_1_red["AddressA_ID"])
         ids_1_red_b = ids.get_indexer(type_1_red["AddressB_ID"])
@@ -575,6 +575,7 @@ class MethylData:
         idx_2______ = idx.get_indexer(type_2.index)
         return {
             "idx": idx.values,
+            "ilmnid": ilmnid,
             "ids_1_red_a": ids_1_red_a,
             "ids_1_red_b": ids_1_red_b,
             "ids_1_grn_a": ids_1_grn_a,
@@ -633,7 +634,7 @@ class MethylData:
         self.unmethyl[:, ci["idx_1_grn__"]] = self._grn[:, ci["ids_1_grn_a"]]
         self.unmethyl[:, ci["idx_2______"]] = self._red[:, ci["ids_2_____a"]]
         self.methyl_index = ci["idx"]
-        self.methyl_ilmnid = self.manifest.data_frame.IlmnID.values[ci["idx"]]
+        self.methyl_ilmnid = ci["ilmnid"]
 
     def swan_bg_intensity(self):
         """Intensity background normalization used for SWAN preprocessing."""
@@ -646,8 +647,7 @@ class MethylData:
             self._red[:, np.isin(self.ids, neg_controls, assume_unique=True)],
             axis=1,
         )
-        bg_intensity = np.mean([grn_med, red_med], axis=0)
-        return bg_intensity
+        return np.mean([grn_med, red_med], axis=0)
 
     @staticmethod
     def swan_indices(manifest, methyl_index):
@@ -669,7 +669,8 @@ class MethylData:
             indices = []
             for ncpgs in range(1, 4):
                 ids = all_ncpts_type.index[all_ncpts_type.N_CpG == ncpgs]
-                ids_subset = np.random.permutation(ids)[:subset_size]
+                rng = np.random.default_rng()
+                ids_subset = rng.permutation(ids)[:subset_size]
                 indices.append(ids_subset)
             random_subset_indices[probe_type] = np.sort(
                 np.concatenate(indices)
@@ -860,13 +861,13 @@ class MethylData:
             ref_idx = np.argmin(np.abs(red_grn_ratio - 1))
             ref = (grn_avg + red_avg)[ref_idx] / 2
             if np.isnan(ref):
-                raise ValueError(
-                    "'ref_idx' refers to an array that is not present"
-                )
+                msg = "'ref_idx' refers to an array that is not present"
+                raise ValueError(msg)
             grn_factor = ref / grn_avg
             red_factor = ref / red_avg
         else:
-            raise ValueError("dye_method must be 'single' or 'reference'")
+            msg = "dye_method must be 'single' or 'reference'"
+            raise ValueError(msg)
 
         red_factor = red_factor.reshape(-1, 1)
         methyl[:, ci["idx_1_red__"]] *= red_factor
@@ -916,7 +917,7 @@ class MethylData:
 
     @staticmethod
     def _get_beta(
-        methylated, unmethylated, offset=0, beta_threshold=0, min_zero=True
+        methylated, unmethylated, offset=0, beta_threshold=0, *, min_zero=True
     ):
         assert offset >= 0, "offset must be non-negative"
         assert (
@@ -977,6 +978,7 @@ class ReferenceMethylData:
         ValueError: If no reference files are found for the specified array
             type.
     """
+
     def __init__(self, files=None, prep="illumina"):
         idat_files = idat_basepaths(files)
         reference_files = collections.defaultdict(list)
@@ -995,7 +997,6 @@ class ReferenceMethylData:
 
     def __getitem__(self, array_type):
         if array_type not in self._methyl:
-            raise ValueError(
-                f"No reference files found for array type {array_type.value}"
-            )
+            msg = f"No reference files found for array type {array_type.value}"
+            raise ValueError(msg)
         return self._methyl[array_type]

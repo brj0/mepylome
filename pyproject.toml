@@ -30,9 +30,12 @@ select = [
     "PD",
     # Pylint
     "PL",
+    # ALL
+    # "ALL",
 ]
 ignore = [
-    # Relax the convention by _not_ requiring documentation for every function parameter.
+    # Relax the convention by _not_ requiring documentation for every function
+    # parameter.
     "D417",
     # Missing docstring in `__init__`
     "D107",
@@ -42,7 +45,12 @@ ignore = [
     "D105",
     # Use `.to_numpy()` instead of `.values`
     "PD011",
-
+    # Annotation
+    "ANN",
+    # `print` found
+    "T201",
+    # Trailing comma missing
+    "COM812",
 ]
 
 [tool.ruff.lint.pydocstyle]

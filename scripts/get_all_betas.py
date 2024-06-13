@@ -8,6 +8,7 @@ Date: 2024-03
 
 import logging
 import subprocess
+import sys
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -50,10 +51,8 @@ def result_filepath(filepath, error=False):
 def write_error_file(filepath, error):
     idat_files = Path(NEW_IDAT_DIR, filepath.name)
     error_file = Path(OUTPUT_DIR, filepath.name + ENDING_ERROR)
-    command = f"ls -lh {idat_files}*"
-    files_on_disk = subprocess.check_output(command, shell=True).decode(
-        "utf-8"
-    )
+    command = ["ls", "-lh", f"{idat_files}*"]
+    files_on_disk = subprocess.check_output(command).decode("utf-8")
     error_message = (
         "During processing '"
         + filepath.name
@@ -63,7 +62,7 @@ def write_error_file(filepath, error):
         + files_on_disk
         + "\n\n\nTo recalculate, delete this file."
     )
-    with open(error_file, "w") as f:
+    with error_file.open("w") as f:
         f.write(error_message)
 
 
@@ -71,10 +70,9 @@ def process_idat_file(idat_basepath):
     filepath = result_filepath(idat_basepath)
     if Path(filepath).exists():
         if Path(filepath).stat().st_size == BETA_BIN_FILE_SIZE:
-            logger.info("Betas allready caluclated: " + filepath.name)
+            logger.info("Betas allready caluclated: %s", filepath.name)
             return
-        else:
-            logger.info("Recalulate faulty betas: " + filepath.name)
+        logger.info("Recalulate faulty betas: %s", filepath.name)
     raw = RawData(idat_basepath)
     methyl = MethylData(raw)
     betas_450k_df = methyl.betas_for_cpgs(cpgs=cpg_index_450k, fill=0.49)
@@ -89,7 +87,7 @@ def process_idat_file_safe(idat_basepath):
         write_error_file(idat_basepath, error=e)
 
 
-with open(INDEX_FILE) as f:
+with Path(INDEX_FILE).open() as f:
     cpg_index_450k = np.array(f.read().splitlines())
 
 
@@ -124,10 +122,10 @@ faulty_basepaths = [
 
 if len(new_basepaths + faulty_basepaths) == 0:
     logger.info("No new or faulty IDAT files to process")
-    exit()
+    sys.exit()
 
 logger.info(
-    f"Processing {len(new_basepaths)} new and "
+    "Processing {len(new_basepaths)} new and "
     f"{len(faulty_basepaths)} incorrectly processed IDAT files."
 )
 

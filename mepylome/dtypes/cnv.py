@@ -12,7 +12,6 @@ Usage:
     reference_methyl = MethylData(file="path/to/idat/reference/dir")
 
     cnv = CNV(sample_methyl, reference_methyl)
-    cnv.fit()
     cnv.set_bins()
     cnv.set_detail()
     cnv.set_segments()
@@ -94,7 +93,8 @@ class Annotation:
                 annotation processing. Defaults to False.
         """
         if manifest is None and array_type is None:
-            raise ValueError("'manifest' or 'array_type' must be given")
+            msg = "'manifest' or 'array_type' must be given"
+            raise ValueError(msg)
         self.bin_size = bin_size
         self.min_probes_per_bin = min_probes_per_bin
 
@@ -104,7 +104,7 @@ class Annotation:
 
         self.detail = detail
         if self.detail is UNSET:
-            self.detail = self.default_detail()
+            self.detail = self.default_genes()
         elif self.detail is not None:
             # PyRanges ranges start at 0
             self.detail.Start -= 1
@@ -164,12 +164,11 @@ class Annotation:
         gap_df = pd.read_csv(GAPS)
         # PyRanges ranges start at 0
         gap_df.Start -= 1
-        gap = pr.PyRanges(gap_df)
-        return gap
+        return pr.PyRanges(gap_df)
 
     @staticmethod
     @lru_cache
-    def default_detail():
+    def default_genes():
         """Default PyRanges object including gene names with coordinates.
 
         Details:
@@ -178,8 +177,7 @@ class Annotation:
         genes_df = pd.read_csv(GENES, sep="\t")
         # PyRanges ranges start at 0
         genes_df.Start -= 1
-        genes = pr.PyRanges(genes_df)
-        return genes
+        return pr.PyRanges(genes_df)
 
     def make_bins(self):
         """Creates equidistant bins and then removes genomic gaps."""
@@ -187,21 +185,19 @@ class Annotation:
         bins = bins[bins.Chromosome != "chrM"]
         if self.gap is not None:
             bins = bins.subtract(self.gap)
-        bins = self.merge_bins(bins)
-        return bins
+        return self.merge_bins(bins)
 
     def merge_bins(self, bins):
         """Merges adjacent bins until all contain a minimum of probes."""
         bins = bins.count_overlaps(
             self.adjusted_manifest[["IlmnID"]], overlap_col="N_probes"
         )
-        bins = bins.apply(
+        return bins.apply(
             lambda df: self.merge_bins_in_chromosome(
                 df, self.min_probes_per_bin, verbose=self.verbose
             ),
             as_pyranges=True,
         )
-        return bins
 
     @staticmethod
     def merge_bins_in_chromosome(bin_df, min_probes_per_bin, verbose=False):
@@ -361,7 +357,7 @@ class CNV:
 
     """
 
-    def __init__(self, sample, reference, annotation=None, verbose=False):
+    def __init__(self, sample, reference, annotation=None, *, verbose=False):
         """Initializes the CNV object.
 
         Args:
@@ -380,7 +376,8 @@ class CNV:
                 reference is not of type MethylData or ReferenceMethylData.
         """
         if len(sample.probes) != 1:
-            raise ValueError("sample must contain exactly 1 probe.")
+            msg = "sample must contain exactly 1 probe."
+            raise ValueError(msg)
         self.sample = sample
         self.probe = self.sample.probes[0]
         if isinstance(reference, MethylData):
@@ -388,14 +385,27 @@ class CNV:
         elif isinstance(reference, ReferenceMethylData):
             self.reference = reference[self.sample.array_type]
         else:
-            raise ValueError(
+            msg = (
                 "'reference' must be of type 'MethylData' "
                 "or 'ReferenceMethylData'"
             )
+            raise TypeError(msg)
         self.verbose = verbose
         self.annotation = annotation
         if annotation is None:
             self.annotation = Annotation(array_type=sample.array_type)
+        if not (
+            self.sample.array_type
+            == self.annotation.array_type
+            == self.reference.array_type
+        ):
+            msg = (
+                f"Array type mismatch: sample ({self.sample.array_type}), "
+                f"reference ({self.reference.array_type}), "
+                f"annotation ({self.annotation.array_type}).\n"
+                "All must be the same."
+            )
+            raise ValueError(msg)
         self.set_itensity(self.sample)
         self.set_itensity(self.reference)
         self.bins = self.annotation.bins
@@ -407,8 +417,12 @@ class CNV:
         self.detail = None
         self.segments = None
 
+        self.fit()
+
     @classmethod
-    def set_all(cls, sample, reference, annotation=None, do_segmentation=True):
+    def set_all(
+        cls, sample, reference, annotation=None, *, do_segmentation=True
+    ):
         """Create a CNV object and perform CNV analysis.
 
         Args:
@@ -427,7 +441,6 @@ class CNV:
             CNV: CNV object with fitted data and optionally segmented.
         """
         cnv = cls(sample, reference, annotation)
-        cnv.fit()
         cnv.set_bins()
         cnv.set_detail()
         if do_segmentation:
@@ -570,14 +583,13 @@ class CNV:
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
         seg = cbseg.segment(bin_values, shuffles=1000, p=0.0001)
-        seg_df = pd.DataFrame(
+        return pd.DataFrame(
             [
                 [chrom, df.Start.iloc[s.start], df.End.iloc[s.end - 1]]
                 for s in seg
             ],
             columns=["Chromosome", "Start", "End"],
         )
-        return seg_df
 
     def set_segments(self):
         """Sets CNV segments based on circular binary segmentation.
@@ -632,10 +644,11 @@ class CNV:
             data = default
         invalid = data - default
         if invalid:
-            raise ValueError(
+            msg = (
                 f"Invalid file(s) specified: {invalid}. "
                 f"Valid options are: {default}"
             )
+            raise ValueError(msg)
         dfs_to_write = []
         if "bins" in data and self.bins is not None:
             dfs_to_write.append(("bins.csv", self.bins.df))
@@ -658,7 +671,7 @@ class CNV:
                 csv_bytes = df.to_csv(index=False).encode("utf-8")
                 zf.writestr(f"{file_name}_{df_name}", csv_bytes)
         buffer.seek(0)
-        with open(base_path.with_suffix(".zip"), "wb") as f:
+        with base_path.with_suffix(".zip").open("wb") as f:
             f.write(buffer.read())
 
     def plot(self):
@@ -667,6 +680,10 @@ class CNV:
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING
         cnv_path = Path(cnv_dir, cnv_file)
+        if "Median" not in self.bins.columns:
+            self.set_bins()
+        if self.detail is None:
+            self.set_detail()
         self.write(cnv_path)
         cnv_plot = CNVPlot(cnv_dir, cnv_file)
         cnv_plot.run_app()
