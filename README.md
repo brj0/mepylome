@@ -1,5 +1,5 @@
 <picture>
-  <img alt="Mepylome Logo" src="/mepylome/data/assets/mepylome.svg" width="300">
+  <img alt="Mepylome Logo" src="https://raw.githubusercontent.com/brj0/mepylome/main/mepylome/data/assets/mepylome.svg" width="300">
 </picture>
 
 -----------------
