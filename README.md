@@ -30,10 +30,16 @@ You can install mepylome directly from PyPI using pip:
 
 ```sh
 pip install mepylome
-pip install mepylome[cgb]
 ```
 
-Ensure you install the 'cgb' variant after (!) the regular package (cgb is used for CNV segmentation).
+If you want to perform segmentation on the CNV analysis, you need to install:
+
+```sh
+pip install cython
+pip install ailist==1.0.4
+pip install cbseg
+```
+The packages ailist and cgseg require a C compiler.
 
 
 ### From Source

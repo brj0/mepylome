@@ -21,6 +21,7 @@ Usage:
 import heapq
 import io
 import logging
+import sys
 import zipfile
 from functools import lru_cache
 from pathlib import Path
@@ -44,6 +45,13 @@ logger = logging.getLogger(__name__)
 UNSET = object()
 ZIP_ENDING = "_cnv.zip"
 
+if 'cbseg' not in sys.modules:
+    print(
+        "*Warning*: Segmentation will not be calculated because the 'cbseg' "
+        "package is missing. To enable segmentation, install mepylome with "
+        "'pip install mepylome[cbg]' and ensure you have a C compiler "
+        "installed."
+    )
 
 @memoize
 class Annotation:
@@ -560,7 +568,7 @@ class CNV:
         self.detail = pr.PyRanges(detail_df)
 
     @staticmethod
-    def get_segments(df):
+    def _get_segments(df):
         """Performs circular binary segmentation to identify CNV segments.
 
         This method applies the circular binary segmentation (CBS) algorithm
@@ -579,7 +587,6 @@ class CNV:
 
         """
         import cbseg
-
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
         seg = cbseg.segment(bin_values, shuffles=1000, p=0.0001)
@@ -599,7 +606,9 @@ class CNV:
         It calculates the CNV segments for each chromosome and stores them
         in the 'segments' attribute of the object.
         """
-        segments = self.bins.apply(self.get_segments)
+        if 'cbseg' not in sys.modules:
+            return
+        segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
         result = (

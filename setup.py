@@ -56,13 +56,12 @@ with open("README.md") as f:
 
 setup(
     name="mepylome",
-    version="0.1.0",
+    version="0.1.1",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[
-        "cython",
         "numpy",
         "pandas",
         "openpyxl",
@@ -78,9 +77,6 @@ setup(
     license="GPL-3.0 license",
     author="Jon Brugger",
     url="https://github.com/brj0/mepylome",
-    extras_require={
-        "cgb": ["ailist==1.0.4", "cbseg"],
-    },
     # Include package data such as csv-Files, images, ...
     include_package_data=True,
     classifiers=[
