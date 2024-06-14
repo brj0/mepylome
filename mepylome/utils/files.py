@@ -8,6 +8,7 @@ file-like objects and archives.
 import gzip
 import logging
 import shutil
+import ssl
 import zipfile
 from pathlib import Path, PurePath
 from urllib.error import URLError
@@ -76,8 +77,7 @@ def download_file(src_url, dest, overwrite=False):
     elif not overwrite:
         # Check if file already exists, and return if it is there.
         logger.info(
-            "File exists: %s. To overwrite, set overwrite=True.",
-            dest_path
+            "File exists: %s. To overwrite, set overwrite=True.", dest_path
         )
         return
     try:
@@ -85,13 +85,18 @@ def download_file(src_url, dest, overwrite=False):
             f"Downloading manifest from {src_url} to {dest_dir}.\n"
             "Can take several minutes..."
         )
-        with urlopen(src_url) as response, dest_path.open("wb") as out_file:
+        # Skip the SSL certificate check
+        context = ssl._create_unverified_context()
+        with urlopen(src_url, context=context) as response, dest_path.open(
+            "wb"
+        ) as out_file:
             shutil.copyfileobj(response, out_file)
     except URLError as e:
         logger.exception(e)
         logger.info(
             "Downloading manifest from %s failed. Please correct "
-            "url in source code", src_url
+            "url in source code",
+            src_url,
         )
         raise URLError(e) from e
 
