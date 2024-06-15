@@ -66,20 +66,12 @@ pip install .[cgb]
 
 ```python
 from pathlib import Path
-
-from mepylome import (
-    CNV,
-    Annotation,
-    IdatParser,
-    Manifest,
-    MethylData,
-    RawData,
-)
+from mepylome import CNV, MethylData, RawData
 
 DIR = Path("/path/to/idat/directory")
 
 # Sample
-sample = DIR / "203049640041_R04C01_Grn.idat"
+sample = DIR / "samples" / "203049640041_R04C01_Grn.idat"
 
 # CNV neutral reference files
 reference_dir = DIR / "references"
