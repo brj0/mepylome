@@ -174,10 +174,12 @@ class ProgressBar:
     def __repr__(self):
         return str(self)
 
+
 def hash_from_str(string):
     """Calculates a pseudorandom int from a string."""
     hash_str = hashlib.md5(string.encode()).hexdigest()
     return int(hash_str, 16)
+
 
 def random_color(string, i, n_strings, rand):
     """Generate a random RGB color for a given string-name.
@@ -214,7 +216,6 @@ def discrete_colors(names):
         var: f"rgb{random_color(var, i, n_names, rand)}"
         for i, var in enumerate(sorted_names)
     }
-
 
 
 def umap_plot_from_data(umap_df):
@@ -270,7 +271,7 @@ class IdatHandler:
         self.idat_dir = Path(idat_dir)
         if annotation_file is None:
             annotation_file = guess_annotation_file(self.idat_dir)
-        self.annotation_file = Path(str(annotation_file)).expanduser()
+        self.annotation_file = Path(annotation_file)
         self.overlap = overlap
 
         self.sample_paths = {
@@ -475,15 +476,17 @@ def write_single_cnv_to_disk(args):
         cnv.write(Path(cnv_dir, cnv_filename))
     except Exception as exc:
         cnv_filename = sample_id + ERROR_ENDING
-        command = ["ls", "-lh", f"{idat_basename}*"]
-        files_on_disk = subprocess.check_output(command).decode("utf-8")
+        files_on_disk = [
+            f"{x}, size={x.stat().st_size} B"
+            for x in idat_basename.parent.glob(f"{sample_id}*")
+        ]
         error_message = (
             "During processing '"
             + sample_id
             + "' the following exception occurred:\n\n"
             + str(exc)
             + "\n\nCorresponding files on disk:\n"
-            + files_on_disk
+            + "\n".join(files_on_disk)
             + "\n\n\nTo recalculate, delete this file."
         )
         with Path(cnv_dir, cnv_filename).open("w") as f:
@@ -577,7 +580,7 @@ def get_cnv_plot(
         list(genes_sel),
     )
     return plot.update_layout(
-        margin={"l":0, "r":0, "t":30, "b":0},
+        margin={"l": 0, "r": 0, "t": 30, "b": 0},
     )
 
 
@@ -593,7 +596,7 @@ EMPTY_FIGURE.update_layout(
     plot_bgcolor="rgba(0, 0, 0, 0)",
     paper_bgcolor="rgba(0, 0, 0, 0)",
     showlegend=False,
-    margin={"l":0, "r":0, "t":0, "b":0},
+    margin={"l": 0, "r": 0, "t": 0, "b": 0},
 )
 EMPTY_FIGURE = go.Figure(layout=go.Layout(yaxis={"range": [-2, 2]}))
 
@@ -845,8 +848,7 @@ def get_side_navigation(
 
 def guess_annotation_file(directory):
     """Returns the first csv or xlsx file in the given directory."""
-    directory_path = Path(directory)
-    files = list(directory_path.glob("*"))
+    files = list(directory.glob("*"))
     csv_files = [f for f in files if f.suffix == ".csv"]
     xlsx_files = [f for f in files if f.suffix == ".xlsx"]
     if csv_files:
@@ -911,14 +913,14 @@ class MethylAnalysis:
         umap_parms=None,
     ):
         self.umap_cpgs = None
-        self.analysis_dir = Path(analysis_dir)
+        self.analysis_dir = Path(analysis_dir).expanduser()
         self._old_analysis_dir = self.analysis_dir
         self.idat_paths = None
-        if annotation == INVALID_PATH:
-            annotation = guess_annotation_file(analysis_dir)
-        if annotation is None or not Path(annotation).exists():
+        self.annotation = Path(annotation).expanduser()
+        if self.annotation == INVALID_PATH:
+            self.annotation = guess_annotation_file(self.analysis_dir)
+        if not self.annotation.exists():
             print("No annotation file found")
-        self.annotation = Path(annotation)
         self.overlap = overlap
         self._idat_handler = None
         self.cpgs = self.get_cpgs(cpgs)
@@ -930,8 +932,8 @@ class MethylAnalysis:
         self.host = host
         self.port = port
         self.debug = debug
-        self.reference_dir = Path(reference_dir)
-        self.output_dir = Path(output_dir)
+        self.reference_dir = Path(reference_dir).expanduser()
+        self.output_dir = Path(output_dir).expanduser()
         self.cnv_dir = None
         self.umap_dir = None
         self.prep = prep
@@ -1067,6 +1069,12 @@ class MethylAnalysis:
 
     def make_umap_plot(self, umap_2d=None):
         if umap_2d is not None:
+            if len(self.idat_handler.ids) != len(umap_2d):
+                msg = (
+                    "Dimension mismatch: Analysis files may have changed. "
+                    f"Try to delete cached files in {self.output_dir}."
+                )
+                raise AttributeError(msg)
             umap_df = pd.DataFrame(
                 umap_2d,
                 columns=["Umap_x", "Umap_y"],
@@ -1085,9 +1093,16 @@ class MethylAnalysis:
             msg = "'umap_df' not set"
             raise AttributeError(msg)
         self.ids = self.umap_df.index
-        self.umap_df["Umap_color"] = self.idat_handler.compound_class(
+        umap_color = self.idat_handler.compound_class(
             self.idat_handler.selected_columns
         )
+        if len(umap_color) != len(self.umap_df):
+            msg = (
+                "Dimension mismatch: Analysis files may have changed. "
+                f"Try to delete cached files in {self.output_dir}."
+            )
+            raise AttributeError(msg)
+        self.umap_df["Umap_color"] = umap_color
         self.umap_plot = umap_plot_from_data(self.umap_df)
         self.umap_plot = self.umap_plot.update_layout(
             margin={"l": 0, "r": 0, "t": 30, "b": 0},
@@ -1326,7 +1341,7 @@ class MethylAnalysis:
                 trigger == "umap-annotation-color"
                 and umap_color_columns is not None
             ):
-                self.idat_handler.selected_columns= umap_color_columns
+                self.idat_handler.selected_columns = umap_color_columns
                 try:
                     self.make_umap_plot()
                     self.umap_plot_highlight(cnv_id=self.cnv_id)
@@ -1376,11 +1391,11 @@ class MethylAnalysis:
         )
         def validate_analysis_path(input_path):
             try:
-                path = Path(input_path)
+                path = Path(input_path).expanduser()
                 if path.is_dir() and not os.access(path, os.W_OK):
                     return False, f"Protected directory: {path}"
                 if path.is_dir():
-                    self.analysis_dir = Path(path)
+                    self.analysis_dir = path
                     return True, ""
             except Exception:
                 return False, "Invalid path format"
@@ -1398,11 +1413,11 @@ class MethylAnalysis:
         )
         def validate_annotation_file(input_path):
             try:
-                path = Path(input_path)
+                path = Path(input_path).expanduser()
                 if path.exists() and not os.access(path, os.W_OK):
                     return False, f"Protected file: {path}", no_update
                 if path.exists():
-                    self.annotation = Path(path)
+                    self.annotation = path
                     return True, "", self.idat_handler.properties
             except Exception:
                 return False, "Invalid path format", no_update
@@ -1419,11 +1434,11 @@ class MethylAnalysis:
         )
         def validate_reference_path(input_path):
             try:
-                path = Path(input_path)
+                path = Path(input_path).expanduser()
                 if path.is_dir() and not os.access(path, os.W_OK):
                     return False, f"Protected directory: {path}"
                 if path.is_dir():
-                    self.reference_dir = Path(path)
+                    self.reference_dir = path
                     return True, ""
             except Exception as exc:
                 print(f"An error occured (validate_reference_path): {exc}")
@@ -1441,14 +1456,14 @@ class MethylAnalysis:
         )
         def validate_output_path(input_path):
             try:
-                path = Path(input_path)
+                path = Path(input_path).expanduser()
                 if path == DEFAULT_OUTPUT_DIR:
-                    self.output_dir = Path(path)
+                    self.output_dir = path
                     return True, ""
                 if path.is_dir() and not os.access(path, os.W_OK):
                     return False, f"Protected directory: {path}"
                 if path.is_dir():
-                    self.output_dir = Path(path)
+                    self.output_dir = path
                     return True, ""
             except Exception as exc:
                 print(f"An error occured (validate_output_path): {exc}")
@@ -1518,13 +1533,13 @@ class MethylAnalysis:
                 return no_update, no_update, error_message, {}
 
             self.n_cpgs = n_cpgs
-            self.output_dir = Path(output_dir)
-            self.reference_dir = Path(reference_dir)
+            self.output_dir = Path(output_dir).expanduser()
+            self.reference_dir = Path(reference_dir).expanduser()
             self.prep = prep
             self.precalculate_cnv = precalculate_cnv == ON
             self.cpg_selection = cpg_selection
-            self.analysis_dir = Path(analysis_dir)
-            self.annotation = Path(annotation)
+            self.analysis_dir = Path(analysis_dir).expanduser()
+            self.annotation = Path(annotation).expanduser()
 
             try:
                 ensure_directory_exists(self.output_dir)

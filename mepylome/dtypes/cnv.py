@@ -21,7 +21,6 @@ Usage:
 import heapq
 import io
 import logging
-import sys
 import zipfile
 from functools import lru_cache
 from pathlib import Path
@@ -45,7 +44,15 @@ logger = logging.getLogger(__name__)
 UNSET = object()
 ZIP_ENDING = "_cnv.zip"
 
-if 'cbseg' not in sys.modules:
+def cbseg_installed():
+    try:
+        import cbseg
+    except ModuleNotFoundError:
+        return False
+    else:
+        return True
+
+if not cbseg_installed():
     print(
         "*Warning*: Segmentation will not be calculated because the 'cbseg' "
         "package is missing. To enable segmentation, install mepylome with "
@@ -606,7 +613,7 @@ class CNV:
         It calculates the CNV segments for each chromosome and stores them
         in the 'segments' attribute of the object.
         """
-        if 'cbseg' not in sys.modules:
+        if not cbseg_installed():
             return
         segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
