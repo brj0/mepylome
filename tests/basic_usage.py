@@ -75,8 +75,10 @@ annotation = Annotation(manifest_epic)
 # You can use custom genetic and gap data:
 
 # Data frames
-GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
-GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
+
+PACKAGE_DIR = Path(pkg_resources.resource_filename("mepylome", ""))
+GAPS = PACKAGE_DIR / "data" / "gaps.csv.gz"
+GENES = PACKAGE_DIR / "data" / "hg19_genes.tsv.gz"
 
 # Transform to PyRanges
 gap = pr.PyRanges(pd.read_csv(GAPS))

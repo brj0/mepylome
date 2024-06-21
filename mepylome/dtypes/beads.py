@@ -4,21 +4,25 @@ It includes methods for extracting methylation information, various
 preprocessing techniques, normalization, and data handling.
 
 Classes:
+
     RawData: Class for extracting raw intensity data from IDAT files.
+
     MethylData: Class for handling the raw intensity data, with various
         preprocessing options.
+
     ReferenceMethylData: Stores and manages (CNV-neutral) reference methylation
         data for different array types.
 
 
 Examples:
+
     raw_data = RawData("path/to/idat_file")
     methyl_data = MethylData(raw_data, prep="illumina")
 
     # Equivalent shorter version:
     methyl_data = MethylData(file="path/to/idat_file", prep="illumina")
 
-    reference = ReferenceMethylData(files=reference_dir, prep="illumina")
+    reference = ReferenceMethylData(file=reference_dir, prep="illumina")
 """
 
 import collections
@@ -318,17 +322,6 @@ class MethylData:
             indexed by IlmnID.
         unmethylated (DataFrame): DataFrame of unmethylated intensity values
             indexed by IlmnID.
-
-    Methods:
-        __init__: Initializes the MethylData object.
-        preprocess_illumina(): Performs preprocessing usings Illuminas method.
-        preprocess_swan(): Performs preprocessing using the SWAN method.
-        preprocess_noob(offset=15, dye_method="single"): Performs preprocessing
-            using the Noob method.
-        beta(): Computes beta values from methylated and unmethylated
-            intensities.
-        betas_for_cpgs(cpgs=None, fill=NEUTRAL_BETA): Computes beta values for
-            specific CpG sites.
     """
 
     def __init__(self, data=None, file=None, prep="illumina"):
@@ -779,7 +772,7 @@ class MethylData:
         References:
             TJ Triche, DJ Weisenberger, D Van Den Berg, PW Laird and KD
             Siegmund _Low-level processing of Illumina Infinium DNA
-            Methylation BeadArrays_.  Nucleic Acids Res (2013) 41, e90.
+            Methylation BeadArrays.  Nucleic Acids Res (2013) 41, e90.
             doi:10.1093/nar/gkt090.
         """
         self._methylated_df = None
@@ -892,7 +885,7 @@ class MethylData:
         )
 
     def betas_for_cpgs(self, cpgs=None, fill=NEUTRAL_BETA):
-        """Calculates beta values for specified CpGs.
+        """Calculates beta values for specified CpG sites.
 
         Args:
             cpgs (array-like): Array of CpG IDs.
@@ -956,7 +949,6 @@ class MethylData:
             lines.append(f"intensity:\n{self.intensity}")
         return "\n\n".join(lines)
 
-
 @memoize
 class ReferenceMethylData:
     """Stores and manages reference cases for different array types.
@@ -966,7 +958,7 @@ class ReferenceMethylData:
     neutral reference cases used in CNV calculation.
 
     Args:
-        files (list): List of file paths to IDAT files or directory containing
+        file (list): List of file paths to IDAT files or directory containing
             IDAT files.
         prep (str): Preprocessing method. Options: "illumina", "swan", "noob".
 
@@ -979,8 +971,8 @@ class ReferenceMethylData:
             type.
     """
 
-    def __init__(self, files=None, prep="illumina"):
-        idat_files = idat_basepaths(files)
+    def __init__(self, file, prep="illumina"):
+        idat_files = idat_basepaths(file)
         reference_files = collections.defaultdict(list)
         self._methyl = {}
         for idat_file in tqdm(

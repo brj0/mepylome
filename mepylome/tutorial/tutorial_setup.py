@@ -10,11 +10,6 @@ import pkg_resources
 import requests
 from tqdm import tqdm
 
-HOME = Path.home()
-DIR = HOME / "Documents" / "mepylome" / "tutorial"
-DOWNLOAD_DIR = HOME / "Documents" / "mepylome" / "tutorial" / "download"
-ANALSYIS_DIR = HOME / "Documents" / "mepylome" / "tutorial" / "analysis"
-REFERENCE_DIR = HOME / "Documents" / "mepylome" / "tutorial" / "reference"
 
 CONTROL = "Control (muscle tissue)"
 
@@ -70,16 +65,20 @@ def download_idats(download_dir, idat_grn_urls):
     unzip_and_remove_gz_files(download_dir)
 
 
-def setup_tutorial_files():
-    DIR.mkdir(parents=True, exist_ok=True)
-    ANALSYIS_DIR.mkdir(parents=True, exist_ok=True)
-    REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
+def setup_tutorial_files(directory):
+    directory = Path(directory).expanduser()
+    analysis_dir = directory / "analysis"
+    reference_dir = directory / "reference"
+    directory.mkdir(parents=True, exist_ok=True)
+    analysis_dir.mkdir(parents=True, exist_ok=True)
+    reference_dir.mkdir(parents=True, exist_ok=True)
+    PACKAGE_DIR = Path(pkg_resources.resource_filename("mepylome", ""))
     tutorial_df = pd.read_csv(
-        pkg_resources.resource_filename("mepylome", "data/tutorial.csv.gz")
+        PACKAGE_DIR / "data" / "tutorial.csv.gz"
     )
     tutorial_df.drop(columns=["Url_Grn"]).to_csv(
-        ANALSYIS_DIR / "annotation.csv", index=False
+        analysis_dir / "annotation.csv", index=False
     )
     is_control = tutorial_df["Diagnosis"] == CONTROL
-    download_idats(ANALSYIS_DIR, tutorial_df["Url_Grn"])
-    download_idats(REFERENCE_DIR, tutorial_df[is_control]["Url_Grn"])
+    download_idats(analysis_dir, tutorial_df["Url_Grn"])
+    download_idats(reference_dir, tutorial_df[is_control]["Url_Grn"])

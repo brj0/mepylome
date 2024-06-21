@@ -129,6 +129,9 @@ def memoize(f):
         def __init__(self, cls):
             self.cls = cls
             self._cache = {}
+            # self.__name__ = cls.__name__
+            # self.__doc__ = cls.__doc__
+            # self.__module__ = cls.__module__
             init_signature = inspect.signature(cls.__init__)
             self.init_defaults = {
                 key: val.default

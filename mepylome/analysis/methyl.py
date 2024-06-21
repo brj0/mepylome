@@ -457,7 +457,7 @@ def get_betas(pbar, idat_handler, cpgs, prep, *, save=False, betas_path=None):
 def get_reference_methyl_data(reference_dir, prep):
     """Loads and caches CNV-neutral reference data."""
     try:
-        reference = ReferenceMethylData(files=reference_dir, prep=prep)
+        reference = ReferenceMethylData(file=reference_dir, prep=prep)
     except FileNotFoundError as exc:
         msg = f"File in reference dir {reference_dir} not found: {exc}"
         raise FileNotFoundError(msg) from exc
@@ -489,6 +489,7 @@ def write_single_cnv_to_disk(args):
             + "\n".join(files_on_disk)
             + "\n\n\nTo recalculate, delete this file."
         )
+        print(error_message)
         with Path(cnv_dir, cnv_filename).open("w") as f:
             f.write(error_message)
 

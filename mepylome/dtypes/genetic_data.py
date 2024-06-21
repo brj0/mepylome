@@ -1,15 +1,20 @@
 """This module contains genetic data."""
 
+from pathlib import Path
+
 import pkg_resources
 
 __all__ = ["CHROMOSOME_DATA", "IMPORTANT_GENES", "GAPS", "GENES"]
 
+# Directory of this package
+PACKAGE_DIR = Path(pkg_resources.resource_filename("mepylome", ""))
+
 # Data copied from conumee
-GAPS = pkg_resources.resource_filename("mepylome", "data/gaps.csv.gz")
+GAPS = PACKAGE_DIR / "data" / "gaps.csv.gz"
 
 # HG19 Gene data downloaded from:
 # https://grch37.ensembl.org/biomart/martview
-GENES = pkg_resources.resource_filename("mepylome", "data/hg19_genes.tsv.gz")
+GENES = PACKAGE_DIR / "data" / "hg19_genes.tsv.gz"
 
 CHROMOSOME_DATA = {
     "name": [

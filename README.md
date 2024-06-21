@@ -5,9 +5,14 @@
 -----------------
 
 
-# mepylome: Methylation Array Analysis Toolkit
+# Mepylome: Methylation Array Analysis Toolkit
 
-Mepylome is a Python toolkit for parsing, processing, and analyzing methylation array IDAT files.
+
+Mepylome is an efficient Python toolkit tailored for parsing, processing, and
+analyzing methylation array IDAT files. Serving as a versatile library,
+Mepylome supports a wide range of methylation analysis tasks. It also includes
+an interactive GUI that enables users to generate UMAP plots and CNV plots
+(Copy Number Variation) directly from collections of IDAT files.
 
 **Note: Mepylome is still under construction.**
 
@@ -24,6 +29,7 @@ Mepylome is a Python toolkit for parsing, processing, and analyzing methylation 
 
 ## Installation
 
+
 ### From PyPI
 
 You can install mepylome directly from PyPI using pip:
@@ -32,30 +38,22 @@ You can install mepylome directly from PyPI using pip:
 pip install mepylome
 ```
 
-If you want to perform segmentation on the CNV analysis, you need to install:
-
-```sh
-pip install cython
-pip install ailist==1.0.4
-pip install cbseg
-```
-The packages ailist and cgseg require a C compiler.
-
-
 ### From Source
 
-1. Clone the repository:
+If you want the latest version, you can download mepylome directly from the source:
 
 ```sh
-git clone https://github.com/brj0/mepylome.git
-cd mepylome
+git clone https://github.com/brj0/mepylome.git && cd mepylome && pip install .
 ```
 
-2. Build and install the package:
+
+### CNV Segments
+
+If you want to perform segmentation on the CNV plot (horizontal lines identifying significant changes), additional packages are needed. These packages require a C compiler and can be installed with the following command:
+
 
 ```sh
-pip install .
-pip install .[cgb]
+pip install numpy==1.26.4 cython ailist==1.0.4 cbseg
 ```
 
 

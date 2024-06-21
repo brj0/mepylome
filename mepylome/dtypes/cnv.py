@@ -52,7 +52,7 @@ def cbseg_installed():
     else:
         return True
 
-if not cbseg_installed():
+def missing_cbseg_msg():
     print(
         "*Warning*: Segmentation will not be calculated because the 'cbseg' "
         "package is missing. To enable segmentation, install mepylome with "
@@ -614,6 +614,7 @@ class CNV:
         in the 'segments' attribute of the object.
         """
         if not cbseg_installed():
+            missing_cbseg_msg()
             return
         segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
