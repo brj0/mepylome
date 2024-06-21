@@ -1,30 +1,32 @@
-API
-===
+API Reference
+=============
 
-
-CLAS
-----
-
-.. autoclass:: mepylome.dtypes.manifests.Manifest
+.. autoclass:: mepylome.dtypes.cnv.Annotation
    :members:
 
-
-aSDFADFAF
-
-Useful Functions
-----------------
+mepylome.dtypes.manifests
+=========================
 
 .. automodule:: mepylome.dtypes.manifests
    :members:
 
+
+mepylome.dtypes.beads
+=====================
+
 .. automodule:: mepylome.dtypes.beads
    :members:
+
+
+mepylome.dtypes.cnv
+===================
 
 .. automodule:: mepylome.dtypes.cnv
    :members:
 
-.. automodule:: mepylome.dtypes.idat
-   :members:
 
-.. automodule:: mepylome.dtypes.genetic_data
+mepylome.dtypes.idat
+====================
+
+.. automodule:: mepylome.dtypes.idat
    :members:

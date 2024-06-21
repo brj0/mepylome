@@ -2,27 +2,6 @@
 
 It includes methods for extracting methylation information, various
 preprocessing techniques, normalization, and data handling.
-
-Classes:
-
-    RawData: Class for extracting raw intensity data from IDAT files.
-
-    MethylData: Class for handling the raw intensity data, with various
-        preprocessing options.
-
-    ReferenceMethylData: Stores and manages (CNV-neutral) reference methylation
-        data for different array types.
-
-
-Examples:
-
-    raw_data = RawData("path/to/idat_file")
-    methyl_data = MethylData(raw_data, prep="illumina")
-
-    # Equivalent shorter version:
-    methyl_data = MethylData(file="path/to/idat_file", prep="illumina")
-
-    reference = ReferenceMethylData(file=reference_dir, prep="illumina")
 """
 
 import collections
@@ -154,6 +133,9 @@ class RawData:
     This class initializes with a list of basepaths to IDAT files and parses
     them to extract raw intensity data from the green and red channels.
 
+    Args:
+        basenames (list): List of basepaths to IDAT files.
+
     Attributes:
         array_type (str): Type of Illumina array.
         manifest (Manifest): Manifest associated with the array.
@@ -162,26 +144,14 @@ class RawData:
         _grn (array): Array of raw intensity values from the green channel.
         _red (array): Array of raw intensity values from the red channel.
 
-    Properties:
-        grn (DataFrame): DataFrame of raw intensity values indexed by probe IDs
-            for the green channel.
-        red (DataFrame): DataFrame of raw intensity values indexed by probe IDs
-            for the red channel.
-
-    Methods:
-        __init__(basenames): Initializes the RawData object with basepaths to
-            IDAT files.
-
     Example:
+        >>> idat_basepath0 = directory_path / "200925700125_R07C01"
+        >>> idat_basepath1 = directory_path / "200925700133_R02C01_Grn.idat"
+        >>> raw_data = RawData(idat_basepath0)
         >>> raw_data = RawData([idat_basepath0, idat_basepath1])
     """
 
     def __init__(self, basenames):
-        """Initializes RawData with basepaths to IDAT files.
-
-        Args:
-            basenames (list): List of basepaths to IDAT files.
-        """
         _basenames = idat_basepaths(basenames)
 
         self.probes = [path.name.replace(ENDING_GZ, "") for path in _basenames]
@@ -250,6 +220,7 @@ class RawData:
 
     @property
     def grn(self):
+        """Raw intensity values indexed by probe IDs for the green channel."""
         if self._grn_df is None:
             self._grn_df = pd.DataFrame(
                 self._grn.T, index=self.ids, columns=self.probes, dtype="int32"
@@ -258,6 +229,7 @@ class RawData:
 
     @property
     def red(self):
+        """Raw intensity values indexed by probe IDs for the red channel."""
         if self._red_df is None:
             self._red_df = pd.DataFrame(
                 self._red.T, index=self.ids, columns=self.probes, dtype="int32"
@@ -313,34 +285,44 @@ class MethylData:
     This class provides methods for preprocessing Illumina methylation data and
     computing beta values from methylated and unmethylated intensities.
 
-    Properties:
-        grn (DataFrame): DataFrame of normalized intensity for the green
-            channel, indexed by probe IDs.
-        red (DataFrame): DataFrame of normalized intensity for the red
-            channel, indexed by probe IDs.
-        methylated (DataFrame): DataFrame of methylated intensity values
-            indexed by IlmnID.
-        unmethylated (DataFrame): DataFrame of unmethylated intensity values
-            indexed by IlmnID.
-    """
+    Args:
+        data (RawData): RawData object containing raw intensity data.
+        file (str): Path to file or dir or list of paths containing raw
+            intensity data.
+        prep (str): Preprocessing method. Options: "illumina", "swan",
+            "noob".
 
-    def __init__(self, data=None, file=None, prep="illumina"):
-        """Initializes the MethylData object.
-
+    Note:
         If 'data' is not provided, it will attempt to create a RawData object
         using the specified 'file'.
 
-        Args:
-            data (RawData): RawData object containing raw intensity data.
-            file (str): Path to file or dir or list of paths containing raw
-                intensity data.
-            prep (str): Preprocessing method. Options: "illumina", "swan",
-                "noob".
+    Attributes:
+        _grn (numpy.ndarray): Green channel intensities.
+        _red (numpy.ndarray): Red channel intensities.
+        array_type (str): Type of the array.
+        ids (numpy.ndarray): Array of probe IDs.
+        manifest (Manifest): Manifest associated with the array.
+        probes (list): List of probe names corresponding to the IDAT files.
+        data (RawData): RawData object containing the original intensity data.
+        _grn_df (pandas.DataFrame or None): DataFrame for green channel
+            intensities.
+        _red_df (pandas.DataFrame or None): DataFrame for red channel
+            intensities.
+        _methylated_df (pandas.DataFrame or None): DataFrame for methylated
+            intensities.
+        _unmethylated_df (pandas.DataFrame or None): DataFrame for unmethylated
+            intensities.
 
-        Raises:
-            ValueError: If neither 'data' nor 'file' is provided.
-            ValueError: If 'data' is provided but is not of type 'RawData'.
-        """
+    Raises:
+        ValueError: If neither 'data' nor 'file' is provided.
+        ValueError: If 'data' is provided but is not of type 'RawData'.
+
+    Examples:
+        >>> methyl_data = MethylData(raw_data, prep="illumina")
+        >>> methyl_data = MethylData(file=file_path, prep="swan")
+    """
+
+    def __init__(self, data=None, file=None, prep="illumina"):
         if data is None and file is None:
             msg = "'data' or 'file' must be given."
             raise ValueError(msg)
@@ -615,7 +597,7 @@ class MethylData:
         into methylation signal, without using any normalization.
 
         Note:
-            Fast version of preprocess_raw.
+            Fast version of ``preprocess_raw``.
         """
         ci = MethylData.cached_indices(self.manifest, self.ids)
         self.methyl = np.full((len(self.probes), len(ci["idx"])), np.nan)
@@ -949,6 +931,7 @@ class MethylData:
             lines.append(f"intensity:\n{self.intensity}")
         return "\n\n".join(lines)
 
+
 @memoize
 class ReferenceMethylData:
     """Stores and manages reference cases for different array types.
@@ -969,6 +952,9 @@ class ReferenceMethylData:
     Raises:
         ValueError: If no reference files are found for the specified array
             type.
+
+    Examples:
+        >>> reference = ReferenceMethylData(file=directory, prep="illumina")
     """
 
     def __init__(self, file, prep="illumina"):

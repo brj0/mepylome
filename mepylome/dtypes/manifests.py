@@ -1,16 +1,8 @@
 """Module for handling Illumina array manifest files.
 
-This module provides functionality for reading and processing Illumina array
-manifest files, which contain information about probes and their
+This module contains a single class ``Manifest`` for reading and processing
+Illumina array manifest files, which contain information about probes and their
 characteristics.
-
-Usage:
-
-    manifest = Manifest("450k")
-    print(manifest)
-    manifest = Manifest(ArrayType.ILLUMINA_EPIC)
-    type_1 = manifest.probe_info(ProbeType.ONE)
-    Manifest.load() # Downloads all human manifests when first used
 """
 
 import logging
@@ -22,7 +14,6 @@ import pandas as pd
 import pyranges as pr
 
 from mepylome.dtypes.arrays import ArrayType
-from mepylome.dtypes.cache import memoize
 from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.probes import Channel, InfiniumDesignType, ProbeType
 from mepylome.utils.files import (
@@ -101,7 +92,7 @@ def get_key(array_type, filepath):
     return (str(array_type), str(filepath))
 
 
-class _Manifest:
+class Manifest:
     """Provides an object interface to an Illumina array manifest file.
 
     This class provides functionality for reading and processing Illumina array
@@ -119,29 +110,41 @@ class _Manifest:
             None)
 
         verbose: If True, enables verbose output. (default: True)
+
+    Examples:
+        >>> # To initialize a manifest object for Illumina 450k array:
+        >>> manifest = Manifest("450k")
+        >>> print(manifest)
+
+        >>> # To initialize a manifest object for Illumina EPIC array
+        >>> manifest = Manifest(ArrayType.ILLUMINA_EPIC)
+        >>> type_1 = manifest.probe_info(ProbeType.ONE)
+
+        >>> # To load all manifests when first used:
+        >>> Manifest.load()xamples:
     """
 
-    # Alternative caching
-    # _cache = {}
+    _cache = {}
 
-    # def __new__(
-    # cls,
-    # array_type,
-    # filepath=None,
-    # verbose=True,
-    # ):
-    # cache_key = get_key(array_type, filepath)
-    # if cache_key in cls._cache:
-    # return cls._cache[cache_key]
-    # instance = super().__new__(cls)
-    # # Cache the instance
-    # cls._cache[cache_key] = instance
-    # print("---MANIFEST CACHED", cache_key)
-    # return instance
+    def __new__(
+        cls,
+        array_type,
+        filepath=None,
+        verbose=True,
+    ):
+        cache_key = get_key(array_type, filepath)
+        if cache_key in cls._cache:
+            return cls._cache[cache_key]
 
-    # def __getnewargs__(self):
-    # # Necessary for pickle
-    # return self.array_type, self.filepath, self.verbose
+        instance = super().__new__(cls)
+
+        # Cache the instance
+        cls._cache[cache_key] = instance
+        return instance
+
+    def __getnewargs__(self):
+        # Necessary for pickle
+        return self.array_type, self.filepath, self.verbose
 
     def __init__(
         self,
@@ -149,10 +152,9 @@ class _Manifest:
         filepath=None,
         verbose=True,
     ):
-        # Alternative caching
-        # if hasattr(self, 'cache_key'):
-        # return
-        # self.cache_key = get_key(array_type, filepath)
+        if hasattr(self, "_cache_key"):
+            return
+        self._cache_key = get_key(array_type, filepath)
         if isinstance(array_type, str):
             array_type = ArrayType(array_type)
 
@@ -173,31 +175,6 @@ class _Manifest:
         self.__snp_data_frame = self.read_snp_probes()
         self.__methyl_probes = None
 
-    def __repr__(self):
-        title = f"Manifest({self.array_type}):"
-        lines = [
-            title + "\n" + "*" * len(title),
-            f"data_frame:\n{self.data_frame}",
-            f"control_data_frame:\n{self.control_data_frame}",
-            f"snp_data_frame:\n{self.snp_data_frame}",
-        ]
-        return "\n\n".join(lines)
-
-    @staticmethod
-    def load(array_types=None):
-        """Loads all manifests of the specified types into memory."""
-        if array_types is None:
-            array_types = [
-                ArrayType.ILLUMINA_450K,
-                ArrayType.ILLUMINA_EPIC,
-                ArrayType.ILLUMINA_EPIC_V2,
-            ]
-        if not isinstance(array_types, list):
-            array_types = [array_types]
-        for array_type in array_types:
-            # Must use Manifest not _Manifest
-            _ = Manifest(array_type)
-
     @property
     def data_frame(self):
         """Pandas data frame of all manifest probes."""
@@ -207,18 +184,6 @@ class _Manifest:
     def control_data_frame(self):
         """Pandas data frame of all manifest control probes."""
         return self.__control_data_frame
-
-    def control_address(self, control_type=None):
-        """Returns address IDs of all control probes of the specified type."""
-        if control_type is None:
-            return self.__control_data_frame.Address_ID
-        # Ensure control_type is a list-like object
-        if not isinstance(control_type, (list, tuple)):
-            control_type = [control_type]
-        # Use isin() with the list-like object
-        return self.__control_data_frame[
-            self.__control_data_frame.Control_Type.isin(control_type)
-        ].Address_ID
 
     @property
     def snp_data_frame(self):
@@ -242,6 +207,32 @@ class _Manifest:
             self.__methyl_probes = self.__data_frame.iloc[idx]["IlmnID"].values
         return self.__methyl_probes
 
+    def control_address(self, control_type=None):
+        """Returns address IDs of all control probes of the specified type."""
+        if control_type is None:
+            return self.__control_data_frame.Address_ID
+        # Ensure control_type is a list-like object
+        if not isinstance(control_type, (list, tuple)):
+            control_type = [control_type]
+        # Use isin() with the list-like object
+        return self.__control_data_frame[
+            self.__control_data_frame.Control_Type.isin(control_type)
+        ].Address_ID
+
+    @staticmethod
+    def load(array_types=None):
+        """Loads all manifests of the specified types into memory."""
+        if array_types is None:
+            array_types = [
+                ArrayType.ILLUMINA_450K,
+                ArrayType.ILLUMINA_EPIC,
+                ArrayType.ILLUMINA_EPIC_V2,
+            ]
+        if not isinstance(array_types, list):
+            array_types = [array_types]
+        for array_type in array_types:
+            _ = Manifest(array_type)
+
     @staticmethod
     def get_processed_manifest(array_type):
         """Downloads the appropriate manifest file if necessary.
@@ -255,7 +246,7 @@ class _Manifest:
         """
         local_filename = LOCAL_FILENAME[array_type]
         local_filepath = Path(MANIFEST_DIR, local_filename).expanduser()
-        control_filepath = _Manifest.get_control_path(local_filepath)
+        control_filepath = Manifest.get_control_path(local_filepath)
 
         if local_filepath.exists() and control_filepath.exists():
             return local_filepath, control_filepath
@@ -270,7 +261,7 @@ class _Manifest:
         downloaded_filepath = Path(download_dir, source_filename).expanduser()
         # Remove the .gz suffix
         remote_filename = REMOTE_FILENAME[array_type]
-        _Manifest.process_manifest(
+        Manifest.process_manifest(
             filepath=downloaded_filepath,
             manifest_name=remote_filename,
             dest_probes=local_filepath,
@@ -288,6 +279,47 @@ class _Manifest:
         split_filename = probes_path.name.split(".")
         split_filename[0] += ENDING_CONTROL_PROBES
         return Path(probes_path.parent, ".".join(split_filename))
+
+    @staticmethod
+    def process_manifest(filepath, manifest_name, dest_probes, dest_control):
+        """Processes the manifest file and saves it locally to disk.
+
+        Args:
+            filepath (Path): Path to the downloaded manifest archive.
+            manifest_name (str): Name of the manifest file inside the archive.
+            dest_probes (Path): Local destination path to save the processed
+                probes.
+            dest_control (Path): Local destination path to save the processed
+                control probes.
+        """
+        ensure_directory_exists(dest_probes)
+        ensure_directory_exists(dest_control)
+        with get_csv_file(filepath, manifest_name) as manifest_file:
+            # Process probes
+            Manifest.seek_to_start(manifest_file)
+            probes_df = pd.read_csv(
+                manifest_file,
+                low_memory=False,
+                usecols=PROBES_COLUMNS,
+            )
+            n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
+            probes_df = probes_df[:n_probes]
+            probes_df = Manifest.process_probes(probes_df)
+            probes_df.to_csv(dest_probes, index=False)
+            # Process controls
+            Manifest.seek_to_start(manifest_file)
+            controls_df = pd.read_csv(
+                manifest_file,
+                header=None,
+                # Skip metadata and probe section
+                skiprows=(3 + n_probes),
+                usecols=range(len(CONTROL_COLUMNS)),
+            )
+            controls_df.columns = CONTROL_COLUMNS
+            controls_df["Address_ID"] = controls_df["Address_ID"].astype(
+                "int32"
+            )
+            controls_df.to_csv(dest_control, index=False)
 
     @staticmethod
     def process_probes(data_frame):
@@ -365,47 +397,6 @@ class _Manifest:
         # TODO drop Infinium_Design_Type
         probes_ranges = pr.PyRanges(data_frame).sort()
         return probes_ranges.df
-
-    @staticmethod
-    def process_manifest(filepath, manifest_name, dest_probes, dest_control):
-        """Processes the manifest file and saves it locally to disk.
-
-        Args:
-            filepath (Path): Path to the downloaded manifest archive.
-            manifest_name (str): Name of the manifest file inside the archive.
-            dest_probes (Path): Local destination path to save the processed
-                probes.
-            dest_control (Path): Local destination path to save the processed
-                control probes.
-        """
-        ensure_directory_exists(dest_probes)
-        ensure_directory_exists(dest_control)
-        with get_csv_file(filepath, manifest_name) as manifest_file:
-            # Process probes
-            _Manifest.seek_to_start(manifest_file)
-            probes_df = pd.read_csv(
-                manifest_file,
-                low_memory=False,
-                usecols=PROBES_COLUMNS,
-            )
-            n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
-            probes_df = probes_df[:n_probes]
-            probes_df = _Manifest.process_probes(probes_df)
-            probes_df.to_csv(dest_probes, index=False)
-            # Process controls
-            _Manifest.seek_to_start(manifest_file)
-            controls_df = pd.read_csv(
-                manifest_file,
-                header=None,
-                # Skip metadata and probe section
-                skiprows=(3 + n_probes),
-                usecols=range(len(CONTROL_COLUMNS)),
-            )
-            controls_df.columns = CONTROL_COLUMNS
-            controls_df["Address_ID"] = controls_df["Address_ID"].astype(
-                "int32"
-            )
-            controls_df.to_csv(dest_control, index=False)
 
     @staticmethod
     def seek_to_start(manifest_file):
@@ -520,8 +511,12 @@ class _Manifest:
         channel_mask = data_frame["Color_Channel"].values == channel.value
         return data_frame[probe_type_mask & channel_mask]
 
-
-# Memoized version of the _Manifest class, enabling efficient caching of class
-# instances. Directly utilizing memoize instead of as a decorator preserves the
-# class's pickling capability.
-Manifest = memoize(_Manifest)
+    def __repr__(self):
+        title = f"Manifest({self.array_type}):"
+        lines = [
+            title + "\n" + "*" * len(title),
+            f"data_frame:\n{self.data_frame}",
+            f"control_data_frame:\n{self.control_data_frame}",
+            f"snp_data_frame:\n{self.snp_data_frame}",
+        ]
+        return "\n\n".join(lines)

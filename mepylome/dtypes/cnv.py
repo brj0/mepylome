@@ -2,20 +2,6 @@
 
 This module provides classes and functions for copy number variation (CNV)
 analysis.
-
-Classes:
-- Annotation: Class representing the genoic annotation.
-- CNV: Class for representing CNV data and performing analysis.
-
-Usage:
-    sample_methyl = MethylData(file="path/to/idat/file")
-    reference_methyl = MethylData(file="path/to/idat/reference/dir")
-
-    cnv = CNV(sample_methyl, reference_methyl)
-    cnv.set_bins()
-    cnv.set_detail()
-    cnv.set_segments()
-    cnv.plot()
 """
 
 import heapq
@@ -44,20 +30,22 @@ logger = logging.getLogger(__name__)
 UNSET = object()
 ZIP_ENDING = "_cnv.zip"
 
-def cbseg_installed():
+def get_segmentation_algorithm():
+    try:
+        import linear_segment
+        return linear_segment.segment
+    except ModuleNotFoundError:
+        pass
     try:
         import cbseg
+        return cbseg.segment
     except ModuleNotFoundError:
-        return False
-    else:
-        return True
+        return None
 
 def missing_cbseg_msg():
     print(
-        "*Warning*: Segmentation will not be calculated because the 'cbseg' "
-        "package is missing. To enable segmentation, install mepylome with "
-        "'pip install mepylome[cbg]' and ensure you have a C compiler "
-        "installed."
+        "*Warning*: Segmentation will not be calculated because the "
+        "'linear_segment' resp. 'cbseg' package is missing. See documentation."
     )
 
 @memoize
@@ -370,6 +358,14 @@ class CNV:
         detail: Detailed information (usually Genes).
         segments: Segments calculated by circular binary segmentation.
 
+    Examples:
+        >>> sample_methyl = MethylData(file="path/to/idat/file")
+        >>> reference_methyl = MethylData(file="path/to/idat/reference/dir")
+        >>> cnv = CNV(sample_methyl, reference_methyl)
+        >>> cnv.set_bins()
+        >>> cnv.set_detail()
+        >>> cnv.set_segments()
+        >>> cnv.plot()
     """
 
     def __init__(self, sample, reference, annotation=None, *, verbose=False):
@@ -593,10 +589,10 @@ class CNV:
                 chromosome, start position, and end position.
 
         """
-        import cbseg
+        cbsegment = get_segmentation_algorithm()
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
-        seg = cbseg.segment(bin_values, shuffles=1000, p=0.0001)
+        seg = cbsegment(bin_values, shuffles=1000, p=0.0001)
         return pd.DataFrame(
             [
                 [chrom, df.Start.iloc[s.start], df.End.iloc[s.end - 1]]
@@ -613,7 +609,7 @@ class CNV:
         It calculates the CNV segments for each chromosome and stores them
         in the 'segments' attribute of the object.
         """
-        if not cbseg_installed():
+        if get_segmentation_algorithm() is None:
             missing_cbseg_msg()
             return
         segments = self.bins.apply(self._get_segments)
