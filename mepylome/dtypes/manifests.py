@@ -15,6 +15,7 @@ import pyranges as pr
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.chromosome import Chromosome
+from mepylome.dtypes.cache import cache_key
 from mepylome.dtypes.probes import Channel, InfiniumDesignType, ProbeType
 from mepylome.utils.files import (
     download_file,
@@ -87,11 +88,6 @@ CONTROL_COLUMNS = (
 )
 
 
-def get_key(array_type, filepath):
-    """Returns a hash key for memoization."""
-    return (str(array_type), str(filepath))
-
-
 class Manifest:
     """Provides an object interface to an Illumina array manifest file.
 
@@ -114,14 +110,14 @@ class Manifest:
     Examples:
         >>> # To initialize a manifest object for Illumina 450k array:
         >>> manifest = Manifest("450k")
-        >>> print(manifest)
+        >>> manifest
 
         >>> # To initialize a manifest object for Illumina EPIC array
         >>> manifest = Manifest(ArrayType.ILLUMINA_EPIC)
         >>> type_1 = manifest.probe_info(ProbeType.ONE)
 
         >>> # To load all manifests when first used:
-        >>> Manifest.load()xamples:
+        >>> Manifest.load()
     """
 
     _cache = {}
@@ -132,14 +128,14 @@ class Manifest:
         filepath=None,
         verbose=True,
     ):
-        cache_key = get_key(array_type, filepath)
-        if cache_key in cls._cache:
-            return cls._cache[cache_key]
+        key = cache_key(array_type, filepath)
+        if key in cls._cache:
+            return cls._cache[key]
 
         instance = super().__new__(cls)
 
         # Cache the instance
-        cls._cache[cache_key] = instance
+        cls._cache[key] = instance
         return instance
 
     def __getnewargs__(self):
@@ -152,9 +148,9 @@ class Manifest:
         filepath=None,
         verbose=True,
     ):
-        if hasattr(self, "_cache_key"):
+        if hasattr(self, "_cached"):
             return
-        self._cache_key = get_key(array_type, filepath)
+        self._cached = True
         if isinstance(array_type, str):
             array_type = ArrayType(array_type)
 
@@ -166,13 +162,13 @@ class Manifest:
             (
                 self.filepath,
                 control_filepath,
-            ) = self.get_processed_manifest(array_type)
+            ) = self._get_processed_manifest(array_type)
         else:
-            control_filepath = self.get_control_path(Path(self.filepath))
+            control_filepath = self._get_control_path(self.filepath)
 
-        self.__data_frame = self.read_probes(self.filepath)
-        self.__control_data_frame = self.read_control_probes(control_filepath)
-        self.__snp_data_frame = self.read_snp_probes()
+        self.__data_frame = self._read_probes(self.filepath)
+        self.__control_data_frame = self._read_control_probes(control_filepath)
+        self.__snp_data_frame = self._read_snp_probes()
         self.__methyl_probes = None
 
     @property
@@ -221,7 +217,20 @@ class Manifest:
 
     @staticmethod
     def load(array_types=None):
-        """Loads all manifests of the specified types into memory."""
+        """Loads specified manifests into memory.
+
+        Args:
+            array_types (list or ArrayType, optional): List of array types or
+                a single array type to load. Defaults to all available types.
+
+        Examples:
+            >>> # Load all manifests:
+            >>> Manifest.load()
+
+            >>> # Load specific manifests:
+            >>> Manifest.load([ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC])
+            >>> Manifest.load("epicv2")
+        """
         if array_types is None:
             array_types = [
                 ArrayType.ILLUMINA_450K,
@@ -234,7 +243,7 @@ class Manifest:
             _ = Manifest(array_type)
 
     @staticmethod
-    def get_processed_manifest(array_type):
+    def _get_processed_manifest(array_type):
         """Downloads the appropriate manifest file if necessary.
 
         Args:
@@ -246,7 +255,7 @@ class Manifest:
         """
         local_filename = LOCAL_FILENAME[array_type]
         local_filepath = Path(MANIFEST_DIR, local_filename).expanduser()
-        control_filepath = Manifest.get_control_path(local_filepath)
+        control_filepath = Manifest._get_control_path(local_filepath)
 
         if local_filepath.exists() and control_filepath.exists():
             return local_filepath, control_filepath
@@ -261,7 +270,7 @@ class Manifest:
         downloaded_filepath = Path(download_dir, source_filename).expanduser()
         # Remove the .gz suffix
         remote_filename = REMOTE_FILENAME[array_type]
-        Manifest.process_manifest(
+        Manifest._process_manifest(
             filepath=downloaded_filepath,
             manifest_name=remote_filename,
             dest_probes=local_filepath,
@@ -274,14 +283,14 @@ class Manifest:
         return local_filepath, control_filepath
 
     @staticmethod
-    def get_control_path(probes_path):
+    def _get_control_path(probes_path):
         """Converts probes path to the control probes path."""
         split_filename = probes_path.name.split(".")
         split_filename[0] += ENDING_CONTROL_PROBES
         return Path(probes_path.parent, ".".join(split_filename))
 
     @staticmethod
-    def process_manifest(filepath, manifest_name, dest_probes, dest_control):
+    def _process_manifest(filepath, manifest_name, dest_probes, dest_control):
         """Processes the manifest file and saves it locally to disk.
 
         Args:
@@ -296,7 +305,7 @@ class Manifest:
         ensure_directory_exists(dest_control)
         with get_csv_file(filepath, manifest_name) as manifest_file:
             # Process probes
-            Manifest.seek_to_start(manifest_file)
+            Manifest._seek_to_start(manifest_file)
             probes_df = pd.read_csv(
                 manifest_file,
                 low_memory=False,
@@ -304,10 +313,10 @@ class Manifest:
             )
             n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
             probes_df = probes_df[:n_probes]
-            probes_df = Manifest.process_probes(probes_df)
+            probes_df = Manifest._process_probes(probes_df)
             probes_df.to_csv(dest_probes, index=False)
             # Process controls
-            Manifest.seek_to_start(manifest_file)
+            Manifest._seek_to_start(manifest_file)
             controls_df = pd.read_csv(
                 manifest_file,
                 header=None,
@@ -322,7 +331,7 @@ class Manifest:
             controls_df.to_csv(dest_control, index=False)
 
     @staticmethod
-    def process_probes(data_frame):
+    def _process_probes(data_frame):
         """Transforms manifest probes to a more efficient internal format."""
         data_frame = data_frame.rename(
             columns={
@@ -399,7 +408,7 @@ class Manifest:
         return probes_ranges.df
 
     @staticmethod
-    def seek_to_start(manifest_file):
+    def _seek_to_start(manifest_file):
         """Move the manifest file pointer to the start of the data section.
 
         Details:
@@ -426,7 +435,7 @@ class Manifest:
         else:
             manifest_file.seek(current_pos - 1)
 
-    def read_probes(self, probes_file):
+    def _read_probes(self, probes_file):
         """Reads and returns probes from local file {probes_file}."""
         if self.verbose:
             logger.info(
@@ -435,7 +444,7 @@ class Manifest:
 
         data_frame = pd.read_csv(
             probes_file,
-            dtype=self.get_data_types(),
+            dtype=self._get_data_types(),
         )
         # TODO epicv2 has duplicated ID's for example c='cg22367159'
         data_frame = data_frame.drop_duplicates(
@@ -443,11 +452,11 @@ class Manifest:
         )
         return data_frame.reset_index(drop=True)
 
-    def read_control_probes(self, control_file):
+    def _read_control_probes(self, control_file):
         """Reads and returns control probes from local file {control_file}."""
         data_frame = pd.read_csv(
             control_file,
-            dtype=self.get_data_types(),
+            dtype=self._get_data_types(),
         )
         # Use int32 instead of int64 to improve performance of indexing
         data_frame["Address_ID"] = (
@@ -455,12 +464,12 @@ class Manifest:
         )
         return data_frame
 
-    def read_snp_probes(self):
+    def _read_snp_probes(self):
         """Extracts SNP probes from the manifest data frame."""
         snp_df = self.data_frame.copy()
         return snp_df[snp_df.IlmnID.str.match("rs", na=False)]
 
-    def get_data_types(self):
+    def _get_data_types(self):
         """Returns data types for the manifest columns."""
         return {
             "IlmnID": np.dtype(object),

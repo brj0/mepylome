@@ -1,12 +1,4 @@
-"""Contains a IDAT file parser.
-
-Usage:
-    filepath = "/path/to/idat/file_Grn.idat"
-    idat_data = IdatParser(filepath)
-    ids = idat_data.illumina_ids
-
-    print(idat_data)
-"""
+"""Contains a IDAT file parser."""
 
 import logging
 import os
@@ -104,21 +96,27 @@ class IdatParser:
     Stores all extracted values from the IDAT file as attributes.
 
     Args:
-        filepath_or_buffer (str or file-like object): Path to the IDAT file or
+        file (str or file-like object): Path to the IDAT file or
             a file-like object. Can also be a gzipped IDAT file.
         intensity_only (bool, optional): Whether to read only intensity values,
             which makes parsing faster. Defaults to False.
+
+    Examples:
+        >>> filepath = "/path/to/idat/file_Grn.idat"
+        >>> idat_data = IdatParser(filepath)
+        >>> ids = idat_data.illumina_ids
+        >>> print(idat_data)
     """
 
     def __init__(
         self,
-        filepath_or_buffer,
+        file,
         *,
         intensity_only=False,
     ):
         """Reads and parses the IDAT file."""
         self.intensity_only = intensity_only
-        with get_file_object(filepath_or_buffer) as idat_file:
+        with get_file_object(file) as idat_file:
             self.file_size = os.fstat(idat_file.fileno()).st_size
 
             self._parse_header(idat_file)

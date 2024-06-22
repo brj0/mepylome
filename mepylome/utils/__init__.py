@@ -12,6 +12,8 @@ from .files import (
     reset_file,
 )
 from .varia import Timer, normexp_get_xs
+from .tutorial_setup import setup_tutorial_files
+
 
 __all__ = [
     "download_file",
@@ -19,6 +21,7 @@ __all__ = [
     "get_file_object",
     "get_csv_file",
     "reset_file",
+    "setup_tutorial_files",
     "Timer",
     "normexp_get_xs",
 ]

@@ -122,6 +122,12 @@ def parse_args():
     parser.add_argument(
         "-d", "--debug", action="store_true", help="Use debug mode in dash."
     )
+    parser.add_argument(
+        "-D",
+        "--do_seg",
+        action="store_true",
+        help="Add horizontal segmentation lines in CNV plot (slow).",
+    )
 
     return parser.parse_args()
 

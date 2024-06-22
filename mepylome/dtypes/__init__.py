@@ -7,11 +7,11 @@ from .beads import (
     ReferenceMethylData,
     idat_basepaths,
     is_valid_idat_basepath,
-    overlap_indices,
+    _overlap_indices,
 )
 from .cache import get_id_tuple, memoize
 from .chromosome import Chromosome
-from .cnv import CNV, ZIP_ENDING, Annotation
+from .cnv import CNV, ZIP_ENDING, Annotation, _get_cgsegment
 from .genetic_data import (
     CHROMOSOME_DATA,
     GAPS,
@@ -49,6 +49,7 @@ __all__ = [
     "idat_basepaths",
     "is_valid_idat_basepath",
     "memoize",
-    "overlap_indices",
+    "_overlap_indices",
+    "_get_cgsegment",
     "read_cnv_data_from_disk",
 ]

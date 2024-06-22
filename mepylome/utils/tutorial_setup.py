@@ -65,11 +65,9 @@ def download_idats(download_dir, idat_grn_urls):
     unzip_and_remove_gz_files(download_dir)
 
 
-def setup_tutorial_files(directory):
-    directory = Path(directory).expanduser()
-    analysis_dir = directory / "analysis"
-    reference_dir = directory / "reference"
-    directory.mkdir(parents=True, exist_ok=True)
+def setup_tutorial_files(analysis_dir, reference_dir):
+    analysis_dir = Path(analysis_dir)
+    reference_dir = Path(reference_dir)
     analysis_dir.mkdir(parents=True, exist_ok=True)
     reference_dir.mkdir(parents=True, exist_ok=True)
     PACKAGE_DIR = Path(pkg_resources.resource_filename("mepylome", ""))

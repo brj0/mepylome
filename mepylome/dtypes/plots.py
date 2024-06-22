@@ -20,7 +20,7 @@ ZIP_ENDING = "_cnv.zip"
 THRESHOLD_BALANCED = 0.1
 
 ensure_directory_exists(MEPYLOME_TMP_DIR)
-CNV_GRID = Path(MEPYLOME_TMP_DIR, "grid.json")
+CNV_GRID = Path(MEPYLOME_TMP_DIR, "cnv_grid.json")
 
 
 class Genome:

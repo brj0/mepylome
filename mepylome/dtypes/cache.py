@@ -43,19 +43,20 @@ def np_hash(array):
     )
 
 
-def cache_key(arg):
-    """Generates a cache key for a given argument based on its type.
+def cache_key(*args):
+    """Generates a cache key for arguments based on their type.
 
     Args:
-        arg: The input argument, which can be of various types such as
+        arg: The input arguments, which can be of various types such as
             ArrayType, Manifest, PosixPath, bool, int, NoneType, str,
             RangeIndex, Index, or ndarray.
 
     Returns:
-        The cache key for the argument.
+        The cache key for the arguments.
 
     Warning:
-        If arg is a numpy array of object type, the key may not be unique.
+        If an argument is a numpy array of object type, the key may not be
+        unique.
     """
     type_map = {
         "ArrayType": str,
@@ -69,8 +70,13 @@ def cache_key(arg):
         "Index": lambda x: x.values.tobytes(),
         "ndarray": np_hash,
     }
-    arg_type = arg.__class__.__name__ if hasattr(arg, "__class__") else None
-    return type_map.get(arg_type, id)(arg)
+    keys = []
+    for arg in args:
+        arg_type = arg.__class__.__name__ if hasattr(arg, "__class__") else None
+        keys.append(type_map.get(arg_type, id)(arg))
+    if len(args) == 1:
+        return keys[0]
+    return tuple(keys)
 
 
 def get_id_tuple(f, args, kwargs):
@@ -129,9 +135,9 @@ def memoize(f):
         def __init__(self, cls):
             self.cls = cls
             self._cache = {}
-            # self.__name__ = cls.__name__
-            # self.__doc__ = cls.__doc__
-            # self.__module__ = cls.__module__
+            self.__name__ = cls.__name__
+            self.__doc__ = cls.__doc__
+            self.__module__ = cls.__module__
             init_signature = inspect.signature(cls.__init__)
             self.init_defaults = {
                 key: val.default

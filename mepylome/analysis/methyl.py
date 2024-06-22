@@ -38,7 +38,7 @@ import subprocess
 import tempfile
 import threading
 import webbrowser
-from functools import lru_cache
+from functools import lru_cache, partial
 from itertools import repeat
 from multiprocessing import Pool
 from pathlib import Path
@@ -73,7 +73,8 @@ from mepylome.dtypes import (
     cnv_plot_from_data,
     idat_basepaths,
     is_valid_idat_basepath,
-    overlap_indices,
+    _overlap_indices,
+    _get_cgsegment,
     read_cnv_data_from_disk,
 )
 from mepylome.utils import Timer, ensure_directory_exists
@@ -83,7 +84,7 @@ timer = Timer()
 
 MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
 
-DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "output")
+DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "methylation_analysis")
 INVALID_PATH = Path("None")
 
 PLOTLY_RENDER_MODE = "webgl"
@@ -355,7 +356,7 @@ def extract_beta(data):
     idat_file, cpgs, prep = data
     try:
         methyl = MethylData(file=idat_file, prep=prep)
-        betas_450k_df = methyl.betas_for_cpgs(cpgs=cpgs, fill=NEUTRAL_BETA)
+        betas_450k_df = methyl.betas_at(cpgs=cpgs, fill=NEUTRAL_BETA)
         betas = betas_450k_df.values.ravel()
     except ValueError as e:
         return (idat_file, e), ArrayType.INVALID
@@ -385,12 +386,12 @@ def methyl_mtx_from_all_cpgs(betas_list, cpgs, fill=NEUTRAL_BETA):
     left_idx = {}
     right_idx = {}
     for array_type in array_types:
-        left_idx[array_type], right_idx[array_type] = overlap_indices(
+        left_idx[array_type], right_idx[array_type] = _overlap_indices(
             cpgs, all_cpgs[array_type]
         )
     converted = np.full((len(betas_list), len(cpgs)), fill)
-    for i, (beta, array_type) in enumerate(betas_list):
-        converted[i, left_idx[array_type]] = beta[right_idx[array_type]]
+    for i, (betas, array_type) in enumerate(betas_list):
+        converted[i, left_idx[array_type]] = betas[right_idx[array_type]]
     converted[np.isnan(converted)] = fill
     return converted
 
@@ -464,14 +465,15 @@ def get_reference_methyl_data(reference_dir, prep):
     return reference
 
 
-def write_single_cnv_to_disk(args):
+def write_single_cnv_to_disk(
+    idat_basename, reference_dir, cnv_dir, prep, do_seg
+):
     """Performs CNV analysis on a single sample and writes results to disk."""
-    idat_basename, reference_dir, cnv_dir, prep = args
     sample_id = idat_basename.name
     try:
         sample_methyl = MethylData(file=idat_basename)
         reference = get_reference_methyl_data(reference_dir, prep)
-        cnv = CNV.set_all(sample_methyl, reference, do_segmentation=True)
+        cnv = CNV.set_all(sample_methyl, reference, do_seg=do_seg)
         cnv_filename = sample_id + ZIP_ENDING
         cnv.write(Path(cnv_dir, cnv_filename))
     except Exception as exc:
@@ -494,7 +496,9 @@ def write_single_cnv_to_disk(args):
             f.write(error_message)
 
 
-def write_cnv_to_disk(sample_path, reference_dir, cnv_dir, prep, pbar=None):
+def write_cnv_to_disk(
+    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None
+):
     """Generate and save CNV-analysis output files for given samples.
 
     Saves CNV data with a ZIP_ENDING extension, or an error message with an
@@ -507,6 +511,7 @@ def write_cnv_to_disk(sample_path, reference_dir, cnv_dir, prep, pbar=None):
         reference_dir (str): Directory with CNV neural reference data.
         cnv_dir (str): Directory to save CNV data.
         prep (str): Prepreparation method for MethylData.
+        do_seg (bool): If segments should be calculated as well (slow)
         pbar (optional): Progress bar for tracking progress.
     """
     new_idat_paths = [
@@ -521,29 +526,21 @@ def write_cnv_to_disk(sample_path, reference_dir, cnv_dir, prep, pbar=None):
     # it for each core.
     Manifest.load()
     _ = get_reference_methyl_data(reference_dir, prep)
+    _write_single_cnv_to_disk = partial(
+        write_single_cnv_to_disk,
+        reference_dir=reference_dir,
+        cnv_dir=cnv_dir,
+        prep=prep,
+        do_seg=do_seg,
+    )
     # Pooling is slower if there is only 1 sample
     if len(new_idat_paths) == 1:
-        write_single_cnv_to_disk(
-            (
-                new_idat_paths[0],
-                reference_dir,
-                cnv_dir,
-                prep,
-            )
-        )
+        _write_single_cnv_to_disk(new_idat_paths[0])
     else:
         with Pool() as pool, tqdm(
             total=len(new_idat_paths), desc="Generating CNV files"
         ) as tqdm_bar:
-            for _ in pool.imap(
-                write_single_cnv_to_disk,
-                zip(
-                    new_idat_paths,
-                    repeat(reference_dir),
-                    repeat(cnv_dir),
-                    repeat(prep),
-                ),
-            ):
+            for _ in pool.imap(_write_single_cnv_to_disk, new_idat_paths):
                 if pbar is not None:
                     pbar.increment()
                 _ = tqdm_bar.update(1)
@@ -556,6 +553,7 @@ def get_cnv_plot(
     prep,
     cnv_dir,
     genes_sel,
+    do_seg,
 ):
     """Generate and return a CNV plot for a given sample.
 
@@ -565,12 +563,13 @@ def get_cnv_plot(
         prep (str): Prepreparation method for MethylData.
         cnv_dir (str): Directory to save CNV data.
         genes_sel (list): List of genes to highlight in the plot.
+        do_seg (bool): If segments should be calculated as well (slow)
 
     Returns:
         plotly.graph_objs.Figure: CNV plotly figure.
     """
     sample_id = sample_path.name
-    write_cnv_to_disk([sample_path], reference_dir, cnv_dir, prep)
+    write_cnv_to_disk([sample_path], reference_dir, cnv_dir, prep, do_seg)
     bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
     plot = cnv_plot_from_data(
         sample_id,
@@ -865,7 +864,7 @@ def input_args_id(*args):
         str(arg.tolist()) if isinstance(arg, np.ndarray) else str(arg)
         for arg in args
     )
-    return hashlib.md5(result.encode()).hexdigest()
+    return hashlib.sha256(result.encode()).hexdigest()
 
 
 def extract_sub_dataframe(data_frame, columns, fill=0.49):
@@ -881,7 +880,7 @@ def extract_sub_dataframe(data_frame, columns, fill=0.49):
         pd.DataFrame: The sub-dataframe with the specified columns.
     """
     result_np = np.full((len(data_frame.index), len(columns)), fill)
-    left_idx, right_idx = overlap_indices(columns, data_frame.columns)
+    left_idx, right_idx = _overlap_indices(columns, data_frame.columns)
     result_np[:, left_idx] = data_frame.values[:, right_idx]
     return pd.DataFrame(result_np, columns=columns, index=data_frame.index)
 
@@ -908,6 +907,7 @@ class MethylAnalysis:
         save_betas=False,
         overlap=False,
         cpg_selection="top",
+        do_seg=False,
         host="localhost",
         port=8050,
         debug=False,
@@ -930,6 +930,7 @@ class MethylAnalysis:
         if self.cpg_selection not in ["top", "random"]:
             msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
             raise ValueError(msg)
+        self.do_seg = False if _get_cgsegment() is None else do_seg
         self.host = host
         self.port = port
         self.debug = debug
@@ -988,19 +989,26 @@ class MethylAnalysis:
 
     def get_cpgs(self, input_var="auto"):
         if isinstance(input_var, np.ndarray):
-            return input_var
+            return np.sort(input_var)
         valid_parms = ["auto", "450k", "epic", "epicv2"]
+
         if isinstance(input_var, str):
             input_var = [input_var]
+
         if "auto" in input_var:
-            input_var = set()
-            for path in self.idat_handler.sample_paths.values():
-                input_var.add(RawData(path).array_type.value)
+            input_var = {
+                RawData(path).array_type.value
+                for path in self.idat_handler.sample_paths.values()
+            }
             input_var = list(input_var)
-            print(f"The following array types were detected: {input_var}")
+            print(
+                f"The following array types were detected: {input_var}"
+            )
+
         if all(x in valid_parms for x in input_var):
-            if len(input_var) == 0:
+            if not input_var:
                 return np.array([])
+
             input_var = valid_parms if "all" in input_var else input_var
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
@@ -1008,16 +1016,18 @@ class MethylAnalysis:
                 if array_type in input_var
             ]
             cpgs = set.intersection(*cpg_sets)
-            return np.array(list(cpgs))
+            return np.sort(np.array(list(cpgs)))
+
         msg = f"'cpgs' must be a numpy array or list of {valid_parms}"
         raise ValueError(msg)
 
     def update_paths(self):
+        timer.start()
         if not self.output_dir.exists():
             return
         old_betas_path = self.betas_path
         umap_hash_key = input_args_id(
-            np.sort(self.cpgs),
+            self.cpgs,
             self.n_cpgs,
             self.analysis_dir,
             self.prep,
@@ -1031,21 +1041,26 @@ class MethylAnalysis:
             self.analysis_dir,
             self.reference_dir,
             self.prep,
+            self.do_seg,
         )
         umap_dir_name = (
-            f"umap-{self.n_cpgs}-{self.prep}-{self.cpg_selection}-"
-            f"{umap_hash_key}"
+            f"umap-{self.analysis_dir.name}"
+            f"-{self.n_cpgs}-{self.prep}-{self.cpg_selection}"
+            f"-{umap_hash_key}"
         )
         self.umap_dir = Path(self.output_dir, f"{umap_dir_name}")
         ensure_directory_exists(self.umap_dir)
 
-        cnv_dir_name = f"cnv-{self.prep}-{cnv_hash_key}"
-        self.cnv_dir = Path(self.output_dir, f"{cnv_dir_name}")
+        self.cnv_dir = Path(
+            self.output_dir,
+            f"cnv-{self.analysis_dir.name}-{self.prep}-{cnv_hash_key}",
+        )
         ensure_directory_exists(self.cnv_dir)
 
         self.umap_plot_path = Path(self.umap_dir, "umap_plot.csv")
         self.betas_path = Path(
-            self.output_dir, f"betas-{self.prep}-{betas_hash_key}.pkl"
+            self.output_dir,
+            f"betas-{self.analysis_dir.name}-{self.prep}-{betas_hash_key}.pkl",
         )
         if old_betas_path != self.betas_path:
             self.betas_df_all_cpgs = None
@@ -1222,6 +1237,7 @@ class MethylAnalysis:
             self.prep,
             self.cnv_dir,
             genes_sel,
+            self.do_seg,
         )
 
     def precalculate_all_cnvs(self):

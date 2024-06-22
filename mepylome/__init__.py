@@ -12,15 +12,15 @@ with suppress(ModuleNotFoundError):
     from _mepylome import IdatParser as _IdatParser
 
 from mepylome.dtypes import (
-    ArrayType,
-    Annotation,
     CNV,
+    Annotation,
     IdatParser,
     Manifest,
     MethylData,
     RawData,
     ReferenceMethylData,
     idat_basepaths,
+    read_cnv_data_from_disk,
 )
 
 # Suppress pyranges warnings
@@ -28,7 +28,6 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 __all__ = [
-    "ArrayType",
     "Annotation",
     "CNV",
     "IdatParser",
@@ -37,6 +36,7 @@ __all__ = [
     "RawData",
     "ReferenceMethylData",
     "idat_basepaths",
+    "read_cnv_data_from_disk",
 ]
 
 # Conditionally add _IdatParser to __all__ if it exists

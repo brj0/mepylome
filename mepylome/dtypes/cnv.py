@@ -17,7 +17,7 @@ import pyranges as pr
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.beads import MethylData, ReferenceMethylData
-from mepylome.dtypes.cache import memoize
+from mepylome.dtypes.cache import cache_key, memoize
 from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.genetic_data import GAPS, GENES
 from mepylome.dtypes.manifests import MEPYLOME_TMP_DIR, Manifest
@@ -30,27 +30,47 @@ logger = logging.getLogger(__name__)
 UNSET = object()
 ZIP_ENDING = "_cnv.zip"
 
-def get_segmentation_algorithm():
+
+def _get_cgsegment():
     try:
         import linear_segment
+
         return linear_segment.segment
     except ModuleNotFoundError:
         pass
     try:
         import cbseg
+
         return cbseg.segment
     except ModuleNotFoundError:
         return None
 
-def missing_cbseg_msg():
+
+def _missing_cbseg_msg():
     print(
         "*Warning*: Segmentation will not be calculated because the "
         "'linear_segment' resp. 'cbseg' package is missing. See documentation."
     )
 
-@memoize
+
 class Annotation:
     """Genomic annotations for CNV such as as binning and gene locations.
+
+    Args:
+        manifest (Manifest, optional): The manifest containing annotation
+            details. Can be determined from array_type.
+        array_type (str, optional): The type of array used for annotation.
+            Can be determined from manifest.
+        gap (pyranges.PyRanges): The genomic gaps. If unset default values
+            will be used.
+        detail (pyranges.PyRanges, optional): Detailed annotation (usually
+            genes).
+        bin_size (int, optional): The base-pair size of annotation bins.
+            Defaults to 50000.
+        min_probes_per_bin (int, optional): The minimum number of probes
+            per bin. Defaults to 15.
+        verbose (bool, optional): Whether to display verbose output during
+            annotation processing. Defaults to False.
 
     Attributes:
         manifest (Manifest): The manifest to use.
@@ -67,6 +87,35 @@ class Annotation:
         chromsizes (dict): Dictionary containing chromosome sizes.
     """
 
+    _cache = {}
+
+    def __new__(
+        cls,
+        manifest=None,
+        array_type=None,
+        gap=UNSET,
+        detail=UNSET,
+        bin_size=50000,
+        min_probes_per_bin=15,
+        verbose=False,
+    ):
+        key = cache_key(
+            manifest,
+            array_type,
+            gap,
+            detail,
+            bin_size,
+            min_probes_per_bin,
+        )
+        if key in cls._cache:
+            return cls._cache[key]
+
+        instance = super().__new__(cls)
+
+        # Cache the instance
+        cls._cache[key] = instance
+        return instance
+
     def __init__(
         self,
         manifest=None,
@@ -77,24 +126,11 @@ class Annotation:
         min_probes_per_bin=15,
         verbose=False,
     ):
-        """Initializes the Annotation object.
+        # Don't need to initialize if instance is cached.
+        if hasattr(self, "_cached"):
+            return
+        self._cached = True
 
-        Args:
-            manifest (Manifest, optional): The manifest containing annotation
-                details. Can be determined from array_type.
-            array_type (str, optional): The type of array used for annotation.
-                Can be determined from manifest.
-            gap (pyranges.PyRanges): The genomic gaps. If unset default values
-                will be used.
-            detail (pyranges.PyRanges, optional): Detailed annotation (usually
-                genes).
-            bin_size (int, optional): The base-pair size of annotation bins.
-                Defaults to 50000.
-            min_probes_per_bin (int, optional): The minimum number of probes
-                per bin. Defaults to 15.
-            verbose (bool, optional): Whether to display verbose output during
-                annotation processing. Defaults to False.
-        """
         if manifest is None and array_type is None:
             msg = "'manifest' or 'array_type' must be given"
             raise ValueError(msg)
@@ -332,7 +368,7 @@ def cached_index(left_arr, right_arr):
     return left_arr.get_indexer(right_arr)
 
 
-def pd_loc(pd_df, pd_col):
+def _pd_loc(pd_df, pd_col):
     """Cached version of pd_df.loc[pd_col] to speed up computation."""
     return pd_df.iloc[cached_index(pd_df.index, pd_col.values)]
 
@@ -358,34 +394,40 @@ class CNV:
         detail: Detailed information (usually Genes).
         segments: Segments calculated by circular binary segmentation.
 
+    Args:
+        sample (MethylData): MethylData object representing the sample.
+        reference (MethylData or ReferenceMethylData): MethylData object
+            representing the reference, or ReferenceMethylData object for
+            multiple references.
+        annotation (Annotation, optional): Annotation object containing
+            genomic annotation information. Defaults to annotation
+            associated with the sample array type.
+        verbose (bool, optional): Whether to print verbose output. Defaults
+            to False.
+
     Examples:
-        >>> sample_methyl = MethylData(file="path/to/idat/file")
-        >>> reference_methyl = MethylData(file="path/to/idat/reference/dir")
-        >>> cnv = CNV(sample_methyl, reference_methyl)
+        >>> sample = MethylData(file="path/to/idat/file")
+        >>> reference = MethylData(file="path/to/idat/reference/dir")
+        >>> cnv = CNV(sample, reference)
         >>> cnv.set_bins()
         >>> cnv.set_detail()
         >>> cnv.set_segments()
         >>> cnv.plot()
+
+    Raises:
+        ValueError: If sample does not contain exactly 1 probe, or if
+            reference is not of type MethylData or ReferenceMethylData.
+
+    Reference:
+        Daenekas, B., Pérez, E., Boniolo, F., Stefan, S., Benfatto, S., Sill,
+        M., Sturm, D., Jones, D. T. W., Capper, D., Zapatka, M., & Hovestadt,
+        V. (2024). Conumee 2.0: enhanced copy-number variation analysis from
+        DNA methylation arrays for humans and mice. In J. Kelso (Ed.),
+        Bioinformatics (Vol. 40, Issue 2). Oxford University Press (OUP).
+        https://doi.org/10.1093/bioinformatics/btae029
     """
 
     def __init__(self, sample, reference, annotation=None, *, verbose=False):
-        """Initializes the CNV object.
-
-        Args:
-            sample (MethylData): MethylData object representing the sample.
-            reference (MethylData or ReferenceMethylData): MethylData object
-                representing the reference, or ReferenceMethylData object for
-                multiple references.
-            annotation (Annotation, optional): Annotation object containing
-                genomic annotation information. Defaults to annotation
-                associated with the sample array type.
-            verbose (bool, optional): Whether to print verbose output. Defaults
-                to False.
-
-        Raises:
-            ValueError: If sample does not contain exactly 1 probe, or if
-                reference is not of type MethylData or ReferenceMethylData.
-        """
         if len(sample.probes) != 1:
             msg = "sample must contain exactly 1 probe."
             raise ValueError(msg)
@@ -431,9 +473,7 @@ class CNV:
         self.fit()
 
     @classmethod
-    def set_all(
-        cls, sample, reference, annotation=None, *, do_segmentation=True
-    ):
+    def set_all(cls, sample, reference, annotation=None, *, do_seg=True):
         """Create a CNV object and perform CNV analysis.
 
         Args:
@@ -444,17 +484,27 @@ class CNV:
             annotation (Annotation, optional): Annotation object containing
                 genomic annotation information. Defaults to annotation
                 associated with the sample array type.
-            do_segmentation (bool, optional): Indicates whether to perform
+            do_seg (bool, optional): Indicates whether to perform
                 segmentation, which can be computationally intensive. Defaults
                 to True.
 
         Returns:
             CNV: CNV object with fitted data and optionally segmented.
+
+        Examples:
+            >>> cnv = CNV.set_all(sample, reference, do_seg=do_seg)
+            >>> # Note: This command is equivalent to:
+            >>> cnv = CNV(sample, reference)
+            >>> cnv.set_bins()
+            >>> cnv.set_detail()
+            >>> if do_seg:
+            >>>     cnv.set_segments()
+
         """
         cnv = cls(sample, reference, annotation)
         cnv.set_bins()
         cnv.set_detail()
-        if do_segmentation:
+        if do_seg:
             cnv.set_segments()
         return cnv
 
@@ -499,17 +549,17 @@ class CNV:
         """
         from sklearn.linear_model import LinearRegression
 
-        smp_intensity = pd_loc(
+        smp_intensity = _pd_loc(
             self.sample.intensity, self.probes
         ).values.ravel()
-        idx = pd_loc(self.sample.intensity, self.probes).index
-        ref_intensity = pd_loc(self.reference.intensity, self.probes).values
+        idx = _pd_loc(self.sample.intensity, self.probes).index
+        ref_intensity = _pd_loc(self.reference.intensity, self.probes).values
         correlation = np.array(
             [np.corrcoef(smp_intensity, z)[0, 1] for z in ref_intensity.T]
         )
         if any(correlation >= 0.99):
             logger.warning(
-                "Query sample found in reference set. Excluded from fitting."
+                "CNV sample found in reference set. Excluded from fitting."
             )
             ref_intensity = ref_intensity[:, correlation < 0.99]
         X = np.log2(ref_intensity)
@@ -532,7 +582,7 @@ class CNV:
         model fit in the 'fit' method.
         """
         cpg_bins = self.annotation._cpg_bins.copy()
-        cpg_bins["ratio"] = pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
+        cpg_bins["ratio"] = _pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
         )
@@ -552,7 +602,7 @@ class CNV:
         variance, and count of probes within each region.
         """
         cpg_detail = self.annotation._cpg_detail.copy()
-        cpg_detail["ratio"] = pd_loc(
+        cpg_detail["ratio"] = _pd_loc(
             self.ratio, cpg_detail.IlmnID
         ).ratio.values
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
@@ -589,7 +639,7 @@ class CNV:
                 chromosome, start position, and end position.
 
         """
-        cbsegment = get_segmentation_algorithm()
+        cbsegment = _get_cgsegment()
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
         seg = cbsegment(bin_values, shuffles=1000, p=0.0001)
@@ -609,8 +659,8 @@ class CNV:
         It calculates the CNV segments for each chromosome and stores them
         in the 'segments' attribute of the object.
         """
-        if get_segmentation_algorithm() is None:
-            missing_cbseg_msg()
+        if _get_cgsegment() is None:
+            _missing_cbseg_msg()
             return
         segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
@@ -689,7 +739,7 @@ class CNV:
 
     def plot(self):
         """Generates and displays a plot of the CNV data."""
-        cnv_dir = Path(MEPYLOME_TMP_DIR, "cnv")
+        cnv_dir = Path(MEPYLOME_TMP_DIR, "cnv_zips")
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING
         cnv_path = Path(cnv_dir, cnv_file)

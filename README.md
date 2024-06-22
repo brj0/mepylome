@@ -27,6 +27,11 @@ an interactive GUI that enables users to generate UMAP plots and CNV plots
   - Can be run from the command line with minimal setup or customized through a Python script
 
 
+## Documentation
+
+The mepylome documentation, including installation instructions, tutorial and API, is available at <https://mepylome.readthedocs.io/>
+
+
 ## Installation
 
 
@@ -74,31 +79,30 @@ packages.
 
 ## Usage
 
-### Parsing and methylation extraction
+### Methylation extraction and copy number variation plots
 
 
 ```python
 from pathlib import Path
-from mepylome import CNV, MethylData, RawData
 
-DIR = Path("/path/to/idat/directory")
+from mepylome import CNV, MethylData
 
 # Sample
-sample = DIR / "samples" / "203049640041_R04C01_Grn.idat"
+analysis_dir = Path("/path/to/idat/directory")
+sample_file = analysis_dir / "200925700125_R07C01"
 
 # CNV neutral reference files
-reference_dir = DIR / "references"
+reference_dir = Path("/path/to/reference/directory")
 
-# Extract the signals from the idat files
-raw_sample = RawData(sample)
-raw_reference = RawData(reference_dir)
-
-# Get methylation information
-sample_methyl = MethylData(raw_sample)
-reference_methyl = MethylData(raw_reference)
+# Get methylation data
+sample_methyl = MethylData(file=sample_file)
+reference_methyl = MethylData(file=reference_dir)
 
 # Beta value
-beta = sample_methyl.beta
+betas = sample_methyl.betas
+
+# Print overview of processed data
+print(sample_methyl)
 
 # CNV anylsis
 cnv = CNV.set_all(sample_methyl, reference_methyl)
@@ -137,7 +141,9 @@ mepylome --help
 
 
 ## C++ parser
-Mepylome also includes a C++ parser (`_IdatParser`) with Python bindings. Due to no significant speed gain, it is currently not included by default. To enable it, install from source after you execute the following command:
+Mepylome also includes a C++ parser (`_IdatParser`) with Python bindings. Due
+to no significant speed gain, it is currently not included by default. To
+enable it, install from source after you execute the following command:
 
 
 ```sh

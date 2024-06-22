@@ -1,8 +1,13 @@
 API Reference
 =============
 
-.. autoclass:: mepylome.dtypes.cnv.Annotation
+
+mepylome.dtypes.idat
+====================
+
+.. automodule:: mepylome.dtypes.idat
    :members:
+
 
 mepylome.dtypes.manifests
 =========================
@@ -22,11 +27,4 @@ mepylome.dtypes.cnv
 ===================
 
 .. automodule:: mepylome.dtypes.cnv
-   :members:
-
-
-mepylome.dtypes.idat
-====================
-
-.. automodule:: mepylome.dtypes.idat
    :members:

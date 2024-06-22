@@ -11,6 +11,7 @@ You can install `mepylome` directly from PyPI using pip:
 
     pip install mepylome
 
+
 From Source
 -----------
 
@@ -19,6 +20,7 @@ If you want the latest version, you can download `mepylome` directly from the so
 .. code-block:: sh
 
     git clone https://github.com/brj0/mepylome.git && cd mepylome && pip install .
+
 
 CNV Segments
 ------------
@@ -45,4 +47,17 @@ instead. Use the following command:
 
 Make sure you have a C compiler installed on your system to build these
 packages.
+
+
+C++ parser
+----------
+
+Mepylome also includes a C++ parser (``_IdatParser``) with Python bindings. Due
+to no significant speed gain, it is currently not included by default. To
+enable it, install from source after you execute the following command:
+
+
+.. code-block:: sh
+
+    export MEPYLOME_CPP=1
 
