@@ -53,7 +53,7 @@ Download and setup the necessary data files (approximately 653 MB):
 
     >>> from mepylome.utils import setup_tutorial_files
 
-    >>> setup_tutorial_files(DIR)
+    >>> setup_tutorial_files(ANALYSIS_DIR, REFERENCE_DIR)
 
 
 
