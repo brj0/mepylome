@@ -26,7 +26,7 @@ if (!prep %in% preps) {
 
 HOME_DIR <- Sys.getenv("HOME")
 TEST_DIR <- file.path(HOME_DIR, "Documents", "mepylome", "tests")
-GENES <- "../mepylome/data/hg19_genes.tsv.gz"
+GENES <- "../../mepylome/data/hg19_genes.tsv.gz"
 ARRAY_TYPE_MAP <- c("IlluminaHumanMethylation450k"   = "450k",
                     "IlluminaHumanMethylationEPIC"   = "EPIC",
                     "IlluminaHumanMethylationEPICv2" = "EPICv2")
@@ -69,7 +69,7 @@ grn_idat_files <- list.files(
 basepaths <- sort(sub("_Grn.idat$", "", grn_idat_files))
 
 get_mset <- function(file) {
-    rgSet <- read.metharray(file)
+    rgSet <- read.metharray(file, force = TRUE)
     if (prep == "illumina") {
         methyl_data <- preprocessIllumina(rgSet)
     } else if (prep == "swan") {
@@ -105,7 +105,7 @@ time0 <- Sys.time()
 sample_mset <- get_mset(basepaths[1])
 array_type <- sample_mset@annotation["array"]
 anno <- get_annotation(array_type)
-reference_mset <- get_mset(basepaths[2:length(basepaths)])
+reference_mset <- get_mset(basepaths[2:min(21, length(basepaths))])
 sample_cnv_data <- CNV.load(sample_mset)
 reference_cnv_data <- CNV.load(reference_mset)
 cnv <- CNV.fit(sample_cnv_data, reference_cnv_data, anno)
@@ -113,4 +113,6 @@ cnv <- CNV.segment(CNV.detail(CNV.bin(cnv)))
 
 time1 <- Sys.time()
 
-cat(paste0("Time for CNV analysis: ", time1 - time0, " s\n"))
+time_diff <- difftime(time1, time0, units = "secs")
+
+cat(paste0("Time for CNV analysis: ", time_diff, " s\n"))

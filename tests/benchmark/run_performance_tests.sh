@@ -15,6 +15,14 @@ print_separator() {
     echo "***************************************************************"
 }
 
+# Trap Ctrl+C and exit gracefully
+trap ctrl_c INT
+
+ctrl_c() {
+    echo "Ctrl+C detected. Exiting..."
+    exit 1
+}
+
 # Loop over each preprocessing method
 for prep in "${preps[@]}"; do
     print_separator
@@ -36,7 +44,7 @@ for prep in "${preps[@]}"; do
         /usr/bin/time -v python test_cnv.py "$prep" "$subdir_name"
 
         print_separator
-        echo "conumee2.0: python test_cnv.R $prep $subdir_name"
+        echo "conumee2.0: Rscrip test_cnv.R $prep $subdir_name"
         /usr/bin/time -v Rscript test_cnv.R "$prep" "$subdir_name"
     done
 done

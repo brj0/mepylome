@@ -1,10 +1,3 @@
-.. mepylome documentation master file, created by
-   sphinx-quickstart on Sat Jun 15 17:01:36 2024.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
-
-
 .. image:: ../mepylome/data/assets/mepylome.svg
    :align: center
    :width: 250
@@ -33,8 +26,6 @@ Documentation outline
 #. :doc:`Installation instructions <./installation>`
 #. :doc:`The tutorial <./tutorial>`,  recommended for all new users
 
-.. The `API reference <./autoapi/index.html>`_, where all methods are explained in detail.
-
 
 .. toctree::
    :maxdepth: 2
@@ -42,6 +33,7 @@ Documentation outline
 
    installation
    tutorial
+   performance
    api
 
 

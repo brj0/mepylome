@@ -44,7 +44,7 @@ print(f"Time for importing mepylome: {time1 - time0}")
 idat_files = sorted(idat_basepaths(subdir))
 
 sample_file = idat_files[0]
-reference_files = idat_files[1:]
+reference_files = idat_files[1:21]
 
 time0 = time.time()
 

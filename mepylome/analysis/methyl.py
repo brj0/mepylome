@@ -1,32 +1,9 @@
 """Methylation analysis tools including a Dash-based browser application.
 
-This package provides a set of tools for conducting methylation analysis. The
-core functionality is encapsulated in the `MethylAnalysis` class, which
-facilitates analysis setup, management, and the execution of a web application
-for interactive exploration of methylation data.
-
-
-Classes:
-    MethylAnalysis: Main class for methylation analysis, providing methods for
-        setting up analysis parameters, reading data, and running a Dash-based
-        web application for data visualization.
-
-Usage:
-    from mepylome import MethylAnalysis
-
-    # Basic usage
-    analysis0 = MethylAnalysis()
-    analysis0.run_app()
-
-    # Usage if directories are known in advance
-    analysis1 = MethylAnalysis(
-        analysis_dir='/path/to/idat/dir',
-        reference_dir='/path/to/reference/idat/dir',
-        annotation='/path/to/annotation/spread/sheat/with/2/cols',
-        output_dir='/path/to/mepylome/output,
-    )
-    analysis1.run_app()
-
+This module provides a comprehensive set of tools for conducting methylation
+analysis. The core functionality is encapsulated in the ``MethylAnalysis``
+class, which manages the methylation analysis process and executes an
+interactive web application for the exploration of methylation data.
 """
 
 import colorsys
@@ -893,6 +870,26 @@ def reorder_columns_by_variance(data_frame):
 
 
 class MethylAnalysis:
+    """Main class for methylation analysis including a GUI application.
+
+    Main class for methylation analysis, providing methods for
+    setting up analysis parameters, reading data, and running a Dash-based
+    web application for data visualization.
+
+    Examples:
+        >>> # Basic usage
+        >>> from mepylome import MethylAnalysis
+        >>> analysis0 = MethylAnalysis()
+        >>> analysis0.run_app()
+        >>> # Usage if directories are known in advance
+        >>> analysis1 = MethylAnalysis(
+        >>>     analysis_dir='/path/to/idat/dir',
+        >>>     reference_dir='/path/to/reference/idat/dir',
+        >>>     annotation='/path/to/annotation/spread/sheat/with/2/cols',
+        >>>     output_dir='/path/to/mepylome/output',
+        >>> )
+        >>> analysis1.run_app()
+    """
     def __init__(
         self,
         analysis_dir=INVALID_PATH,

@@ -48,8 +48,8 @@ def _get_cgsegment():
 
 def _missing_cbseg_msg():
     print(
-        "*Warning*: Segmentation will not be calculated because the "
-        "'linear_segment' resp. 'cbseg' package is missing. See documentation."
+        "*Warning*: Segmentation won't be calculated due to missing "
+        "'linear_segment' resp. 'cbseg' package. See documentation."
     )
 
 

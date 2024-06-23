@@ -31,8 +31,8 @@ def difference(path_py, path_r):
     overlap_cpgs = df_py.index.intersection(df_r.index)
     diff = df_py.loc[overlap_cpgs] - df_r.loc[overlap_cpgs]
     rel_diff = diff / df_r.loc[overlap_cpgs]
-    abs_max = abs(diff).max()[0]
-    rel_abs_max = abs(rel_diff).max()[0]
+    abs_max = abs(diff).max().iloc[0]
+    rel_abs_max = abs(rel_diff).max().iloc[0]
     corr = df_py.iloc[:,0].corr(df_r.iloc[:,0])
     print(f"    No. of CpG's in minfi not in mepylome: {len(missing_cpgs)}")
     print(f"    No. of CpG's in mepylome not in minfi: {len(extra_cpgs)}")
