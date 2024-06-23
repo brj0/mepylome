@@ -20,7 +20,6 @@ Jinja2==3.1.4
 joblib==1.4.2
 llvmlite==0.43.0
 MarkupSafe==2.1.5
--e git+https://github.com/brj0/mepylome.git@1b4d4763d992ba8ca3e513adf0c0b3d9f651d028#egg=mepylome
 natsort==8.4.0
 ncls==0.0.68
 nest-asyncio==1.6.0
