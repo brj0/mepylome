@@ -56,7 +56,7 @@ with open("README.md") as f:
 
 setup(
     name="mepylome",
-    version="0.1.1",
+    version="0.1.2",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
     long_description=long_description,
@@ -67,6 +67,7 @@ setup(
         "openpyxl",
         "tqdm",
         "pyranges",
+        "xlrd",
         "scikit-learn",
         "dash>=2.16.0",
         "umap-learn",

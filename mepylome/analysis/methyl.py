@@ -11,7 +11,7 @@ import hashlib
 import logging
 import os
 import pickle
-import subprocess
+import sys
 import tempfile
 import threading
 import webbrowser
@@ -47,11 +47,11 @@ from mepylome.dtypes import (
     MethylData,
     RawData,
     ReferenceMethylData,
+    _get_cgsegment,
+    _overlap_indices,
     cnv_plot_from_data,
     idat_basepaths,
     is_valid_idat_basepath,
-    _overlap_indices,
-    _get_cgsegment,
     read_cnv_data_from_disk,
 )
 from mepylome.utils import Timer, ensure_directory_exists
@@ -91,6 +91,33 @@ UMAP_METRICS = [
     "sokalsneath",
     "yule",
 ]
+
+
+class DualOutput:
+    def __init__(self, filename):
+        self.terminal = sys.stdout
+        # Clean the file
+        with open(filename, "w"):
+            pass
+        self.log = open(filename, "a")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+    def close(self):
+        self.log.close()
+
+
+# Save console output to file
+ensure_directory_exists(MEPYLOME_TMP_DIR)
+CONSOLE_OUT = Path(MEPYLOME_TMP_DIR, "stdout.txt")
+sys.stdout = DualOutput(CONSOLE_OUT)
 
 
 class ProgressBar:
@@ -277,18 +304,12 @@ class IdatHandler:
     def load_annotated_samples(self):
         result_df = pd.DataFrame(index=self.sample_paths.keys())
         if self.annotation_file.exists():
-            if self.annotation_file.suffix == ".xlsx":
-                self.annotation_df = pd.read_excel(
+            try:
+                self.annotation_df = read_dataframe(
                     self.annotation_file,
-                    engine="openpyxl",
                     index_col=0,
                 )
-            elif self.annotation_file.suffix in [".csv", ".tsv"]:
-                sep = "\t" if self.annotation_file.suffix == ".tsv" else ","
-                self.annotation_df = pd.read_csv(
-                    self.annotation_file, sep=sep, index_col=0
-                )
-            else:
+            except ValueError:
                 self.annotation_df = result_df
             result_df = result_df.join(self.annotation_df)
             result_df = result_df.fillna("")
@@ -639,6 +660,38 @@ def get_side_navigation(
                     dbc.Tab(
                         label="Settings",
                         children=[
+                            dcc.Store(id="running-state"),
+                            dcc.Interval(
+                                id="clock",
+                                interval=500,
+                                n_intervals=0,
+                                max_intervals=-1,
+                            ),
+                            html.Div(
+                                id="console-out",
+                                style={
+                                    "overflow": "hidden",
+                                    "fontFamily": "monospace",
+                                    "fontSize": "8px",
+                                    "whiteSpace": "pre-wrap",
+                                },
+                            ),
+                            html.Br(),
+                            dbc.Progress(value=0, id="umap-progress-bar"),
+                            html.Br(),
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        dbc.Button(
+                                            "Start",
+                                            id="start-button",
+                                            color="primary",
+                                        ),
+                                        width={"size": 6},
+                                    ),
+                                ],
+                            ),
+                            html.Div(id="output-div"),
                             html.Br(),
                             html.H6(f"Number of CpG sites{n_cpgs_max_str}"),
                             dcc.Input(
@@ -720,29 +773,18 @@ def get_side_navigation(
                                 value=cpg_selection,
                                 multi=False,
                             ),
-                            html.Br(),
-                            dbc.Progress(value=0, id="umap-progress-bar"),
-                            html.Br(),
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        dbc.Button(
-                                            "Start",
-                                            id="start-button",
-                                            color="primary",
-                                        ),
-                                        width={"size": 6},
-                                    ),
-                                ],
-                            ),
-                            dcc.Store(id="running-state"),
-                            html.Div(id="output-div"),
-                            dcc.Interval(
-                                id="clock",
-                                interval=1000,
-                                n_intervals=0,
-                                max_intervals=-1,
-                            ),
+                            # html.Iframe(
+                            # id="console-out",
+                            # srcDoc="",
+                            # style={
+                            # "width": "100%",
+                            # "height": "400px",
+                            # "overflowY": "auto",
+                            # "fontFamily": "monospace",
+                            # "whiteSpace": "pre-wrap",
+                            # },
+                            # ),
+                            # html.Br(),
                         ],
                     ),
                     dbc.Tab(
@@ -827,12 +869,45 @@ def guess_annotation_file(directory):
     """Returns the first csv or xlsx file in the given directory."""
     files = list(directory.glob("*"))
     csv_files = [f for f in files if f.suffix == ".csv"]
+    tsv_files = [f for f in files if f.suffix == ".tsv"]
+    xls_files = [f for f in files if f.suffix == ".xls"]
     xlsx_files = [f for f in files if f.suffix == ".xlsx"]
     if csv_files:
         return csv_files[0]
+    if tsv_files:
+        return tsv_files[0]
+    if xls_files:
+        return xls_files[0]
     if xlsx_files:
         return xlsx_files[0]
     return INVALID_PATH
+
+
+def read_dataframe(path, **kwargs):
+    """Reads a DataFrame from the specified file path.
+
+    Supports xlsx, xls, csv (comma-separated), csv (column-separated), and tsv
+    formats.
+
+    Args:
+        path (str): The file path to read the DataFrame from.
+        **kwargs: Additional keyword arguments to pass to the underlying pandas
+            read function.
+
+    Returns:
+        pd.DataFrame: The loaded DataFrame.
+
+    Raises:
+        ValueError: If the file format is not supported.
+    """
+    path = Path(path)
+    if path.suffix in [".xlsx", ".xls"]:
+        return pd.read_excel(path, **kwargs)
+    elif path.suffix in [".csv", ".tsv"]:
+        return pd.read_csv(path, sep=None, **kwargs, engine="python")
+    raise ValueError(
+        "Unsupported file format. Supported: xlsx, xls, csv, tsv."
+    )
 
 
 def input_args_id(*args):
@@ -869,6 +944,16 @@ def reorder_columns_by_variance(data_frame):
     return data_frame[sorted_columns]
 
 
+def get_cpgs_from_file(input_path):
+    try:
+        path = Path(input_path).expanduser()
+        df = pd.read_csv(path, header=None)
+        cpgs = [cpg for cpg in df.values.flatten() if not pd.isna(cpg)]
+        return np.array(cpgs)
+    except (TypeError, FileNotFoundError, pd.errors.EmptyDataError):
+        return None
+
+
 class MethylAnalysis:
     """Main class for methylation analysis including a GUI application.
 
@@ -890,6 +975,7 @@ class MethylAnalysis:
         >>> )
         >>> analysis1.run_app()
     """
+
     def __init__(
         self,
         analysis_dir=INVALID_PATH,
@@ -909,6 +995,7 @@ class MethylAnalysis:
         port=8050,
         debug=False,
         umap_parms=None,
+        verbose=True,
     ):
         self.umap_cpgs = None
         self.analysis_dir = Path(analysis_dir).expanduser()
@@ -945,6 +1032,7 @@ class MethylAnalysis:
         self.betas_path = None
         self.umap_df = None
         self.umap_parms = {} if umap_parms is None else umap_parms
+        self.verbose = verbose
         self.cnv_plot = EMPTY_FIGURE
         self.raw_umap_plot = None
         self.cnv_id = None
@@ -953,6 +1041,8 @@ class MethylAnalysis:
         self.ids_to_highlight = None
         self.prog_bar = ProgressBar()
         self.app = None
+
+        self._umap_imported = False
 
         self.set_umap_parms()
         self.update_paths()
@@ -987,6 +1077,9 @@ class MethylAnalysis:
     def get_cpgs(self, input_var="auto"):
         if isinstance(input_var, np.ndarray):
             return np.sort(input_var)
+        cpgs_from_file = get_cpgs_from_file(input_var)
+        if cpgs_from_file is not None:
+            return cpgs_from_file
         valid_parms = ["auto", "450k", "epic", "epicv2"]
 
         if isinstance(input_var, str):
@@ -998,9 +1091,7 @@ class MethylAnalysis:
                 for path in self.idat_handler.sample_paths.values()
             }
             input_var = list(input_var)
-            print(
-                f"The following array types were detected: {input_var}"
-            )
+            print(f"The following array types were detected: {input_var}")
 
         if all(x in valid_parms for x in input_var):
             if not input_var:
@@ -1076,6 +1167,9 @@ class MethylAnalysis:
         self.make_umap_plot(umap_2d)
 
     def compute_umap(self):
+        if self.verbose and not self._umap_imported:
+            print("Importing umap library...")
+            self._umap_imported = True
         import umap
 
         return umap.UMAP(**self.umap_parms).fit_transform(self.betas_df)
@@ -1610,13 +1704,23 @@ class MethylAnalysis:
             [
                 Output("umap-progress-bar", "value"),
                 Output("umap-progress-bar", "label"),
+                Output("console-out", "children"),
             ],
             [Input("clock", "n_intervals")],
         )
-        def progress_bar_update(n):
+        def update_progress(n):
             progress = self.prog_bar.get_progress()
             out_str = self.prog_bar.get_text()
-            return progress, out_str
+            with CONSOLE_OUT.open("r") as file:
+                data = ""
+                lines = file.readlines()
+                if lines.__len__() <= 20:
+                    last_lines = lines
+                else:
+                    last_lines = lines[-20:]
+                for line in last_lines:
+                    data = data + line
+            return progress, out_str, data
 
         return app
 
@@ -1630,8 +1734,8 @@ class MethylAnalysis:
             threading.Timer(1, open_browser_tab).start()
 
         # Don't show all the flask logging statements.
-        logger = logging.getLogger("werkzeug")
-        logger.setLevel(logging.ERROR)
+        flask_logger = logging.getLogger("werkzeug")
+        flask_logger.setLevel(logging.ERROR)
 
         self.app.run(debug=self.debug, host=self.host, use_reloader=False)
 

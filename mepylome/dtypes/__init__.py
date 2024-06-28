@@ -5,9 +5,9 @@ from .beads import (
     MethylData,
     RawData,
     ReferenceMethylData,
+    _overlap_indices,
     idat_basepaths,
     is_valid_idat_basepath,
-    _overlap_indices,
 )
 from .cache import get_id_tuple, memoize
 from .chromosome import Chromosome

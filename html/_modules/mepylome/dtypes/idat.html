@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mepylome.dtypes.idat &mdash; mepylome 0.1.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=a58bc63e"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            mepylome
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial.html">Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">mepylome</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">mepylome.dtypes.idat</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for mepylome.dtypes.idat</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Contains a IDAT file parser.</span>
+
+<span class="sd">Usage:</span>
+<span class="sd">    filepath = &quot;/path/to/idat/file_Grn.idat&quot;</span>
+<span class="sd">    idat_data = IdatParser(filepath)</span>
+<span class="sd">    ids = idat_data.illumina_ids</span>
+
+<span class="sd">    print(idat_data)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="kn">import</span> <span class="n">IntEnum</span><span class="p">,</span> <span class="n">unique</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">mepylome.utils.files</span> <span class="kn">import</span> <span class="n">get_file_object</span>
+
+<span class="n">LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;IdatParser&quot;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">read_byte</span><span class="p">(</span><span class="n">infile</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">infile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;little&quot;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">read_short</span><span class="p">(</span><span class="n">infile</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">infile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;little&quot;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">read_int</span><span class="p">(</span><span class="n">infile</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">infile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">4</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;little&quot;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">read_long</span><span class="p">(</span><span class="n">infile</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">infile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;little&quot;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">read_char</span><span class="p">(</span><span class="n">infile</span><span class="p">,</span> <span class="n">num_bytes</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">infile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">num_bytes</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">read_string</span><span class="p">(</span><span class="n">infile</span><span class="p">):</span>
+    <span class="n">num_bytes</span> <span class="o">=</span> <span class="n">read_byte</span><span class="p">(</span><span class="n">infile</span><span class="p">)</span>
+    <span class="n">num_chars</span> <span class="o">=</span> <span class="n">num_bytes</span> <span class="o">%</span> <span class="mi">128</span>
+    <span class="n">shift</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">num_bytes</span> <span class="o">//</span> <span class="mi">128</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">num_bytes</span> <span class="o">=</span> <span class="n">read_byte</span><span class="p">(</span><span class="n">infile</span><span class="p">)</span>
+        <span class="n">shift</span> <span class="o">+=</span> <span class="mi">7</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="p">(</span><span class="n">num_bytes</span> <span class="o">%</span> <span class="mi">128</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="n">shift</span><span class="p">)</span>
+        <span class="n">num_chars</span> <span class="o">+=</span> <span class="n">offset</span>
+    <span class="k">return</span> <span class="n">read_char</span><span class="p">(</span><span class="n">infile</span><span class="p">,</span> <span class="n">num_chars</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">read_array</span><span class="p">(</span><span class="n">infile</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="n">total_size</span> <span class="o">=</span> <span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="n">alldata</span> <span class="o">=</span> <span class="n">infile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">total_size</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">alldata</span><span class="p">)</span> <span class="o">!=</span> <span class="n">total_size</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;End of file reached before number of results parsed&quot;</span>
+        <span class="k">raise</span> <span class="ne">EOFError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">frombuffer</span><span class="p">(</span><span class="n">alldata</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+
+
+<span class="n">LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">LOGGER</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+
+
+<span class="n">DEFAULT_IDAT_VERSION</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">DEFAULT_IDAT_FILE_ID</span> <span class="o">=</span> <span class="s2">&quot;IDAT&quot;</span>
+
+
+<span class="nd">@unique</span>
+<span class="k">class</span> <span class="nc">IdatSectionCode</span><span class="p">(</span><span class="n">IntEnum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Section codes used in Illumina idat files.&quot;&quot;&quot;</span>
+
+    <span class="n">ILLUMINA_ID</span> <span class="o">=</span> <span class="mi">102</span>
+    <span class="n">STD_DEV</span> <span class="o">=</span> <span class="mi">103</span>
+    <span class="n">MEAN</span> <span class="o">=</span> <span class="mi">104</span>
+    <span class="n">NUM_BEADS</span> <span class="o">=</span> <span class="mi">107</span>  <span class="c1"># how many replicate measurements for each probe</span>
+    <span class="n">MID_BLOCK</span> <span class="o">=</span> <span class="mi">200</span>
+    <span class="n">RUN_INFO</span> <span class="o">=</span> <span class="mi">300</span>
+    <span class="n">RED_GREEN</span> <span class="o">=</span> <span class="mi">400</span>
+    <span class="n">MOSTLY_NULL</span> <span class="o">=</span> <span class="mi">401</span>  <span class="c1"># manifest</span>
+    <span class="n">BARCODE</span> <span class="o">=</span> <span class="mi">402</span>
+    <span class="n">CHIP_TYPE</span> <span class="o">=</span> <span class="mi">403</span>  <span class="c1"># format</span>
+    <span class="n">MOSTLY_A</span> <span class="o">=</span> <span class="mi">404</span>  <span class="c1"># label</span>
+    <span class="n">UNKNOWN_1</span> <span class="o">=</span> <span class="mi">405</span>  <span class="c1"># opa</span>
+    <span class="n">UNKNOWN_2</span> <span class="o">=</span> <span class="mi">406</span>  <span class="c1"># sampleid</span>
+    <span class="n">UNKNOWN_3</span> <span class="o">=</span> <span class="mi">407</span>  <span class="c1"># descr</span>
+    <span class="n">UNKNOWN_4</span> <span class="o">=</span> <span class="mi">408</span>  <span class="c1"># plate</span>
+    <span class="n">UNKNOWN_5</span> <span class="o">=</span> <span class="mi">409</span>  <span class="c1"># well</span>
+    <span class="n">UNKNOWN_6</span> <span class="o">=</span> <span class="mi">410</span>
+    <span class="n">UNKNOWN_7</span> <span class="o">=</span> <span class="mi">510</span>  <span class="c1"># unknown</span>
+    <span class="n">NUM_SNPS_READ</span> <span class="o">=</span> <span class="mi">1000</span>
+
+
+<div class="viewcode-block" id="IdatParser">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.idat.IdatParser">[docs]</a>
+<span class="k">class</span> <span class="nc">IdatParser</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reads and parses an IDAT file.</span>
+
+<span class="sd">    Stores all extracted values from the IDAT file as attributes.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        filepath_or_buffer (str or file-like object): Path to the IDAT file or</span>
+<span class="sd">            a file-like object. Can also be a gzipped IDAT file.</span>
+<span class="sd">        intensity_only (bool, optional): Whether to read only intensity values,</span>
+<span class="sd">            which makes parsing faster. Defaults to False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">filepath_or_buffer</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">intensity_only</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reads and parses the IDAT file.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">intensity_only</span> <span class="o">=</span> <span class="n">intensity_only</span>
+        <span class="k">with</span> <span class="n">get_file_object</span><span class="p">(</span><span class="n">filepath_or_buffer</span><span class="p">)</span> <span class="k">as</span> <span class="n">idat_file</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">file_size</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">fstat</span><span class="p">(</span><span class="n">idat_file</span><span class="o">.</span><span class="n">fileno</span><span class="p">())</span><span class="o">.</span><span class="n">st_size</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parse_header</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parse_body</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_parse_header</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idat_file</span><span class="p">):</span>
+        <span class="n">file_type</span> <span class="o">=</span> <span class="n">read_char</span><span class="p">(</span><span class="n">idat_file</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">DEFAULT_IDAT_FILE_ID</span><span class="p">))</span>
+        <span class="c1"># Assert file is indeed IDAT format</span>
+        <span class="k">if</span> <span class="n">file_type</span> <span class="o">!=</span> <span class="n">DEFAULT_IDAT_FILE_ID</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Parser could not open file as its not a valid IDAT file.&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="n">idat_version</span> <span class="o">=</span> <span class="n">read_long</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="c1"># Assert correct IDAT file version</span>
+        <span class="k">if</span> <span class="n">idat_version</span> <span class="o">!=</span> <span class="n">DEFAULT_IDAT_VERSION</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;Parser could not open file as its not a version 3 &quot;</span>
+                <span class="s2">&quot;IDAT file.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span> <span class="o">=</span> <span class="n">read_int</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">read_short</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">read_long</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_parse_body</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idat_file</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">seek_to_section</span><span class="p">(</span><span class="n">section_code</span><span class="p">):</span>
+            <span class="n">idat_file</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="n">section_code</span><span class="o">.</span><span class="n">value</span><span class="p">])</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">NUM_SNPS_READ</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_snps_read</span> <span class="o">=</span> <span class="n">read_int</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">ILLUMINA_ID</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">illumina_ids</span> <span class="o">=</span> <span class="n">read_array</span><span class="p">(</span><span class="n">idat_file</span><span class="p">,</span> <span class="s2">&quot;&lt;i4&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_snps_read</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">MEAN</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">probe_means</span> <span class="o">=</span> <span class="n">read_array</span><span class="p">(</span><span class="n">idat_file</span><span class="p">,</span> <span class="s2">&quot;&lt;u2&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_snps_read</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">intensity_only</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">STD_DEV</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">std_dev</span> <span class="o">=</span> <span class="n">read_array</span><span class="p">(</span><span class="n">idat_file</span><span class="p">,</span> <span class="s2">&quot;&lt;u2&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_snps_read</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">NUM_BEADS</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_beads</span> <span class="o">=</span> <span class="n">read_array</span><span class="p">(</span><span class="n">idat_file</span><span class="p">,</span> <span class="s2">&quot;&lt;u1&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_snps_read</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">MID_BLOCK</span><span class="p">)</span>
+        <span class="n">n_mid_block</span> <span class="o">=</span> <span class="n">read_int</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mid_block</span> <span class="o">=</span> <span class="n">read_array</span><span class="p">(</span><span class="n">idat_file</span><span class="p">,</span> <span class="s2">&quot;&lt;i4&quot;</span><span class="p">,</span> <span class="n">n_mid_block</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">RUN_INFO</span><span class="p">)</span>
+        <span class="n">runinfo_entry_count</span> <span class="o">=</span> <span class="n">read_int</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_info</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">runinfo_entry_count</span><span class="p">):</span>
+            <span class="n">run_time</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+            <span class="n">block_type</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+            <span class="n">block_pars</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+            <span class="n">block_code</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+            <span class="n">code_version</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run_info</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">(</span>
+                    <span class="n">run_time</span><span class="p">,</span>
+                    <span class="n">block_type</span><span class="p">,</span>
+                    <span class="n">block_pars</span><span class="p">,</span>
+                    <span class="n">block_code</span><span class="p">,</span>
+                    <span class="n">code_version</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">RED_GREEN</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">red_green</span> <span class="o">=</span> <span class="n">read_int</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">MOSTLY_NULL</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mostly_null</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">BARCODE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">barcode</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">CHIP_TYPE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chip_type</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">MOSTLY_A</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mostly_a</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">UNKNOWN_1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unknown_1</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">UNKNOWN_2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unknown_2</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">UNKNOWN_3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unknown_3</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">UNKNOWN_4</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unknown_4</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">UNKNOWN_5</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unknown_5</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">UNKNOWN_6</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unknown_6</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+        <span class="n">seek_to_section</span><span class="p">(</span><span class="n">IdatSectionCode</span><span class="o">.</span><span class="n">UNKNOWN_7</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unknown_7</span> <span class="o">=</span> <span class="n">read_string</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">printoptions</span><span class="p">(</span><span class="n">edgeitems</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;IdatParser(</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    file_size: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">file_size</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    num_fields: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    illumina_ids: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">illumina_ids</span><span class="si">!r}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    probe_means: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">probe_means</span><span class="si">!r}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">intensity_only</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">result</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span>
+
+            <span class="k">return</span> <span class="n">result</span> <span class="o">+</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;    std_dev: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">std_dev</span><span class="si">!r}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    n_beads: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_beads</span><span class="si">!r}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    mid_block: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mid_block</span><span class="si">!r}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    red_green: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">red_green</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    mostly_null: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mostly_null</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    barcode: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">barcode</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    chip_type: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">chip_type</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    mostly_a: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">mostly_a</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    unknown_1: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unknown_1</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    unknown_2: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unknown_2</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    unknown_3: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unknown_3</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    unknown_4: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unknown_4</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    unknown_5: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unknown_5</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    unknown_6: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unknown_6</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    unknown_7: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unknown_7</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;)&quot;</span>
+            <span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Jon Brugger.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

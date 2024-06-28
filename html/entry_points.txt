@@ -1,0 +1,2 @@
+[console_scripts]
+mepylome = mepylome.analysis.cli:start_mepylome

@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mepylome.dtypes.cnv &mdash; mepylome 0.1.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=a58bc63e"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            mepylome
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial.html">Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html#module-mepylome.dtypes.manifests">mepylome.dtypes.manifests</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html#module-mepylome.dtypes.beads">mepylome.dtypes.beads</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html#module-mepylome.dtypes.cnv">mepylome.dtypes.cnv</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html#module-mepylome.dtypes.idat">mepylome.dtypes.idat</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">mepylome</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">mepylome.dtypes.cnv</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for mepylome.dtypes.cnv</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Provides CNV analysis functionality including segmentation and plotting.</span>
+
+<span class="sd">This module provides classes and functions for copy number variation (CNV)</span>
+<span class="sd">analysis.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">heapq</span>
+<span class="kn">import</span> <span class="nn">io</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">zipfile</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">lru_cache</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">pyranges</span> <span class="k">as</span> <span class="nn">pr</span>
+
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.arrays</span> <span class="kn">import</span> <span class="n">ArrayType</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.beads</span> <span class="kn">import</span> <span class="n">MethylData</span><span class="p">,</span> <span class="n">ReferenceMethylData</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.cache</span> <span class="kn">import</span> <span class="n">memoize</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.chromosome</span> <span class="kn">import</span> <span class="n">Chromosome</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.genetic_data</span> <span class="kn">import</span> <span class="n">GAPS</span><span class="p">,</span> <span class="n">GENES</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.manifests</span> <span class="kn">import</span> <span class="n">MEPYLOME_TMP_DIR</span><span class="p">,</span> <span class="n">Manifest</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.plots</span> <span class="kn">import</span> <span class="n">CNVPlot</span>
+<span class="kn">from</span> <span class="nn">mepylome.utils.files</span> <span class="kn">import</span> <span class="n">ensure_directory_exists</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="n">UNSET</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+<span class="n">ZIP_ENDING</span> <span class="o">=</span> <span class="s2">&quot;_cnv.zip&quot;</span>
+
+<span class="k">def</span> <span class="nf">get_segmentation_algorithm</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span> <span class="nn">linear_segment</span>
+        <span class="k">return</span> <span class="n">linear_segment</span><span class="o">.</span><span class="n">segment</span>
+    <span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span> <span class="nn">cbseg</span>
+        <span class="k">return</span> <span class="n">cbseg</span><span class="o">.</span><span class="n">segment</span>
+    <span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+<span class="k">def</span> <span class="nf">missing_cbseg_msg</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="s2">&quot;*Warning*: Segmentation will not be calculated because the &quot;</span>
+        <span class="s2">&quot;&#39;linear_segment&#39; resp. &#39;cbseg&#39; package is missing. See documentation.&quot;</span>
+    <span class="p">)</span>
+
+<div class="viewcode-block" id="Annotation">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.Annotation">[docs]</a>
+<span class="nd">@memoize</span>
+<span class="k">class</span> <span class="nc">Annotation</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Genomic annotations for CNV such as as binning and gene locations.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        manifest (Manifest): The manifest to use.</span>
+<span class="sd">        array_type (str): The array type of the manifest.</span>
+<span class="sd">        probes (list): The Illumina ID&#39;s of the manifest after adjusting the</span>
+<span class="sd">            manifest to relevant genomic ranges.</span>
+<span class="sd">        gap (pyranges.PyRanges): The genomic gaps except for the CNV analysis.</span>
+<span class="sd">        detail (pyranges.PyRanges): Detailed annotation information (usually</span>
+<span class="sd">            genes).</span>
+<span class="sd">        bin_size (int): The base-pair size of the bins.</span>
+<span class="sd">        min_probes_per_bin (int): The minimum number of probes per bin.</span>
+<span class="sd">        verbose (bool): Whether to display verbose output during annotation</span>
+<span class="sd">            processing.</span>
+<span class="sd">        chromsizes (dict): Dictionary containing chromosome sizes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">manifest</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">array_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">gap</span><span class="o">=</span><span class="n">UNSET</span><span class="p">,</span>
+        <span class="n">detail</span><span class="o">=</span><span class="n">UNSET</span><span class="p">,</span>
+        <span class="n">bin_size</span><span class="o">=</span><span class="mi">50000</span><span class="p">,</span>
+        <span class="n">min_probes_per_bin</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+        <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the Annotation object.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            manifest (Manifest, optional): The manifest containing annotation</span>
+<span class="sd">                details. Can be determined from array_type.</span>
+<span class="sd">            array_type (str, optional): The type of array used for annotation.</span>
+<span class="sd">                Can be determined from manifest.</span>
+<span class="sd">            gap (pyranges.PyRanges): The genomic gaps. If unset default values</span>
+<span class="sd">                will be used.</span>
+<span class="sd">            detail (pyranges.PyRanges, optional): Detailed annotation (usually</span>
+<span class="sd">                genes).</span>
+<span class="sd">            bin_size (int, optional): The base-pair size of annotation bins.</span>
+<span class="sd">                Defaults to 50000.</span>
+<span class="sd">            min_probes_per_bin (int, optional): The minimum number of probes</span>
+<span class="sd">                per bin. Defaults to 15.</span>
+<span class="sd">            verbose (bool, optional): Whether to display verbose output during</span>
+<span class="sd">                annotation processing. Defaults to False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">manifest</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">array_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&#39;manifest&#39; or &#39;array_type&#39; must be given&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bin_size</span> <span class="o">=</span> <span class="n">bin_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_probes_per_bin</span> <span class="o">=</span> <span class="n">min_probes_per_bin</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">gap</span> <span class="o">=</span> <span class="n">gap</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gap</span> <span class="ow">is</span> <span class="n">UNSET</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_gaps</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="o">=</span> <span class="n">detail</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="ow">is</span> <span class="n">UNSET</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_genes</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># PyRanges ranges start at 0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">detail</span><span class="o">.</span><span class="n">Start</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">detail</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chromsizes</span> <span class="o">=</span> <span class="n">pr</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">chromsizes</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">array_type</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">array_type</span> <span class="o">=</span> <span class="n">ArrayType</span><span class="p">(</span><span class="n">array_type</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">array_type</span> <span class="o">=</span> <span class="n">array_type</span>
+        <span class="k">if</span> <span class="n">array_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">array_type</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">array_type</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="n">manifest</span>
+        <span class="k">if</span> <span class="n">manifest</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="n">Manifest</span><span class="p">(</span><span class="n">array_type</span><span class="p">)</span>
+
+        <span class="n">manifest_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">data_frame</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">manifest_df</span> <span class="o">=</span> <span class="n">manifest_df</span><span class="p">[</span>
+            <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;cg&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">manifest_df</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">values</span><span class="p">]</span>
+        <span class="p">]</span>
+        <span class="n">manifest_df</span> <span class="o">=</span> <span class="n">manifest_df</span><span class="p">[</span>
+            <span class="n">Chromosome</span><span class="o">.</span><span class="n">is_valid_chromosome</span><span class="p">(</span><span class="n">manifest_df</span><span class="o">.</span><span class="n">Chromosome</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="n">manifest_df</span><span class="o">.</span><span class="n">Chromosome</span> <span class="o">=</span> <span class="n">Chromosome</span><span class="o">.</span><span class="n">pd_to_string</span><span class="p">(</span>
+            <span class="n">manifest_df</span><span class="o">.</span><span class="n">Chromosome</span>
+        <span class="p">)</span>
+        <span class="c1"># PyRanges ranges start at 0</span>
+        <span class="n">manifest_df</span><span class="o">.</span><span class="n">Start</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">adjusted_manifest</span> <span class="o">=</span> <span class="n">pr</span><span class="o">.</span><span class="n">PyRanges</span><span class="p">(</span><span class="n">manifest_df</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">probes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">adjusted_manifest</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_bins</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="o">.</span><span class="n">bins_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="o">.</span><span class="n">df</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cpg_bins</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">adjusted_manifest</span><span class="p">[[</span><span class="s2">&quot;IlmnID&quot;</span><span class="p">]])</span>
+            <span class="o">.</span><span class="n">df</span><span class="p">[[</span><span class="s2">&quot;bins_index&quot;</span><span class="p">,</span> <span class="s2">&quot;IlmnID&quot;</span><span class="p">]]</span>
+            <span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s2">&quot;bins_index&quot;</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cpg_detail</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;Name&quot;</span><span class="p">,</span> <span class="s2">&quot;IlmnID&quot;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cpg_detail</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">detail</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">adjusted_manifest</span><span class="p">[[</span><span class="s2">&quot;IlmnID&quot;</span><span class="p">]]</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">df</span><span class="p">[[</span><span class="s2">&quot;Name&quot;</span><span class="p">,</span> <span class="s2">&quot;IlmnID&quot;</span><span class="p">]]</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@lru_cache</span>
+    <span class="k">def</span> <span class="nf">default_gaps</span><span class="p">():</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Default genomic gaps.</span>
+
+<span class="sd">        Details:</span>
+<span class="sd">            The default value of conumee2.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">gap_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">GAPS</span><span class="p">)</span>
+        <span class="c1"># PyRanges ranges start at 0</span>
+        <span class="n">gap_df</span><span class="o">.</span><span class="n">Start</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">pr</span><span class="o">.</span><span class="n">PyRanges</span><span class="p">(</span><span class="n">gap_df</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@lru_cache</span>
+    <span class="k">def</span> <span class="nf">default_genes</span><span class="p">():</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Default PyRanges object including gene names with coordinates.</span>
+
+<span class="sd">        Details:</span>
+<span class="sd">            Data downloaded from: https://grch37.ensembl.org/biomart/martview</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">genes_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">GENES</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># PyRanges ranges start at 0</span>
+        <span class="n">genes_df</span><span class="o">.</span><span class="n">Start</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">pr</span><span class="o">.</span><span class="n">PyRanges</span><span class="p">(</span><span class="n">genes_df</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">make_bins</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates equidistant bins and then removes genomic gaps.&quot;&quot;&quot;</span>
+        <span class="n">bins</span> <span class="o">=</span> <span class="n">pr</span><span class="o">.</span><span class="n">gf</span><span class="o">.</span><span class="n">tile_genome</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chromsizes</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="mf">5e4</span><span class="p">))</span>
+        <span class="n">bins</span> <span class="o">=</span> <span class="n">bins</span><span class="p">[</span><span class="n">bins</span><span class="o">.</span><span class="n">Chromosome</span> <span class="o">!=</span> <span class="s2">&quot;chrM&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">bins</span> <span class="o">=</span> <span class="n">bins</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gap</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_bins</span><span class="p">(</span><span class="n">bins</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">merge_bins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bins</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Merges adjacent bins until all contain a minimum of probes.&quot;&quot;&quot;</span>
+        <span class="n">bins</span> <span class="o">=</span> <span class="n">bins</span><span class="o">.</span><span class="n">count_overlaps</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">adjusted_manifest</span><span class="p">[[</span><span class="s2">&quot;IlmnID&quot;</span><span class="p">]],</span> <span class="n">overlap_col</span><span class="o">=</span><span class="s2">&quot;N_probes&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">bins</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">df</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_bins_in_chromosome</span><span class="p">(</span>
+                <span class="n">df</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_probes_per_bin</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span>
+            <span class="p">),</span>
+            <span class="n">as_pyranges</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">merge_bins_in_chromosome</span><span class="p">(</span><span class="n">bin_df</span><span class="p">,</span> <span class="n">min_probes_per_bin</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Merges adjacent bins until all contain a minimum of probes.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bin_df (DataFrame): DataFrame containing bin information for a</span>
+<span class="sd">                single chromosome.</span>
+<span class="sd">            min_probes_per_bin (int): Minimum number of probes per bin required</span>
+<span class="sd">                for merging.</span>
+<span class="sd">            verbose (bool, optional): Whether to print verbose output. Defaults</span>
+<span class="sd">                to False.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            DataFrame: Merged bins in the chromosome.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">I_START</span><span class="p">,</span> <span class="n">I_END</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">,</span> <span class="n">I_LEFT</span><span class="p">,</span> <span class="n">I_RIGHT</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+        <span class="n">INVALID</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">iinfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span><span class="o">.</span><span class="n">max</span>
+
+        <span class="c1"># Calculate Left and Right neighbors</span>
+        <span class="n">bin_df</span><span class="p">[</span><span class="s2">&quot;Left&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">bin_df</span><span class="o">.</span><span class="n">index</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">bin_df</span><span class="p">[</span><span class="s2">&quot;Right&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">bin_df</span><span class="o">.</span><span class="n">index</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="c1"># Need to regularly extract minimum; use min-heap</span>
+        <span class="n">heap</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">bin_df</span><span class="o">.</span><span class="n">N_probes</span><span class="p">,</span> <span class="n">bin_df</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="n">min_probes_per_bin</span>
+        <span class="p">]</span>
+        <span class="n">heapq</span><span class="o">.</span><span class="n">heapify</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+
+        <span class="n">matrix</span> <span class="o">=</span> <span class="n">bin_df</span><span class="p">[</span>
+            <span class="p">[</span><span class="s2">&quot;Start&quot;</span><span class="p">,</span> <span class="s2">&quot;End&quot;</span><span class="p">,</span> <span class="s2">&quot;N_probes&quot;</span><span class="p">,</span> <span class="s2">&quot;Left&quot;</span><span class="p">,</span> <span class="s2">&quot;Right&quot;</span><span class="p">]</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">update_neighbors</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">mid</span><span class="p">,</span> <span class="n">right</span><span class="p">):</span>
+            <span class="n">matrix</span><span class="p">[</span><span class="n">mid</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">]</span> <span class="o">=</span> <span class="n">INVALID</span>
+            <span class="k">if</span> <span class="n">left</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">matrix</span><span class="p">[</span><span class="n">left</span><span class="p">,</span> <span class="n">I_RIGHT</span><span class="p">]</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">[</span><span class="n">mid</span><span class="p">,</span> <span class="n">I_RIGHT</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">right</span> <span class="o">&lt;</span> <span class="n">matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">matrix</span><span class="p">[</span><span class="n">right</span><span class="p">,</span> <span class="n">I_LEFT</span><span class="p">]</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">[</span><span class="n">mid</span><span class="p">,</span> <span class="n">I_LEFT</span><span class="p">]</span>
+
+        <span class="k">while</span> <span class="n">heap</span> <span class="ow">and</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">min_probes_per_bin</span><span class="p">:</span>
+            <span class="n">n_probes</span><span class="p">,</span> <span class="n">i_min</span> <span class="o">=</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">real_n_probes</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">]</span>
+
+            <span class="c1"># Check if n_probes changed due to merging and needs to be updated</span>
+            <span class="k">if</span> <span class="n">n_probes</span> <span class="o">!=</span> <span class="n">real_n_probes</span><span class="p">:</span>
+                <span class="n">heapq</span><span class="o">.</span><span class="n">heapreplace</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">real_n_probes</span><span class="p">,</span> <span class="n">i_min</span><span class="p">))</span>
+                <span class="k">continue</span>
+
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+            <span class="n">n_probes_left</span> <span class="o">=</span> <span class="n">INVALID</span>
+            <span class="n">n_probes_right</span> <span class="o">=</span> <span class="n">INVALID</span>
+
+            <span class="c1"># Left</span>
+            <span class="n">i_left</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="n">I_LEFT</span><span class="p">]</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">i_left</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                <span class="ow">and</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_left</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">]</span> <span class="o">!=</span> <span class="n">INVALID</span>
+                <span class="ow">and</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="n">I_START</span><span class="p">]</span> <span class="o">==</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_left</span><span class="p">,</span> <span class="n">I_END</span><span class="p">]</span>
+            <span class="p">):</span>
+                <span class="n">n_probes_left</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_left</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">]</span>
+
+            <span class="c1"># Right</span>
+            <span class="n">i_right</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="n">I_RIGHT</span><span class="p">]</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">i_right</span> <span class="o">&lt;</span> <span class="n">matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="ow">and</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_right</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">]</span> <span class="o">!=</span> <span class="n">INVALID</span>
+                <span class="ow">and</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="n">I_END</span><span class="p">]</span> <span class="o">==</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_right</span><span class="p">,</span> <span class="n">I_START</span><span class="p">]</span>
+            <span class="p">):</span>
+                <span class="n">n_probes_right</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_right</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">]</span>
+
+            <span class="c1"># Invalid</span>
+            <span class="k">if</span> <span class="n">n_probes_left</span> <span class="o">==</span> <span class="n">INVALID</span> <span class="ow">and</span> <span class="n">n_probes_right</span> <span class="o">==</span> <span class="n">INVALID</span><span class="p">:</span>
+                <span class="n">update_neighbors</span><span class="p">(</span><span class="n">i_left</span><span class="p">,</span> <span class="n">i_min</span><span class="p">,</span> <span class="n">i_right</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                    <span class="n">row</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">bin_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;Chromosome&quot;</span><span class="p">,</span> <span class="s2">&quot;Start&quot;</span><span class="p">,</span> <span class="s2">&quot;End&quot;</span><span class="p">]]</span>
+                        <span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+                        <span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                    <span class="p">)</span>
+                    <span class="n">row_str</span> <span class="o">=</span> <span class="s2">&quot;-&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not merge </span><span class="si">{</span><span class="n">row_str</span><span class="si">}</span><span class="s2">. Removed instead.&quot;</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">n_probes_right</span> <span class="o">==</span> <span class="n">INVALID</span> <span class="ow">or</span> <span class="n">n_probes_left</span> <span class="o">&lt;=</span> <span class="n">n_probes_right</span><span class="p">:</span>
+                <span class="n">i_merge</span> <span class="o">=</span> <span class="n">i_left</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">i_merge</span> <span class="o">=</span> <span class="n">i_right</span>
+
+            <span class="n">matrix</span><span class="p">[</span><span class="n">i_merge</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">]</span> <span class="o">+=</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="n">I_N_PROBES</span><span class="p">]</span>
+            <span class="n">matrix</span><span class="p">[</span><span class="n">i_merge</span><span class="p">,</span> <span class="n">I_START</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span>
+                <span class="n">matrix</span><span class="p">[</span><span class="n">i_merge</span><span class="p">,</span> <span class="n">I_START</span><span class="p">],</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="n">I_START</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">matrix</span><span class="p">[</span><span class="n">i_merge</span><span class="p">,</span> <span class="n">I_END</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
+                <span class="n">matrix</span><span class="p">[</span><span class="n">i_merge</span><span class="p">,</span> <span class="n">I_END</span><span class="p">],</span> <span class="n">matrix</span><span class="p">[</span><span class="n">i_min</span><span class="p">,</span> <span class="n">I_END</span><span class="p">]</span>
+            <span class="p">)</span>
+
+            <span class="n">update_neighbors</span><span class="p">(</span><span class="n">i_left</span><span class="p">,</span> <span class="n">i_min</span><span class="p">,</span> <span class="n">i_right</span><span class="p">)</span>
+
+        <span class="n">bin_df</span><span class="p">[[</span><span class="s2">&quot;Start&quot;</span><span class="p">,</span> <span class="s2">&quot;End&quot;</span><span class="p">,</span> <span class="s2">&quot;N_probes&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="n">bin_df</span> <span class="o">=</span> <span class="n">bin_df</span><span class="p">[</span><span class="n">bin_df</span><span class="o">.</span><span class="n">N_probes</span> <span class="o">!=</span> <span class="n">INVALID</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">bin_df</span><span class="p">[[</span><span class="s2">&quot;Chromosome&quot;</span><span class="p">,</span> <span class="s2">&quot;Start&quot;</span><span class="p">,</span> <span class="s2">&quot;End&quot;</span><span class="p">,</span> <span class="s2">&quot;N_probes&quot;</span><span class="p">]]</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="s2">&quot;Annotation():&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">title</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;*&quot;</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">title</span><span class="p">),</span>
+            <span class="sa">f</span><span class="s2">&quot;probes:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;min_probes_per_bin:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">min_probes_per_bin</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;bin_size:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">bin_size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;gap:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">gap</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;detail:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">detail</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;array_type:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">array_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;adjusted_manifest:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">adjusted_manifest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;chromsizes:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">chromsizes</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;bins:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+
+<span class="nd">@memoize</span>
+<span class="k">def</span> <span class="nf">cached_index</span><span class="p">(</span><span class="n">left_arr</span><span class="p">,</span> <span class="n">right_arr</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Cached indices to improve speed of pandas loc/iloc operations.</span>
+
+<span class="sd">    Return the cached indices of elements in left_array based on their presence</span>
+<span class="sd">    in right_array.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">left_arr</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">right_arr</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="pd_loc">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.pd_loc">[docs]</a>
+<span class="k">def</span> <span class="nf">pd_loc</span><span class="p">(</span><span class="n">pd_df</span><span class="p">,</span> <span class="n">pd_col</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Cached version of pd_df.loc[pd_col] to speed up computation.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">pd_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">cached_index</span><span class="p">(</span><span class="n">pd_df</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">pd_col</span><span class="o">.</span><span class="n">values</span><span class="p">)]</span></div>
+
+
+
+<div class="viewcode-block" id="CNV">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV">[docs]</a>
+<span class="k">class</span> <span class="nc">CNV</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Class for Copy Number Variation (CNV) analysis.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        sample (MethylData): MethylData object representing the sample.</span>
+<span class="sd">        reference (MethylData): MethylData object representing the CNV-</span>
+<span class="sd">            neutral references.</span>
+<span class="sd">        annotation (Annotation): Annotation object containing genomic</span>
+<span class="sd">            annotation information.</span>
+<span class="sd">        verbose (bool): Whether to print verbose output.</span>
+<span class="sd">        bins (PyRanges): PyRanges object representing genomic bins.</span>
+<span class="sd">        probes (Index): Index of probe IDs.</span>
+<span class="sd">        coef: Coefficient of linear regression.</span>
+<span class="sd">        _ratio: Difference between observed sample intensity and expected</span>
+<span class="sd">            intensity calculated by linear regression from references.</span>
+<span class="sd">        ratio: The values from _ratio as DataFrame with Illumina ID&#39;s as</span>
+<span class="sd">            indices.</span>
+<span class="sd">        noise: Noise level. A quality measure for the sample bead.</span>
+<span class="sd">        detail: Detailed information (usually Genes).</span>
+<span class="sd">        segments: Segments calculated by circular binary segmentation.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        &gt;&gt;&gt; sample_methyl = MethylData(file=&quot;path/to/idat/file&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; reference_methyl = MethylData(file=&quot;path/to/idat/reference/dir&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; cnv = CNV(sample_methyl, reference_methyl)</span>
+<span class="sd">        &gt;&gt;&gt; cnv.set_bins()</span>
+<span class="sd">        &gt;&gt;&gt; cnv.set_detail()</span>
+<span class="sd">        &gt;&gt;&gt; cnv.set_segments()</span>
+<span class="sd">        &gt;&gt;&gt; cnv.plot()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span> <span class="n">annotation</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the CNV object.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            sample (MethylData): MethylData object representing the sample.</span>
+<span class="sd">            reference (MethylData or ReferenceMethylData): MethylData object</span>
+<span class="sd">                representing the reference, or ReferenceMethylData object for</span>
+<span class="sd">                multiple references.</span>
+<span class="sd">            annotation (Annotation, optional): Annotation object containing</span>
+<span class="sd">                genomic annotation information. Defaults to annotation</span>
+<span class="sd">                associated with the sample array type.</span>
+<span class="sd">            verbose (bool, optional): Whether to print verbose output. Defaults</span>
+<span class="sd">                to False.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If sample does not contain exactly 1 probe, or if</span>
+<span class="sd">                reference is not of type MethylData or ReferenceMethylData.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sample</span><span class="o">.</span><span class="n">probes</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;sample must contain exactly 1 probe.&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sample</span> <span class="o">=</span> <span class="n">sample</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">probe</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="o">.</span><span class="n">probes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="n">MethylData</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reference</span> <span class="o">=</span> <span class="n">reference</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="n">ReferenceMethylData</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reference</span> <span class="o">=</span> <span class="n">reference</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="o">.</span><span class="n">array_type</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;&#39;reference&#39; must be of type &#39;MethylData&#39; &quot;</span>
+                <span class="s2">&quot;or &#39;ReferenceMethylData&#39;&quot;</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span> <span class="o">=</span> <span class="n">annotation</span>
+        <span class="k">if</span> <span class="n">annotation</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span> <span class="o">=</span> <span class="n">Annotation</span><span class="p">(</span><span class="n">array_type</span><span class="o">=</span><span class="n">sample</span><span class="o">.</span><span class="n">array_type</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="o">.</span><span class="n">array_type</span>
+            <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">array_type</span>
+            <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">array_type</span>
+        <span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Array type mismatch: sample (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="o">.</span><span class="n">array_type</span><span class="si">}</span><span class="s2">), &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;reference (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">array_type</span><span class="si">}</span><span class="s2">), &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;annotation (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">array_type</span><span class="si">}</span><span class="s2">).</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="s2">&quot;All must be the same.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_itensity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_itensity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reference</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">bins</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">probes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">adjusted_manifest</span><span class="o">.</span><span class="n">IlmnID</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coef</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ratio</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ratio</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">segments</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="p">()</span>
+
+<div class="viewcode-block" id="CNV.set_all">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV.set_all">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">set_all</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span> <span class="n">sample</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span> <span class="n">annotation</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">do_segmentation</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a CNV object and perform CNV analysis.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            sample (MethylData): MethylData object representing the sample.</span>
+<span class="sd">            reference (MethylData or ReferenceMethylData): MethylData object</span>
+<span class="sd">                representing the reference, or ReferenceMethylData object for</span>
+<span class="sd">                multiple references.</span>
+<span class="sd">            annotation (Annotation, optional): Annotation object containing</span>
+<span class="sd">                genomic annotation information. Defaults to annotation</span>
+<span class="sd">                associated with the sample array type.</span>
+<span class="sd">            do_segmentation (bool, optional): Indicates whether to perform</span>
+<span class="sd">                segmentation, which can be computationally intensive. Defaults</span>
+<span class="sd">                to True.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            CNV: CNV object with fitted data and optionally segmented.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cnv</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span> <span class="n">annotation</span><span class="p">)</span>
+        <span class="n">cnv</span><span class="o">.</span><span class="n">set_bins</span><span class="p">()</span>
+        <span class="n">cnv</span><span class="o">.</span><span class="n">set_detail</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">do_segmentation</span><span class="p">:</span>
+            <span class="n">cnv</span><span class="o">.</span><span class="n">set_segments</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">cnv</span></div>
+
+
+<div class="viewcode-block" id="CNV.set_itensity">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV.set_itensity">[docs]</a>
+    <span class="k">def</span> <span class="nf">set_itensity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">methyl_data</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculates intensity values from methylation data.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">methyl_data</span><span class="p">,</span> <span class="s2">&quot;intensity&quot;</span><span class="p">):</span>
+            <span class="k">return</span>
+        <span class="n">intensity</span> <span class="o">=</span> <span class="n">methyl_data</span><span class="o">.</span><span class="n">methyl</span> <span class="o">+</span> <span class="n">methyl_data</span><span class="o">.</span><span class="n">unmethyl</span>
+        <span class="n">prefix</span> <span class="o">=</span> <span class="s2">&quot;sample&quot;</span> <span class="k">if</span> <span class="n">methyl_data</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample</span> <span class="k">else</span> <span class="s2">&quot;reference&quot;</span>
+
+        <span class="c1"># Replace NaN values with 1</span>
+        <span class="n">nan_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">intensity</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">nan_indices</span><span class="p">):</span>
+            <span class="n">intensity</span><span class="p">[</span><span class="n">nan_indices</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">: Intensities that are NA, set to 1.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Replace values less than 1 with 1</span>
+        <span class="n">lt_one_indices</span> <span class="o">=</span> <span class="n">intensity</span> <span class="o">&lt;</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">lt_one_indices</span><span class="p">):</span>
+            <span class="n">intensity</span><span class="p">[</span><span class="n">lt_one_indices</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">: Intensities smaller than 0 set to 1.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Check abnormal low and high intensities</span>
+        <span class="n">mean_intensity</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">intensity</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">mean_intensity</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">5000</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">: Intensities are abnormally low (&lt; 5000).&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">mean_intensity</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">50000</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">: Intensities are abnormally high (&gt; 50000).&quot;</span><span class="p">)</span>
+        <span class="n">methyl_data</span><span class="o">.</span><span class="n">intensity</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="n">intensity</span><span class="o">.</span><span class="n">T</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">methyl_data</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span>
+            <span class="n">index</span><span class="o">=</span><span class="n">methyl_data</span><span class="o">.</span><span class="n">methyl_ilmnid</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CNV.fit">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV.fit">[docs]</a>
+    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Fits linear regression model to calculate CNV at every CpG site.</span>
+
+<span class="sd">        This method fits a linear regression model to the intensity data of the</span>
+<span class="sd">        sample and reference and calculates the CNV at every CpG site.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sklearn.linear_model</span> <span class="kn">import</span> <span class="n">LinearRegression</span>
+
+        <span class="n">smp_intensity</span> <span class="o">=</span> <span class="n">pd_loc</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="o">.</span><span class="n">intensity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">probes</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">pd_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="o">.</span><span class="n">intensity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">)</span><span class="o">.</span><span class="n">index</span>
+        <span class="n">ref_intensity</span> <span class="o">=</span> <span class="n">pd_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">intensity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">)</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">correlation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">smp_intensity</span><span class="p">,</span> <span class="n">z</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">ref_intensity</span><span class="o">.</span><span class="n">T</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">correlation</span> <span class="o">&gt;=</span> <span class="mf">0.99</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;Query sample found in reference set. Excluded from fitting.&quot;</span>
+            <span class="p">)</span>
+            <span class="n">ref_intensity</span> <span class="o">=</span> <span class="n">ref_intensity</span><span class="p">[:,</span> <span class="n">correlation</span> <span class="o">&lt;</span> <span class="mf">0.99</span><span class="p">]</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">ref_intensity</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">smp_intensity</span><span class="p">)</span>
+        <span class="n">reg</span> <span class="o">=</span> <span class="n">LinearRegression</span><span class="p">()</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y_pred</span> <span class="o">=</span> <span class="n">reg</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">y_pred</span><span class="p">[</span><span class="n">y_pred</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coef</span> <span class="o">=</span> <span class="n">reg</span><span class="o">.</span><span class="n">coef_</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ratio</span> <span class="o">=</span> <span class="n">y</span> <span class="o">-</span> <span class="n">y_pred</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ratio</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ratio</span><span class="p">},</span> <span class="n">idx</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_ratio</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ratio</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CNV.set_bins">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV.set_bins">[docs]</a>
+    <span class="k">def</span> <span class="nf">set_bins</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculates CNV within each bin based on the results of &#39;fit&#39;.</span>
+
+<span class="sd">        This method calculates copy number variation (CNV) within each bin</span>
+<span class="sd">        by taking the median of the ratios obtained from the linear regression</span>
+<span class="sd">        model fit in the &#39;fit&#39; method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cpg_bins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">_cpg_bins</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">cpg_bins</span><span class="p">[</span><span class="s2">&quot;ratio&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ratio</span><span class="p">,</span> <span class="n">cpg_bins</span><span class="o">.</span><span class="n">IlmnID</span><span class="p">)</span><span class="o">.</span><span class="n">ratio</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">cpg_bins</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;bins_index&quot;</span><span class="p">,</span> <span class="n">dropna</span><span class="o">=</span><span class="kc">False</span><span class="p">)[</span><span class="s2">&quot;ratio&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+            <span class="p">[</span><span class="s2">&quot;median&quot;</span><span class="p">,</span> <span class="s2">&quot;var&quot;</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">bins_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="o">.</span><span class="n">df</span>
+        <span class="n">bins_df</span><span class="p">[</span><span class="s2">&quot;Median&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="n">bins_df</span><span class="p">[</span><span class="s2">&quot;Var&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="n">bins_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">result</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;Median&quot;</span><span class="p">,</span> <span class="s2">&quot;Var&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bins</span> <span class="o">=</span> <span class="n">pr</span><span class="o">.</span><span class="n">PyRanges</span><span class="p">(</span><span class="n">bins_df</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CNV.set_detail">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV.set_detail">[docs]</a>
+    <span class="k">def</span> <span class="nf">set_detail</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculates CNV for the detail object based on the results of &#39;fit&#39;.</span>
+
+<span class="sd">        This method calculates copy number variation (CNV) for the detail</span>
+<span class="sd">        object (usually genes) by aggregating the ratios obtained from the</span>
+<span class="sd">        linear regression model fit in the &#39;fit&#39; method for each genomic region</span>
+<span class="sd">        specified in the detail object. The result includes the median ratio,</span>
+<span class="sd">        variance, and count of probes within each region.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cpg_detail</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">_cpg_detail</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">cpg_detail</span><span class="p">[</span><span class="s2">&quot;ratio&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd_loc</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ratio</span><span class="p">,</span> <span class="n">cpg_detail</span><span class="o">.</span><span class="n">IlmnID</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">ratio</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">cpg_detail</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;Name&quot;</span><span class="p">,</span> <span class="n">dropna</span><span class="o">=</span><span class="kc">False</span><span class="p">)[</span><span class="s2">&quot;ratio&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+            <span class="p">[</span><span class="s2">&quot;median&quot;</span><span class="p">,</span> <span class="s2">&quot;var&quot;</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">detail_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">detail</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s2">&quot;Name&quot;</span><span class="p">)</span>
+        <span class="n">detail_df</span><span class="p">[</span><span class="s2">&quot;Median&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="n">detail_df</span><span class="p">[</span><span class="s2">&quot;Var&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="n">detail_df</span><span class="p">[</span><span class="s2">&quot;N_probes&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">cached_index</span><span class="p">(</span><span class="n">detail_df</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+        <span class="n">detail_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span>
+            <span class="n">idx</span><span class="p">,</span> <span class="n">detail_df</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">([</span><span class="s2">&quot;Median&quot;</span><span class="p">,</span> <span class="s2">&quot;Var&quot;</span><span class="p">,</span> <span class="s2">&quot;N_probes&quot;</span><span class="p">])</span>
+        <span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">detail_df</span><span class="p">[</span><span class="s2">&quot;N_probes&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">detail_df</span><span class="p">[</span><span class="s2">&quot;N_probes&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">detail_df</span> <span class="o">=</span> <span class="n">detail_df</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="o">=</span> <span class="n">pr</span><span class="o">.</span><span class="n">PyRanges</span><span class="p">(</span><span class="n">detail_df</span><span class="p">)</span></div>
+
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_get_segments</span><span class="p">(</span><span class="n">df</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Performs circular binary segmentation to identify CNV segments.</span>
+
+<span class="sd">        This method applies the circular binary segmentation (CBS) algorithm</span>
+<span class="sd">        to identify copy number variation (CNV) segments based on the median</span>
+<span class="sd">        values of genomic bins. The CBS algorithm is a time-intensive</span>
+<span class="sd">        operation that segments genomic regions based on change-points in</span>
+<span class="sd">        intensity values.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            df (DataFrame): DataFrame containing the median values of</span>
+<span class="sd">                genomic bins.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            DataFrame: DataFrame containing CNV segments with columns for</span>
+<span class="sd">                chromosome, start position, and end position.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cbsegment</span> <span class="o">=</span> <span class="n">get_segmentation_algorithm</span><span class="p">()</span>
+        <span class="n">bin_values</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Median&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">chrom</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Chromosome&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">seg</span> <span class="o">=</span> <span class="n">cbsegment</span><span class="p">(</span><span class="n">bin_values</span><span class="p">,</span> <span class="n">shuffles</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="p">[</span><span class="n">chrom</span><span class="p">,</span> <span class="n">df</span><span class="o">.</span><span class="n">Start</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">start</span><span class="p">],</span> <span class="n">df</span><span class="o">.</span><span class="n">End</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]]</span>
+                <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">seg</span>
+            <span class="p">],</span>
+            <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;Chromosome&quot;</span><span class="p">,</span> <span class="s2">&quot;Start&quot;</span><span class="p">,</span> <span class="s2">&quot;End&quot;</span><span class="p">],</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="CNV.set_segments">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV.set_segments">[docs]</a>
+    <span class="k">def</span> <span class="nf">set_segments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets CNV segments based on circular binary segmentation.</span>
+
+<span class="sd">        This method applies the circular binary segmentation (CBS) algorithm</span>
+<span class="sd">        to identify copy number variation (CNV) segments in the dataset.</span>
+<span class="sd">        It calculates the CNV segments for each chromosome and stores them</span>
+<span class="sd">        in the &#39;segments&#39; attribute of the object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">get_segmentation_algorithm</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">missing_cbseg_msg</span><span class="p">()</span>
+            <span class="k">return</span>
+        <span class="n">segments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_segments</span><span class="p">)</span>
+        <span class="n">overlap</span> <span class="o">=</span> <span class="n">segments</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">adjusted_manifest</span><span class="p">[[</span><span class="s2">&quot;IlmnID&quot;</span><span class="p">]])</span>
+        <span class="n">overlap</span><span class="o">.</span><span class="n">ratio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ratio</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">overlap</span><span class="o">.</span><span class="n">IlmnID</span><span class="p">]</span><span class="o">.</span><span class="n">ratio</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">overlap</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">([</span><span class="s2">&quot;Chromosome&quot;</span><span class="p">,</span> <span class="s2">&quot;Start&quot;</span><span class="p">,</span> <span class="s2">&quot;End&quot;</span><span class="p">],</span> <span class="n">dropna</span><span class="o">=</span><span class="kc">False</span><span class="p">)[</span>
+                <span class="s2">&quot;ratio&quot;</span>
+            <span class="p">]</span>
+            <span class="o">.</span><span class="n">agg</span><span class="p">([</span><span class="s2">&quot;median&quot;</span><span class="p">,</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;var&quot;</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">])</span>
+            <span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">rename</span><span class="p">(</span>
+                <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="s2">&quot;N_probes&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;median&quot;</span><span class="p">:</span> <span class="s2">&quot;Median&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;mean&quot;</span><span class="p">:</span> <span class="s2">&quot;Mean&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;var&quot;</span><span class="p">:</span> <span class="s2">&quot;Var&quot;</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">segments</span> <span class="o">=</span> <span class="n">pr</span><span class="o">.</span><span class="n">PyRanges</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">segments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">segments</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="CNV.write">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV.write">[docs]</a>
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="s2">&quot;all&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Writes CNV data to disk as a zip file.</span>
+
+<span class="sd">        This method writes the CNV data to disk as a zip file containing</span>
+<span class="sd">        CSV files. It allows specifying which data to include in the zip</span>
+<span class="sd">        file, such as bins, detail, segments, and metadata.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            path (str): The path to save the zip file.</span>
+<span class="sd">            data (str or list of str, optional): Specifies which data to</span>
+<span class="sd">                include in the zip file. Valid options are &quot;all&quot;, &quot;bins&quot;,</span>
+<span class="sd">                &quot;detail&quot;, &quot;segments&quot;, and &quot;metadata&quot;. Defaults to &quot;all&quot;.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If an invalid data option is specified.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">default</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;all&quot;</span><span class="p">,</span> <span class="s2">&quot;bins&quot;</span><span class="p">,</span> <span class="s2">&quot;detail&quot;</span><span class="p">,</span> <span class="s2">&quot;segments&quot;</span><span class="p">,</span> <span class="s2">&quot;metadata&quot;</span><span class="p">}</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">data</span><span class="p">]</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;all&quot;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">default</span>
+        <span class="n">invalid</span> <span class="o">=</span> <span class="n">data</span> <span class="o">-</span> <span class="n">default</span>
+        <span class="k">if</span> <span class="n">invalid</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid file(s) specified: </span><span class="si">{</span><span class="n">invalid</span><span class="si">}</span><span class="s2">. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Valid options are: </span><span class="si">{</span><span class="n">default</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="n">dfs_to_write</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="s2">&quot;bins&quot;</span> <span class="ow">in</span> <span class="n">data</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">bins</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dfs_to_write</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">&quot;bins.csv&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="o">.</span><span class="n">df</span><span class="p">))</span>
+        <span class="k">if</span> <span class="s2">&quot;detail&quot;</span> <span class="ow">in</span> <span class="n">data</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dfs_to_write</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">&quot;detail.csv&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">detail</span><span class="o">.</span><span class="n">df</span><span class="p">))</span>
+        <span class="k">if</span> <span class="s2">&quot;segments&quot;</span> <span class="ow">in</span> <span class="n">data</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">segments</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dfs_to_write</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">&quot;segments.csv&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">segments</span><span class="o">.</span><span class="n">df</span><span class="p">))</span>
+        <span class="k">if</span> <span class="s2">&quot;metadata&quot;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+            <span class="n">metadata_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">&quot;Array_type&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">array_type</span><span class="p">)]},</span>
+            <span class="p">)</span>
+            <span class="n">dfs_to_write</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">&quot;metadata.csv&quot;</span><span class="p">,</span> <span class="n">metadata_df</span><span class="p">))</span>
+        <span class="n">base_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">base_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">&quot;.zip&quot;</span><span class="p">:</span>
+            <span class="n">base_path</span> <span class="o">=</span> <span class="n">base_path</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">file_name</span> <span class="o">=</span> <span class="n">base_path</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">buffer</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">zipfile</span><span class="o">.</span><span class="n">ZipFile</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">zf</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">df_name</span><span class="p">,</span> <span class="n">df</span> <span class="ow">in</span> <span class="n">dfs_to_write</span><span class="p">:</span>
+                <span class="n">csv_bytes</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+                <span class="n">zf</span><span class="o">.</span><span class="n">writestr</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">df_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">csv_bytes</span><span class="p">)</span>
+        <span class="n">buffer</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">base_path</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;.zip&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">buffer</span><span class="o">.</span><span class="n">read</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="CNV.plot">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.cnv.CNV.plot">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generates and displays a plot of the CNV data.&quot;&quot;&quot;</span>
+        <span class="n">cnv_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">MEPYLOME_TMP_DIR</span><span class="p">,</span> <span class="s2">&quot;cnv&quot;</span><span class="p">)</span>
+        <span class="n">ensure_directory_exists</span><span class="p">(</span><span class="n">cnv_dir</span><span class="p">)</span>
+        <span class="n">cnv_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">probe</span> <span class="o">+</span> <span class="n">ZIP_ENDING</span>
+        <span class="n">cnv_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">cnv_dir</span><span class="p">,</span> <span class="n">cnv_file</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;Median&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_bins</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">detail</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_detail</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cnv_path</span><span class="p">)</span>
+        <span class="n">cnv_plot</span> <span class="o">=</span> <span class="n">CNVPlot</span><span class="p">(</span><span class="n">cnv_dir</span><span class="p">,</span> <span class="n">cnv_file</span><span class="p">)</span>
+        <span class="n">cnv_plot</span><span class="o">.</span><span class="n">run_app</span><span class="p">()</span></div>
+
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="s2">&quot;CNV():&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">title</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;*&quot;</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">title</span><span class="p">),</span>
+            <span class="sa">f</span><span class="s2">&quot;sample:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="o">.</span><span class="n">probes</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;reference:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">probes</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;_ratio: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_ratio</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;bins:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">bins</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;detail:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">detail</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;segments:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">segments</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;coef:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">coef</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;noise:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;ratio:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ratio</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Jon Brugger.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

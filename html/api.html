@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Reference &mdash; mepylome 0.1.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=a58bc63e"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Tutorial" href="tutorial.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            mepylome
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.cnv.Annotation"><code class="docutils literal notranslate"><span class="pre">Annotation</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#module-mepylome.dtypes.manifests">mepylome.dtypes.manifests</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest"><code class="docutils literal notranslate"><span class="pre">Manifest</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.control_address"><code class="docutils literal notranslate"><span class="pre">Manifest.control_address()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.control_data_frame"><code class="docutils literal notranslate"><span class="pre">Manifest.control_data_frame</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.data_frame"><code class="docutils literal notranslate"><span class="pre">Manifest.data_frame</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.get_control_path"><code class="docutils literal notranslate"><span class="pre">Manifest.get_control_path()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.get_data_types"><code class="docutils literal notranslate"><span class="pre">Manifest.get_data_types()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.get_processed_manifest"><code class="docutils literal notranslate"><span class="pre">Manifest.get_processed_manifest()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.load"><code class="docutils literal notranslate"><span class="pre">Manifest.load()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.methylation_probes"><code class="docutils literal notranslate"><span class="pre">Manifest.methylation_probes</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.probe_info"><code class="docutils literal notranslate"><span class="pre">Manifest.probe_info()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.process_manifest"><code class="docutils literal notranslate"><span class="pre">Manifest.process_manifest()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.process_probes"><code class="docutils literal notranslate"><span class="pre">Manifest.process_probes()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.read_control_probes"><code class="docutils literal notranslate"><span class="pre">Manifest.read_control_probes()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.read_probes"><code class="docutils literal notranslate"><span class="pre">Manifest.read_probes()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.read_snp_probes"><code class="docutils literal notranslate"><span class="pre">Manifest.read_snp_probes()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.seek_to_start"><code class="docutils literal notranslate"><span class="pre">Manifest.seek_to_start()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest.snp_data_frame"><code class="docutils literal notranslate"><span class="pre">Manifest.snp_data_frame</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#module-mepylome.dtypes.beads">mepylome.dtypes.beads</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData"><code class="docutils literal notranslate"><span class="pre">MethylData</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData._grn"><code class="docutils literal notranslate"><span class="pre">MethylData._grn</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData._red"><code class="docutils literal notranslate"><span class="pre">MethylData._red</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.array_type"><code class="docutils literal notranslate"><span class="pre">MethylData.array_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.ids"><code class="docutils literal notranslate"><span class="pre">MethylData.ids</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.manifest"><code class="docutils literal notranslate"><span class="pre">MethylData.manifest</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.probes"><code class="docutils literal notranslate"><span class="pre">MethylData.probes</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.data"><code class="docutils literal notranslate"><span class="pre">MethylData.data</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData._grn_df"><code class="docutils literal notranslate"><span class="pre">MethylData._grn_df</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData._red_df"><code class="docutils literal notranslate"><span class="pre">MethylData._red_df</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData._methylated_df"><code class="docutils literal notranslate"><span class="pre">MethylData._methylated_df</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData._unmethylated_df"><code class="docutils literal notranslate"><span class="pre">MethylData._unmethylated_df</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.beta"><code class="docutils literal notranslate"><span class="pre">MethylData.beta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.betas_for_cpgs"><code class="docutils literal notranslate"><span class="pre">MethylData.betas_for_cpgs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.grn"><code class="docutils literal notranslate"><span class="pre">MethylData.grn</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.illumina_bg_correction"><code class="docutils literal notranslate"><span class="pre">MethylData.illumina_bg_correction()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.illumina_control_normalization"><code class="docutils literal notranslate"><span class="pre">MethylData.illumina_control_normalization()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.methylated"><code class="docutils literal notranslate"><span class="pre">MethylData.methylated</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.preprocess_illumina"><code class="docutils literal notranslate"><span class="pre">MethylData.preprocess_illumina()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.preprocess_noob"><code class="docutils literal notranslate"><span class="pre">MethylData.preprocess_noob()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.preprocess_raw"><code class="docutils literal notranslate"><span class="pre">MethylData.preprocess_raw()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.preprocess_raw_cached"><code class="docutils literal notranslate"><span class="pre">MethylData.preprocess_raw_cached()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.preprocess_raw_methylated"><code class="docutils literal notranslate"><span class="pre">MethylData.preprocess_raw_methylated()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.preprocess_raw_unmethylated"><code class="docutils literal notranslate"><span class="pre">MethylData.preprocess_raw_unmethylated()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.preprocess_swan"><code class="docutils literal notranslate"><span class="pre">MethylData.preprocess_swan()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.red"><code class="docutils literal notranslate"><span class="pre">MethylData.red</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.swan_bg_intensity"><code class="docutils literal notranslate"><span class="pre">MethylData.swan_bg_intensity()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.MethylData.unmethylated"><code class="docutils literal notranslate"><span class="pre">MethylData.unmethylated</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.beads.RawData"><code class="docutils literal notranslate"><span class="pre">RawData</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.RawData.array_type"><code class="docutils literal notranslate"><span class="pre">RawData.array_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.RawData.manifest"><code class="docutils literal notranslate"><span class="pre">RawData.manifest</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.RawData.probes"><code class="docutils literal notranslate"><span class="pre">RawData.probes</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.RawData.ids"><code class="docutils literal notranslate"><span class="pre">RawData.ids</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.RawData._grn"><code class="docutils literal notranslate"><span class="pre">RawData._grn</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.RawData._red"><code class="docutils literal notranslate"><span class="pre">RawData._red</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.RawData.grn"><code class="docutils literal notranslate"><span class="pre">RawData.grn</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.beads.RawData.red"><code class="docutils literal notranslate"><span class="pre">RawData.red</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.beads.idat_basepaths"><code class="docutils literal notranslate"><span class="pre">idat_basepaths()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.beads.idat_paths_from_basenames"><code class="docutils literal notranslate"><span class="pre">idat_paths_from_basenames()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.beads.is_valid_idat_basepath"><code class="docutils literal notranslate"><span class="pre">is_valid_idat_basepath()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#module-mepylome.dtypes.cnv">mepylome.dtypes.cnv</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV"><code class="docutils literal notranslate"><span class="pre">CNV</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.sample"><code class="docutils literal notranslate"><span class="pre">CNV.sample</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.reference"><code class="docutils literal notranslate"><span class="pre">CNV.reference</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.annotation"><code class="docutils literal notranslate"><span class="pre">CNV.annotation</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.verbose"><code class="docutils literal notranslate"><span class="pre">CNV.verbose</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.bins"><code class="docutils literal notranslate"><span class="pre">CNV.bins</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.probes"><code class="docutils literal notranslate"><span class="pre">CNV.probes</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.coef"><code class="docutils literal notranslate"><span class="pre">CNV.coef</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV._ratio"><code class="docutils literal notranslate"><span class="pre">CNV._ratio</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.ratio"><code class="docutils literal notranslate"><span class="pre">CNV.ratio</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.noise"><code class="docutils literal notranslate"><span class="pre">CNV.noise</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.detail"><code class="docutils literal notranslate"><span class="pre">CNV.detail</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.segments"><code class="docutils literal notranslate"><span class="pre">CNV.segments</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.fit"><code class="docutils literal notranslate"><span class="pre">CNV.fit()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.plot"><code class="docutils literal notranslate"><span class="pre">CNV.plot()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.set_all"><code class="docutils literal notranslate"><span class="pre">CNV.set_all()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.set_bins"><code class="docutils literal notranslate"><span class="pre">CNV.set_bins()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.set_detail"><code class="docutils literal notranslate"><span class="pre">CNV.set_detail()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.set_itensity"><code class="docutils literal notranslate"><span class="pre">CNV.set_itensity()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.set_segments"><code class="docutils literal notranslate"><span class="pre">CNV.set_segments()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mepylome.dtypes.cnv.CNV.write"><code class="docutils literal notranslate"><span class="pre">CNV.write()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.cnv.pd_loc"><code class="docutils literal notranslate"><span class="pre">pd_loc()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#module-mepylome.dtypes.idat">mepylome.dtypes.idat</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#mepylome.dtypes.idat.IdatParser"><code class="docutils literal notranslate"><span class="pre">IdatParser</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">mepylome</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">API Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/api.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api-reference">
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h1>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.Annotation">
+<span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.cnv.</span></span><span class="sig-name descname"><span class="pre">Annotation</span></span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#Annotation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.Annotation" title="Link to this definition"></a></dt>
+<dd><p>alias of &lt;mepylome.dtypes.cache.memoize.&lt;locals&gt;.Memoize object&gt;</p>
+</dd></dl>
+
+</section>
+<section id="module-mepylome.dtypes.manifests">
+<span id="mepylome-dtypes-manifests"></span><h1>mepylome.dtypes.manifests<a class="headerlink" href="#module-mepylome.dtypes.manifests" title="Link to this heading"></a></h1>
+<p>Module for handling Illumina array manifest files.</p>
+<p>This module contains a single class <code class="docutils literal notranslate"><span class="pre">Manifest</span></code> for reading and processing
+Illumina array manifest files, which contain information about probes and their
+characteristics.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.manifests.</span></span><span class="sig-name descname"><span class="pre">Manifest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">array_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filepath</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest" title="Link to this definition"></a></dt>
+<dd><p>Provides an object interface to an Illumina array manifest file.</p>
+<p>This class provides functionality for reading and processing Illumina array
+manifest files. If the manifest is used for the first time, the data is
+automatically downloaded, transformed, and saved locally, which may take
+some time.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>array_type</strong> (<em>str</em><em> or </em><em>ArrayType</em>) – The type of array to process. Use either
+ArrayType (ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC,
+ArrayType.ILLUMINA_EPIC_V2) or corresponding string (‘450k’,
+‘epic’, ‘epicv2’)</p></li>
+<li><p><strong>filepath</strong> (<em>str</em><em> or </em><em>Path</em>) – A pre-existing manifest filepath (default:
+None)</p></li>
+<li><p><strong>verbose</strong> – If True, enables verbose output. (default: True)</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># To initialize a manifest object for Illumina 450k array:</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">manifest</span> <span class="o">=</span> <span class="n">Manifest</span><span class="p">(</span><span class="s2">&quot;450k&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">manifest</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># To initialize a manifest object for Illumina EPIC array</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">manifest</span> <span class="o">=</span> <span class="n">Manifest</span><span class="p">(</span><span class="n">ArrayType</span><span class="o">.</span><span class="n">ILLUMINA_EPIC</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">type_1</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">probe_info</span><span class="p">(</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">ONE</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># To load all manifests when first used:</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Manifest</span><span class="o">.</span><span class="n">load</span><span class="p">()</span><span class="n">xamples</span><span class="p">:</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.control_address">
+<span class="sig-name descname"><span class="pre">control_address</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">control_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.control_address"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.control_address" title="Link to this definition"></a></dt>
+<dd><p>Returns address IDs of all control probes of the specified type.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.control_data_frame">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">control_data_frame</span></span><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.control_data_frame" title="Link to this definition"></a></dt>
+<dd><p>Pandas data frame of all manifest control probes.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.data_frame">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_frame</span></span><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.data_frame" title="Link to this definition"></a></dt>
+<dd><p>Pandas data frame of all manifest probes.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.get_control_path">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_control_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probes_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.get_control_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.get_control_path" title="Link to this definition"></a></dt>
+<dd><p>Converts probes path to the control probes path.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.get_data_types">
+<span class="sig-name descname"><span class="pre">get_data_types</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.get_data_types"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.get_data_types" title="Link to this definition"></a></dt>
+<dd><p>Returns data types for the manifest columns.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.get_processed_manifest">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_processed_manifest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">array_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.get_processed_manifest"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.get_processed_manifest" title="Link to this definition"></a></dt>
+<dd><p>Downloads the appropriate manifest file if necessary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>array_type</strong> – The manifest array type.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Local paths to the manifest file and its control</dt><dd><p>file.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple of paths</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.load">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">array_types</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.load" title="Link to this definition"></a></dt>
+<dd><p>Loads all manifests of the specified types into memory.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.methylation_probes">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">methylation_probes</span></span><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.methylation_probes" title="Link to this definition"></a></dt>
+<dd><p>All type I and II probes.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.probe_info">
+<span class="sig-name descname"><span class="pre">probe_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probe_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.probe_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.probe_info" title="Link to this definition"></a></dt>
+<dd><p>Retrieves information about probes of a specified type and channel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>probe_type</strong> (<em>ProbeType</em>) – The type of probe (I, II, SnpI, SnpII,
+Control).</p></li>
+<li><p><strong>channel</strong> (<em>Channel</em><em>, </em><em>optional</em>) – The color channel (RED or GRN).
+Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>DataFrame containing information about the specified</dt><dd><p>probes.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>DataFrame</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ValueError</strong> – If probe_type is not a valid ProbeType or if channel is</p></li>
+<li><p><strong>not a valid Channel.</strong> – </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.process_manifest">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">process_manifest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">manifest_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_probes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_control</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.process_manifest"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.process_manifest" title="Link to this definition"></a></dt>
+<dd><p>Processes the manifest file and saves it locally to disk.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filepath</strong> (<em>Path</em>) – Path to the downloaded manifest archive.</p></li>
+<li><p><strong>manifest_name</strong> (<em>str</em>) – Name of the manifest file inside the archive.</p></li>
+<li><p><strong>dest_probes</strong> (<em>Path</em>) – Local destination path to save the processed
+probes.</p></li>
+<li><p><strong>dest_control</strong> (<em>Path</em>) – Local destination path to save the processed
+control probes.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.process_probes">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">process_probes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_frame</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.process_probes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.process_probes" title="Link to this definition"></a></dt>
+<dd><p>Transforms manifest probes to a more efficient internal format.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.read_control_probes">
+<span class="sig-name descname"><span class="pre">read_control_probes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">control_file</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.read_control_probes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.read_control_probes" title="Link to this definition"></a></dt>
+<dd><p>Reads and returns control probes from local file {control_file}.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.read_probes">
+<span class="sig-name descname"><span class="pre">read_probes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probes_file</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.read_probes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.read_probes" title="Link to this definition"></a></dt>
+<dd><p>Reads and returns probes from local file {probes_file}.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.read_snp_probes">
+<span class="sig-name descname"><span class="pre">read_snp_probes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.read_snp_probes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.read_snp_probes" title="Link to this definition"></a></dt>
+<dd><p>Extracts SNP probes from the manifest data frame.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.seek_to_start">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">seek_to_start</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">manifest_file</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/manifests.html#Manifest.seek_to_start"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.seek_to_start" title="Link to this definition"></a></dt>
+<dd><p>Move the manifest file pointer to the start of the data section.</p>
+<dl class="simple">
+<dt>Details:</dt><dd><p>The function searches for the first occurrence of the left-most
+column named “IlmnID”.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.manifests.Manifest.snp_data_frame">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">snp_data_frame</span></span><a class="headerlink" href="#mepylome.dtypes.manifests.Manifest.snp_data_frame" title="Link to this definition"></a></dt>
+<dd><p>SNP probes from the manifest data frame.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mepylome.dtypes.beads">
+<span id="mepylome-dtypes-beads"></span><h1>mepylome.dtypes.beads<a class="headerlink" href="#module-mepylome.dtypes.beads" title="Link to this heading"></a></h1>
+<p>Contains classes and function for processing Illumina methylation beads.</p>
+<p>It includes methods for extracting methylation information, various
+preprocessing techniques, normalization, and data handling.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.beads.</span></span><span class="sig-name descname"><span class="pre">MethylData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'illumina'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData" title="Link to this definition"></a></dt>
+<dd><p>Represents methylated and unmethylated intensity data from RawData.</p>
+<p>This class provides methods for preprocessing Illumina methylation data and
+computing beta values from methylated and unmethylated intensities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<a class="reference internal" href="#mepylome.dtypes.beads.RawData" title="mepylome.dtypes.beads.RawData"><em>RawData</em></a>) – RawData object containing raw intensity data.</p></li>
+<li><p><strong>file</strong> (<em>str</em>) – Path to file or dir or list of paths containing raw
+intensity data.</p></li>
+<li><p><strong>prep</strong> (<em>str</em>) – Preprocessing method. Options: “illumina”, “swan”,
+“noob”.</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If ‘data’ is not provided, it will attempt to create a RawData object
+using the specified ‘file’.</p>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData._grn">
+<span class="sig-name descname"><span class="pre">_grn</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData._grn" title="Link to this definition"></a></dt>
+<dd><p>Green channel intensities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData._red">
+<span class="sig-name descname"><span class="pre">_red</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData._red" title="Link to this definition"></a></dt>
+<dd><p>Red channel intensities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.array_type">
+<span class="sig-name descname"><span class="pre">array_type</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.array_type" title="Link to this definition"></a></dt>
+<dd><p>Type of the array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.ids">
+<span class="sig-name descname"><span class="pre">ids</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.ids" title="Link to this definition"></a></dt>
+<dd><p>Array of probe IDs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.manifest">
+<span class="sig-name descname"><span class="pre">manifest</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.manifest" title="Link to this definition"></a></dt>
+<dd><p>Manifest associated with the array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest" title="mepylome.dtypes.manifests.Manifest">Manifest</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.probes">
+<span class="sig-name descname"><span class="pre">probes</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.probes" title="Link to this definition"></a></dt>
+<dd><p>List of probe names corresponding to the IDAT files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.data">
+<span class="sig-name descname"><span class="pre">data</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.data" title="Link to this definition"></a></dt>
+<dd><p>RawData object containing the original intensity data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mepylome.dtypes.beads.RawData" title="mepylome.dtypes.beads.RawData">RawData</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData._grn_df">
+<span class="sig-name descname"><span class="pre">_grn_df</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData._grn_df" title="Link to this definition"></a></dt>
+<dd><p>DataFrame for green channel
+intensities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData._red_df">
+<span class="sig-name descname"><span class="pre">_red_df</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData._red_df" title="Link to this definition"></a></dt>
+<dd><p>DataFrame for red channel
+intensities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData._methylated_df">
+<span class="sig-name descname"><span class="pre">_methylated_df</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData._methylated_df" title="Link to this definition"></a></dt>
+<dd><p>DataFrame for methylated
+intensities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData._unmethylated_df">
+<span class="sig-name descname"><span class="pre">_unmethylated_df</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData._unmethylated_df" title="Link to this definition"></a></dt>
+<dd><p>DataFrame for unmethylated
+intensities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ValueError</strong> – If neither ‘data’ nor ‘file’ is provided.</p></li>
+<li><p><strong>ValueError</strong> – If ‘data’ is provided but is not of type ‘RawData’.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">methyl_data</span> <span class="o">=</span> <span class="n">MethylData</span><span class="p">(</span><span class="n">raw_data</span><span class="p">,</span> <span class="n">prep</span><span class="o">=</span><span class="s2">&quot;illumina&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">methyl_data</span> <span class="o">=</span> <span class="n">MethylData</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="n">file_path</span><span class="p">,</span> <span class="n">prep</span><span class="o">=</span><span class="s2">&quot;swan&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.beta">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">beta</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.beta" title="Link to this definition"></a></dt>
+<dd><p>Returns beta values.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.betas_for_cpgs">
+<span class="sig-name descname"><span class="pre">betas_for_cpgs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cpgs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.49</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.betas_for_cpgs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.betas_for_cpgs" title="Link to this definition"></a></dt>
+<dd><p>Calculates beta values for specified CpG sites.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cpgs</strong> (<em>array-like</em>) – Array of CpG IDs.</p></li>
+<li><p><strong>fill</strong> (<em>float</em>) – Value to fill for CpGs not found in the used
+manifest.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>DataFrame containing beta values for specified</dt><dd><p>CpGs.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Nore:</dt><dd><p>If ‘cpgs’ is None, all CpGs from the used manifest are considered.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.grn">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">grn</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.grn" title="Link to this definition"></a></dt>
+<dd><p>Normalized intensity for the green channel, indexed by probe IDs.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.illumina_bg_correction">
+<span class="sig-name descname"><span class="pre">illumina_bg_correction</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.illumina_bg_correction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.illumina_bg_correction" title="Link to this definition"></a></dt>
+<dd><p>Performs background normalization using negative control probes.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.illumina_control_normalization">
+<span class="sig-name descname"><span class="pre">illumina_control_normalization</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.illumina_control_normalization"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.illumina_control_normalization" title="Link to this definition"></a></dt>
+<dd><p>Performs normalization using control probes.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.methylated">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">methylated</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.methylated" title="Link to this definition"></a></dt>
+<dd><p>Methylated intensity values indexed by IlmnID.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.preprocess_illumina">
+<span class="sig-name descname"><span class="pre">preprocess_illumina</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.preprocess_illumina"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.preprocess_illumina" title="Link to this definition"></a></dt>
+<dd><p>Performs preprocessing usings Illuminas method.</p>
+<p>This function implements preprocessing for Illumina methylation
+microarrays as used in Genome Studio, the standard software provided by
+Illumina.</p>
+<dl class="simple">
+<dt>Details:</dt><dd><p>This implementation is adapted from ‘minfi’.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.preprocess_noob">
+<span class="sig-name descname"><span class="pre">preprocess_noob</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dye_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'single'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.preprocess_noob"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.preprocess_noob" title="Link to this definition"></a></dt>
+<dd><p>The Noob preprocessing method.</p>
+<dl class="simple">
+<dt>Description:</dt><dd><p>Noob (normal-exponential out-of-band) is a background correction
+method with dye-bias normalization.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>offset</strong> (<em>float</em>) – An offset for the normexp background correction.</p></li>
+<li><p><strong>dye_method</strong> (<em>str</em>) – How should dye bias correction be done: “single”
+for single sample approach, or “reference” for a reference
+array.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>TJ Triche, DJ Weisenberger, D Van Den Berg, PW Laird and KD
+Siegmund _Low-level processing of Illumina Infinium DNA
+Methylation BeadArrays.  Nucleic Acids Res (2013) 41, e90.
+doi:10.1093/nar/gkt090.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.preprocess_raw">
+<span class="sig-name descname"><span class="pre">preprocess_raw</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.preprocess_raw"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.preprocess_raw" title="Link to this definition"></a></dt>
+<dd><p>Calculates methylated/unmethylated arrays without preprocessing.</p>
+<p>Converts the Red/Green channel for an Illumina methylation array
+into methylation signal, without using any normalization.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.preprocess_raw_cached">
+<span class="sig-name descname"><span class="pre">preprocess_raw_cached</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.preprocess_raw_cached"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.preprocess_raw_cached" title="Link to this definition"></a></dt>
+<dd><p>Calculates methylated/unmethylated arrays without preprocessing.</p>
+<p>Converts the Red/Green channel for an Illumina methylation array
+into methylation signal, without using any normalization.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Fast version of <code class="docutils literal notranslate"><span class="pre">preprocess_raw</span></code>.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.preprocess_raw_methylated">
+<span class="sig-name descname"><span class="pre">preprocess_raw_methylated</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">man_idx_np</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t1_grn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t1_red</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.preprocess_raw_methylated"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.preprocess_raw_methylated" title="Link to this definition"></a></dt>
+<dd><p>Calculates methylated data frame without preprocessing.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.preprocess_raw_unmethylated">
+<span class="sig-name descname"><span class="pre">preprocess_raw_unmethylated</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">man_idx_np</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t1_grn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t1_red</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.preprocess_raw_unmethylated"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.preprocess_raw_unmethylated" title="Link to this definition"></a></dt>
+<dd><p>Calculates unmethylated data frame without preprocessing.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.preprocess_swan">
+<span class="sig-name descname"><span class="pre">preprocess_swan</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.preprocess_swan"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.preprocess_swan" title="Link to this definition"></a></dt>
+<dd><p>Subset-quantile Within Array Normalization (SWAN).</p>
+<dl>
+<dt>Details:</dt><dd><p>The SWAN method has two parts. First, an average quantile
+distribution is created using a subset of probes defined to be
+biologically similar based on the number of CpGs underlying the
+probe body. This is achieved by randomly selecting N Infinium I and
+II probes that have 1, 2 and 3 underlying CpGs, where N is the
+minimum number of probes in the 6 sets of Infinium I and II probes
+with 1, 2 or 3 probe body CpGs. This results in a pool of 3N
+Infinium I and 3N Infinium II probes. The subset for each probe
+type is then sorted by increasing intensity.  The value of each of
+the 3N pairs of observations is subsequently assigned to be the
+mean intensity of the two probe types for that row or “quantile”.
+This is the standard quantile procedure. The intensities of the
+remaining probes are then separately adjusted for each probe type
+using linear interpolation between the subset probes.</p>
+<p>Implementation adapted from ‘minfi’</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>SWAN uses a random subset of probes for between array
+normalization. To achieve reproducible results, set the seed.</p>
+</div>
+<p class="rubric">References</p>
+<p>J Maksimovic, L Gordon and A Oshlack (2012). SWAN: Subset quantile
+Within-Array Normalization for Illumina Infinium
+HumanMethylation450 BeadChips. Genome Biology 13, R44.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.red">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">red</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.red" title="Link to this definition"></a></dt>
+<dd><p>Normalized intensity for the red channel, indexed by probe IDs.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.swan_bg_intensity">
+<span class="sig-name descname"><span class="pre">swan_bg_intensity</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#MethylData.swan_bg_intensity"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.swan_bg_intensity" title="Link to this definition"></a></dt>
+<dd><p>Intensity background normalization used for SWAN preprocessing.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.MethylData.unmethylated">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unmethylated</span></span><a class="headerlink" href="#mepylome.dtypes.beads.MethylData.unmethylated" title="Link to this definition"></a></dt>
+<dd><p>Unmethylated intensity values indexed by IlmnID.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.beads.</span></span><span class="sig-name descname"><span class="pre">RawData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">basenames</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#RawData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.RawData" title="Link to this definition"></a></dt>
+<dd><p>Represents raw intensity data extracted from IDAT files.</p>
+<p>This class initializes with a list of basepaths to IDAT files and parses
+them to extract raw intensity data from the green and red channels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>basenames</strong> (<em>list</em>) – List of basepaths to IDAT files.</p>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData.array_type">
+<span class="sig-name descname"><span class="pre">array_type</span></span><a class="headerlink" href="#mepylome.dtypes.beads.RawData.array_type" title="Link to this definition"></a></dt>
+<dd><p>Type of Illumina array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData.manifest">
+<span class="sig-name descname"><span class="pre">manifest</span></span><a class="headerlink" href="#mepylome.dtypes.beads.RawData.manifest" title="Link to this definition"></a></dt>
+<dd><p>Manifest associated with the array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mepylome.dtypes.manifests.Manifest" title="mepylome.dtypes.manifests.Manifest">Manifest</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData.probes">
+<span class="sig-name descname"><span class="pre">probes</span></span><a class="headerlink" href="#mepylome.dtypes.beads.RawData.probes" title="Link to this definition"></a></dt>
+<dd><p>List of probe names corresponding to the IDAT files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData.ids">
+<span class="sig-name descname"><span class="pre">ids</span></span><a class="headerlink" href="#mepylome.dtypes.beads.RawData.ids" title="Link to this definition"></a></dt>
+<dd><p>Array of probe IDs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData._grn">
+<span class="sig-name descname"><span class="pre">_grn</span></span><a class="headerlink" href="#mepylome.dtypes.beads.RawData._grn" title="Link to this definition"></a></dt>
+<dd><p>Array of raw intensity values from the green channel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData._red">
+<span class="sig-name descname"><span class="pre">_red</span></span><a class="headerlink" href="#mepylome.dtypes.beads.RawData._red" title="Link to this definition"></a></dt>
+<dd><p>Array of raw intensity values from the red channel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">idat_basepath0</span> <span class="o">=</span> <span class="n">directory_path</span> <span class="o">/</span> <span class="s2">&quot;200925700125_R07C01&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">idat_basepath1</span> <span class="o">=</span> <span class="n">directory_path</span> <span class="o">/</span> <span class="s2">&quot;200925700133_R02C01_Grn.idat&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">raw_data</span> <span class="o">=</span> <span class="n">RawData</span><span class="p">(</span><span class="n">idat_basepath0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">raw_data</span> <span class="o">=</span> <span class="n">RawData</span><span class="p">([</span><span class="n">idat_basepath0</span><span class="p">,</span> <span class="n">idat_basepath1</span><span class="p">])</span>
+</pre></div>
+</div>
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData.grn">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">grn</span></span><a class="headerlink" href="#mepylome.dtypes.beads.RawData.grn" title="Link to this definition"></a></dt>
+<dd><p>Raw intensity values indexed by probe IDs for the green channel.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.RawData.red">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">red</span></span><a class="headerlink" href="#mepylome.dtypes.beads.RawData.red" title="Link to this definition"></a></dt>
+<dd><p>Raw intensity values indexed by probe IDs for the red channel.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.idat_basepaths">
+<span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.beads.</span></span><span class="sig-name descname"><span class="pre">idat_basepaths</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">files</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#idat_basepaths"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.idat_basepaths" title="Link to this definition"></a></dt>
+<dd><p>Returns unique basepaths from IDAT files or directory.</p>
+<p>This function processes a list of IDAT files or a directory containing IDAT
+files and returns their basepaths by removing the file endings. The
+function ensures that there are no duplicate basepaths in the returned list
+and maintains the order of the files as they appear in the input.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>files</strong> (<em>path</em><em> or </em><em>list</em>) – A file or directory path or a list of file paths.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>A list of unique basepaths corresponding to the provided IDAT</dt><dd><p>files. If a directory is provided, all IDAT files are recursively
+considered.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">idat_basepaths</span><span class="p">(</span><span class="s2">&quot;/path/to/idat/dir&quot;</span><span class="p">)</span>
+<span class="go">[PosixPath(&#39;/path/to/idat/file1&#39;), PosixPath(&#39;/path/to/idat/file2&#39;)]</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">idat_basepaths</span><span class="p">([</span><span class="s2">&quot;/path1/file1_Grn.idat&quot;</span><span class="p">,</span> <span class="s2">&quot;/path2/file2_Red.idat&quot;</span><span class="p">])</span>
+<span class="go">[PosixPath(&#39;/path1/file1&#39;), PosixPath(&#39;/path2/file2&#39;)]</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">idat_basepaths</span><span class="p">(</span><span class="s2">&quot;/path/to/idat/file_Grn.idat.gz&quot;</span><span class="p">)</span>
+<span class="go">[PosixPath(&#39;/path/to/idat/file&#39;)]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.idat_paths_from_basenames">
+<span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.beads.</span></span><span class="sig-name descname"><span class="pre">idat_paths_from_basenames</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">basenames</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#idat_paths_from_basenames"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.idat_paths_from_basenames" title="Link to this definition"></a></dt>
+<dd><p>Returns paths to green and red IDAT files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>basenames</strong> (<em>list</em>) – List of basepaths for IDAT files.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Paths to green and red IDAT files.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>FileNotFoundError</strong> – If any IDAT file is not found.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mepylome.dtypes.beads.is_valid_idat_basepath">
+<span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.beads.</span></span><span class="sig-name descname"><span class="pre">is_valid_idat_basepath</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">basepath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/beads.html#is_valid_idat_basepath"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.beads.is_valid_idat_basepath" title="Link to this definition"></a></dt>
+<dd><p>Checks if the given basepath(s) point to valid IDAT files.</p>
+</dd></dl>
+
+</section>
+<section id="module-mepylome.dtypes.cnv">
+<span id="mepylome-dtypes-cnv"></span><h1>mepylome.dtypes.cnv<a class="headerlink" href="#module-mepylome.dtypes.cnv" title="Link to this heading"></a></h1>
+<p>Provides CNV analysis functionality including segmentation and plotting.</p>
+<p>This module provides classes and functions for copy number variation (CNV)
+analysis.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.cnv.</span></span><span class="sig-name descname"><span class="pre">CNV</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annotation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV" title="Link to this definition"></a></dt>
+<dd><p>Class for Copy Number Variation (CNV) analysis.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.sample" title="Link to this definition"></a></dt>
+<dd><p>MethylData object representing the sample.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mepylome.dtypes.beads.MethylData" title="mepylome.dtypes.beads.MethylData">MethylData</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.reference">
+<span class="sig-name descname"><span class="pre">reference</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.reference" title="Link to this definition"></a></dt>
+<dd><p>MethylData object representing the CNV-
+neutral references.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mepylome.dtypes.beads.MethylData" title="mepylome.dtypes.beads.MethylData">MethylData</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.annotation">
+<span class="sig-name descname"><span class="pre">annotation</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.annotation" title="Link to this definition"></a></dt>
+<dd><p>Annotation object containing genomic
+annotation information.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Annotation</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.verbose">
+<span class="sig-name descname"><span class="pre">verbose</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.verbose" title="Link to this definition"></a></dt>
+<dd><p>Whether to print verbose output.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.bins">
+<span class="sig-name descname"><span class="pre">bins</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.bins" title="Link to this definition"></a></dt>
+<dd><p>PyRanges object representing genomic bins.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>PyRanges</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.probes">
+<span class="sig-name descname"><span class="pre">probes</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.probes" title="Link to this definition"></a></dt>
+<dd><p>Index of probe IDs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Index</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.coef">
+<span class="sig-name descname"><span class="pre">coef</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.coef" title="Link to this definition"></a></dt>
+<dd><p>Coefficient of linear regression.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV._ratio">
+<span class="sig-name descname"><span class="pre">_ratio</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV._ratio" title="Link to this definition"></a></dt>
+<dd><p>Difference between observed sample intensity and expected
+intensity calculated by linear regression from references.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.ratio">
+<span class="sig-name descname"><span class="pre">ratio</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.ratio" title="Link to this definition"></a></dt>
+<dd><p>The values from _ratio as DataFrame with Illumina ID’s as
+indices.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.noise">
+<span class="sig-name descname"><span class="pre">noise</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.noise" title="Link to this definition"></a></dt>
+<dd><p>Noise level. A quality measure for the sample bead.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.detail">
+<span class="sig-name descname"><span class="pre">detail</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.detail" title="Link to this definition"></a></dt>
+<dd><p>Detailed information (usually Genes).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.segments">
+<span class="sig-name descname"><span class="pre">segments</span></span><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.segments" title="Link to this definition"></a></dt>
+<dd><p>Segments calculated by circular binary segmentation.</p>
+</dd></dl>
+
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sample_methyl</span> <span class="o">=</span> <span class="n">MethylData</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="s2">&quot;path/to/idat/file&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">reference_methyl</span> <span class="o">=</span> <span class="n">MethylData</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="s2">&quot;path/to/idat/reference/dir&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cnv</span> <span class="o">=</span> <span class="n">CNV</span><span class="p">(</span><span class="n">sample_methyl</span><span class="p">,</span> <span class="n">reference_methyl</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cnv</span><span class="o">.</span><span class="n">set_bins</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cnv</span><span class="o">.</span><span class="n">set_detail</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cnv</span><span class="o">.</span><span class="n">set_segments</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cnv</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.fit" title="Link to this definition"></a></dt>
+<dd><p>Fits linear regression model to calculate CNV at every CpG site.</p>
+<p>This method fits a linear regression model to the intensity data of the
+sample and reference and calculates the CNV at every CpG site.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.plot">
+<span class="sig-name descname"><span class="pre">plot</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV.plot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.plot" title="Link to this definition"></a></dt>
+<dd><p>Generates and displays a plot of the CNV data.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.set_all">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annotation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_segmentation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV.set_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.set_all" title="Link to this definition"></a></dt>
+<dd><p>Create a CNV object and perform CNV analysis.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sample</strong> (<a class="reference internal" href="#mepylome.dtypes.beads.MethylData" title="mepylome.dtypes.beads.MethylData"><em>MethylData</em></a>) – MethylData object representing the sample.</p></li>
+<li><p><strong>reference</strong> (<a class="reference internal" href="#mepylome.dtypes.beads.MethylData" title="mepylome.dtypes.beads.MethylData"><em>MethylData</em></a><em> or </em><em>ReferenceMethylData</em>) – MethylData object
+representing the reference, or ReferenceMethylData object for
+multiple references.</p></li>
+<li><p><strong>annotation</strong> (<em>Annotation</em><em>, </em><em>optional</em>) – Annotation object containing
+genomic annotation information. Defaults to annotation
+associated with the sample array type.</p></li>
+<li><p><strong>do_segmentation</strong> (<em>bool</em><em>, </em><em>optional</em>) – Indicates whether to perform
+segmentation, which can be computationally intensive. Defaults
+to True.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>CNV object with fitted data and optionally segmented.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mepylome.dtypes.cnv.CNV" title="mepylome.dtypes.cnv.CNV">CNV</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.set_bins">
+<span class="sig-name descname"><span class="pre">set_bins</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV.set_bins"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.set_bins" title="Link to this definition"></a></dt>
+<dd><p>Calculates CNV within each bin based on the results of ‘fit’.</p>
+<p>This method calculates copy number variation (CNV) within each bin
+by taking the median of the ratios obtained from the linear regression
+model fit in the ‘fit’ method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.set_detail">
+<span class="sig-name descname"><span class="pre">set_detail</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV.set_detail"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.set_detail" title="Link to this definition"></a></dt>
+<dd><p>Calculates CNV for the detail object based on the results of ‘fit’.</p>
+<p>This method calculates copy number variation (CNV) for the detail
+object (usually genes) by aggregating the ratios obtained from the
+linear regression model fit in the ‘fit’ method for each genomic region
+specified in the detail object. The result includes the median ratio,
+variance, and count of probes within each region.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.set_itensity">
+<span class="sig-name descname"><span class="pre">set_itensity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">methyl_data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV.set_itensity"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.set_itensity" title="Link to this definition"></a></dt>
+<dd><p>Calculates intensity values from methylation data.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.set_segments">
+<span class="sig-name descname"><span class="pre">set_segments</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV.set_segments"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.set_segments" title="Link to this definition"></a></dt>
+<dd><p>Sets CNV segments based on circular binary segmentation.</p>
+<p>This method applies the circular binary segmentation (CBS) algorithm
+to identify copy number variation (CNV) segments in the dataset.
+It calculates the CNV segments for each chromosome and stores them
+in the ‘segments’ attribute of the object.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.CNV.write">
+<span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'all'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#CNV.write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.CNV.write" title="Link to this definition"></a></dt>
+<dd><p>Writes CNV data to disk as a zip file.</p>
+<p>This method writes the CNV data to disk as a zip file containing
+CSV files. It allows specifying which data to include in the zip
+file, such as bins, detail, segments, and metadata.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em>) – The path to save the zip file.</p></li>
+<li><p><strong>data</strong> (<em>str</em><em> or </em><em>list</em><em> of </em><em>str</em><em>, </em><em>optional</em>) – Specifies which data to
+include in the zip file. Valid options are “all”, “bins”,
+“detail”, “segments”, and “metadata”. Defaults to “all”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If an invalid data option is specified.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mepylome.dtypes.cnv.pd_loc">
+<span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.cnv.</span></span><span class="sig-name descname"><span class="pre">pd_loc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pd_df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pd_col</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/cnv.html#pd_loc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.cnv.pd_loc" title="Link to this definition"></a></dt>
+<dd><p>Cached version of pd_df.loc[pd_col] to speed up computation.</p>
+</dd></dl>
+
+</section>
+<section id="module-mepylome.dtypes.idat">
+<span id="mepylome-dtypes-idat"></span><h1>mepylome.dtypes.idat<a class="headerlink" href="#module-mepylome.dtypes.idat" title="Link to this heading"></a></h1>
+<p>Contains a IDAT file parser.</p>
+<dl>
+<dt>Usage:</dt><dd><p>filepath = “/path/to/idat/file_Grn.idat”
+idat_data = IdatParser(filepath)
+ids = idat_data.illumina_ids</p>
+<p>print(idat_data)</p>
+</dd>
+</dl>
+<dl class="py class">
+<dt class="sig sig-object py" id="mepylome.dtypes.idat.IdatParser">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mepylome.dtypes.idat.</span></span><span class="sig-name descname"><span class="pre">IdatParser</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath_or_buffer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intensity_only</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mepylome/dtypes/idat.html#IdatParser"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mepylome.dtypes.idat.IdatParser" title="Link to this definition"></a></dt>
+<dd><p>Reads and parses an IDAT file.</p>
+<p>Stores all extracted values from the IDAT file as attributes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filepath_or_buffer</strong> (<em>str</em><em> or </em><em>file-like object</em>) – Path to the IDAT file or
+a file-like object. Can also be a gzipped IDAT file.</p></li>
+<li><p><strong>intensity_only</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to read only intensity values,
+which makes parsing faster. Defaults to False.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="tutorial.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Jon Brugger.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

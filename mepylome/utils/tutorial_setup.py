@@ -10,7 +10,6 @@ import pkg_resources
 import requests
 from tqdm import tqdm
 
-
 CONTROL = "Control (muscle tissue)"
 
 

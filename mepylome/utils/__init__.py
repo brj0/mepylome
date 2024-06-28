@@ -11,9 +11,8 @@ from .files import (
     get_file_object,
     reset_file,
 )
-from .varia import Timer, normexp_get_xs
 from .tutorial_setup import setup_tutorial_files
-
+from .varia import Timer, normexp_get_xs
 
 __all__ = [
     "download_file",

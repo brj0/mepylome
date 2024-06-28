@@ -14,8 +14,8 @@ import pandas as pd
 import pyranges as pr
 
 from mepylome.dtypes.arrays import ArrayType
-from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.cache import cache_key
+from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.probes import Channel, InfiniumDesignType, ProbeType
 from mepylome.utils.files import (
     download_file,

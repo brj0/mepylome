@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mepylome.dtypes.beads &mdash; mepylome 0.1.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=a58bc63e"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            mepylome
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial.html">Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html#module-mepylome.dtypes.manifests">mepylome.dtypes.manifests</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html#module-mepylome.dtypes.beads">mepylome.dtypes.beads</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html#module-mepylome.dtypes.cnv">mepylome.dtypes.cnv</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html#module-mepylome.dtypes.idat">mepylome.dtypes.idat</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">mepylome</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">mepylome.dtypes.beads</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for mepylome.dtypes.beads</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Contains classes and function for processing Illumina methylation beads.</span>
+
+<span class="sd">It includes methods for extracting methylation information, various</span>
+<span class="sd">preprocessing techniques, normalization, and data handling.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="kn">import</span> <span class="n">tqdm</span>
+
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.arrays</span> <span class="kn">import</span> <span class="n">ArrayType</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.cache</span> <span class="kn">import</span> <span class="n">memoize</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.idat</span> <span class="kn">import</span> <span class="n">IdatParser</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.manifests</span> <span class="kn">import</span> <span class="n">Manifest</span>
+<span class="kn">from</span> <span class="nn">mepylome.dtypes.probes</span> <span class="kn">import</span> <span class="n">Channel</span><span class="p">,</span> <span class="n">ProbeType</span>
+<span class="kn">from</span> <span class="nn">mepylome.utils.varia</span> <span class="kn">import</span> <span class="n">normexp_get_xs</span>
+
+<span class="n">ENDING_GRN</span> <span class="o">=</span> <span class="s2">&quot;_Grn.idat&quot;</span>
+<span class="n">ENDING_RED</span> <span class="o">=</span> <span class="s2">&quot;_Red.idat&quot;</span>
+<span class="n">ENDING_GZ</span> <span class="o">=</span> <span class="s2">&quot;.gz&quot;</span>
+
+<span class="n">NEUTRAL_BETA</span> <span class="o">=</span> <span class="mf">0.49</span>
+
+
+<div class="viewcode-block" id="is_valid_idat_basepath">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.is_valid_idat_basepath">[docs]</a>
+<span class="k">def</span> <span class="nf">is_valid_idat_basepath</span><span class="p">(</span><span class="n">basepath</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Checks if the given basepath(s) point to valid IDAT files.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">basepath</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">basepath</span> <span class="o">=</span> <span class="p">[</span><span class="n">basepath</span><span class="p">]</span>
+    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span>
+        <span class="p">(</span>
+            <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">ENDING_GRN</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">ENDING_GRN</span> <span class="o">+</span> <span class="n">ENDING_GZ</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="ow">and</span> <span class="p">(</span>
+            <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">ENDING_RED</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">ENDING_RED</span> <span class="o">+</span> <span class="n">ENDING_GZ</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">basepath</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="idat_basepaths">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.idat_basepaths">[docs]</a>
+<span class="k">def</span> <span class="nf">idat_basepaths</span><span class="p">(</span><span class="n">files</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns unique basepaths from IDAT files or directory.</span>
+
+<span class="sd">    This function processes a list of IDAT files or a directory containing IDAT</span>
+<span class="sd">    files and returns their basepaths by removing the file endings. The</span>
+<span class="sd">    function ensures that there are no duplicate basepaths in the returned list</span>
+<span class="sd">    and maintains the order of the files as they appear in the input.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        files (path or list): A file or directory path or a list of file paths.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list: A list of unique basepaths corresponding to the provided IDAT</span>
+<span class="sd">            files. If a directory is provided, all IDAT files are recursively</span>
+<span class="sd">            considered.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; idat_basepaths(&quot;/path/to/idat/dir&quot;)</span>
+<span class="sd">        [PosixPath(&#39;/path/to/idat/file1&#39;), PosixPath(&#39;/path/to/idat/file2&#39;)]</span>
+
+<span class="sd">        &gt;&gt;&gt; idat_basepaths([&quot;/path1/file1_Grn.idat&quot;, &quot;/path2/file2_Red.idat&quot;])</span>
+<span class="sd">        [PosixPath(&#39;/path1/file1&#39;), PosixPath(&#39;/path2/file2&#39;)]</span>
+
+<span class="sd">        &gt;&gt;&gt; idat_basepaths(&quot;/path/to/idat/file_Grn.idat.gz&quot;)</span>
+<span class="sd">        [PosixPath(&#39;/path/to/idat/file&#39;)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">_files</span> <span class="o">=</span> <span class="n">files</span>
+    <span class="k">elif</span> <span class="n">Path</span><span class="p">(</span><span class="n">files</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+        <span class="c1"># If basenames is dir take all files in it</span>
+        <span class="n">_files</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">files</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*_[GR][re][nd].idat*&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">files</span><span class="p">]</span>
+    <span class="c1"># Remove file endings</span>
+    <span class="n">_files</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">Path</span><span class="p">(</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">ENDING_GZ</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">ENDING_GRN</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">ENDING_RED</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">_files</span>
+    <span class="p">]</span>
+    <span class="c1"># Remove duplicates, keep ordering</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">_files</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="idat_paths_from_basenames">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.idat_paths_from_basenames">[docs]</a>
+<span class="k">def</span> <span class="nf">idat_paths_from_basenames</span><span class="p">(</span><span class="n">basenames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns paths to green and red IDAT files.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        basenames (list): List of basepaths for IDAT files.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: Paths to green and red IDAT files.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        FileNotFoundError: If any IDAT file is not found.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">grn_idat_files</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="n">ENDING_GRN</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">basenames</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">red_idat_files</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="n">ENDING_RED</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">basenames</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">check_and_fix</span><span class="p">(</span><span class="n">files</span><span class="p">):</span>
+        <span class="n">not_existing</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">()]</span>
+        <span class="n">files</span><span class="p">[</span><span class="n">not_existing</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">x</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="n">ENDING_GZ</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">files</span><span class="p">[</span><span class="n">not_existing</span><span class="p">]</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="nb">next</span><span class="p">((</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">files</span><span class="p">[</span><span class="n">not_existing</span><span class="p">]</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">exists</span><span class="p">()),</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="n">not_found</span> <span class="o">=</span> <span class="n">check_and_fix</span><span class="p">(</span><span class="n">grn_idat_files</span><span class="p">)</span>
+    <span class="n">not_found</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">check_and_fix</span><span class="p">(</span><span class="n">red_idat_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">not_found</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">not_found</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">not_found</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">idat_file</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">not_found</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">ENDING_GZ</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;IDAT file not found: </span><span class="si">{</span><span class="n">idat_file</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">grn_idat_files</span><span class="p">,</span> <span class="n">red_idat_files</span></div>
+
+
+
+<div class="viewcode-block" id="RawData">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.RawData">[docs]</a>
+<span class="k">class</span> <span class="nc">RawData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents raw intensity data extracted from IDAT files.</span>
+
+<span class="sd">    This class initializes with a list of basepaths to IDAT files and parses</span>
+<span class="sd">    them to extract raw intensity data from the green and red channels.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        basenames (list): List of basepaths to IDAT files.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        array_type (str): Type of Illumina array.</span>
+<span class="sd">        manifest (Manifest): Manifest associated with the array.</span>
+<span class="sd">        probes (list): List of probe names corresponding to the IDAT files.</span>
+<span class="sd">        ids (array): Array of probe IDs.</span>
+<span class="sd">        _grn (array): Array of raw intensity values from the green channel.</span>
+<span class="sd">        _red (array): Array of raw intensity values from the red channel.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; idat_basepath0 = directory_path / &quot;200925700125_R07C01&quot;</span>
+<span class="sd">        &gt;&gt;&gt; idat_basepath1 = directory_path / &quot;200925700133_R02C01_Grn.idat&quot;</span>
+<span class="sd">        &gt;&gt;&gt; raw_data = RawData(idat_basepath0)</span>
+<span class="sd">        &gt;&gt;&gt; raw_data = RawData([idat_basepath0, idat_basepath1])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">basenames</span><span class="p">):</span>
+        <span class="n">_basenames</span> <span class="o">=</span> <span class="n">idat_basepaths</span><span class="p">(</span><span class="n">basenames</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">probes</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">ENDING_GZ</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">_basenames</span><span class="p">]</span>
+
+        <span class="n">grn_idat_files</span><span class="p">,</span> <span class="n">red_idat_files</span> <span class="o">=</span> <span class="n">idat_paths_from_basenames</span><span class="p">(</span><span class="n">_basenames</span><span class="p">)</span>
+
+        <span class="n">grn_idat</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">IdatParser</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">filepath</span><span class="p">),</span> <span class="n">intensity_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">filepath</span> <span class="ow">in</span> <span class="n">grn_idat_files</span>
+        <span class="p">]</span>
+        <span class="n">red_idat</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">IdatParser</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">filepath</span><span class="p">),</span> <span class="n">intensity_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">filepath</span> <span class="ow">in</span> <span class="n">red_idat_files</span>
+        <span class="p">]</span>
+
+        <span class="n">array_types</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">ArrayType</span><span class="o">.</span><span class="n">from_probe_count</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">idat</span><span class="o">.</span><span class="n">illumina_ids</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">idat</span> <span class="ow">in</span> <span class="n">grn_idat</span> <span class="o">+</span> <span class="n">red_idat</span>
+        <span class="p">]</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">array_types</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Array types must all be the same.&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">array_type</span> <span class="o">=</span> <span class="n">array_types</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">all_illumina_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">idat</span><span class="o">.</span><span class="n">illumina_ids</span> <span class="k">for</span> <span class="n">idat</span> <span class="ow">in</span> <span class="n">grn_idat</span> <span class="o">+</span> <span class="n">red_idat</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">all_illumina_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">arr</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">all_illumina_ids</span>
+        <span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ids</span> <span class="o">=</span> <span class="n">all_illumina_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">idat</span><span class="o">.</span><span class="n">probe_means</span> <span class="k">for</span> <span class="n">idat</span> <span class="ow">in</span> <span class="n">grn_idat</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_red</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">idat</span><span class="o">.</span><span class="n">probe_means</span> <span class="k">for</span> <span class="n">idat</span> <span class="ow">in</span> <span class="n">red_idat</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ids</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">intersect1d</span><span class="p">,</span> <span class="p">[</span><span class="n">idat</span><span class="o">.</span><span class="n">illumina_ids</span> <span class="k">for</span> <span class="n">idat</span> <span class="ow">in</span> <span class="n">grn_idat</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">idat</span><span class="o">.</span><span class="n">probe_means</span><span class="p">[</span>
+                        <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span>
+                            <span class="n">idat</span><span class="o">.</span><span class="n">illumina_ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span>
+                        <span class="p">)</span>
+                    <span class="p">]</span>
+                    <span class="k">for</span> <span class="n">idat</span> <span class="ow">in</span> <span class="n">grn_idat</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_red</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">idat</span><span class="o">.</span><span class="n">probe_means</span><span class="p">[</span>
+                        <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span>
+                            <span class="n">idat</span><span class="o">.</span><span class="n">illumina_ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span>
+                        <span class="p">)</span>
+                    <span class="p">]</span>
+                    <span class="k">for</span> <span class="n">idat</span> <span class="ow">in</span> <span class="n">red_idat</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="n">Manifest</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array_type</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grn_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_red_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">methylated</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unmethylated</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">grn</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raw intensity values indexed by probe IDs for the green channel.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn_df</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grn_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;int32&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn_df</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">red</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raw intensity values indexed by probe IDs for the red channel.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red_df</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_red_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;int32&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red_df</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="s2">&quot;RawData():&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">title</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;*&quot;</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">title</span><span class="p">),</span>
+            <span class="sa">f</span><span class="s2">&quot;array_type: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">array_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;manifest: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">array_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;probes:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;ids:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;_grn:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;_red:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;grn:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">grn</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;red:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">red</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+
+<span class="nd">@memoize</span>
+<span class="k">def</span> <span class="nf">overlap_indices</span><span class="p">(</span><span class="n">left_arr</span><span class="p">,</span> <span class="n">right_arr</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the indices of overlapping elements between two arrays.</span>
+
+<span class="sd">    This function finds the common elements (indices) between two input arrays</span>
+<span class="sd">    and returns their positions in both arrays. It uses pandas Index objects</span>
+<span class="sd">    and memoization for performance improvement.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; left_arr = [&#39;a&#39;, &#39;b&#39;, &#39;c&#39;, &#39;d&#39;]</span>
+<span class="sd">        &gt;&gt;&gt; right_arr = [&#39;b&#39;, &#39;c&#39;, &#39;e&#39;]</span>
+<span class="sd">        &gt;&gt;&gt; left_idx, right_idx = overlap_indices(left_arr, right_arr)</span>
+<span class="sd">        &gt;&gt;&gt; print(left_idx)</span>
+<span class="sd">        [1 2]</span>
+<span class="sd">        &gt;&gt;&gt; print(right_idx)</span>
+<span class="sd">        [0 1]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">left_arr</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Index</span><span class="p">):</span>
+        <span class="n">left_arr</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">left_arr</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">right_arr</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Index</span><span class="p">):</span>
+        <span class="n">right_arr</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">right_arr</span><span class="p">)</span>
+    <span class="n">common_indices</span> <span class="o">=</span> <span class="n">left_arr</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">right_arr</span><span class="p">)</span>
+    <span class="n">left_index</span> <span class="o">=</span> <span class="n">left_arr</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">common_indices</span><span class="p">)</span>
+    <span class="n">right_index</span> <span class="o">=</span> <span class="n">right_arr</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">common_indices</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">left_index</span><span class="p">,</span> <span class="n">right_index</span>
+
+
+<div class="viewcode-block" id="MethylData">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData">[docs]</a>
+<span class="k">class</span> <span class="nc">MethylData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents methylated and unmethylated intensity data from RawData.</span>
+
+<span class="sd">    This class provides methods for preprocessing Illumina methylation data and</span>
+<span class="sd">    computing beta values from methylated and unmethylated intensities.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data (RawData): RawData object containing raw intensity data.</span>
+<span class="sd">        file (str): Path to file or dir or list of paths containing raw</span>
+<span class="sd">            intensity data.</span>
+<span class="sd">        prep (str): Preprocessing method. Options: &quot;illumina&quot;, &quot;swan&quot;,</span>
+<span class="sd">            &quot;noob&quot;.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        If &#39;data&#39; is not provided, it will attempt to create a RawData object</span>
+<span class="sd">        using the specified &#39;file&#39;.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        _grn (numpy.ndarray): Green channel intensities.</span>
+<span class="sd">        _red (numpy.ndarray): Red channel intensities.</span>
+<span class="sd">        array_type (str): Type of the array.</span>
+<span class="sd">        ids (numpy.ndarray): Array of probe IDs.</span>
+<span class="sd">        manifest (Manifest): Manifest associated with the array.</span>
+<span class="sd">        probes (list): List of probe names corresponding to the IDAT files.</span>
+<span class="sd">        data (RawData): RawData object containing the original intensity data.</span>
+<span class="sd">        _grn_df (pandas.DataFrame or None): DataFrame for green channel</span>
+<span class="sd">            intensities.</span>
+<span class="sd">        _red_df (pandas.DataFrame or None): DataFrame for red channel</span>
+<span class="sd">            intensities.</span>
+<span class="sd">        _methylated_df (pandas.DataFrame or None): DataFrame for methylated</span>
+<span class="sd">            intensities.</span>
+<span class="sd">        _unmethylated_df (pandas.DataFrame or None): DataFrame for unmethylated</span>
+<span class="sd">            intensities.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If neither &#39;data&#39; nor &#39;file&#39; is provided.</span>
+<span class="sd">        ValueError: If &#39;data&#39; is provided but is not of type &#39;RawData&#39;.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        &gt;&gt;&gt; methyl_data = MethylData(raw_data, prep=&quot;illumina&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; methyl_data = MethylData(file=file_path, prep=&quot;swan&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prep</span><span class="o">=</span><span class="s2">&quot;illumina&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">file</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&#39;data&#39; or &#39;file&#39; must be given.&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">RawData</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">RawData</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&#39;data&#39; is not of type &#39;RawData&#39;.&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">_grn</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_red</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">_red</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">array_type</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">array_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ids</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">ids</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">manifest</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">probes</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">probes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grn_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_red_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">prep</span> <span class="o">==</span> <span class="s2">&quot;illumina&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_illumina</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">prep</span> <span class="o">==</span> <span class="s2">&quot;swan&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_swan</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">prep</span> <span class="o">==</span> <span class="s2">&quot;noob&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_noob</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">prep</span> <span class="o">==</span> <span class="s2">&quot;raw&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_raw_cached</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;invalid &#39;prep&#39; value </span><span class="si">{</span><span class="n">prep</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">grn</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Normalized intensity for the green channel, indexed by probe IDs.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn_df</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grn_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="o">.</span><span class="n">T</span><span class="p">,</span>
+                <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span>
+                <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn_df</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">red</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Normalized intensity for the red channel, indexed by probe IDs.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red_df</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_red_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="o">.</span><span class="n">T</span><span class="p">,</span>
+                <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span>
+                <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red_df</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">methylated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Methylated intensity values indexed by IlmnID.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span><span class="o">.</span><span class="n">T</span><span class="p">,</span>
+                <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">methyl_ilmnid</span><span class="p">,</span>
+                <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;IlmnID&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">unmethylated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Unmethylated intensity values indexed by IlmnID.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span><span class="o">.</span><span class="n">T</span><span class="p">,</span>
+                <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">methyl_ilmnid</span><span class="p">,</span>
+                <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;IlmnID&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span>
+
+<div class="viewcode-block" id="MethylData.preprocess_illumina">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.preprocess_illumina">[docs]</a>
+    <span class="k">def</span> <span class="nf">preprocess_illumina</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Performs preprocessing usings Illuminas method.</span>
+
+<span class="sd">        This function implements preprocessing for Illumina methylation</span>
+<span class="sd">        microarrays as used in Genome Studio, the standard software provided by</span>
+<span class="sd">        Illumina.</span>
+
+<span class="sd">        Details:</span>
+<span class="sd">            This implementation is adapted from &#39;minfi&#39;.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">illumina_control_normalization</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">illumina_bg_correction</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_raw_cached</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="MethylData.illumina_control_normalization">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.illumina_control_normalization">[docs]</a>
+    <span class="k">def</span> <span class="nf">illumina_control_normalization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Performs normalization using control probes.&quot;&quot;&quot;</span>
+        <span class="n">at_controls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">control_address</span><span class="p">([</span><span class="s2">&quot;NORM_A&quot;</span><span class="p">,</span> <span class="s2">&quot;NORM_T&quot;</span><span class="p">])</span>
+        <span class="n">cg_controls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">control_address</span><span class="p">([</span><span class="s2">&quot;NORM_C&quot;</span><span class="p">,</span> <span class="s2">&quot;NORM_G&quot;</span><span class="p">])</span>
+
+        <span class="n">grn_average</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">cg_controls</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
+            <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">red_average</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">at_controls</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
+            <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">ref</span> <span class="o">=</span> <span class="p">(</span><span class="n">grn_average</span> <span class="o">+</span> <span class="n">red_average</span><span class="p">)[</span><span class="n">reference</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">grn_factor</span> <span class="o">=</span> <span class="n">ref</span> <span class="o">/</span> <span class="n">grn_average</span>
+        <span class="n">red_factor</span> <span class="o">=</span> <span class="n">ref</span> <span class="o">/</span> <span class="n">red_average</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span> <span class="o">=</span> <span class="n">grn_factor</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_red</span> <span class="o">=</span> <span class="n">red_factor</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red</span></div>
+
+
+<div class="viewcode-block" id="MethylData.illumina_bg_correction">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.illumina_bg_correction">[docs]</a>
+    <span class="k">def</span> <span class="nf">illumina_bg_correction</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Performs background normalization using negative control probes.&quot;&quot;&quot;</span>
+        <span class="n">neg_controls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">control_address</span><span class="p">(</span><span class="s2">&quot;NEGATIVE&quot;</span><span class="p">)</span>
+
+        <span class="n">grn_bg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">neg_controls</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+        <span class="p">)[:,</span> <span class="mi">30</span><span class="p">]</span>
+        <span class="n">red_bg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">neg_controls</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+        <span class="p">)[:,</span> <span class="mi">30</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_grn</span> <span class="o">-</span> <span class="n">grn_bg</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_red</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_red</span> <span class="o">-</span> <span class="n">red_bg</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MethylData.preprocess_raw">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.preprocess_raw">[docs]</a>
+    <span class="k">def</span> <span class="nf">preprocess_raw</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculates methylated/unmethylated arrays without preprocessing.</span>
+
+<span class="sd">        Converts the Red/Green channel for an Illumina methylation array</span>
+<span class="sd">        into methylation signal, without using any normalization.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">type_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">probe_info</span><span class="p">(</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">ONE</span><span class="p">)</span>
+        <span class="n">type_2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">probe_info</span><span class="p">(</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">TWO</span><span class="p">)</span>
+        <span class="n">type_1_red</span> <span class="o">=</span> <span class="n">type_1</span><span class="p">[</span><span class="n">type_1</span><span class="o">.</span><span class="n">Color_Channel</span><span class="o">.</span><span class="n">values</span> <span class="o">==</span> <span class="n">Channel</span><span class="o">.</span><span class="n">RED</span><span class="o">.</span><span class="n">value</span><span class="p">]</span>
+        <span class="n">type_1_grn</span> <span class="o">=</span> <span class="n">type_1</span><span class="p">[</span><span class="n">type_1</span><span class="o">.</span><span class="n">Color_Channel</span><span class="o">.</span><span class="n">values</span> <span class="o">==</span> <span class="n">Channel</span><span class="o">.</span><span class="n">GRN</span><span class="o">.</span><span class="n">value</span><span class="p">]</span>
+        <span class="n">man_idx_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">type_1</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                    <span class="n">type_2</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_raw_methylated</span><span class="p">(</span>
+            <span class="n">man_idx_np</span><span class="p">,</span> <span class="n">type_1_grn</span><span class="p">,</span> <span class="n">type_1_red</span><span class="p">,</span> <span class="n">type_2</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_raw_unmethylated</span><span class="p">(</span>
+            <span class="n">man_idx_np</span><span class="p">,</span> <span class="n">type_1_grn</span><span class="p">,</span> <span class="n">type_1_red</span><span class="p">,</span> <span class="n">type_2</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MethylData.preprocess_raw_methylated">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.preprocess_raw_methylated">[docs]</a>
+    <span class="k">def</span> <span class="nf">preprocess_raw_methylated</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">man_idx_np</span><span class="p">,</span> <span class="n">t1_grn</span><span class="p">,</span> <span class="n">t1_red</span><span class="p">,</span> <span class="n">t2</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculates methylated data frame without preprocessing.&quot;&quot;&quot;</span>
+        <span class="n">red</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">red</span>
+        <span class="n">grn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grn</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+            <span class="n">index</span><span class="o">=</span><span class="n">man_idx_np</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">red</span><span class="o">.</span><span class="n">columns</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t1_red</span><span class="o">.</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">red</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t1_red</span><span class="p">[</span><span class="s2">&quot;AddressB_ID&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t1_grn</span><span class="o">.</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">grn</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t1_grn</span><span class="p">[</span><span class="s2">&quot;AddressB_ID&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t2</span><span class="o">.</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">grn</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t2</span><span class="p">[</span><span class="s2">&quot;AddressA_ID&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">&quot;IlmnID&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">data_frame</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">man_idx_np</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s2">&quot;IlmnID&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MethylData.preprocess_raw_unmethylated">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.preprocess_raw_unmethylated">[docs]</a>
+    <span class="k">def</span> <span class="nf">preprocess_raw_unmethylated</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">man_idx_np</span><span class="p">,</span> <span class="n">t1_grn</span><span class="p">,</span> <span class="n">t1_red</span><span class="p">,</span> <span class="n">t2</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculates unmethylated data frame without preprocessing.&quot;&quot;&quot;</span>
+        <span class="n">red</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">red</span>
+        <span class="n">grn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grn</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+            <span class="n">index</span><span class="o">=</span><span class="n">man_idx_np</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">red</span><span class="o">.</span><span class="n">columns</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t1_red</span><span class="o">.</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">red</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t1_red</span><span class="p">[</span><span class="s2">&quot;AddressA_ID&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t1_grn</span><span class="o">.</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">grn</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t1_grn</span><span class="p">[</span><span class="s2">&quot;AddressA_ID&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t2</span><span class="o">.</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">red</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">t2</span><span class="p">[</span><span class="s2">&quot;AddressA_ID&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">&quot;IlmnID&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">data_frame</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">man_idx_np</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s2">&quot;IlmnID&quot;</span><span class="p">)</span></div>
+
+
+    <span class="nd">@memoize</span>
+    <span class="k">def</span> <span class="nf">cached_indices</span><span class="p">(</span><span class="n">manifest</span><span class="p">,</span> <span class="n">illumina_ids</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Cache the indices required for data processing.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            manifest (Manifest): Manifest object.</span>
+<span class="sd">            illumina_ids (array): Array of Illumina IDs.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Cached indices including probe indices, Illumina IDs indices,</span>
+<span class="sd">                and probe type indices.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">type_1</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">probe_info</span><span class="p">(</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">ONE</span><span class="p">)</span>
+        <span class="n">type_2</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">probe_info</span><span class="p">(</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">TWO</span><span class="p">)</span>
+        <span class="n">type_1_red</span> <span class="o">=</span> <span class="n">type_1</span><span class="p">[</span><span class="n">type_1</span><span class="o">.</span><span class="n">Color_Channel</span><span class="o">.</span><span class="n">values</span> <span class="o">==</span> <span class="n">Channel</span><span class="o">.</span><span class="n">RED</span><span class="o">.</span><span class="n">value</span><span class="p">]</span>
+        <span class="n">type_1_grn</span> <span class="o">=</span> <span class="n">type_1</span><span class="p">[</span><span class="n">type_1</span><span class="o">.</span><span class="n">Color_Channel</span><span class="o">.</span><span class="n">values</span> <span class="o">==</span> <span class="n">Channel</span><span class="o">.</span><span class="n">GRN</span><span class="o">.</span><span class="n">value</span><span class="p">]</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+                    <span class="p">[</span>
+                        <span class="n">type_1</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                        <span class="n">type_2</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                    <span class="p">]</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">ilmnid</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">data_frame</span><span class="o">.</span><span class="n">IlmnID</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">values</span><span class="p">]</span>
+        <span class="n">ids</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">illumina_ids</span><span class="p">)</span>
+        <span class="n">ids_1_red_a</span> <span class="o">=</span> <span class="n">ids</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">type_1_red</span><span class="p">[</span><span class="s2">&quot;AddressA_ID&quot;</span><span class="p">])</span>
+        <span class="n">ids_1_red_b</span> <span class="o">=</span> <span class="n">ids</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">type_1_red</span><span class="p">[</span><span class="s2">&quot;AddressB_ID&quot;</span><span class="p">])</span>
+        <span class="n">ids_1_grn_a</span> <span class="o">=</span> <span class="n">ids</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">type_1_grn</span><span class="p">[</span><span class="s2">&quot;AddressA_ID&quot;</span><span class="p">])</span>
+        <span class="n">ids_1_grn_b</span> <span class="o">=</span> <span class="n">ids</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">type_1_grn</span><span class="p">[</span><span class="s2">&quot;AddressB_ID&quot;</span><span class="p">])</span>
+        <span class="n">ids_2_____a</span> <span class="o">=</span> <span class="n">ids</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">type_2</span><span class="p">[</span><span class="s2">&quot;AddressA_ID&quot;</span><span class="p">])</span>
+        <span class="n">idx_1_red__</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">type_1_red</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">idx_1_grn__</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">type_1_grn</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">idx_2______</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">type_2</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;idx&quot;</span><span class="p">:</span> <span class="n">idx</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+            <span class="s2">&quot;ilmnid&quot;</span><span class="p">:</span> <span class="n">ilmnid</span><span class="p">,</span>
+            <span class="s2">&quot;ids_1_red_a&quot;</span><span class="p">:</span> <span class="n">ids_1_red_a</span><span class="p">,</span>
+            <span class="s2">&quot;ids_1_red_b&quot;</span><span class="p">:</span> <span class="n">ids_1_red_b</span><span class="p">,</span>
+            <span class="s2">&quot;ids_1_grn_a&quot;</span><span class="p">:</span> <span class="n">ids_1_grn_a</span><span class="p">,</span>
+            <span class="s2">&quot;ids_1_grn_b&quot;</span><span class="p">:</span> <span class="n">ids_1_grn_b</span><span class="p">,</span>
+            <span class="s2">&quot;ids_2_____a&quot;</span><span class="p">:</span> <span class="n">ids_2_____a</span><span class="p">,</span>
+            <span class="s2">&quot;idx_1_red__&quot;</span><span class="p">:</span> <span class="n">idx_1_red__</span><span class="p">,</span>
+            <span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">:</span> <span class="n">idx_1_grn__</span><span class="p">,</span>
+            <span class="s2">&quot;idx_2______&quot;</span><span class="p">:</span> <span class="n">idx_2______</span><span class="p">,</span>
+        <span class="p">}</span>
+
+    <span class="nd">@memoize</span>
+    <span class="k">def</span> <span class="nf">cached_control_indices</span><span class="p">(</span><span class="n">manifest</span><span class="p">,</span> <span class="n">illumina_ids</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Cache the control indices required for data processing.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            manifest (Manifest): Manifest object.</span>
+<span class="sd">            illumina_ids (array): Array of Illumina IDs.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Cached indices.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ids</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Index</span><span class="p">(</span><span class="n">illumina_ids</span><span class="p">)</span>
+        <span class="n">control_probes</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">control_data_frame</span>
+        <span class="n">control_probes</span> <span class="o">=</span> <span class="n">control_probes</span><span class="p">[</span>
+            <span class="n">control_probes</span><span class="o">.</span><span class="n">Address_ID</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">idx_cg</span> <span class="o">=</span> <span class="n">control_probes</span><span class="p">[</span>
+            <span class="n">control_probes</span><span class="o">.</span><span class="n">Control_Type</span><span class="o">.</span><span class="n">isin</span><span class="p">([</span><span class="s2">&quot;NORM_C&quot;</span><span class="p">,</span> <span class="s2">&quot;NORM_G&quot;</span><span class="p">])</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">idx_at</span> <span class="o">=</span> <span class="n">control_probes</span><span class="p">[</span>
+            <span class="n">control_probes</span><span class="o">.</span><span class="n">Control_Type</span><span class="o">.</span><span class="n">isin</span><span class="p">([</span><span class="s2">&quot;NORM_A&quot;</span><span class="p">,</span> <span class="s2">&quot;NORM_T&quot;</span><span class="p">])</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">ids_ctr</span> <span class="o">=</span> <span class="n">ids</span><span class="o">.</span><span class="n">get_indexer</span><span class="p">(</span><span class="n">control_probes</span><span class="p">[</span><span class="s2">&quot;Address_ID&quot;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;ids_ctr&quot;</span><span class="p">:</span> <span class="n">ids_ctr</span><span class="p">,</span>
+            <span class="s2">&quot;idx_at&quot;</span><span class="p">:</span> <span class="n">idx_at</span><span class="p">,</span>
+            <span class="s2">&quot;idx_cg&quot;</span><span class="p">:</span> <span class="n">idx_cg</span><span class="p">,</span>
+        <span class="p">}</span>
+
+<div class="viewcode-block" id="MethylData.preprocess_raw_cached">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.preprocess_raw_cached">[docs]</a>
+    <span class="k">def</span> <span class="nf">preprocess_raw_cached</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculates methylated/unmethylated arrays without preprocessing.</span>
+
+<span class="sd">        Converts the Red/Green channel for an Illumina methylation array</span>
+<span class="sd">        into methylation signal, without using any normalization.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Fast version of ``preprocess_raw``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ci</span> <span class="o">=</span> <span class="n">MethylData</span><span class="o">.</span><span class="n">cached_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx&quot;</span><span class="p">])),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_red__&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_1_red_b&quot;</span><span class="p">]]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_1_grn_b&quot;</span><span class="p">]]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_2______&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_2_____a&quot;</span><span class="p">]]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx&quot;</span><span class="p">])),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_red__&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_1_red_a&quot;</span><span class="p">]]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_1_grn_a&quot;</span><span class="p">]]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_2______&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_2_____a&quot;</span><span class="p">]]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">methyl_index</span> <span class="o">=</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">methyl_ilmnid</span> <span class="o">=</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ilmnid&quot;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="MethylData.swan_bg_intensity">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.swan_bg_intensity">[docs]</a>
+    <span class="k">def</span> <span class="nf">swan_bg_intensity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Intensity background normalization used for SWAN preprocessing.&quot;&quot;&quot;</span>
+        <span class="n">neg_controls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">control_address</span><span class="p">(</span><span class="s2">&quot;NEGATIVE&quot;</span><span class="p">)</span>
+        <span class="n">grn_med</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">neg_controls</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
+            <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">red_med</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="n">neg_controls</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
+            <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">([</span><span class="n">grn_med</span><span class="p">,</span> <span class="n">red_med</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">swan_indices</span><span class="p">(</span><span class="n">manifest</span><span class="p">,</span> <span class="n">methyl_index</span><span class="p">):</span>
+        <span class="n">all_ncpgs</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">manifest</span><span class="o">.</span><span class="n">data_frame</span><span class="p">[[</span><span class="s2">&quot;Probe_Type&quot;</span><span class="p">,</span> <span class="s2">&quot;N_CpG&quot;</span><span class="p">]]</span>
+            <span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">methyl_index</span><span class="p">]</span>
+            <span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">subset_sizes</span> <span class="o">=</span> <span class="n">all_ncpgs</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span>
+            <span class="p">[</span><span class="s2">&quot;Probe_Type&quot;</span><span class="p">,</span> <span class="s2">&quot;N_CpG&quot;</span><span class="p">],</span> <span class="n">dropna</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">()</span>
+        <span class="n">subset_size</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">subset_sizes</span><span class="o">.</span><span class="n">loc</span><span class="p">[(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span> <span class="nb">slice</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))])</span>
+        <span class="n">all_indices</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">random_subset_indices</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">probe_type</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">ONE</span><span class="p">,</span> <span class="n">ProbeType</span><span class="o">.</span><span class="n">TWO</span><span class="p">]:</span>
+            <span class="n">all_ncpts_type</span> <span class="o">=</span> <span class="n">all_ncpgs</span><span class="p">[</span><span class="n">all_ncpgs</span><span class="o">.</span><span class="n">Probe_Type</span> <span class="o">==</span> <span class="n">probe_type</span><span class="p">]</span>
+            <span class="n">all_indices</span><span class="p">[</span><span class="n">probe_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">all_ncpts_type</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">values</span>
+            <span class="n">all_ncpts_type</span> <span class="o">=</span> <span class="n">all_ncpts_type</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">ncpgs</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+                <span class="n">ids</span> <span class="o">=</span> <span class="n">all_ncpts_type</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">all_ncpts_type</span><span class="o">.</span><span class="n">N_CpG</span> <span class="o">==</span> <span class="n">ncpgs</span><span class="p">]</span>
+                <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">()</span>
+                <span class="n">ids_subset</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span><span class="n">ids</span><span class="p">)[:</span><span class="n">subset_size</span><span class="p">]</span>
+                <span class="n">indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ids_subset</span><span class="p">)</span>
+            <span class="n">random_subset_indices</span><span class="p">[</span><span class="n">probe_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">all_indices</span><span class="p">,</span> <span class="n">random_subset_indices</span>
+
+<div class="viewcode-block" id="MethylData.preprocess_swan">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.preprocess_swan">[docs]</a>
+    <span class="k">def</span> <span class="nf">preprocess_swan</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Subset-quantile Within Array Normalization (SWAN).</span>
+
+<span class="sd">        Details:</span>
+<span class="sd">            The SWAN method has two parts. First, an average quantile</span>
+<span class="sd">            distribution is created using a subset of probes defined to be</span>
+<span class="sd">            biologically similar based on the number of CpGs underlying the</span>
+<span class="sd">            probe body. This is achieved by randomly selecting N Infinium I and</span>
+<span class="sd">            II probes that have 1, 2 and 3 underlying CpGs, where N is the</span>
+<span class="sd">            minimum number of probes in the 6 sets of Infinium I and II probes</span>
+<span class="sd">            with 1, 2 or 3 probe body CpGs. This results in a pool of 3N</span>
+<span class="sd">            Infinium I and 3N Infinium II probes. The subset for each probe</span>
+<span class="sd">            type is then sorted by increasing intensity.  The value of each of</span>
+<span class="sd">            the 3N pairs of observations is subsequently assigned to be the</span>
+<span class="sd">            mean intensity of the two probe types for that row or “quantile”.</span>
+<span class="sd">            This is the standard quantile procedure. The intensities of the</span>
+<span class="sd">            remaining probes are then separately adjusted for each probe type</span>
+<span class="sd">            using linear interpolation between the subset probes.</span>
+
+
+<span class="sd">            Implementation adapted from &#39;minfi&#39;</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            SWAN uses a random subset of probes for between array</span>
+<span class="sd">            normalization. To achieve reproducible results, set the seed.</span>
+
+<span class="sd">        References:</span>
+<span class="sd">            J Maksimovic, L Gordon and A Oshlack (2012). SWAN: Subset quantile</span>
+<span class="sd">            Within-Array Normalization for Illumina Infinium</span>
+<span class="sd">            HumanMethylation450 BeadChips. Genome Biology 13, R44.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_raw_cached</span><span class="p">()</span>
+        <span class="n">bg_intensity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">swan_bg_intensity</span><span class="p">()</span>
+        <span class="n">all_indices</span><span class="p">,</span> <span class="n">random_subset_indices</span> <span class="o">=</span> <span class="n">MethylData</span><span class="o">.</span><span class="n">swan_indices</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">methyl_index</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span> <span class="o">=</span> <span class="n">MethylData</span><span class="o">.</span><span class="n">_preprocess_swan</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span><span class="p">,</span> <span class="n">bg_intensity</span><span class="p">,</span> <span class="n">all_indices</span><span class="p">,</span> <span class="n">random_subset_indices</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span> <span class="o">=</span> <span class="n">MethylData</span><span class="o">.</span><span class="n">_preprocess_swan</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span><span class="p">,</span> <span class="n">bg_intensity</span><span class="p">,</span> <span class="n">all_indices</span><span class="p">,</span> <span class="n">random_subset_indices</span>
+        <span class="p">)</span></div>
+
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_preprocess_swan</span><span class="p">(</span>
+        <span class="n">intensity</span><span class="p">,</span> <span class="n">bg_intensity</span><span class="p">,</span> <span class="n">all_indices</span><span class="p">,</span> <span class="n">random_subset_indices</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Main function for preprocess_swan.&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">rankdata</span>
+
+        <span class="n">random_subset_one</span> <span class="o">=</span> <span class="n">all_indices</span><span class="p">[</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">ONE</span><span class="p">][</span>
+            <span class="n">random_subset_indices</span><span class="p">[</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">ONE</span><span class="p">]</span>
+        <span class="p">]</span>
+        <span class="n">random_subset_two</span> <span class="o">=</span> <span class="n">all_indices</span><span class="p">[</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">TWO</span><span class="p">][</span>
+            <span class="n">random_subset_indices</span><span class="p">[</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">TWO</span><span class="p">]</span>
+        <span class="p">]</span>
+        <span class="n">sorted_subset_intensity</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">intensity</span><span class="p">[:,</span> <span class="n">random_subset_one</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">intensity</span><span class="p">[:,</span> <span class="n">random_subset_two</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">swan</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">intensity</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">intensity</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">probe_type</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ProbeType</span><span class="o">.</span><span class="n">ONE</span><span class="p">,</span> <span class="n">ProbeType</span><span class="o">.</span><span class="n">TWO</span><span class="p">]:</span>
+                <span class="n">curr_intensity</span> <span class="o">=</span> <span class="n">intensity</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">all_indices</span><span class="p">[</span><span class="n">probe_type</span><span class="p">]]</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">rankdata</span><span class="p">(</span><span class="n">curr_intensity</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">curr_intensity</span><span class="p">)</span>
+                <span class="n">xp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">random_subset_indices</span><span class="p">[</span><span class="n">probe_type</span><span class="p">]])</span>
+                <span class="n">fp</span> <span class="o">=</span> <span class="n">sorted_subset_intensity</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span>
+                <span class="n">interp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">x</span><span class="p">,</span> <span class="n">xp</span><span class="o">=</span><span class="n">xp</span><span class="p">,</span> <span class="n">fp</span><span class="o">=</span><span class="n">fp</span><span class="p">)</span>
+                <span class="n">intensity_min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span>
+                    <span class="n">curr_intensity</span><span class="p">[</span><span class="n">random_subset_indices</span><span class="p">[</span><span class="n">probe_type</span><span class="p">]]</span>
+                <span class="p">)</span>
+                <span class="n">intensity_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span>
+                    <span class="n">curr_intensity</span><span class="p">[</span><span class="n">random_subset_indices</span><span class="p">[</span><span class="n">probe_type</span><span class="p">]]</span>
+                <span class="p">)</span>
+                <span class="n">interp</span><span class="p">[</span><span class="n">x</span> <span class="o">&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">xp</span><span class="p">)]</span> <span class="o">+=</span> <span class="p">(</span>
+                    <span class="n">curr_intensity</span><span class="p">[</span><span class="n">x</span> <span class="o">&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">xp</span><span class="p">)]</span> <span class="o">-</span> <span class="n">intensity_max</span>
+                <span class="p">)</span>
+                <span class="n">interp</span><span class="p">[</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">xp</span><span class="p">)]</span> <span class="o">+=</span> <span class="p">(</span>
+                    <span class="n">curr_intensity</span><span class="p">[</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">xp</span><span class="p">)]</span> <span class="o">-</span> <span class="n">intensity_min</span>
+                <span class="p">)</span>
+                <span class="n">interp</span><span class="p">[</span><span class="n">interp</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">bg_intensity</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">swan</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">all_indices</span><span class="p">[</span><span class="n">probe_type</span><span class="p">]]</span> <span class="o">=</span> <span class="n">interp</span>
+        <span class="k">return</span> <span class="n">swan</span>
+
+<div class="viewcode-block" id="MethylData.preprocess_noob">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.preprocess_noob">[docs]</a>
+    <span class="k">def</span> <span class="nf">preprocess_noob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">dye_method</span><span class="o">=</span><span class="s2">&quot;single&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The Noob preprocessing method.</span>
+
+<span class="sd">        Description:</span>
+<span class="sd">            Noob (normal-exponential out-of-band) is a background correction</span>
+<span class="sd">            method with dye-bias normalization.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            offset (float): An offset for the normexp background correction.</span>
+<span class="sd">            dye_method (str): How should dye bias correction be done: &quot;single&quot;</span>
+<span class="sd">                for single sample approach, or &quot;reference&quot; for a reference</span>
+<span class="sd">                array.</span>
+
+<span class="sd">        References:</span>
+<span class="sd">            TJ Triche, DJ Weisenberger, D Van Den Berg, PW Laird and KD</span>
+<span class="sd">            Siegmund _Low-level processing of Illumina Infinium DNA</span>
+<span class="sd">            Methylation BeadArrays.  Nucleic Acids Res (2013) 41, e90.</span>
+<span class="sd">            doi:10.1093/nar/gkt090.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_methylated_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unmethylated_df</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">preprocess_raw_cached</span><span class="p">()</span>
+
+        <span class="n">ci</span> <span class="o">=</span> <span class="n">MethylData</span><span class="o">.</span><span class="n">cached_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">)</span>
+
+        <span class="n">grn_oob</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_1_red_a&quot;</span><span class="p">]],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_1_red_b&quot;</span><span class="p">]]],</span>
+            <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">red_oob</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_1_grn_a&quot;</span><span class="p">]],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;ids_1_grn_b&quot;</span><span class="p">]]],</span>
+            <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">methyl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span>
+        <span class="n">unmethyl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span>
+        <span class="n">methyl</span><span class="p">[</span><span class="n">methyl</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">unmethyl</span><span class="p">[</span><span class="n">unmethyl</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="n">grn_m</span> <span class="o">=</span> <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">]]</span>
+        <span class="n">grn_u</span> <span class="o">=</span> <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">]]</span>
+        <span class="n">grn_2</span> <span class="o">=</span> <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_2______&quot;</span><span class="p">]]</span>
+
+        <span class="n">xf_grn</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">grn_m</span><span class="p">,</span> <span class="n">grn_u</span><span class="p">,</span> <span class="n">grn_2</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">xs_grn</span> <span class="o">=</span> <span class="n">normexp_get_xs</span><span class="p">(</span><span class="n">xf_grn</span><span class="p">,</span> <span class="n">controls</span><span class="o">=</span><span class="n">grn_oob</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">)</span>
+
+        <span class="n">cumsum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">grn_m</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">grn_u</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">grn_2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="n">slice_grn_m</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">cumsum</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cumsum</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">slice_grn_u</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">cumsum</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cumsum</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">slice_grn_2</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">cumsum</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">cumsum</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+
+        <span class="n">red_m</span> <span class="o">=</span> <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_red__&quot;</span><span class="p">]]</span>
+        <span class="n">red_u</span> <span class="o">=</span> <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_red__&quot;</span><span class="p">]]</span>
+        <span class="n">red_2</span> <span class="o">=</span> <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_2______&quot;</span><span class="p">]]</span>
+
+        <span class="n">xf_red</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">red_m</span><span class="p">,</span> <span class="n">red_u</span><span class="p">,</span> <span class="n">red_2</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">xs_red</span> <span class="o">=</span> <span class="n">normexp_get_xs</span><span class="p">(</span><span class="n">xf_red</span><span class="p">,</span> <span class="n">controls</span><span class="o">=</span><span class="n">red_oob</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">)</span>
+
+        <span class="n">cumsum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">red_m</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">red_u</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">red_2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="n">slice_red_m</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">cumsum</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cumsum</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">slice_red_u</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">cumsum</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cumsum</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">slice_red_2</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">cumsum</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">cumsum</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+
+        <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">xs_grn</span><span class="p">[</span><span class="s2">&quot;xs&quot;</span><span class="p">][:,</span> <span class="n">slice_grn_m</span><span class="p">]</span>
+        <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">xs_grn</span><span class="p">[</span><span class="s2">&quot;xs&quot;</span><span class="p">][:,</span> <span class="n">slice_grn_u</span><span class="p">]</span>
+
+        <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_red__&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">xs_red</span><span class="p">[</span><span class="s2">&quot;xs&quot;</span><span class="p">][:,</span> <span class="n">slice_red_m</span><span class="p">]</span>
+        <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_red__&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">xs_red</span><span class="p">[</span><span class="s2">&quot;xs&quot;</span><span class="p">][:,</span> <span class="n">slice_red_u</span><span class="p">]</span>
+
+        <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_2______&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">xs_grn</span><span class="p">[</span><span class="s2">&quot;xs&quot;</span><span class="p">][:,</span> <span class="n">slice_grn_2</span><span class="p">]</span>
+        <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_2______&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">xs_red</span><span class="p">[</span><span class="s2">&quot;xs&quot;</span><span class="p">][:,</span> <span class="n">slice_red_2</span><span class="p">]</span>
+
+        <span class="c1"># Dye correction</span>
+
+        <span class="n">cci</span> <span class="o">=</span> <span class="n">MethylData</span><span class="o">.</span><span class="n">cached_control_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">)</span>
+
+        <span class="n">grn_control</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="p">[:,</span> <span class="n">cci</span><span class="p">[</span><span class="s2">&quot;ids_ctr&quot;</span><span class="p">]]</span>
+        <span class="n">red_control</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="p">[:,</span> <span class="n">cci</span><span class="p">[</span><span class="s2">&quot;ids_ctr&quot;</span><span class="p">]]</span>
+
+        <span class="n">xcs_grn</span> <span class="o">=</span> <span class="n">normexp_get_xs</span><span class="p">(</span>
+            <span class="n">grn_control</span><span class="p">,</span> <span class="n">param</span><span class="o">=</span><span class="n">xs_grn</span><span class="p">[</span><span class="s2">&quot;param&quot;</span><span class="p">],</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span>
+        <span class="p">)</span>
+        <span class="n">xcs_red</span> <span class="o">=</span> <span class="n">normexp_get_xs</span><span class="p">(</span>
+            <span class="n">red_control</span><span class="p">,</span> <span class="n">param</span><span class="o">=</span><span class="n">xs_red</span><span class="p">[</span><span class="s2">&quot;param&quot;</span><span class="p">],</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span>
+        <span class="p">)</span>
+
+        <span class="n">grn_avg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">xcs_grn</span><span class="p">[</span><span class="s2">&quot;xs&quot;</span><span class="p">][:,</span> <span class="n">cci</span><span class="p">[</span><span class="s2">&quot;idx_cg&quot;</span><span class="p">]],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">red_avg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">xcs_red</span><span class="p">[</span><span class="s2">&quot;xs&quot;</span><span class="p">][:,</span> <span class="n">cci</span><span class="p">[</span><span class="s2">&quot;idx_at&quot;</span><span class="p">]],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">red_grn_ratio</span> <span class="o">=</span> <span class="n">red_avg</span> <span class="o">/</span> <span class="n">grn_avg</span>
+
+        <span class="k">if</span> <span class="n">dye_method</span> <span class="o">==</span> <span class="s2">&quot;single&quot;</span><span class="p">:</span>
+            <span class="n">red_factor</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">red_grn_ratio</span>
+            <span class="n">grn_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">dye_method</span> <span class="o">==</span> <span class="s2">&quot;reference&quot;</span><span class="p">:</span>
+            <span class="n">ref_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">red_grn_ratio</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">ref</span> <span class="o">=</span> <span class="p">(</span><span class="n">grn_avg</span> <span class="o">+</span> <span class="n">red_avg</span><span class="p">)[</span><span class="n">ref_idx</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">ref</span><span class="p">):</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&#39;ref_idx&#39; refers to an array that is not present&quot;</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="n">grn_factor</span> <span class="o">=</span> <span class="n">ref</span> <span class="o">/</span> <span class="n">grn_avg</span>
+            <span class="n">red_factor</span> <span class="o">=</span> <span class="n">ref</span> <span class="o">/</span> <span class="n">red_avg</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;dye_method must be &#39;single&#39; or &#39;reference&#39;&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="n">red_factor</span> <span class="o">=</span> <span class="n">red_factor</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_red__&quot;</span><span class="p">]]</span> <span class="o">*=</span> <span class="n">red_factor</span>
+        <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_red__&quot;</span><span class="p">]]</span> <span class="o">*=</span> <span class="n">red_factor</span>
+        <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_2______&quot;</span><span class="p">]]</span> <span class="o">*=</span> <span class="n">red_factor</span>
+
+        <span class="k">if</span> <span class="n">dye_method</span> <span class="o">==</span> <span class="s2">&quot;reference&quot;</span><span class="p">:</span>
+            <span class="n">grn_factor</span> <span class="o">=</span> <span class="n">grn_factor</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">]]</span> <span class="o">*=</span> <span class="n">grn_factor</span>
+            <span class="n">unmethyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_1_grn__&quot;</span><span class="p">]]</span> <span class="o">*=</span> <span class="n">grn_factor</span>
+            <span class="n">methyl</span><span class="p">[:,</span> <span class="n">ci</span><span class="p">[</span><span class="s2">&quot;idx_2______&quot;</span><span class="p">]]</span> <span class="o">*=</span> <span class="n">grn_factor</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">methyl</span> <span class="o">=</span> <span class="n">methyl</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span> <span class="o">=</span> <span class="n">unmethyl</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">beta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns beta values.&quot;&quot;&quot;</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_beta</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">methyl</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="n">beta</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">methyl_ilmnid</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="MethylData.betas_for_cpgs">
+<a class="viewcode-back" href="../../../api.html#mepylome.dtypes.beads.MethylData.betas_for_cpgs">[docs]</a>
+    <span class="k">def</span> <span class="nf">betas_for_cpgs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cpgs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="n">NEUTRAL_BETA</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculates beta values for specified CpG sites.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cpgs (array-like): Array of CpG IDs.</span>
+<span class="sd">            fill (float): Value to fill for CpGs not found in the used</span>
+<span class="sd">                manifest.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            pandas.DataFrame: DataFrame containing beta values for specified</span>
+<span class="sd">                CpGs.</span>
+
+<span class="sd">        Nore:</span>
+<span class="sd">            If &#39;cpgs&#39; is None, all CpGs from the used manifest are considered.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cpgs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">cpgs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">methylation_probes</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_beta</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">methyl</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">unmethyl</span><span class="p">)</span>
+        <span class="n">converted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">cpgs</span><span class="p">)),</span> <span class="n">fill</span><span class="p">)</span>
+        <span class="n">left_idx</span><span class="p">,</span> <span class="n">right_idx</span> <span class="o">=</span> <span class="n">overlap_indices</span><span class="p">(</span><span class="n">cpgs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">methyl_ilmnid</span><span class="p">)</span>
+        <span class="n">converted</span><span class="p">[:,</span> <span class="n">left_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">beta</span><span class="p">[:,</span> <span class="n">right_idx</span><span class="p">]</span>
+        <span class="n">converted</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">converted</span><span class="p">)]</span> <span class="o">=</span> <span class="n">fill</span>
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">converted</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">cpgs</span><span class="p">)</span></div>
+
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_get_beta</span><span class="p">(</span>
+        <span class="n">methylated</span><span class="p">,</span> <span class="n">unmethylated</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">beta_threshold</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">min_zero</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">):</span>
+        <span class="k">assert</span> <span class="n">offset</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;offset must be non-negative&quot;</span>
+        <span class="k">assert</span> <span class="p">(</span>
+            <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">beta_threshold</span> <span class="o">&lt;=</span> <span class="mf">0.5</span>
+        <span class="p">),</span> <span class="s2">&quot;beta_threshold must be between 0 and 0.5&quot;</span>
+
+        <span class="k">if</span> <span class="n">min_zero</span><span class="p">:</span>
+            <span class="n">methylated</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">methylated</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">unmethylated</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">unmethylated</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># Ignore division by zero</span>
+        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">divide</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">invalid</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">):</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="n">methylated</span> <span class="o">/</span> <span class="p">(</span><span class="n">methylated</span> <span class="o">+</span> <span class="n">unmethylated</span> <span class="o">+</span> <span class="n">offset</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">beta_threshold</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">beta</span><span class="p">,</span> <span class="n">beta_threshold</span><span class="p">),</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">beta_threshold</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">beta</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="s2">&quot;MethylData():&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">title</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="s2">&quot;*&quot;</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">title</span><span class="p">),</span>
+            <span class="sa">f</span><span class="s2">&quot;array_type: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">array_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;manifest: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">array_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;probes:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">probes</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;_grn:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_grn</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;_red:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_red</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;grn:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">grn</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;red:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">red</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;methylated:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">methylated</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;unmethylated:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">unmethylated</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;intensity&quot;</span><span class="p">):</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;intensity:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">intensity</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+
+<span class="nd">@memoize</span>
+<span class="k">class</span> <span class="nc">ReferenceMethylData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stores and manages reference cases for different array types.</span>
+
+<span class="sd">    This class categorizes and processes reference IDAT files to create</span>
+<span class="sd">    MethylData objects for different array types. It is intended for CNV</span>
+<span class="sd">    neutral reference cases used in CNV calculation.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        file (list): List of file paths to IDAT files or directory containing</span>
+<span class="sd">            IDAT files.</span>
+<span class="sd">        prep (str): Preprocessing method. Options: &quot;illumina&quot;, &quot;swan&quot;, &quot;noob&quot;.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        _methyl (dict): Internal dictionary to cache MethylData objects for</span>
+<span class="sd">            each array type.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If no reference files are found for the specified array</span>
+<span class="sd">            type.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        &gt;&gt;&gt; reference = ReferenceMethylData(file=directory, prep=&quot;illumina&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">prep</span><span class="o">=</span><span class="s2">&quot;illumina&quot;</span><span class="p">):</span>
+        <span class="n">idat_files</span> <span class="o">=</span> <span class="n">idat_basepaths</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="n">reference_files</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_methyl</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">idat_file</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span>
+            <span class="n">idat_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Categorizing reference IDAT files&quot;</span>
+        <span class="p">):</span>
+            <span class="n">raw_data</span> <span class="o">=</span> <span class="n">RawData</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+            <span class="n">array_type</span> <span class="o">=</span> <span class="n">raw_data</span><span class="o">.</span><span class="n">array_type</span>
+            <span class="n">reference_files</span><span class="p">[</span><span class="n">array_type</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idat_file</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">array_type</span><span class="p">,</span> <span class="n">file_list</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span>
+            <span class="n">reference_files</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing reference IDAT files&quot;</span>
+        <span class="p">):</span>
+            <span class="n">raw_data</span> <span class="o">=</span> <span class="n">RawData</span><span class="p">(</span><span class="n">file_list</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_methyl</span><span class="p">[</span><span class="n">array_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">MethylData</span><span class="p">(</span><span class="n">raw_data</span><span class="p">,</span> <span class="n">prep</span><span class="o">=</span><span class="n">prep</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array_type</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">array_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_methyl</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;No reference files found for array type </span><span class="si">{</span><span class="n">array_type</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_methyl</span><span class="p">[</span><span class="n">array_type</span><span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Jon Brugger.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
