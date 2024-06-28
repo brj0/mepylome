@@ -1,9 +1,0 @@
-numpy
-pandas
-openpyxl
-tqdm
-pyranges
-scikit-learn
-dash>=2.16.0
-umap-learn
-dash_bootstrap_components
