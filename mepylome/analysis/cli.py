@@ -11,11 +11,6 @@ Usage:
 """
 
 import argparse
-import logging
-import tempfile
-from pathlib import Path
-
-from mepylome.utils import ensure_directory_exists
 
 
 def print_welcome_message():
@@ -133,50 +128,10 @@ def parse_args():
         action="store_true",
         help="Add horizontal segmentation lines in CNV plot (slow).",
     )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Increase output verbosity.",
-    )
 
     return parser.parse_args()
 
 
-
-
-def setup_logger():
-    MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
-    ensure_directory_exists(MEPYLOME_TMP_DIR)
-    CONSOLE_OUT = Path(MEPYLOME_TMP_DIR, "stdout.txt")
-
-    MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
-    LOGFILE = Path(MEPYLOME_TMP_DIR, "mepylome.log")
-
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(LOGFILE)
-
-    console_handler.setLevel(logging.DEBUG)
-    file_handler.setLevel(logging.DEBUG)
-
-    console_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        # "%(levelname)s %(filename)s,%(lineno)d [%(asctime)s]: %(message)s"
-    )
-    file_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-
-    console_handler.setFormatter(console_formatter)
-    file_handler.setFormatter(file_formatter)
-
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-    return logger
 
 
 def start_mepylome():

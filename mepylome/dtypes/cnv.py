@@ -6,7 +6,6 @@ analysis.
 
 import heapq
 import io
-import logging
 import zipfile
 from functools import lru_cache
 from pathlib import Path
@@ -23,9 +22,7 @@ from mepylome.dtypes.genetic_data import GAPS, GENES
 from mepylome.dtypes.manifests import MEPYLOME_TMP_DIR, Manifest
 from mepylome.dtypes.plots import CNVPlot
 from mepylome.utils.files import ensure_directory_exists
-
-logger = logging.getLogger(__name__)
-
+from mepylome.utils.varia import log
 
 UNSET = object()
 ZIP_ENDING = "_cnv.zip"
@@ -47,8 +44,8 @@ def _get_cgsegment():
 
 
 def _missing_cbseg_msg():
-    print(
-        "*Warning*: Segmentation won't be calculated due to missing "
+    log(
+        "[CNV] **Warning**: Segmentation won't be calculated due to missing "
         "'linear_segment' resp. 'cbseg' package. See documentation."
     )
 
@@ -320,7 +317,10 @@ class Annotation:
                         .tolist()
                     )
                     row_str = "-".join(row)
-                    print(f"Could not merge {row_str}. Removed instead.")
+                    log(
+                        f"[Annotation] Could not merge {row_str}. "
+                        "Removed instead."
+                    )
                 continue
             if n_probes_right == INVALID or n_probes_left <= n_probes_right:
                 i_merge = i_left
@@ -445,8 +445,12 @@ class CNV:
             raise TypeError(msg)
         self.verbose = verbose
         self.annotation = annotation
+        if self.verbose:
+            log(f"[CNV] {self.probe} Construct annotation...")
         if annotation is None:
-            self.annotation = Annotation(array_type=sample.array_type)
+            self.annotation = Annotation(
+                array_type=sample.array_type,
+            )
         if not (
             self.sample.array_type
             == self.annotation.array_type
@@ -473,7 +477,9 @@ class CNV:
         self.fit()
 
     @classmethod
-    def set_all(cls, sample, reference, annotation=None, *, do_seg=True):
+    def set_all(
+        cls, sample, reference, annotation=None, *, do_seg=True, verbose=False
+    ):
         """Create a CNV object and perform CNV analysis.
 
         Args:
@@ -501,7 +507,12 @@ class CNV:
             >>>     cnv.set_segments()
 
         """
-        cnv = cls(sample, reference, annotation)
+        cnv = cls(
+            sample=sample,
+            reference=reference,
+            annotation=annotation,
+            verbose=verbose,
+        )
         cnv.set_bins()
         cnv.set_detail()
         if do_seg:
@@ -512,29 +523,37 @@ class CNV:
         """Calculates intensity values from methylation data."""
         if hasattr(methyl_data, "intensity"):
             return
+        if self.verbose:
+            log(f"[CNV] {self.probe} Setting intensity...")
         intensity = methyl_data.methyl + methyl_data.unmethyl
-        prefix = "sample" if methyl_data == self.sample else "reference"
+        prefix = (
+            f"{self.probe}"
+            if methyl_data == self.sample
+            else f"{self.reference.probes[0]},..."
+        )
 
         # Replace NaN values with 1
         nan_indices = np.isnan(intensity)
         if np.any(nan_indices):
             intensity[nan_indices] = 1
             if self.verbose:
-                print(f"{prefix}: Intensities that are NA, set to 1.")
+                log(f"[CNV] {prefix}: Intensities that are NA set to 1.")
 
         # Replace values less than 1 with 1
         lt_one_indices = intensity < 1
         if np.any(lt_one_indices):
             intensity[lt_one_indices] = 1
             if self.verbose:
-                print(f"{prefix}: Intensities smaller than 0 set to 1.")
+                log(f"[CNV] {prefix}: Intensities < 0 set to 1.")
 
         # Check abnormal low and high intensities
         mean_intensity = np.mean(intensity, axis=1)
         if np.min(mean_intensity) < 5000 and self.verbose:
-            print(f"{prefix}: Intensities are abnormally low (< 5000).")
+            log(f"[CNV] {prefix}: Intensities are abnormally low (< 5000).")
         if np.max(mean_intensity) > 50000 and self.verbose:
-            print(f"{prefix}: Intensities are abnormally high (> 50000).")
+            log(
+                f"[CNV] {prefix}: Intensities are abnormally high (> 50000)."
+            )
         methyl_data.intensity = pd.DataFrame(
             intensity.T,
             columns=methyl_data.probes,
@@ -547,6 +566,8 @@ class CNV:
         This method fits a linear regression model to the intensity data of the
         sample and reference and calculates the CNV at every CpG site.
         """
+        if self.verbose:
+            log(f"[CNV] {self.probe} Performing fit...")
         from sklearn.linear_model import LinearRegression
 
         smp_intensity = _pd_loc(
@@ -558,9 +579,11 @@ class CNV:
             [np.corrcoef(smp_intensity, z)[0, 1] for z in ref_intensity.T]
         )
         if any(correlation >= 0.99):
-            logger.warning(
-                "CNV sample found in reference set. Excluded from fitting."
-            )
+            if self.verbose:
+                log(
+                    f"[CNV] {self.probe} Sample found in reference set. "
+                    "Excluded from fitting."
+                )
             ref_intensity = ref_intensity[:, correlation < 0.99]
         X = np.log2(ref_intensity)
         y = np.log2(smp_intensity)
@@ -581,6 +604,8 @@ class CNV:
         by taking the median of the ratios obtained from the linear regression
         model fit in the 'fit' method.
         """
+        if self.verbose:
+            log(f"[CNV] {self.probe} Setting bins...")
         cpg_bins = self.annotation._cpg_bins.copy()
         cpg_bins["ratio"] = _pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
@@ -601,6 +626,8 @@ class CNV:
         specified in the detail object. The result includes the median ratio,
         variance, and count of probes within each region.
         """
+        if self.verbose:
+            log(f"[CNV] {self.probe} Setting detail...")
         cpg_detail = self.annotation._cpg_detail.copy()
         cpg_detail["ratio"] = _pd_loc(
             self.ratio, cpg_detail.IlmnID
@@ -662,6 +689,8 @@ class CNV:
         if _get_cgsegment() is None:
             _missing_cbseg_msg()
             return
+        if self.verbose:
+            log(f"[CNV] {self.probe} Setting segments...")
         segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
@@ -699,6 +728,8 @@ class CNV:
         Raises:
             ValueError: If an invalid data option is specified.
         """
+        if self.verbose:
+            log(f"[CNV] {self.probe} Write data to disk...")
         default = {"all", "bins", "detail", "segments", "metadata"}
         if not isinstance(data, list):
             data = [data]
@@ -739,6 +770,8 @@ class CNV:
 
     def plot(self):
         """Generates and displays a plot of the CNV data."""
+        if self.verbose:
+            log(f"[CNV] {self.probe} Plotting...")
         cnv_dir = Path(MEPYLOME_TMP_DIR, "cnv_zips")
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING

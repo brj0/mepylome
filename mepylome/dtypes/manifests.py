@@ -5,7 +5,6 @@ Illumina array manifest files, which contain information about probes and their
 characteristics.
 """
 
-import logging
 import tempfile
 from pathlib import Path
 
@@ -23,11 +22,9 @@ from mepylome.utils.files import (
     get_csv_file,
     reset_file,
 )
+from mepylome.utils.varia import log
 
 __all__ = ["Manifest"]
-
-
-logger = logging.getLogger(__name__)
 
 
 MANIFEST_DIR = Path.home() / ".mepylome" / "manifest_files"
@@ -105,8 +102,6 @@ class Manifest:
         filepath (str or Path): A pre-existing manifest filepath (default:
             None)
 
-        verbose: If True, enables verbose output. (default: True)
-
     Examples:
         >>> # To initialize a manifest object for Illumina 450k array:
         >>> manifest = Manifest("450k")
@@ -126,7 +121,6 @@ class Manifest:
         cls,
         array_type,
         filepath=None,
-        verbose=True,
     ):
         key = cache_key(array_type, filepath)
         if key in cls._cache:
@@ -140,13 +134,12 @@ class Manifest:
 
     def __getnewargs__(self):
         # Necessary for pickle
-        return self.array_type, self.filepath, self.verbose
+        return self.array_type, self.filepath,
 
     def __init__(
         self,
         array_type,
         filepath=None,
-        verbose=True,
     ):
         if hasattr(self, "_cached"):
             return
@@ -156,7 +149,6 @@ class Manifest:
 
         self.array_type = array_type
         self.filepath = filepath
-        self.verbose = verbose
 
         if self.filepath is None:
             (
@@ -264,7 +256,7 @@ class Manifest:
 
         source_url = MANIFEST_URL[array_type]
         source_filename = Path(source_url).name
-        logger.info("Downloading manifest: %s", source_filename)
+        log(f"[Manifest] Downloading manifest: {source_filename}")
         download_file(source_url, Path(download_dir, source_filename))
 
         downloaded_filepath = Path(download_dir, source_filename).expanduser()
@@ -437,11 +429,6 @@ class Manifest:
 
     def _read_probes(self, probes_file):
         """Reads and returns probes from local file {probes_file}."""
-        if self.verbose:
-            logger.info(
-                "Reading manifest file: %s", Path(probes_file.name).stem
-            )
-
         data_frame = pd.read_csv(
             probes_file,
             dtype=self._get_data_types(),

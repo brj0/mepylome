@@ -6,13 +6,14 @@ file-like objects and archives.
 """
 
 import gzip
-import logging
 import shutil
 import ssl
 import zipfile
 from pathlib import Path, PurePath
 from urllib.error import URLError
 from urllib.request import urlopen
+
+from mepylome.utils.varia import log
 
 __all__ = [
     "download_file",
@@ -21,9 +22,6 @@ __all__ = [
     "get_csv_file",
     "reset_file",
 ]
-
-
-logger = logging.getLogger(__name__)
 
 
 def make_path_like(path_like):
@@ -72,16 +70,13 @@ def download_file(src_url, dest, overwrite=False):
     """
     dest_path = make_path_like(dest)
     dest_dir = dest_path.parent
+    # Check if file already exists, and return if it is there.
     if not dest_path.exists():
         ensure_directory_exists(dest_dir)
     elif not overwrite:
-        # Check if file already exists, and return if it is there.
-        logger.info(
-            "File exists: %s. To overwrite, set overwrite=True.", dest_path
-        )
         return
     try:
-        print(
+        log(
             f"Downloading manifest from {src_url} to {dest_dir}.\n"
             "Can take several minutes..."
         )
@@ -91,14 +86,9 @@ def download_file(src_url, dest, overwrite=False):
             "wb"
         ) as out_file:
             shutil.copyfileobj(response, out_file)
-    except URLError as e:
-        logger.exception(e)
-        logger.info(
-            "Downloading manifest from %s failed. Please correct "
-            "url in source code",
-            src_url,
-        )
-        raise URLError(e) from e
+    except URLError as error:
+        msg = f"Failed to download manifest from {src_url}"
+        raise URLError(msg) from error
 
 
 def is_file_like(obj):

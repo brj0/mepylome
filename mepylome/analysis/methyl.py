@@ -54,7 +54,7 @@ from mepylome.dtypes import (
     is_valid_idat_basepath,
     read_cnv_data_from_disk,
 )
-from mepylome.utils import Timer, ensure_directory_exists
+from mepylome.utils import Timer, ensure_directory_exists, log
 
 timer = Timer()
 
@@ -152,7 +152,7 @@ class ProgressBar:
     def get_progress(self):
         with self.lock:
             if self.max_value == 0:
-                print("ProgressBar: max_value is 0")
+                log("[ProgressBar] max_value is 0")
                 return 100
             return self.cur_value * 100 // self.max_value
 
@@ -464,14 +464,16 @@ def get_reference_methyl_data(reference_dir, prep):
 
 
 def write_single_cnv_to_disk(
-    idat_basename, reference_dir, cnv_dir, prep, do_seg
+    idat_basename, reference_dir, cnv_dir, prep, do_seg, verbose
 ):
     """Performs CNV analysis on a single sample and writes results to disk."""
     sample_id = idat_basename.name
     try:
         sample_methyl = MethylData(file=idat_basename)
         reference = get_reference_methyl_data(reference_dir, prep)
-        cnv = CNV.set_all(sample_methyl, reference, do_seg=do_seg)
+        cnv = CNV.set_all(
+            sample_methyl, reference, do_seg=do_seg, verbose=verbose
+        )
         cnv_filename = sample_id + ZIP_ENDING
         cnv.write(Path(cnv_dir, cnv_filename))
     except Exception as exc:
@@ -489,13 +491,13 @@ def write_single_cnv_to_disk(
             + "\n".join(files_on_disk)
             + "\n\n\nTo recalculate, delete this file."
         )
-        print(error_message)
+        log(error_message)
         with Path(cnv_dir, cnv_filename).open("w") as f:
             f.write(error_message)
 
 
 def write_cnv_to_disk(
-    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None
+    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None, verbose=False
 ):
     """Generate and save CNV-analysis output files for given samples.
 
@@ -511,6 +513,7 @@ def write_cnv_to_disk(
         prep (str): Prepreparation method for MethylData.
         do_seg (bool): If segments should be calculated as well (slow)
         pbar (optional): Progress bar for tracking progress.
+        verbose (bool, optional): Whether to display verbose output.
     """
     new_idat_paths = [
         x
@@ -530,6 +533,7 @@ def write_cnv_to_disk(
         cnv_dir=cnv_dir,
         prep=prep,
         do_seg=do_seg,
+        verbose=verbose,
     )
     # Pooling is slower if there is only 1 sample
     if len(new_idat_paths) == 1:
@@ -546,12 +550,7 @@ def write_cnv_to_disk(
 
 @lru_cache
 def get_cnv_plot(
-    sample_path,
-    reference_dir,
-    prep,
-    cnv_dir,
-    genes_sel,
-    do_seg,
+    sample_path, reference_dir, prep, cnv_dir, genes_sel, do_seg, verbose=False
 ):
     """Generate and return a CNV plot for a given sample.
 
@@ -562,12 +561,15 @@ def get_cnv_plot(
         cnv_dir (str): Directory to save CNV data.
         genes_sel (list): List of genes to highlight in the plot.
         do_seg (bool): If segments should be calculated as well (slow)
+        verbose (bool, optional): Whether to display verbose output.
 
     Returns:
         plotly.graph_objs.Figure: CNV plotly figure.
     """
     sample_id = sample_path.name
-    write_cnv_to_disk([sample_path], reference_dir, cnv_dir, prep, do_seg)
+    write_cnv_to_disk(
+        [sample_path], reference_dir, cnv_dir, prep, do_seg, verbose=verbose
+    )
     bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
     plot = cnv_plot_from_data(
         sample_id,
@@ -576,6 +578,7 @@ def get_cnv_plot(
         segments,
         IMPORTANT_GENES,
         list(genes_sel),
+        verbose=verbose,
     )
     return plot.update_layout(
         margin={"l": 0, "r": 0, "t": 30, "b": 0},
@@ -668,12 +671,24 @@ def get_side_navigation(
                                 max_intervals=-1,
                             ),
                             html.Div(
+                                dbc.Button(
+                                    "Console",
+                                    id="toggle-button",
+                                    n_clicks=0,
+                                    size="sm",
+                                ),
+                                className="d-grid gap-2",
+                            ),
+                            html.Div(
                                 id="console-out",
                                 style={
                                     "overflow": "hidden",
                                     "fontFamily": "monospace",
-                                    "fontSize": "8px",
+                                    "fontSize": "9px",
                                     "whiteSpace": "pre-wrap",
+                                    "height": "40vh",
+                                    "display": "flex",
+                                    "flexDirection": "column-reverse",
                                 },
                             ),
                             html.Br(),
@@ -865,8 +880,10 @@ def get_side_navigation(
     )
 
 
-def guess_annotation_file(directory):
+def guess_annotation_file(directory, verbose=False):
     """Returns the first csv or xlsx file in the given directory."""
+    if verbose:
+        log("[MethylAnalysis] Try to read annotation file...")
     files = list(directory.glob("*"))
     csv_files = [f for f in files if f.suffix == ".csv"]
     tsv_files = [f for f in files if f.suffix == ".tsv"]
@@ -910,13 +927,31 @@ def read_dataframe(path, **kwargs):
     )
 
 
-def input_args_id(*args):
+def _input_args_id(*args):
     """Returns a unique identifier for a set of arguments."""
     result = "-".join(
         str(arg.tolist()) if isinstance(arg, np.ndarray) else str(arg)
         for arg in args
     )
     return hashlib.sha256(result.encode()).hexdigest()
+
+
+def input_args_id(*args, extra_hash=None):
+    """Returns a unique identifier for a set of arguments."""
+    hasher = hashlib.blake2b()
+    components = []
+    for arg in args:
+        if isinstance(arg, np.ndarray):
+            hasher.update(str(arg.tolist()).encode())
+        elif isinstance(arg, Path):
+            hasher.update(str(arg).encode())
+            components.append(arg.name)
+        else:
+            hasher.update(str(arg).encode())
+            components.append(str(arg))
+    hasher.update(str(extra_hash).encode())
+    components.append(hasher.hexdigest())
+    return "-".join(components)
 
 
 def extract_sub_dataframe(data_frame, columns, fill=0.49):
@@ -1002,19 +1037,10 @@ class MethylAnalysis:
         self._old_analysis_dir = self.analysis_dir
         self.idat_paths = None
         self.annotation = Path(annotation).expanduser()
-        if self.annotation == INVALID_PATH:
-            self.annotation = guess_annotation_file(self.analysis_dir)
-        if not self.annotation.exists():
-            print("No annotation file found")
         self.overlap = overlap
         self._idat_handler = None
-        self.cpgs = self.get_cpgs(cpgs)
         self.n_cpgs = n_cpgs
         self.cpg_selection = cpg_selection
-        if self.cpg_selection not in ["top", "random"]:
-            msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
-            raise ValueError(msg)
-        self.do_seg = False if _get_cgsegment() is None else do_seg
         self.host = host
         self.port = port
         self.debug = debug
@@ -1031,7 +1057,7 @@ class MethylAnalysis:
         self.betas_df_all_cpgs = None
         self.betas_path = None
         self.umap_df = None
-        self.umap_parms = {} if umap_parms is None else umap_parms
+        self.umap_parms = MethylAnalysis.get_umap_parms(umap_parms)
         self.verbose = verbose
         self.cnv_plot = EMPTY_FIGURE
         self.raw_umap_plot = None
@@ -1039,12 +1065,26 @@ class MethylAnalysis:
         self.dropdown_id = None
         self.ids = []
         self.ids_to_highlight = None
-        self.prog_bar = ProgressBar()
         self.app = None
 
-        self._umap_imported = False
+        self.prog_bar = ProgressBar()
+        self._cpgs_hash = None
 
-        self.set_umap_parms()
+        if self.cpg_selection not in ["top", "random"]:
+            msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
+            raise ValueError(msg)
+
+        self.cpgs = self.get_cpgs(cpgs)
+        if self.annotation == INVALID_PATH:
+            self.annotation = guess_annotation_file(
+                self.analysis_dir, self.verbose
+            )
+        if not self.annotation.exists() and self.verbose:
+            log("[MethylAnalysis] No annotation file found")
+        if self.verbose:
+            log("[MethylAnalysis] Try to import cbseg or linear_segment...")
+        self.do_seg = False if _get_cgsegment() is None else do_seg
+
         self.update_paths()
         self.read_umap_plot_from_disk()
 
@@ -1065,16 +1105,27 @@ class MethylAnalysis:
     def idat_handler(self, value):
         self._idat_handler = value
 
-    def set_umap_parms(self):
+    @staticmethod
+    def get_umap_parms(umap_parms):
+        umap_parms = {} if umap_parms is None else umap_parms
         default = {
             "metric": "euclidean",
             "min_dist": 0.1,
             "n_neighbors": 15,
             "verbose": True,
         }
-        self.umap_parms = {**default, **self.umap_parms}
+        return {**default, **umap_parms}
+
+    @property
+    def cpgs_hash(self):
+        if self._cpgs_hash is None:
+            self._cpgs_hash = input_args_id(self.cpgs)
+        return self._cpgs_hash
 
     def get_cpgs(self, input_var="auto"):
+        self._cpgs_hash = None
+        if self.verbose:
+            log("[MethylAnalysis] Determine CpG sites...")
         if isinstance(input_var, np.ndarray):
             return np.sort(input_var)
         cpgs_from_file = get_cpgs_from_file(input_var)
@@ -1091,7 +1142,11 @@ class MethylAnalysis:
                 for path in self.idat_handler.sample_paths.values()
             }
             input_var = list(input_var)
-            print(f"The following array types were detected: {input_var}")
+            if self.verbose:
+                log(
+                    f"[MethylAnalysis] The following array types were "
+                    f"detected: {input_var}"
+                )
 
         if all(x in valid_parms for x in input_var):
             if not input_var:
@@ -1110,54 +1165,47 @@ class MethylAnalysis:
         raise ValueError(msg)
 
     def update_paths(self):
-        timer.start()
+        if self.verbose:
+            log("[MethylAnalysis] Update filepaths...")
         if not self.output_dir.exists():
             return
-        old_betas_path = self.betas_path
-        umap_hash_key = input_args_id(
-            self.cpgs,
-            self.n_cpgs,
-            self.analysis_dir,
-            self.prep,
-            self.cpg_selection,
-        )
-        betas_hash_key = input_args_id(
-            self.analysis_dir,
-            self.prep,
-        )
-        cnv_hash_key = input_args_id(
-            self.analysis_dir,
-            self.reference_dir,
-            self.prep,
-            self.do_seg,
-        )
-        umap_dir_name = (
-            f"umap-{self.analysis_dir.name}"
-            f"-{self.n_cpgs}-{self.prep}-{self.cpg_selection}"
-            f"-{umap_hash_key}"
-        )
-        self.umap_dir = Path(self.output_dir, f"{umap_dir_name}")
-        ensure_directory_exists(self.umap_dir)
-
-        self.cnv_dir = Path(
-            self.output_dir,
-            f"cnv-{self.analysis_dir.name}-{self.prep}-{cnv_hash_key}",
-        )
-        ensure_directory_exists(self.cnv_dir)
-
-        self.umap_plot_path = Path(self.umap_dir, "umap_plot.csv")
-        self.betas_path = Path(
-            self.output_dir,
-            f"betas-{self.analysis_dir.name}-{self.prep}-{betas_hash_key}.pkl",
-        )
-        if old_betas_path != self.betas_path:
-            self.betas_df_all_cpgs = None
-
         if self._old_analysis_dir != self.analysis_dir:
             self._old_analysis_dir = self.analysis_dir
             self.cpgs = self.get_cpgs()
             self.betas_df_all_cpgs = None
             self.betas_df = None
+        old_betas_path = self.betas_path
+        umap_hash_key = input_args_id(
+            "umap",
+            self.analysis_dir,
+            self.prep,
+            self.n_cpgs,
+            self.cpg_selection,
+            extra_hash=self._cpgs_hash,
+        )
+        betas_hash_key = input_args_id(
+            "betas",
+            self.analysis_dir,
+            self.prep,
+        )
+        cnv_hash_key = input_args_id(
+            "cnv",
+            self.analysis_dir,
+            self.reference_dir,
+            self.prep,
+            self.do_seg,
+        )
+        self.umap_dir = self.output_dir / f"{umap_hash_key}"
+        ensure_directory_exists(self.umap_dir)
+
+        self.cnv_dir = self.output_dir / f"{cnv_hash_key}"
+        ensure_directory_exists(self.cnv_dir)
+
+        self.umap_plot_path = self.umap_dir / "umap_plot.csv"
+        self.betas_path = self.output_dir / f"{betas_hash_key}.pkl"
+
+        if old_betas_path != self.betas_path:
+            self.betas_df_all_cpgs = None
 
     def make_umap(self):
         self.prog_bar.reset(len(self.idat_handler), text="(betas)")
@@ -1167,14 +1215,17 @@ class MethylAnalysis:
         self.make_umap_plot(umap_2d)
 
     def compute_umap(self):
-        if self.verbose and not self._umap_imported:
-            print("Importing umap library...")
-            self._umap_imported = True
+        if self.verbose:
+            log("[MethylAnalysis] Importing umap library...")
         import umap
 
+        if self.verbose:
+            log("[MethylAnalysis] Start UMAP algorithm...")
         return umap.UMAP(**self.umap_parms).fit_transform(self.betas_df)
 
     def make_umap_plot(self, umap_2d=None):
+        if self.verbose:
+            log("[MethylAnalysis] Make UMAP plot...")
         if umap_2d is not None:
             if len(self.idat_handler.ids) != len(umap_2d):
                 msg = (
@@ -1219,8 +1270,9 @@ class MethylAnalysis:
         self.umap_plot_highlight()
 
     def read_umap_plot_from_disk(self):
-        self.update_paths()
         if self.umap_plot_path is not None and self.umap_plot_path.exists():
+            if self.verbose:
+                log("[MethylAnalysis] Read umap plot from disk...")
             self.umap_df = pd.read_csv(
                 self.umap_plot_path, sep="\t", index_col=0
             )
@@ -1237,6 +1289,8 @@ class MethylAnalysis:
         self.update_paths()
 
         def get_random_cpgs():
+            if self.verbose:
+                log("[MethylAnalysis] Get random CpG's...")
             rng = np.random.default_rng()
             random_idx = np.sort(
                 rng.choice(len(self.cpgs), self.n_cpgs, replace=False)
@@ -1244,6 +1298,8 @@ class MethylAnalysis:
             return self.cpgs[random_idx]
 
         def _get_betas(cpgs):
+            if self.verbose:
+                log("[MethylAnalysis] Get beta values...")
             return get_betas(
                 self.prog_bar,
                 self.idat_handler,
@@ -1254,6 +1310,8 @@ class MethylAnalysis:
             )
 
         def _extract_sub_dataframe():
+            if self.verbose:
+                log("[MethylAnalysis] Extract beta values...")
             if self.cpg_selection == "random":
                 return extract_sub_dataframe(
                     self.betas_df_all_cpgs, self.umap_cpgs
@@ -1322,6 +1380,8 @@ class MethylAnalysis:
             msg = f"Reference dir {self.reference_dir} does not exist"
             raise FileNotFoundError(msg)
         genes_sel = () if genes_sel is None else tuple(genes_sel)
+        if self.verbose:
+            log(f"[MethylAnalysis] Make CNV for {sample_id}...")
         self.cnv_plot = get_cnv_plot(
             idat_basepath,
             self.reference_dir,
@@ -1329,9 +1389,12 @@ class MethylAnalysis:
             self.cnv_dir,
             genes_sel,
             self.do_seg,
+            verbose=self.verbose,
         )
 
     def precalculate_all_cnvs(self):
+        if self.verbose:
+            log("[MethylAnalysis] Precalculate all CNV's...")
         self.update_paths()
         sample_ids = [
             x.name
@@ -1346,6 +1409,7 @@ class MethylAnalysis:
             self.cnv_dir,
             self.prep,
             self.prog_bar,
+            self.verbose,
         )
         self.prog_bar.reset(1, 1)
 
@@ -1354,6 +1418,7 @@ class MethylAnalysis:
         assets_folder = current_dir.parent / "data" / "assets"
         app = Dash(
             __name__,
+            update_title=None,
             assets_folder=assets_folder,
             external_stylesheets=[dbc.themes.BOOTSTRAP],
         )
@@ -1471,9 +1536,9 @@ class MethylAnalysis:
                     try:
                         self.make_cnv_plot(sample_id, genes_sel)
                     except Exception as e:
-                        print("umap failed:", e)
-                        print("sample_id:", sample_id)
-                        print("MethylAnalysis:", self)
+                        log("[MethylAnalysis] umap failed:", e)
+                        log("[MethylAnalysis] sample_id:", sample_id)
+                        log("[MethylAnalysis] MethylAnalysis:", self)
                         return no_update, no_update, str(e)
                     else:
                         return self.umap_plot, self.cnv_plot, ""
@@ -1481,9 +1546,9 @@ class MethylAnalysis:
                 try:
                     self.make_cnv_plot(self.cnv_id, genes_sel)
                 except Exception as e:
-                    print("selected-genes failed:", e)
-                    print("self.cnv_id:", self.cnv_id)
-                    print("genes_sel:", genes_sel)
+                    log("[MethylAnalysis] selected-genes failed:", e)
+                    log("[MethylAnalysis] self.cnv_id:", self.cnv_id)
+                    log("[MethylAnalysis] genes_sel:", genes_sel)
                     return no_update, no_update, str(e)
                 else:
                     return no_update, self.cnv_plot, ""
@@ -1549,7 +1614,10 @@ class MethylAnalysis:
                     self.reference_dir = path
                     return True, ""
             except Exception as exc:
-                print(f"An error occured (validate_reference_path): {exc}")
+                log(
+                    f"[MethylAnalysis] An error occured "
+                    f"(validate_reference_path): {exc}"
+                )
                 return False, "Invalid path format"
             else:
                 return False, f"Not a directory: {path}"
@@ -1574,7 +1642,10 @@ class MethylAnalysis:
                     self.output_dir = path
                     return True, ""
             except Exception as exc:
-                print(f"An error occured (validate_output_path): {exc}")
+                log(
+                    f"[MethylAnalysis] An error occured "
+                    f"(validate_output_path): {exc}"
+                )
                 return False, "Invalid path format"
             else:
                 return False, f"Not a directory: {path}"
@@ -1653,7 +1724,7 @@ class MethylAnalysis:
                 ensure_directory_exists(self.output_dir)
                 self.make_umap()
             except Exception as exc:
-                print(f"An error occurred: {exc}")
+                log(f"[MethylAnalysis] An error occurred: {exc}")
             else:
                 return (
                     self.umap_plot,
@@ -1662,6 +1733,17 @@ class MethylAnalysis:
                     {"status": "umap_done"},
                 )
             return no_update, no_update, "", {}
+
+        @app.callback(
+            Output("console-out", "style"),
+            [Input("toggle-button", "n_clicks")],
+            [State("console-out", "style")]
+        )
+        def toggle_console_out(n_clicks, current_style):
+            if n_clicks % 2 == 0:
+                return {**current_style, "display": "flex"}
+            else:
+                return {**current_style, "display": "none"}
 
         @app.callback(
             [
@@ -1714,10 +1796,7 @@ class MethylAnalysis:
             with CONSOLE_OUT.open("r") as file:
                 data = ""
                 lines = file.readlines()
-                if lines.__len__() <= 20:
-                    last_lines = lines
-                else:
-                    last_lines = lines[-20:]
+                last_lines = lines if len(lines) <= 50 else lines[-50:]
                 for line in last_lines:
                     data = data + line
             return progress, out_str, data
@@ -1757,5 +1836,6 @@ class MethylAnalysis:
             f"precalculate_cnv:\n{self.precalculate_cnv}",
             f"cpg_selection:\n{self.cpg_selection}",
             f"umap_df:\n{self.umap_df}",
+            f"verbose:\n{self.verbose}",
         ]
         return "\n\n".join(lines)

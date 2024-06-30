@@ -13,6 +13,7 @@ import plotly.graph_objects as go
 
 from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
 from mepylome.dtypes.manifests import MEPYLOME_TMP_DIR
+from mepylome.utils import log
 from mepylome.utils.files import ensure_directory_exists
 
 PLOTLY_RENDER_MODE = "webgl"
@@ -345,7 +346,7 @@ def read_cnv_data_from_disk(cnv_dir, sample_id):
 
 
 def cnv_plot_from_data(
-    sample_id, bins, detail, segments, genes_fix, genes_sel
+    sample_id, bins, detail, segments, genes_fix, genes_sel, *, verbose=False
 ):
     """Generate a CNV plot from data calculated by the class CNV.
 
@@ -361,29 +362,42 @@ def cnv_plot_from_data(
     Returns:
         Plotly Figure: A Plotly figure representing the CNV plot.
     """
-    # Base scatterplot
+    if verbose:
+        log("[CNV-Plot] Read CNV from disk...")
     bins, detail = find_genes_within_bins(bins, detail)
     scatter_df = bins[["X_mid", "Median", "Genes"]]
     scatter_df.columns = ["x", "y", "hover_data"]
+
+    # Base scatterplot
+    if verbose:
+        log("[CNV-Plot] Make plot: bins...")
     plot = cnv_bins_plot(
         data_frame=scatter_df,
         title=f"Sample ID: {sample_id}",
         labels=("", ""),
         genome=reference_genome,
     )
+
     # Highlight bins adjacent to the added genes
+    if verbose:
+        log("[CNV-Plot] Make plot: genes...")
     genes_sel = genes_sel if genes_sel else []
     genes_x_range = (
         detail[detail["Name"].isin(genes_sel)]["Range"].explode().tolist()
     )
     highlighted_bins = bins.loc[genes_x_range, ["X_mid", "Median"]]
     plot = add_highlited_bins(plot, highlighted_bins)
-    # Draw the segments
-    plot = add_segments(plot, segments)
+
     # Add all added and important genes
     genes_to_plot = genes_fix + genes_sel
     gene_detail = detail[detail["Name"].isin(genes_to_plot)].copy()
-    return add_genes(plot, gene_detail)
+    plot = add_genes(plot, gene_detail)
+
+    # Draw the segments
+    if verbose:
+        log("[CNV-Plot] Make plot: segments...")
+    plot = add_segments(plot, segments)
+    return plot
 
 
 class CNVPlot:

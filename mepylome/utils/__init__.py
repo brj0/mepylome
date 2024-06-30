@@ -12,13 +12,14 @@ from .files import (
     reset_file,
 )
 from .tutorial_setup import setup_tutorial_files
-from .varia import Timer, normexp_get_xs
+from .varia import Timer, log, normexp_get_xs
 
 __all__ = [
     "download_file",
     "ensure_directory_exists",
     "get_file_object",
     "get_csv_file",
+    "log",
     "reset_file",
     "setup_tutorial_files",
     "Timer",

@@ -8,10 +8,21 @@ Usage:
 """
 
 import time
+from datetime import datetime
 
 import numpy as np
 
 __all__ = ["Timer", "normexp_get_xs"]
+
+
+def log(*args, sep=" ", end="\n"):
+    """Print message with time stamp."""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    # timestamp = datetime.now().strftime("%a %b %d %H:%M:%S %Y")
+    message = sep.join(map(str, args))
+    print(f"{timestamp} {message}", end=end)
+
+
 
 
 class Timer:
@@ -116,6 +127,7 @@ def normexp_signal(par, x):
         2.3735035872302235
     """
     from scipy.stats import norm
+
     mu = par[0]
     sigma = np.exp(par[1])
     sigma2 = sigma * sigma
@@ -132,7 +144,7 @@ def normexp_signal(par, x):
     signal = mu_sf + sigma2 * np.exp(log_dnorm - log_pnorm)
     z = ~np.isnan(signal)
     if np.any(signal[z] < 0):
-        print(
+        log(
             "Limit of numerical accuracy reached with very low intensity or "
             "very high background:\nsetting adjusted intensities to small "
             "value"
