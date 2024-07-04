@@ -10,13 +10,11 @@ import colorsys
 import hashlib
 import logging
 import os
-import pickle
 import sys
-import tempfile
 import threading
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache, partial
-from itertools import repeat
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -37,12 +35,12 @@ from dash import (
 )
 from tqdm import tqdm
 
+from mepylome.analysis.betas import BetasHandler
 from mepylome.dtypes import (
     CNV,
     IMPORTANT_GENES,
     ZIP_ENDING,
     Annotation,
-    ArrayType,
     Manifest,
     MethylData,
     RawData,
@@ -54,12 +52,15 @@ from mepylome.dtypes import (
     is_valid_idat_basepath,
     read_cnv_data_from_disk,
 )
-from mepylome.utils import Timer, ensure_directory_exists, log
+from mepylome.utils import (
+    MEPYLOME_TMP_DIR,
+    Timer,
+    ensure_directory_exists,
+    log,
+)
 
 timer = Timer()
 
-
-MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
 
 DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "methylation_analysis")
 INVALID_PATH = Path("None")
@@ -182,7 +183,7 @@ class ProgressBar:
 
 def hash_from_str(string):
     """Calculates a pseudorandom int from a string."""
-    hash_str = hashlib.md5(string.encode()).hexdigest()
+    hash_str = hashlib.sha256(string.encode()).hexdigest()
     return int(hash_str, 16)
 
 
@@ -350,113 +351,68 @@ class IdatHandler:
 
 
 def extract_beta(data):
-    """Extracts beta values for specified CpGs from an IDAT file."""
-    idat_file, cpgs, prep = data
+    """Extracts and saves beta values for specified CpGs from an IDAT file."""
+    idat_file, prep, betas_handler = data
     try:
         methyl = MethylData(file=idat_file, prep=prep)
-        betas_450k_df = methyl.betas_at(cpgs=cpgs, fill=NEUTRAL_BETA)
-        betas = betas_450k_df.values.ravel()
-    except ValueError as e:
-        return (idat_file, e), ArrayType.INVALID
-    else:
-        return betas, methyl.array_type
+        betas = methyl.betas_at().values.ravel()
+        array_type = methyl.array_type
+        betas_handler.add(betas, idat_file.name, array_type)
+    except Exception as error:
+        betas_handler.add_error(idat_file.name, error)
+        print(f"The following error occured for {idat_file.name}: {error}")
 
 
-def methyl_mtx_from_all_cpgs(betas_list, cpgs, fill=NEUTRAL_BETA):
-    """Creates a methylation matrix from a list of beta values.
-
-    Args:
-        betas_list (list): List of tuples containing beta values and array
-            types.
-        cpgs (list): List of CpGs to include in the matrix.
-        fill (float, optional): Value to fill missing beta values. Defaults to
-            NEUTRAL_BETA.
-
-    Returns:
-        np.ndarray: A 2D array representing the methylation matrix for the
-            specified CpGs.
-    """
-    array_types = {x[1] for x in betas_list}
-    all_cpgs = {
-        array_type: Manifest(array_type).methylation_probes
-        for array_type in array_types
-    }
-    left_idx = {}
-    right_idx = {}
-    for array_type in array_types:
-        left_idx[array_type], right_idx[array_type] = _overlap_indices(
-            cpgs, all_cpgs[array_type]
-        )
-    converted = np.full((len(betas_list), len(cpgs)), fill)
-    for i, (betas, array_type) in enumerate(betas_list):
-        converted[i, left_idx[array_type]] = betas[right_idx[array_type]]
-    converted[np.isnan(converted)] = fill
-    return converted
-
-
-def get_betas(pbar, idat_handler, cpgs, prep, *, save=False, betas_path=None):
+def get_betas(pbar, idat_handler, cpgs, prep, betas_path):
     """Extracts and processes beta values from IDAT files.
+
+    This function processes IDAT files to extract beta values for specified
+    CpG sites (CpGs). The processed beta values are saved in a temporary
+    folder to facilitate quicker subsequent extractions.
 
     Args:
         pbar (ProgressBar): Progress bar for tracking progress.
         idat_handler (IdatHandler): Handler for IDAT file paths and metadata.
         cpgs (list): List of CpGs to include in the output matrix.
         prep (str): Prepreparation method for the MethylData.
-        save (bool, optional): Whether to save the extracted betas to a file.
-            Defaults to False.
-        betas_path (Path, optional): Path to save/load the betas. Defaults to
-            None.
+        betas_path (Path): Path to save/load the betas.
 
     Returns:
         pd.DataFrame: DataFrame containing the beta values for the specified
             CpGs.
     """
-    if betas_path is not None and betas_path.exists():
-        with betas_path.open("rb") as f:
-            betas_list = pickle.load(f)
-    else:
-        # Load all manifests before parallelization
-        Manifest.load(["450k", "epic", "epicv2"])
-        betas_list = []
-        _cpgs = None if save else cpgs
-        with Pool() as pool, tqdm(
-            total=len(idat_handler), desc="Reading IDAT files"
-        ) as tqdm_bar:
-            for betas in pool.imap(
-                extract_beta,
-                zip(
-                    idat_handler.sample_paths.values(),
-                    repeat(_cpgs),
-                    repeat(prep),
-                ),
-            ):
-                betas_list.append(betas)
-                pbar.increment()
-                tqdm_bar.update(1)
-        if save:
-            with betas_path.open("wb") as f:
-                pickle.dump(betas_list, f)
-    valid_idx = [
-        i for i, x in enumerate(betas_list) if x[1] != ArrayType.INVALID
+    betas_handler = BetasHandler(betas_path)
+    missing_ids = list(set(idat_handler.ids) - set(betas_handler.ids))
+    if len(missing_ids) > 0:
+        args_list = [
+            (idat_handler.sample_paths[id_], prep, betas_handler)
+            for id_ in missing_ids
+        ]
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(extract_beta, args) for args in args_list
+            ]
+            with tqdm(
+                total=len(missing_ids), desc="Reading IDAT files"
+            ) as tqdm_bar:
+                for future in as_completed(futures):
+                    future.result()
+                    tqdm_bar.update(1)
+                    pbar.increment()
+        betas_handler.update()
+    valid_ids = [
+        id_ for id_ in idat_handler.ids if id_ not in betas_handler.invalid_ids
     ]
-    valid_ids = [idat_handler.ids[i] for i in valid_idx]
-    all_cpgs_in_betas = betas_path is not None and (
-        betas_path.exists() or save
-    )
-    if all_cpgs_in_betas:
-        valid_betas = [betas_list[i] for i in valid_idx]
-        methyl_mtx = methyl_mtx_from_all_cpgs(valid_betas, cpgs)
-    else:
-        valid_betas = [betas_list[i][0] for i in valid_idx]
-        methyl_mtx = np.vstack(valid_betas)
-    return pd.DataFrame(methyl_mtx, index=valid_ids, columns=cpgs)
+    return betas_handler.get(valid_ids, cpgs)
 
 
 @lru_cache(maxsize=None)
 def get_reference_methyl_data(reference_dir, prep):
     """Loads and caches CNV-neutral reference data."""
     try:
-        reference = ReferenceMethylData(file=reference_dir, prep=prep)
+        reference = ReferenceMethylData(
+            file=reference_dir, prep=prep, save_to_disk=True
+        )
     except FileNotFoundError as exc:
         msg = f"File in reference dir {reference_dir} not found: {exc}"
         raise FileNotFoundError(msg) from exc
@@ -783,23 +739,14 @@ def get_side_navigation(
                                 id="cpg-selection",
                                 options={
                                     "random": "By random",
-                                    "top": "Take best (most varying) CpG's",
+                                    "top": (
+                                        "Take most varying CpG's (memory "
+                                        "intensive!)"
+                                    ),
                                 },
                                 value=cpg_selection,
                                 multi=False,
                             ),
-                            # html.Iframe(
-                            # id="console-out",
-                            # srcDoc="",
-                            # style={
-                            # "width": "100%",
-                            # "height": "400px",
-                            # "overflowY": "auto",
-                            # "fontFamily": "monospace",
-                            # "whiteSpace": "pre-wrap",
-                            # },
-                            # ),
-                            # html.Br(),
                         ],
                     ),
                     dbc.Tab(
@@ -938,7 +885,7 @@ def _input_args_id(*args):
 
 def input_args_id(*args, extra_hash=None):
     """Returns a unique identifier for a set of arguments."""
-    hasher = hashlib.blake2b()
+    hasher = hashlib.sha256()
     components = []
     for arg in args:
         if isinstance(arg, np.ndarray):
@@ -1022,7 +969,7 @@ class MethylAnalysis:
         cpgs="auto",
         n_cpgs=DEFAULT_N_CPGS,
         precalculate_cnv=False,
-        save_betas=False,
+        load_full_betas=False,
         overlap=False,
         cpg_selection="top",
         do_seg=False,
@@ -1050,7 +997,7 @@ class MethylAnalysis:
         self.umap_dir = None
         self.prep = prep
         self.precalculate_cnv = precalculate_cnv
-        self.save_betas = save_betas
+        self.load_full_betas = load_full_betas
         self.umap_plot = EMPTY_FIGURE
         self.umap_plot_path = None
         self.betas_df = None
@@ -1203,6 +1150,7 @@ class MethylAnalysis:
 
         self.umap_plot_path = self.umap_dir / "umap_plot.csv"
         self.betas_path = self.output_dir / f"{betas_hash_key}.pkl"
+        self._betas_path = self.output_dir / f"{betas_hash_key}"
 
         if old_betas_path != self.betas_path:
             self.betas_df_all_cpgs = None
@@ -1305,8 +1253,7 @@ class MethylAnalysis:
                 self.idat_handler,
                 cpgs,
                 self.prep,
-                save=self.save_betas,
-                betas_path=self.betas_path,
+                betas_path=self._betas_path,
             )
 
         def _extract_sub_dataframe():
@@ -1324,7 +1271,7 @@ class MethylAnalysis:
         if self.betas_df_all_cpgs is not None:
             self.betas_df = _extract_sub_dataframe()
 
-        elif self.save_betas or self.cpg_selection == "top":
+        elif self.load_full_betas or self.cpg_selection == "top":
             self.betas_df_all_cpgs = _get_betas(self.cpgs)
             self.betas_df_all_cpgs = reorder_columns_by_variance(
                 self.betas_df_all_cpgs
@@ -1737,7 +1684,7 @@ class MethylAnalysis:
         @app.callback(
             Output("console-out", "style"),
             [Input("toggle-button", "n_clicks")],
-            [State("console-out", "style")]
+            [State("console-out", "style")],
         )
         def toggle_console_out(n_clicks, current_style):
             if n_clicks % 2 == 0:

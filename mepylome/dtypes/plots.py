@@ -12,9 +12,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
-from mepylome.dtypes.manifests import MEPYLOME_TMP_DIR
 from mepylome.utils import log
-from mepylome.utils.files import ensure_directory_exists
+from mepylome.utils.files import ensure_directory_exists, MEPYLOME_TMP_DIR
 
 PLOTLY_RENDER_MODE = "webgl"
 ZIP_ENDING = "_cnv.zip"

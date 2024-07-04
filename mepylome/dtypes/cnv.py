@@ -19,9 +19,9 @@ from mepylome.dtypes.beads import MethylData, ReferenceMethylData
 from mepylome.dtypes.cache import cache_key, memoize
 from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.genetic_data import GAPS, GENES
-from mepylome.dtypes.manifests import MEPYLOME_TMP_DIR, Manifest
+from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.plots import CNVPlot
-from mepylome.utils.files import ensure_directory_exists
+from mepylome.utils.files import ensure_directory_exists, MEPYLOME_TMP_DIR
 from mepylome.utils.varia import log
 
 UNSET = object()

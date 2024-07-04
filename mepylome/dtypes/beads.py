@@ -5,6 +5,8 @@ preprocessing techniques, normalization, and data handling.
 """
 
 import collections
+import hashlib
+import pickle
 from functools import reduce
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from mepylome.dtypes.idat import IdatParser
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.probes import Channel, ProbeType
 from mepylome.utils.varia import normexp_get_xs
+from mepylome.utils.files import MEPYLOME_TMP_DIR
 
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
@@ -855,7 +858,7 @@ class MethylData:
         Args:
             cpgs (array-like): Array of CpG IDs.
             fill (float): Value to fill for CpGs not found in the used
-                manifest.
+                manifest or equal to NaN.
 
         Returns:
             pandas.DataFrame: DataFrame containing beta values for specified
@@ -949,7 +952,7 @@ class ReferenceMethylData:
 
     _cache = {}
 
-    def __new__(cls, file, prep="illumina"):
+    def __new__(cls, file, prep="illumina", save_to_disk=False):
         key = cache_key(file, prep)
         if key in cls._cache:
             return cls._cache[key]
@@ -962,9 +965,9 @@ class ReferenceMethylData:
 
     def __getnewargs__(self):
         # Necessary for pickle
-        return self.file, self.prep
+        return self.file, self.prep, self.save_to_disk
 
-    def __init__(self, file, prep="illumina"):
+    def __init__(self, file, prep="illumina", save_to_disk=False):
         # Don't need to initialize if instance is cached.
         if hasattr(self, "_cached"):
             return
@@ -972,7 +975,16 @@ class ReferenceMethylData:
 
         self.file = file
         self.prep = prep
+        self.save_to_disk = save_to_disk
         idat_files = idat_basepaths(self.file)
+
+        # Load data from disk
+        filepath = ReferenceMethylData.pickle_filename(idat_files)
+        if self.save_to_disk and filepath.exists():
+            with filepath.open("rb") as f:
+                self = pickle.load(f)
+                return
+
         reference_files = collections.defaultdict(list)
         self._methyl_data = {}
         for idat_file in tqdm(
@@ -988,6 +1000,20 @@ class ReferenceMethylData:
             self._methyl_data[array_type] = MethylData(
                 raw_data, prep=self.prep
             )
+
+        # Save to disk
+        if self.save_to_disk:
+            with filepath.open("wb") as f:
+                pickle.dump(self, f)
+
+    @staticmethod
+    def pickle_filename(idat_files):
+        string = ",".join(sorted(str(x) for x in idat_files))
+        hash_str = hashlib.sha256(string.encode()).hexdigest()
+        dir_str = idat_files[0].parent.name
+        return (
+            MEPYLOME_TMP_DIR / f"ReferenceMethylData-{dir_str}-{hash_str}.pkl"
+        )
 
     def __getitem__(self, array_type):
         if array_type not in self._methyl_data:

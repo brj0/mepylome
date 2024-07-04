@@ -19,7 +19,7 @@ from .genetic_data import (
     IMPORTANT_GENES,
 )
 from .idat import IdatParser
-from .manifests import MEPYLOME_TMP_DIR, Manifest
+from .manifests import Manifest
 from .plots import CNVPlot, cnv_plot_from_data, read_cnv_data_from_disk
 from .probes import Channel, InfiniumDesignType, ProbeType
 
@@ -37,7 +37,6 @@ __all__ = [
     "IdatParser",
     "InfiniumDesignType",
     "Manifest",
-    "MEPYLOME_TMP_DIR",
     "MethylData",
     "ProbeType",
     "RawData",

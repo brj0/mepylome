@@ -86,12 +86,13 @@ def parse_args():
         ),
     )
     parser.add_argument(
-        "-s",
-        "--save_betas",
+        "-l",
+        "--load_full_betas",
         action="store_true",
         help=(
-            "Save betas to disk to improve the speed of generating multiple "
-            "UMAP plots."
+            "Load betas for all CpG's into memory to improve the speed of "
+            "generating multiple UMAP plots. Can lead to memory overflow if "
+            "not enough memory available (3-4 MB per sample needed)."
         ),
     )
     parser.add_argument(

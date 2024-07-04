@@ -5,6 +5,7 @@ miscellaneous operations.
 """
 
 from .files import (
+    MEPYLOME_TMP_DIR,
     download_file,
     ensure_directory_exists,
     get_csv_file,
@@ -24,4 +25,5 @@ __all__ = [
     "setup_tutorial_files",
     "Timer",
     "normexp_get_xs",
+    "MEPYLOME_TMP_DIR",
 ]

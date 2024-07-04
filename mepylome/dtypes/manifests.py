@@ -5,7 +5,6 @@ Illumina array manifest files, which contain information about probes and their
 characteristics.
 """
 
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +20,7 @@ from mepylome.utils.files import (
     ensure_directory_exists,
     get_csv_file,
     reset_file,
+    MEPYLOME_TMP_DIR,
 )
 from mepylome.utils.varia import log
 
@@ -28,7 +28,7 @@ __all__ = ["Manifest"]
 
 
 MANIFEST_DIR = Path.home() / ".mepylome" / "manifest_files"
-MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
+DOWNLOAD_DIR = MEPYLOME_TMP_DIR / "manifests"
 
 ENDING_CONTROL_PROBES = "_control-probes"
 NONE = -1
@@ -252,7 +252,7 @@ class Manifest:
         if local_filepath.exists() and control_filepath.exists():
             return local_filepath, control_filepath
 
-        download_dir = Path(MEPYLOME_TMP_DIR).expanduser()
+        download_dir = Path(DOWNLOAD_DIR).expanduser()
 
         source_url = MANIFEST_URL[array_type]
         source_filename = Path(source_url).name
@@ -270,7 +270,7 @@ class Manifest:
         )
 
         # Remove downloaded files
-        # shutil.rmtree(MEPYLOME_TMP_DIR)
+        # shutil.rmtree(DOWNLOAD_DIR)
 
         return local_filepath, control_filepath
 

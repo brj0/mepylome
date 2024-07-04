@@ -8,6 +8,7 @@ file-like objects and archives.
 import gzip
 import shutil
 import ssl
+import tempfile
 import zipfile
 from pathlib import Path, PurePath
 from urllib.error import URLError
@@ -16,6 +17,7 @@ from urllib.request import urlopen
 from mepylome.utils.varia import log
 
 __all__ = [
+    "MEPYLOME_TMP_DIR",
     "download_file",
     "ensure_directory_exists",
     "get_file_object",
@@ -23,6 +25,7 @@ __all__ = [
     "reset_file",
 ]
 
+MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
 
 def make_path_like(path_like):
     """Attempts to convert a string to a Path instance."""
