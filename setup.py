@@ -67,6 +67,7 @@ setup(
         "openpyxl",
         "tqdm",
         "pyranges",
+        "psutil",
         "xlrd",
         "scikit-learn",
         "dash>=2.16.0",

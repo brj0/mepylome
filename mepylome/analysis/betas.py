@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import psutil
 from tqdm import tqdm
 
 from mepylome.dtypes.arrays import ArrayType
@@ -14,6 +15,17 @@ from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
 NEUTRAL_BETA = 0.49
 DTYPE = np.float32
 
+def check_memory(nrows, ncols, dtype):
+    available_memory = psutil.virtual_memory().available
+    dtype_size = np.dtype(dtype).itemsize
+    required_memory = nrows * ncols * dtype_size
+    if required_memory > available_memory:
+        msg = (
+            f"Not enout free memory available. For the given dimension "
+            f"({nrows} samples, {ncols} CpG's), "
+            f"{required_memory / (1024 ** 3):.1f} GB is required."
+        )
+        raise MemoryError(msg)
 
 def get_array_cpgs():
     path = MEPYLOME_TMP_DIR / "all_cpgs.pkl"
@@ -64,6 +76,7 @@ class BetasHandler:
             f.write(str(msg))
 
     def get(self, ids, cpgs, fill=NEUTRAL_BETA, parallel=False):
+        check_memory(len(ids), len(cpgs), DTYPE)
         result = np.full((len(ids), len(cpgs)), fill, dtype=DTYPE)
         left_idx = {}
         right_idx = {}

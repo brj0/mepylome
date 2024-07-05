@@ -9,6 +9,7 @@ interactive web application for the exploration of methylation data.
 import colorsys
 import hashlib
 import logging
+import base64
 import os
 import sys
 import threading
@@ -273,16 +274,32 @@ class IdatHandler:
     description lookups for methylation classes.
     """
 
-    def __init__(self, idat_dir, annotation_file=None, *, overlap=False):
+    def __init__(
+        self,
+        idat_dir,
+        annotation_file=None,
+        *,
+        upload_dir=None,
+        overlap=False,
+    ):
         self.idat_dir = Path(idat_dir)
+        if upload_dir is not None and Path(upload_dir).exists():
+            self.upload_dir = Path(upload_dir)
+            uploaded_sample_paths = idat_basepaths(self.upload_dir)
+        else:
+            self.upload_dir = None
+            uploaded_sample_paths = []
         if annotation_file is None:
             annotation_file = guess_annotation_file(self.idat_dir)
         self.annotation_file = Path(annotation_file)
         self.overlap = overlap
-
+        # Sort uploaded IDAT's for consistent hash
+        self.uploaded_sample_ids = sorted(
+            x.name for x in uploaded_sample_paths if is_valid_idat_basepath(x)
+        )
         self.sample_paths = {
             x.name: x
-            for x in idat_basepaths(self.idat_dir)
+            for x in idat_basepaths(self.idat_dir) + uploaded_sample_paths
             if is_valid_idat_basepath(x)
         }
         self.annotation_df = None
@@ -316,6 +333,7 @@ class IdatHandler:
             result_df = result_df.fillna("")
         if len(result_df.columns) == 0:
             result_df["Methylation_Class"] = "NO_DIAGNOSIS"
+        result_df.loc[self.uploaded_sample_ids] = "UPLOADED"
         return result_df.fillna("")
 
     @property
@@ -363,7 +381,7 @@ def extract_beta(data):
         print(f"The following error occured for {idat_file.name}: {error}")
 
 
-def get_betas(pbar, idat_handler, cpgs, prep, betas_path):
+def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
     """Extracts and processes beta values from IDAT files.
 
     This function processes IDAT files to extract beta values for specified
@@ -371,11 +389,11 @@ def get_betas(pbar, idat_handler, cpgs, prep, betas_path):
     folder to facilitate quicker subsequent extractions.
 
     Args:
-        pbar (ProgressBar): Progress bar for tracking progress.
         idat_handler (IdatHandler): Handler for IDAT file paths and metadata.
         cpgs (list): List of CpGs to include in the output matrix.
         prep (str): Prepreparation method for the MethylData.
         betas_path (Path): Path to save/load the betas.
+        pbar (ProgressBar): Progress bar for tracking progress.
 
     Returns:
         pd.DataFrame: DataFrame containing the beta values for the specified
@@ -398,7 +416,8 @@ def get_betas(pbar, idat_handler, cpgs, prep, betas_path):
                 for future in as_completed(futures):
                     future.result()
                     tqdm_bar.update(1)
-                    pbar.increment()
+                    if pbar is not None:
+                        pbar.increment()
         betas_handler.update()
     valid_ids = [
         id_ for id_ in idat_handler.ids if id_ not in betas_handler.invalid_ids
@@ -617,7 +636,7 @@ def get_side_navigation(
             dbc.Tabs(
                 [
                     dbc.Tab(
-                        label="Settings",
+                        label="Setting",
                         children=[
                             dcc.Store(id="running-state"),
                             dcc.Interval(
@@ -820,7 +839,33 @@ def get_side_navigation(
                             ),
                         ],
                     ),
-                ]
+                    dbc.Tab(
+                        label="Upload",
+                        children=[
+                            html.Br(),
+                            html.Br(),
+                            dcc.Upload(
+                                [
+                                    "Drag & Drop or ",
+                                    html.A("Select IDAT File pairs"),
+                                ],
+                                style={
+                                    "width": "100%",
+                                    "height": "60px",
+                                    "lineHeight": "60px",
+                                    "borderWidth": "1px",
+                                    "borderStyle": "dashed",
+                                    "borderRadius": "5px",
+                                    "textAlign": "center",
+                                },
+                                multiple=True,
+                                id="upload-idat",
+                            ),
+                            html.Br(),
+                            html.Div(id="output-idat-upload"),
+                        ],
+                    ),
+                ],
             ),
         ],
         width={"size": 2},
@@ -883,7 +928,7 @@ def _input_args_id(*args):
     return hashlib.sha256(result.encode()).hexdigest()
 
 
-def input_args_id(*args, extra_hash=None):
+def input_args_id(*args, extra_hash=[]):
     """Returns a unique identifier for a set of arguments."""
     hasher = hashlib.sha256()
     components = []
@@ -896,7 +941,7 @@ def input_args_id(*args, extra_hash=None):
         else:
             hasher.update(str(arg).encode())
             components.append(str(arg))
-    hasher.update(str(extra_hash).encode())
+    hasher.update(",".join([str(x) for x in extra_hash]).encode())
     components.append(hasher.hexdigest())
     return "-".join(components)
 
@@ -993,8 +1038,10 @@ class MethylAnalysis:
         self.debug = debug
         self.reference_dir = Path(reference_dir).expanduser()
         self.output_dir = Path(output_dir).expanduser()
+        self.upload_dir = None
         self.cnv_dir = None
         self.umap_dir = None
+        self._old_umap_dir = self.umap_dir
         self.prep = prep
         self.precalculate_cnv = precalculate_cnv
         self.load_full_betas = load_full_betas
@@ -1042,9 +1089,13 @@ class MethylAnalysis:
             or self.analysis_dir != self._idat_handler.idat_dir
             or self.annotation != self._idat_handler.annotation_file
             or self.overlap != self._idat_handler.overlap
+            or self.upload_dir != self._idat_handler.upload_dir
         ):
             self._idat_handler = IdatHandler(
-                self.analysis_dir, self.annotation, overlap=self.overlap
+                self.analysis_dir,
+                self.annotation,
+                overlap=self.overlap,
+                upload_dir=self.upload_dir,
             )
         return self._idat_handler
 
@@ -1121,20 +1172,19 @@ class MethylAnalysis:
             self.cpgs = self.get_cpgs()
             self.betas_df_all_cpgs = None
             self.betas_df = None
+
+        # betas dir
         old_betas_path = self.betas_path
-        umap_hash_key = input_args_id(
-            "umap",
-            self.analysis_dir,
-            self.prep,
-            self.n_cpgs,
-            self.cpg_selection,
-            extra_hash=self._cpgs_hash,
-        )
         betas_hash_key = input_args_id(
             "betas",
             self.analysis_dir,
             self.prep,
         )
+        self.betas_path = self.output_dir / f"{betas_hash_key}"
+        if old_betas_path != self.betas_path:
+            self.betas_df_all_cpgs = None
+
+        # cnv dir
         cnv_hash_key = input_args_id(
             "cnv",
             self.analysis_dir,
@@ -1142,18 +1192,36 @@ class MethylAnalysis:
             self.prep,
             self.do_seg,
         )
-        self.umap_dir = self.output_dir / f"{umap_hash_key}"
-        ensure_directory_exists(self.umap_dir)
-
         self.cnv_dir = self.output_dir / f"{cnv_hash_key}"
         ensure_directory_exists(self.cnv_dir)
 
-        self.umap_plot_path = self.umap_dir / "umap_plot.csv"
-        self.betas_path = self.output_dir / f"{betas_hash_key}.pkl"
-        self._betas_path = self.output_dir / f"{betas_hash_key}"
+        # upload dir
+        upload_hash_key = input_args_id(
+            "upload",
+            self.analysis_dir,
+        )
+        self.upload_dir = self.output_dir / f"{upload_hash_key}"
+        ensure_directory_exists(self.upload_dir)
 
-        if old_betas_path != self.betas_path:
+        # umap dir
+        self._old_umap_dir = self.umap_dir
+        uploaded_files = sorted(str(x) for x in self.upload_dir.iterdir())
+        umap_hash_key = input_args_id(
+            "umap",
+            self.analysis_dir,
+            self.prep,
+            self.n_cpgs,
+            self.cpg_selection,
+            extra_hash=[self._cpgs_hash] + uploaded_files,
+        )
+        self.umap_dir = self.output_dir / f"{umap_hash_key}"
+        self.umap_plot_path = self.umap_dir / "umap_plot.csv"
+        ensure_directory_exists(self.umap_dir)
+        if self._old_umap_dir != self.umap_dir:
             self.betas_df_all_cpgs = None
+            self.betas_df = None
+            self._idat_handler = None
+
 
     def make_umap(self):
         self.prog_bar.reset(len(self.idat_handler), text="(betas)")
@@ -1177,7 +1245,7 @@ class MethylAnalysis:
         if umap_2d is not None:
             if len(self.idat_handler.ids) != len(umap_2d):
                 msg = (
-                    "Dimension mismatch: Analysis files may have changed. "
+                    "Dimension mismatch 1: Analysis files may have changed. "
                     f"Try to delete cached files in {self.output_dir}."
                 )
                 raise AttributeError(msg)
@@ -1204,7 +1272,7 @@ class MethylAnalysis:
         )
         if len(umap_color) != len(self.umap_df):
             msg = (
-                "Dimension mismatch: Analysis files may have changed. "
+                "Dimension mismatch 2: Analysis files may have changed. "
                 f"Try to delete cached files in {self.output_dir}."
             )
             raise AttributeError(msg)
@@ -1249,11 +1317,11 @@ class MethylAnalysis:
             if self.verbose:
                 log("[MethylAnalysis] Get beta values...")
             return get_betas(
-                self.prog_bar,
-                self.idat_handler,
-                cpgs,
-                self.prep,
-                betas_path=self._betas_path,
+                idat_handler=self.idat_handler,
+                cpgs=cpgs,
+                prep=self.prep,
+                betas_path=self.betas_path,
+                pbar=self.prog_bar,
             )
 
         def _extract_sub_dataframe():
@@ -1562,7 +1630,7 @@ class MethylAnalysis:
                     return True, ""
             except Exception as exc:
                 log(
-                    f"[MethylAnalysis] An error occured "
+                    f"[MethylAnalysis] An error occured (1) "
                     f"(validate_reference_path): {exc}"
                 )
                 return False, "Invalid path format"
@@ -1590,7 +1658,7 @@ class MethylAnalysis:
                     return True, ""
             except Exception as exc:
                 log(
-                    f"[MethylAnalysis] An error occured "
+                    f"[MethylAnalysis] An error occured (2) "
                     f"(validate_output_path): {exc}"
                 )
                 return False, "Invalid path format"
@@ -1671,7 +1739,7 @@ class MethylAnalysis:
                 ensure_directory_exists(self.output_dir)
                 self.make_umap()
             except Exception as exc:
-                log(f"[MethylAnalysis] An error occurred: {exc}")
+                log(f"[MethylAnalysis] An error occurred (3): {exc}")
             else:
                 return (
                     self.umap_plot,
@@ -1748,6 +1816,35 @@ class MethylAnalysis:
                     data = data + line
             return progress, out_str, data
 
+        @app.callback(
+            Output("output-idat-upload", "children"),
+            Input("upload-idat", "contents"),
+            State("upload-idat", "filename"),
+            State("upload-idat", "last_modified"),
+        )
+        def update_output(list_of_contents, list_of_names, list_of_dates):
+            def parse_contents(contents, filename, date):
+                file_path = self.upload_dir / filename
+                content_type, content_string = contents.split(",")
+                decoded = base64.b64decode(content_string)
+                with open(file_path, "wb") as f:
+                    f.write(decoded)
+                return html.Div(
+                    [
+                        html.H6(filename),
+                    ]
+                )
+
+            if list_of_contents is not None:
+                children = [
+                    parse_contents(c, n, d)
+                    for c, n, d in zip(
+                        list_of_contents, list_of_names, list_of_dates
+                    )
+                ]
+                self.update_paths()
+                return children
+
         return app
 
     def run_app(self, *, open_tab=False):
@@ -1776,7 +1873,6 @@ class MethylAnalysis:
             f"output_dir:\n{self.output_dir}",
             f"umap_dir:\n{self.umap_dir}",
             f"cnv_dir:\n{self.cnv_dir}",
-            f"umap_dir:\n{self.umap_dir}",
             f"selected_columns:\n{self.idat_handler.selected_columns}",
             f"annotation:\n{self.annotation}",
             f"prep:\n{self.prep}",
