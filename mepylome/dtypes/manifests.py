@@ -16,11 +16,11 @@ from mepylome.dtypes.cache import cache_key
 from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.probes import Channel, InfiniumDesignType, ProbeType
 from mepylome.utils.files import (
+    MEPYLOME_TMP_DIR,
     download_file,
     ensure_directory_exists,
     get_csv_file,
     reset_file,
-    MEPYLOME_TMP_DIR,
 )
 from mepylome.utils.varia import log
 

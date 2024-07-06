@@ -6,10 +6,10 @@ class, which manages the methylation analysis process and executes an
 interactive web application for the exploration of methylation data.
 """
 
+import base64
 import colorsys
 import hashlib
 import logging
-import base64
 import os
 import sys
 import threading
@@ -1739,7 +1739,7 @@ class MethylAnalysis:
                 ensure_directory_exists(self.output_dir)
                 self.make_umap()
             except Exception as exc:
-                log(f"[MethylAnalysis] An error occurred (3): {exc}")
+                log(f"[MethylAnalysis] An error occured (3): {exc}")
             else:
                 return (
                     self.umap_plot,

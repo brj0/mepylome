@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 
 from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
 from mepylome.utils import log
-from mepylome.utils.files import ensure_directory_exists, MEPYLOME_TMP_DIR
+from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
 
 PLOTLY_RENDER_MODE = "webgl"
 ZIP_ENDING = "_cnv.zip"

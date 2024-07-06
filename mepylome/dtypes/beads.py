@@ -19,8 +19,8 @@ from mepylome.dtypes.cache import cache_key, memoize
 from mepylome.dtypes.idat import IdatParser
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.probes import Channel, ProbeType
-from mepylome.utils.varia import normexp_get_xs
 from mepylome.utils.files import MEPYLOME_TMP_DIR
+from mepylome.utils.varia import normexp_get_xs
 
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
