@@ -30,7 +30,7 @@ from dash import (
     no_update,
 )
 
-from mepylome.analysis.aux import (
+from mepylome.analysis.helpers import (
     IdatHandler,
     ProgressBar,
     get_betas,
