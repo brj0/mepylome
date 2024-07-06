@@ -64,7 +64,7 @@ setup(
     install_requires=[
         "numpy",
         "pandas",
-        "openpyxl",
+        # "openpyxl",
         "tqdm",
         "pyranges",
         "psutil",

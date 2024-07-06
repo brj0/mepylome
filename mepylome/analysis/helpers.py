@@ -247,7 +247,7 @@ class BetasHandler:
         dirname = self.basedir.name
         self.dir = {}
         for key in self.array_cpgs:
-            self.dir[key] = self.basedir / f"{dirname}-betas_{key}"
+            self.dir[key] = self.basedir / f"{dirname}-{key}"
             ensure_directory_exists(self.dir[key])
         self.dir["error"] = self.basedir / "error"
         ensure_directory_exists(self.dir["error"])

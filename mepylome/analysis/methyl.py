@@ -441,7 +441,7 @@ def guess_annotation_file(directory, verbose=False):
 
 def input_args_id(*args, extra_hash=None):
     """Returns a unique identifier for a set of arguments."""
-    hasher = hashlib.sha256()
+    hasher = hashlib.md5()
     components = []
     for arg in args:
         if isinstance(arg, np.ndarray):
