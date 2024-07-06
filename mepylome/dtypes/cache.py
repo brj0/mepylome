@@ -72,7 +72,9 @@ def cache_key(*args):
     }
     keys = []
     for arg in args:
-        arg_type = arg.__class__.__name__ if hasattr(arg, "__class__") else None
+        arg_type = (
+            arg.__class__.__name__ if hasattr(arg, "__class__") else None
+        )
         keys.append(type_map.get(arg_type, id)(arg))
     if len(args) == 1:
         return keys[0]

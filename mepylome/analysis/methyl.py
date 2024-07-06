@@ -7,22 +7,17 @@ interactive web application for the exploration of methylation data.
 """
 
 import base64
-import colorsys
 import hashlib
 import logging
 import os
 import sys
 import threading
 import webbrowser
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache, partial
-from multiprocessing import Pool
 from pathlib import Path
 
 import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 from dash import (
     Dash,
@@ -34,24 +29,28 @@ from dash import (
     html,
     no_update,
 )
-from tqdm import tqdm
 
-from mepylome.analysis.betas import BetasHandler
+from mepylome.analysis.aux import (
+    IdatHandler,
+    ProgressBar,
+    get_betas,
+)
+from mepylome.analysis.methyl_plots import (
+    EMPTY_FIGURE,
+    ERROR_ENDING,
+    get_cnv_plot,
+    umap_plot_from_data,
+    write_cnv_to_disk,
+)
 from mepylome.dtypes import (
-    CNV,
-    IMPORTANT_GENES,
     ZIP_ENDING,
     Annotation,
     Manifest,
-    MethylData,
     RawData,
-    ReferenceMethylData,
     _get_cgsegment,
     _overlap_indices,
-    cnv_plot_from_data,
     idat_basepaths,
     is_valid_idat_basepath,
-    read_cnv_data_from_disk,
 )
 from mepylome.utils import (
     MEPYLOME_TMP_DIR,
@@ -66,10 +65,8 @@ timer = Timer()
 DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "methylation_analysis")
 INVALID_PATH = Path("None")
 
-PLOTLY_RENDER_MODE = "webgl"
 DEFAULT_N_CPGS = 25000
 NEUTRAL_BETA = 0.49
-ERROR_ENDING = "_error.txt"
 
 ON = "on"
 OFF = "off"
@@ -122,459 +119,9 @@ CONSOLE_OUT = Path(MEPYLOME_TMP_DIR, "stdout.txt")
 sys.stdout = DualOutput(CONSOLE_OUT)
 
 
-class ProgressBar:
-    """A thread-safe progress bar.
-
-    Attributes:
-        cur_value (int): The current value of the progress bar.
-        max_value (int): The maximum value of the progress bar.
-        text (str): Optional text to display alongside the progress.
-        lock (threading.Lock): A lock to ensure thread safety.
-    """
-
-    def __init__(self, max_value=100, text=""):
-        self.cur_value = 0
-        self.max_value = int(max_value)
-        self.text = str(text)
-        self.lock = threading.Lock()
-
-    def reset(self, max_value=100, cur_value=0, text=""):
-        with self.lock:
-            if self.max_value == 0:
-                msg = "ProgressBar cannot be initailized with 0 samples."
-                raise ValueError(msg)
-            self.cur_value = cur_value
-            self.max_value = int(max_value)
-            self.text = str(text)
-
-    def increment(self, n=1):
-        with self.lock:
-            self.cur_value = min(self.cur_value + n, self.max_value)
-
-    def get_progress(self):
-        with self.lock:
-            if self.max_value == 0:
-                log("[ProgressBar] max_value is 0")
-                return 100
-            return self.cur_value * 100 // self.max_value
-
-    def get_text(self):
-        with self.lock:
-            if self.cur_value == self.max_value:
-                out_str = "100 %"
-            else:
-                out_str = (
-                    f"{self.cur_value}/{self.max_value} {self.text}".rstrip()
-                )
-            return out_str
-
-    def __str__(self):
-        lines = [
-            "ProgressBar(",
-            f"    cur_value: {self.cur_value}",
-            f"    max_value: {self.max_value}",
-            f"    progress: {self.get_progress()}",
-            ")",
-        ]
-        return "\n".join(lines)
-
-    def __repr__(self):
-        return str(self)
-
-
-def hash_from_str(string):
-    """Calculates a pseudorandom int from a string."""
-    hash_str = hashlib.sha256(string.encode()).hexdigest()
-    return int(hash_str, 16)
-
-
-def random_color(string, i, n_strings, rand):
-    """Generate a random RGB color for a given string-name.
-
-    Ensures the color is unique and distributed across the hue spectrum.
-
-    Args:
-        string (str): The input string to generate the color for.
-        i (int): The index of the current string-name.
-        n_strings (int): The total number of string-names.
-        rand (int): A random offset
-
-    Returns:
-        tuple: The RGB color as a tuple of integers.
-    """
-    hash_value = hash_from_str(string)
-    hue = (360 * i // n_strings + rand) % 360
-    saturation = (hash_value & 0xFFFF) % 91 + 10
-    lightness = (hash_value >> 16 & 0xFFFF) % 41 + 30
-    # hsl has to be transformed to rgb for plotly, since otherwise not all
-    # colors are displayed correctly, probably due to plotly bug.
-    rgb_frac = colorsys.hls_to_rgb(
-        hue / 360, lightness / 100, saturation / 100
-    )
-    return tuple(int(255 * x) for x in rgb_frac)
-
-
-def discrete_colors(names):
-    """Returns a colorscheme for all methylation classes."""
-    sorted_names = sorted(names, key=hash_from_str)
-    n_names = len(sorted_names)
-    rand = hash_from_str("-".join(sorted_names))
-    return {
-        var: f"rgb{random_color(var, i, n_names, rand)}"
-        for i, var in enumerate(sorted_names)
-    }
-
-
-def umap_plot_from_data(umap_df):
-    """Create and return umap plot from UMAP data.
-
-    Args:
-        umap_df: pandas data frame containing UMAP matrix and
-            attributes. First row,w corresponds to sample.
-
-    Returns:
-        UMAP plot as plotly object.
-    """
-    methyl_classes = np.sort(umap_df["Umap_color"].unique())
-    color_map = discrete_colors(methyl_classes)
-    category_orders = {"Umap_color": methyl_classes}
-    umap_plot = px.scatter(
-        umap_df,
-        x="Umap_x",
-        y="Umap_y",
-        labels={
-            "Umap_x": "UMAP 0",
-            "Umap_y": "UMAP 1",
-            "Umap_color": "Class",
-        },
-        title="",
-        color="Umap_color",
-        color_discrete_map=color_map,
-        hover_name=umap_df.index,
-        category_orders=category_orders,
-        hover_data=umap_df.columns,
-        render_mode=PLOTLY_RENDER_MODE,
-        template="simple_white",
-    )
-    umap_plot.update_yaxes(
-        scaleanchor="x",
-        scaleratio=1,
-        mirror=True,
-    )
-    umap_plot.update_xaxes(
-        mirror=True,
-    )
-    return umap_plot
-
-
-class IdatHandler:
-    """A class for handling IDAT files with annotation.
-
-    Includes reading annotation from various file formats and provides
-    description lookups for methylation classes.
-    """
-
-    def __init__(
-        self,
-        idat_dir,
-        annotation_file=None,
-        *,
-        upload_dir=None,
-        overlap=False,
-    ):
-        self.idat_dir = Path(idat_dir)
-        if upload_dir is not None and Path(upload_dir).exists():
-            self.upload_dir = Path(upload_dir)
-            uploaded_sample_paths = idat_basepaths(self.upload_dir)
-        else:
-            self.upload_dir = None
-            uploaded_sample_paths = []
-        if annotation_file is None:
-            annotation_file = guess_annotation_file(self.idat_dir)
-        self.annotation_file = Path(annotation_file)
-        self.overlap = overlap
-        # Sort uploaded IDAT's for consistent hash
-        self.uploaded_sample_ids = sorted(
-            x.name for x in uploaded_sample_paths if is_valid_idat_basepath(x)
-        )
-        self.sample_paths = {
-            x.name: x
-            for x in idat_basepaths(self.idat_dir) + uploaded_sample_paths
-            if is_valid_idat_basepath(x)
-        }
-        self.annotation_df = None
-        self.annotated_samples = self.load_annotated_samples()
-        if self.overlap and self.annotated_samples is not None:
-            ids_annotation = self.annotation_df.index
-            self.sample_paths = {
-                x: i
-                for x, i in self.sample_paths.items()
-                if x in ids_annotation
-            }
-            self.annotated_samples = self.annotated_samples.loc[
-                self.sample_paths.keys()
-            ]
-        self.selected_columns = self.annotated_samples.columns[0]
-
-    def __len__(self):
-        return len(self.sample_paths)
-
-    def load_annotated_samples(self):
-        result_df = pd.DataFrame(index=self.sample_paths.keys())
-        if self.annotation_file.exists():
-            try:
-                self.annotation_df = read_dataframe(
-                    self.annotation_file,
-                    index_col=0,
-                )
-            except ValueError:
-                self.annotation_df = result_df
-            result_df = result_df.join(self.annotation_df)
-            result_df = result_df.fillna("")
-        if len(result_df.columns) == 0:
-            result_df["Methylation_Class"] = "NO_DIAGNOSIS"
-        result_df.loc[self.uploaded_sample_ids] = "UPLOADED"
-        return result_df.fillna("")
-
-    @property
-    def ids(self):
-        return self.annotated_samples.index.tolist()
-
-    @property
-    def properties(self):
-        return self.annotated_samples.columns.tolist()
-
-    def compound_class(self, columns=None):
-        if columns is None:
-            return self.annotated_samples.iloc[:, 0].tolist()
-        if not isinstance(columns, list):
-            columns = [columns]
-        return (
-            self.annotated_samples[columns]
-            .apply(lambda row: "|".join(row.values.astype(str)), axis=1)
-            .tolist()
-        )
-
-    def __str__(self):
-        lines = [
-            "IdatHandler():",
-            f"annotation_file: '{self.annotation_file}'",
-            f"annotated_samples:\n{self.annotated_samples}",
-            f"selected_columns:\n{self.selected_columns}",
-        ]
-        return "\n".join(lines)
-
-    def __repr__(self):
-        return str(self)
-
-
-def extract_beta(data):
-    """Extracts and saves beta values for specified CpGs from an IDAT file."""
-    idat_file, prep, betas_handler = data
-    try:
-        methyl = MethylData(file=idat_file, prep=prep)
-        betas = methyl.betas_at().values.ravel()
-        array_type = methyl.array_type
-        betas_handler.add(betas, idat_file.name, array_type)
-    except Exception as error:
-        betas_handler.add_error(idat_file.name, error)
-        print(f"The following error occured for {idat_file.name}: {error}")
-
-
-def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
-    """Extracts and processes beta values from IDAT files.
-
-    This function processes IDAT files to extract beta values for specified
-    CpG sites (CpGs). The processed beta values are saved in a temporary
-    folder to facilitate quicker subsequent extractions.
-
-    Args:
-        idat_handler (IdatHandler): Handler for IDAT file paths and metadata.
-        cpgs (list): List of CpGs to include in the output matrix.
-        prep (str): Prepreparation method for the MethylData.
-        betas_path (Path): Path to save/load the betas.
-        pbar (ProgressBar): Progress bar for tracking progress.
-
-    Returns:
-        pd.DataFrame: DataFrame containing the beta values for the specified
-            CpGs.
-    """
-    betas_handler = BetasHandler(betas_path)
-    missing_ids = list(set(idat_handler.ids) - set(betas_handler.ids))
-    if len(missing_ids) > 0:
-        args_list = [
-            (idat_handler.sample_paths[id_], prep, betas_handler)
-            for id_ in missing_ids
-        ]
-        with ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(extract_beta, args) for args in args_list
-            ]
-            with tqdm(
-                total=len(missing_ids), desc="Reading IDAT files"
-            ) as tqdm_bar:
-                for future in as_completed(futures):
-                    future.result()
-                    tqdm_bar.update(1)
-                    if pbar is not None:
-                        pbar.increment()
-        betas_handler.update()
-    valid_ids = [
-        id_ for id_ in idat_handler.ids if id_ not in betas_handler.invalid_ids
-    ]
-    return betas_handler.get(valid_ids, cpgs)
-
-
-@lru_cache(maxsize=None)
-def get_reference_methyl_data(reference_dir, prep):
-    """Loads and caches CNV-neutral reference data."""
-    try:
-        reference = ReferenceMethylData(
-            file=reference_dir, prep=prep, save_to_disk=True
-        )
-    except FileNotFoundError as exc:
-        msg = f"File in reference dir {reference_dir} not found: {exc}"
-        raise FileNotFoundError(msg) from exc
-    return reference
-
-
-def write_single_cnv_to_disk(
-    idat_basename, reference_dir, cnv_dir, prep, do_seg, verbose
-):
-    """Performs CNV analysis on a single sample and writes results to disk."""
-    sample_id = idat_basename.name
-    try:
-        sample_methyl = MethylData(file=idat_basename)
-        reference = get_reference_methyl_data(reference_dir, prep)
-        cnv = CNV.set_all(
-            sample_methyl, reference, do_seg=do_seg, verbose=verbose
-        )
-        cnv_filename = sample_id + ZIP_ENDING
-        cnv.write(Path(cnv_dir, cnv_filename))
-    except Exception as exc:
-        cnv_filename = sample_id + ERROR_ENDING
-        files_on_disk = [
-            f"{x}, size={x.stat().st_size} B"
-            for x in idat_basename.parent.glob(f"{sample_id}*")
-        ]
-        error_message = (
-            "During processing '"
-            + sample_id
-            + "' the following exception occurred:\n\n"
-            + str(exc)
-            + "\n\nCorresponding files on disk:\n"
-            + "\n".join(files_on_disk)
-            + "\n\n\nTo recalculate, delete this file."
-        )
-        log(error_message)
-        with Path(cnv_dir, cnv_filename).open("w") as f:
-            f.write(error_message)
-
-
-def write_cnv_to_disk(
-    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None, verbose=False
-):
-    """Generate and save CNV-analysis output files for given samples.
-
-    Saves CNV data with a ZIP_ENDING extension, or an error message with an
-    ERROR_ENDING extension. Processes unseen samples, avoiding existing CNV and
-    samples that lead to an error. Uses single-threading for one sample, and
-    multi-threading for multiple samples.
-
-    Args:
-        sample_path (list): Paths to sample IDAT files.
-        reference_dir (str): Directory with CNV neural reference data.
-        cnv_dir (str): Directory to save CNV data.
-        prep (str): Prepreparation method for MethylData.
-        do_seg (bool): If segments should be calculated as well (slow)
-        pbar (optional): Progress bar for tracking progress.
-        verbose (bool, optional): Whether to display verbose output.
-    """
-    new_idat_paths = [
-        x
-        for x in sample_path
-        if not Path(cnv_dir, str(x.name) + ZIP_ENDING).exists()
-        and not Path(cnv_dir, str(x.name) + ERROR_ENDING).exists()
-    ]
-    if len(new_idat_paths) == 0:
-        return
-    # Load the reference into memory before parallelization to prevent loading
-    # it for each core.
-    Manifest.load()
-    _ = get_reference_methyl_data(reference_dir, prep)
-    _write_single_cnv_to_disk = partial(
-        write_single_cnv_to_disk,
-        reference_dir=reference_dir,
-        cnv_dir=cnv_dir,
-        prep=prep,
-        do_seg=do_seg,
-        verbose=verbose,
-    )
-    # Pooling is slower if there is only 1 sample
-    if len(new_idat_paths) == 1:
-        _write_single_cnv_to_disk(new_idat_paths[0])
-    else:
-        with Pool() as pool, tqdm(
-            total=len(new_idat_paths), desc="Generating CNV files"
-        ) as tqdm_bar:
-            for _ in pool.imap(_write_single_cnv_to_disk, new_idat_paths):
-                if pbar is not None:
-                    pbar.increment()
-                _ = tqdm_bar.update(1)
-
-
-@lru_cache
-def get_cnv_plot(
-    sample_path, reference_dir, prep, cnv_dir, genes_sel, do_seg, verbose=False
-):
-    """Generate and return a CNV plot for a given sample.
-
-    Args:
-        sample_path (Path): Path to the sample IDAT file.
-        reference_dir (str): Directory with reference data.
-        prep (str): Prepreparation method for MethylData.
-        cnv_dir (str): Directory to save CNV data.
-        genes_sel (list): List of genes to highlight in the plot.
-        do_seg (bool): If segments should be calculated as well (slow)
-        verbose (bool, optional): Whether to display verbose output.
-
-    Returns:
-        plotly.graph_objs.Figure: CNV plotly figure.
-    """
-    sample_id = sample_path.name
-    write_cnv_to_disk(
-        [sample_path], reference_dir, cnv_dir, prep, do_seg, verbose=verbose
-    )
-    bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
-    plot = cnv_plot_from_data(
-        sample_id,
-        bins,
-        detail,
-        segments,
-        IMPORTANT_GENES,
-        list(genes_sel),
-        verbose=verbose,
-    )
-    return plot.update_layout(
-        margin={"l": 0, "r": 0, "t": 30, "b": 0},
-    )
-
-
 def get_all_genes():
     """Returns a list of names for all genes."""
     return Annotation.default_genes().df.Name.tolist()
-
-
-EMPTY_FIGURE = go.Figure()
-EMPTY_FIGURE.update_layout(
-    xaxis={"visible": False},
-    yaxis={"visible": False},
-    plot_bgcolor="rgba(0, 0, 0, 0)",
-    paper_bgcolor="rgba(0, 0, 0, 0)",
-    showlegend=False,
-    margin={"l": 0, "r": 0, "t": 0, "b": 0},
-)
-EMPTY_FIGURE = go.Figure(layout=go.Layout(yaxis={"range": [-2, 2]}))
 
 
 def get_navbar():
@@ -892,43 +439,7 @@ def guess_annotation_file(directory, verbose=False):
     return INVALID_PATH
 
 
-def read_dataframe(path, **kwargs):
-    """Reads a DataFrame from the specified file path.
-
-    Supports xlsx, xls, csv (comma-separated), csv (column-separated), and tsv
-    formats.
-
-    Args:
-        path (str): The file path to read the DataFrame from.
-        **kwargs: Additional keyword arguments to pass to the underlying pandas
-            read function.
-
-    Returns:
-        pd.DataFrame: The loaded DataFrame.
-
-    Raises:
-        ValueError: If the file format is not supported.
-    """
-    path = Path(path)
-    if path.suffix in [".xlsx", ".xls"]:
-        return pd.read_excel(path, **kwargs)
-    elif path.suffix in [".csv", ".tsv"]:
-        return pd.read_csv(path, sep=None, **kwargs, engine="python")
-    raise ValueError(
-        "Unsupported file format. Supported: xlsx, xls, csv, tsv."
-    )
-
-
-def _input_args_id(*args):
-    """Returns a unique identifier for a set of arguments."""
-    result = "-".join(
-        str(arg.tolist()) if isinstance(arg, np.ndarray) else str(arg)
-        for arg in args
-    )
-    return hashlib.sha256(result.encode()).hexdigest()
-
-
-def input_args_id(*args, extra_hash=[]):
+def input_args_id(*args, extra_hash=None):
     """Returns a unique identifier for a set of arguments."""
     hasher = hashlib.sha256()
     components = []
@@ -941,6 +452,7 @@ def input_args_id(*args, extra_hash=[]):
         else:
             hasher.update(str(arg).encode())
             components.append(str(arg))
+    extra_hash = [] if extra_hash is None else extra_hash
     hasher.update(",".join([str(x) for x in extra_hash]).encode())
     components.append(hasher.hexdigest())
     return "-".join(components)
@@ -974,8 +486,8 @@ def reorder_columns_by_variance(data_frame):
 def get_cpgs_from_file(input_path):
     try:
         path = Path(input_path).expanduser()
-        df = pd.read_csv(path, header=None)
-        cpgs = [cpg for cpg in df.values.flatten() if not pd.isna(cpg)]
+        cpgs_df = pd.read_csv(path, header=None)
+        cpgs = [cpg for cpg in cpgs_df.values.flatten() if not pd.isna(cpg)]
         return np.array(cpgs)
     except (TypeError, FileNotFoundError, pd.errors.EmptyDataError):
         return None
@@ -1221,7 +733,6 @@ class MethylAnalysis:
             self.betas_df_all_cpgs = None
             self.betas_df = None
             self._idat_handler = None
-
 
     def make_umap(self):
         self.prog_bar.reset(len(self.idat_handler), text="(betas)")
@@ -1811,7 +1322,8 @@ class MethylAnalysis:
             with CONSOLE_OUT.open("r") as file:
                 data = ""
                 lines = file.readlines()
-                last_lines = lines if len(lines) <= 50 else lines[-50:]
+                N_TOP = 50
+                last_lines = lines if len(lines) <= N_TOP else lines[-N_TOP:]
                 for line in last_lines:
                     data = data + line
             return progress, out_str, data
