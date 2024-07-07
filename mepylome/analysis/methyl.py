@@ -555,25 +555,18 @@ class MethylAnalysis:
 
         verbose (bool): Flag to enable verbose logging (default: True).
 
-    Attributes: TODO
+    Attributes:
         umap_cpgs (NoneType): CpG sites for UMAP analysis, initially set to
             None.
 
         analysis_dir (Path): Path to the directory containing IDAT files for
             analysis.
 
-        _old_analysis_dir (Path): Previous path to the analysis directory.
-
-        idat_paths (NoneType): Paths to IDAT files, initially set to None.
-
         annotation (Path): Path to an annotation spreadsheet where Sentrix IDs
             are listed in the first column.
 
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
-
-        _idat_handler (NoneType): Internal handler for IDAT files, initially
-            set to None.
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
 
@@ -605,8 +598,6 @@ class MethylAnalysis:
         umap_dir (NoneType): Directory for UMAP (Uniform Manifold Approximation
             and Projection) data, initially set to None.
 
-        _old_umap_dir (NoneType): Previous path to the UMAP directory.
-
         prep (str): Prepreparation method used for data preparation (default:
             "illumina").
 
@@ -616,8 +607,7 @@ class MethylAnalysis:
         load_full_betas (bool): Flag to load beta values for all CpG sites into
             memory (default: False).
 
-        umap_plot (Figure): Plot for UMAP visualization, initially set to
-            EMPTY_FIGURE.
+        umap_plot (Figure): Plot for UMAP, initially set to EMPTY_FIGURE.
 
         umap_plot_path (NoneType): Path to the CSV file containing the UMAP
             plot data, initially set to None.
@@ -703,7 +693,6 @@ class MethylAnalysis:
         self.umap_cpgs = None
         self.analysis_dir = Path(analysis_dir).expanduser()
         self._old_analysis_dir = self.analysis_dir
-        self.idat_paths = None
         self.annotation = Path(annotation).expanduser()
         self.overlap = overlap
         self._idat_handler = None
