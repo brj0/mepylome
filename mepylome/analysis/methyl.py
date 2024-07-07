@@ -30,10 +30,11 @@ from dash import (
     no_update,
 )
 
-from mepylome.analysis.helpers import (
+from mepylome.analysis.methyl_aux import (
     IdatHandler,
     ProgressBar,
     get_betas,
+    read_dataframe,
 )
 from mepylome.analysis.methyl_plots import (
     EMPTY_FIGURE,
@@ -62,7 +63,7 @@ from mepylome.utils import (
 timer = Timer()
 
 
-DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "methylation_analysis")
+DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "analysis")
 INVALID_PATH = Path("None")
 
 DEFAULT_N_CPGS = 25000
@@ -93,6 +94,8 @@ UMAP_METRICS = [
 
 
 class DualOutput:
+    """Enables to simultaneously write output to the terminal and file."""
+
     def __init__(self, filename):
         self.terminal = sys.stdout
         # Clean the file
@@ -115,8 +118,8 @@ class DualOutput:
 
 # Save console output to file
 ensure_directory_exists(MEPYLOME_TMP_DIR)
-CONSOLE_OUT = Path(MEPYLOME_TMP_DIR, "stdout.txt")
-sys.stdout = DualOutput(CONSOLE_OUT)
+LOG_FILE = Path(MEPYLOME_TMP_DIR, "stdout.log")
+sys.stdout = DualOutput(LOG_FILE)
 
 
 def get_all_genes():
@@ -484,9 +487,10 @@ def reorder_columns_by_variance(data_frame):
 
 
 def get_cpgs_from_file(input_path):
+    """Reads CpG sites from a file and return a numpy array."""
     try:
         path = Path(input_path).expanduser()
-        cpgs_df = pd.read_csv(path, header=None)
+        cpgs_df = read_dataframe(path, header=None)
         cpgs = [cpg for cpg in cpgs_df.values.flatten() if not pd.isna(cpg)]
         return np.array(cpgs)
     except (TypeError, FileNotFoundError, pd.errors.EmptyDataError):
@@ -499,6 +503,166 @@ class MethylAnalysis:
     Main class for methylation analysis, providing methods for
     setting up analysis parameters, reading data, and running a Dash-based
     web application for data visualization.
+
+    Args:
+        analysis_dir (str or Path): Directory containing IDAT files for
+            analysis.
+
+        annotation (str or Path): Path to an annotation spreadsheet where
+            Sentrix IDs are listed in the first column.
+
+        reference_dir (str or Path): Directory containing reference IDAT files.
+
+        output_dir (str or Path): Directory where output files will be saved
+            (default: "/tmp/mepylome/analysis").
+
+        prep (str): Prepreparation method used for data preparation (default:
+            "illumina").
+
+        cpgs (str or np.ndarray): Array of CpG sites to analyze, or one of
+            '450k', 'epic', 'epicv2', or 'auto' for automatic detection. It can
+            also be a path to a CSV file containing the CpG sites.
+
+        n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
+
+        precalculate_cnv (bool): Flag to precalculate CNV information by
+            invoking 'precalculate_all_cnvsi (default: False).
+
+        load_full_betas (bool): Flag to load beta values for all CpG sites
+            into memory (default: False).
+
+        overlap (bool): Flag to analyze only samples that are both in the
+            analysis directory and within the annotation file (default: False).
+
+        cpg_selection (str): Method to select CpG sites ('top' or 'random')
+            (default: 'top'). For 'top', CpG sites are selected based on their
+            variation, taking the most varying ones. For 'random', CpG sites
+            are randomly selected.
+
+        do_seg (bool): Flag to enable segmentation analysis on CNV data
+            (default: False).
+
+        host (str): Host address for the Dash application (default:
+            'localhost').
+
+        port (int): Port number for the Dash application (default: 8050).
+
+        debug (bool): Flag to enable debug mode for the Dash application
+            (default: False).
+
+        umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
+            'euclidean', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
+
+        verbose (bool): Flag to enable verbose logging (default: True).
+
+    Attributes: TODO
+        umap_cpgs (NoneType): CpG sites for UMAP analysis, initially set to
+            None.
+
+        analysis_dir (Path): Path to the directory containing IDAT files for
+            analysis.
+
+        _old_analysis_dir (Path): Previous path to the analysis directory.
+
+        idat_paths (NoneType): Paths to IDAT files, initially set to None.
+
+        annotation (Path): Path to an annotation spreadsheet where Sentrix IDs
+            are listed in the first column.
+
+        overlap (bool): Flag to analyze only samples that are both in the
+            analysis directory and within the annotation file (default: False).
+
+        _idat_handler (NoneType): Internal handler for IDAT files, initially
+            set to None.
+
+        n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
+
+        cpg_selection (str): Method to select CpG sites ('top' or 'random')
+            (default: 'top'). For 'top', CpG sites are selected based on their
+            variation, taking the most varying ones. For 'random', CpG sites are
+            randomly selected.
+
+        host (str): Host address for the Dash application (default:
+            'localhost').
+
+        port (int): Port number for the Dash application (default: 8050).
+
+        debug (bool): Flag to enable debug mode for the Dash application
+            (default: False).
+
+        reference_dir (Path): Path to the reference directory containing
+            reference IDAT files.
+
+        output_dir (Path): Path to the directory where output files will be
+            saved (default: "/tmp/mepylome/analysis").
+
+        upload_dir (NoneType): Directory for uploaded files, initially set to
+            None.
+
+        cnv_dir (NoneType): Directory for CNV (Copy Number Variation) data,
+            initially set to None.
+
+        umap_dir (NoneType): Directory for UMAP (Uniform Manifold Approximation
+            and Projection) data, initially set to None.
+
+        _old_umap_dir (NoneType): Previous path to the UMAP directory.
+
+        prep (str): Prepreparation method used for data preparation (default:
+            "illumina").
+
+        precalculate_cnv (bool): Flag to precalculate CNV information by
+            invoking 'precalculate_all_cnvs' (default: False).
+
+        load_full_betas (bool): Flag to load beta values for all CpG sites into
+            memory (default: False).
+
+        umap_plot (Figure): Plot for UMAP visualization, initially set to
+            EMPTY_FIGURE.
+
+        umap_plot_path (NoneType): Path to the CSV file containing the UMAP
+            plot data, initially set to None.
+
+        betas_df (NoneType): Dataframe containing beta values, initially set to
+            None.
+
+        betas_df_all_cpgs (NoneType): Dataframe containing beta values for all
+            CpG sites, initially set to None.
+
+        betas_path (NoneType): Path to the betas directory, initially set to
+            None.
+
+        umap_df (NoneType): Dataframe containing UMAP data, initially set to
+            None.
+
+        umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
+            'euclidean', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
+
+        verbose (bool): Flag to enable verbose logging (default: True).
+
+        cnv_plot (Figure): Plot for CNV (Copy Number Variation) visualization,
+            initially set to EMPTY_FIGURE.
+
+        raw_umap_plot (NoneType): Raw UMAP plot data, initially set to None.
+
+        cnv_id (NoneType): ID for CNV (Copy Number Variation) sample, initially
+            set to None.
+
+        dropdown_id (NoneType): ID for dropdown selection, initially set to
+            None.
+
+        ids (list): List of IDs, initially empty.
+
+        ids_to_highlight (NoneType): IDs to highlight in the plot, initially
+            set to None.
+
+        app (NoneType): Dash application object, initially set to None.
+
+
+    Raises:
+        ValueError: If `cpg_selection` is not 'top' or 'random'.
+
+        FileNotFoundError: If `annotation` file does not exist and cannot be
+            guessed.
 
     Examples:
         >>> # Basic usage
@@ -563,7 +727,7 @@ class MethylAnalysis:
         self.betas_df_all_cpgs = None
         self.betas_path = None
         self.umap_df = None
-        self.umap_parms = MethylAnalysis.get_umap_parms(umap_parms)
+        self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
         self.verbose = verbose
         self.cnv_plot = EMPTY_FIGURE
         self.raw_umap_plot = None
@@ -573,14 +737,14 @@ class MethylAnalysis:
         self.ids_to_highlight = None
         self.app = None
 
-        self.prog_bar = ProgressBar()
-        self._cpgs_hash = None
+        self._prog_bar = ProgressBar()
+        self._internal_cpgs_hash = None
 
         if self.cpg_selection not in ["top", "random"]:
             msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
             raise ValueError(msg)
 
-        self.cpgs = self.get_cpgs(cpgs)
+        self.cpgs = self._get_cpgs(cpgs)
         if self.annotation == INVALID_PATH:
             self.annotation = guess_annotation_file(
                 self.analysis_dir, self.verbose
@@ -591,11 +755,17 @@ class MethylAnalysis:
             log("[MethylAnalysis] Try to import cbseg or linear_segment...")
         self.do_seg = False if _get_cgsegment() is None else do_seg
 
-        self.update_paths()
+        self._update_paths()
         self.read_umap_plot_from_disk()
 
     @property
     def idat_handler(self):
+        """Handles the management of IDAT files and associated metadata.
+
+        Returns:
+            IdatHandler: An instance of IdatHandler configured with current
+            settings.
+        """
         if (
             self._idat_handler is None
             or self.analysis_dir != self._idat_handler.idat_dir
@@ -616,7 +786,8 @@ class MethylAnalysis:
         self._idat_handler = value
 
     @staticmethod
-    def get_umap_parms(umap_parms):
+    def _get_umap_parms(umap_parms):
+        """Returns UMAP parameters with defaults if not provided."""
         umap_parms = {} if umap_parms is None else umap_parms
         default = {
             "metric": "euclidean",
@@ -627,13 +798,15 @@ class MethylAnalysis:
         return {**default, **umap_parms}
 
     @property
-    def cpgs_hash(self):
-        if self._cpgs_hash is None:
-            self._cpgs_hash = input_args_id(self.cpgs)
-        return self._cpgs_hash
+    def _cpgs_hash(self):
+        """Returnd or computes and caches the hash of the CpG array."""
+        if self._internal_cpgs_hash is None:
+            self._internal_cpgs_hash = input_args_id(self.cpgs)
+        return self._internal_cpgs_hash
 
-    def get_cpgs(self, input_var="auto"):
-        self._cpgs_hash = None
+    def _get_cpgs(self, input_var="auto"):
+        """Returns CpG sites based on the provided input variable."""
+        self._internal_cpgs_hash = None
         if self.verbose:
             log("[MethylAnalysis] Determine CpG sites...")
         if isinstance(input_var, np.ndarray):
@@ -674,14 +847,23 @@ class MethylAnalysis:
         msg = f"'cpgs' must be a numpy array or list of {valid_parms}"
         raise ValueError(msg)
 
-    def update_paths(self):
+    def _update_paths(self):
+        """Update file paths and directories based on current settings.
+
+        This method recalculates and updates various internal paths and
+        directories whenever changes occur in related attributes like
+        'analysis_dir', 'prep', 'n_cpgs', 'cpg_selection', and uploaded files
+        in 'upload_dir'. It ensures that the correct paths are set for storing
+        beta values, copy number variation data, uploaded files, and UMAP
+        plots.
+        """
         if self.verbose:
             log("[MethylAnalysis] Update filepaths...")
         if not self.output_dir.exists():
             return
         if self._old_analysis_dir != self.analysis_dir:
             self._old_analysis_dir = self.analysis_dir
-            self.cpgs = self.get_cpgs()
+            self.cpgs = self._get_cpgs()
             self.betas_df_all_cpgs = None
             self.betas_df = None
 
@@ -735,13 +917,24 @@ class MethylAnalysis:
             self._idat_handler = None
 
     def make_umap(self):
-        self.prog_bar.reset(len(self.idat_handler), text="(betas)")
+        """Generates the UMAP plot.
+
+        This method extracts the beta values required for UMAP computation,
+        computes the UMAP 2D embedding, and creates and displays the UMAP plot
+        based on the computed embedding.
+        """
+        self._prog_bar.reset(len(self.idat_handler), text="(betas)")
         self.set_betas()
-        self.prog_bar.reset(1, 1)
+        self._prog_bar.reset(1, 1)
         umap_2d = self.compute_umap()
         self.make_umap_plot(umap_2d)
 
     def compute_umap(self):
+        """Applies the UMAP algorithm on 'betas_df'.
+
+        Returns the 2D embedding. Ensure 'betas_df' is set by 'set_betas'
+        before invoking this method.
+        """
         if self.verbose:
             log("[MethylAnalysis] Importing umap library...")
         import umap
@@ -751,6 +944,20 @@ class MethylAnalysis:
         return umap.UMAP(**self.umap_parms).fit_transform(self.betas_df)
 
     def make_umap_plot(self, umap_2d=None):
+        """Generates a UMAP plot from the given 2D embedding.
+
+        If 'umap_2d' is provided, it creates and saves the UMAP DataFrame, then
+        generates the plot. If 'umap_2d' is not provided, ensures 'umap_df' is
+        set before plotting. The scatter plot color is based on selected
+        columns in 'idat_handler.selected_columns'.
+
+        Args:
+            umap_2d (array-like, optional): 2D embedding from UMAP.
+
+        Raises:
+            AttributeError: If a dimension mismatch occurs, or if 'umap_df' is
+                not set and 'umap_2d' is not provided.
+        """
         if self.verbose:
             log("[MethylAnalysis] Make UMAP plot...")
         if umap_2d is not None:
@@ -775,7 +982,7 @@ class MethylAnalysis:
             self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
 
         if self.umap_df is None:
-            msg = "'umap_df' not set"
+            msg = "'umap_df' not set. Run 'make_umap' instead."
             raise AttributeError(msg)
         self.ids = self.umap_df.index
         umap_color = self.idat_handler.compound_class(
@@ -794,9 +1001,10 @@ class MethylAnalysis:
         )
         self.raw_umap_plot = self.umap_plot
         self.dropdown_id = None
-        self.umap_plot_highlight()
+        self._umap_plot_highlight()
 
     def read_umap_plot_from_disk(self):
+        """Reads UMAP plot from disk if available from previous analysis."""
         if self.umap_plot_path is not None and self.umap_plot_path.exists():
             if self.verbose:
                 log("[MethylAnalysis] Read umap plot from disk...")
@@ -809,11 +1017,22 @@ class MethylAnalysis:
         return False
 
     def set_betas(self):
+        """Sets the beta values DataFrame ('betas_df') for further analysis.
+
+        This method reads the IDAT files located in 'analysis_dir', extracts
+        the beta values, and saves them locally in 'output_dir'. Depending on
+        the configuration ('cpg_selection' and 'load_full_betas' flags), it
+        either extracts a subset of CpGs for UMAP computation or loads all CpGs
+        for subsequent processing into memory.
+
+        Raises:
+            ValueError: If no valid samples are found.
+        """
         if len(self.idat_handler) == 0:
             msg = "No valid samples found"
             raise ValueError(msg)
 
-        self.update_paths()
+        self._update_paths()
 
         def get_random_cpgs():
             if self.verbose:
@@ -832,7 +1051,7 @@ class MethylAnalysis:
                 cpgs=cpgs,
                 prep=self.prep,
                 betas_path=self.betas_path,
-                pbar=self.prog_bar,
+                pbar=self._prog_bar,
             )
 
         def _extract_sub_dataframe():
@@ -860,12 +1079,14 @@ class MethylAnalysis:
         else:
             self.betas_df = _get_betas(self.umap_cpgs)
 
-    def get_coordinates(self, sample_id):
+    def _get_coordinates(self, sample_id):
+        """Returns UMAP 2D embedding coordinates."""
         return self.umap_df[self.umap_df.index == sample_id].iloc[0][
             ["Umap_x", "Umap_y"]
         ]
 
-    def umap_plot_highlight(self, cnv_id=None):
+    def _umap_plot_highlight(self, cnv_id=None):
+        """Highlights the selected samples and the sample selected for CNV."""
         if cnv_id is not None:
             self.cnv_id = cnv_id
         self.dropdown_id = (
@@ -873,7 +1094,7 @@ class MethylAnalysis:
         )
         self.umap_plot = go.Figure(self.raw_umap_plot)
         for id_ in self.dropdown_id:
-            x, y = self.get_coordinates(id_)
+            x, y = self._get_coordinates(id_)
             self.umap_plot.add_annotation(
                 x=x,
                 y=y,
@@ -884,7 +1105,7 @@ class MethylAnalysis:
                 font={"color": "blue"},
             )
         if self.cnv_id is not None:
-            x, y = self.get_coordinates(self.cnv_id)
+            x, y = self._get_coordinates(self.cnv_id)
             self.umap_plot.add_annotation(
                 x=x,
                 y=y,
@@ -893,11 +1114,27 @@ class MethylAnalysis:
                 arrowhead=2,
             )
 
-    def retrieve_zoom(self, current_plot):
+    def _retrieve_zoom(self, current_plot):
+        """Retrieves and applies the zoom level to the UMAP plot."""
         self.umap_plot.layout.xaxis = current_plot["layout"]["xaxis"]
         self.umap_plot.layout.yaxis = current_plot["layout"]["yaxis"]
 
     def make_cnv_plot(self, sample_id, genes_sel=None):
+        """Generates a copy number variation (CNV) plot for a specific sample.
+
+        This method generates a CNV plot for the specified sample and
+        optionally highlights specific genes within the plot.
+
+        Args:
+            sample_id (str): ID of the sample for which CNV plot is generated.
+            genes_sel (list or None, optional): List of specific genes to
+                highlight in the plot.
+
+        Raises:
+            FileNotFoundError: If the specified sample ID is not found in the
+                analysis directory or if the reference directory does not
+                exist.
+        """
         idat_basepath = self.idat_handler.sample_paths[sample_id]
         if not is_valid_idat_basepath(idat_basepath):
             msg = f"Sample {sample_id} not found in {self.analysis_dir}"
@@ -919,27 +1156,34 @@ class MethylAnalysis:
         )
 
     def precalculate_all_cnvs(self):
+        """Precalculates CNVs for all samples and saves them to disk.
+
+        Note:
+            Precalculating CNVs improves performance but requires additional
+            memory space in the output directory.
+        """
         if self.verbose:
             log("[MethylAnalysis] Precalculate all CNV's...")
-        self.update_paths()
+        self._update_paths()
         sample_ids = [
             x.name
             for x in idat_basepaths(self.analysis_dir)
             if not Path(self.cnv_dir, x.name + ZIP_ENDING).exists()
             and not Path(self.cnv_dir, str(x) + ERROR_ENDING).exists()
         ]
-        self.prog_bar.reset(len(sample_ids), text="(CNV)")
+        self._prog_bar.reset(len(sample_ids), text="(CNV)")
         write_cnv_to_disk(
             list(self.idat_handler.sample_paths.values()),
             self.reference_dir,
             self.cnv_dir,
             self.prep,
-            self.prog_bar,
+            self._prog_bar,
             self.verbose,
         )
-        self.prog_bar.reset(1, 1)
+        self._prog_bar.reset(1, 1)
 
     def get_app(self):
+        """Returns a Dash application object for methylation analysis."""
         current_dir = Path(__file__).resolve().parent
         assets_folder = current_dir.parent / "data" / "assets"
         app = Dash(
@@ -1033,8 +1277,8 @@ class MethylAnalysis:
             trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
             self.ids_to_highlight = ids_to_highlight
             if trigger == "ids-to-highlight" and ids_to_highlight is not None:
-                self.umap_plot_highlight()
-                self.retrieve_zoom(curr_umap_plot)
+                self._umap_plot_highlight()
+                self._retrieve_zoom(curr_umap_plot)
                 return self.umap_plot, no_update, ""
             if (
                 trigger == "umap-annotation-color"
@@ -1043,8 +1287,8 @@ class MethylAnalysis:
                 self.idat_handler.selected_columns = umap_color_columns
                 try:
                     self.make_umap_plot()
-                    self.umap_plot_highlight(cnv_id=self.cnv_id)
-                    self.retrieve_zoom(curr_umap_plot)
+                    self._umap_plot_highlight(cnv_id=self.cnv_id)
+                    self._retrieve_zoom(curr_umap_plot)
                 except AttributeError:
                     return no_update, no_update, no_update
                 else:
@@ -1057,8 +1301,8 @@ class MethylAnalysis:
                     sample_id = first_point.get("hovertext")
                     if sample_id is None:
                         return no_update, no_update, ""
-                    self.umap_plot_highlight(cnv_id=sample_id)
-                    self.retrieve_zoom(curr_umap_plot)
+                    self._umap_plot_highlight(cnv_id=sample_id)
+                    self._retrieve_zoom(curr_umap_plot)
                     try:
                         self.make_cnv_plot(sample_id, genes_sel)
                     except Exception as e:
@@ -1317,9 +1561,9 @@ class MethylAnalysis:
             [Input("clock", "n_intervals")],
         )
         def update_progress(n):
-            progress = self.prog_bar.get_progress()
-            out_str = self.prog_bar.get_text()
-            with CONSOLE_OUT.open("r") as file:
+            progress = self._prog_bar.get_progress()
+            out_str = self._prog_bar.get_text()
+            with LOG_FILE.open("r") as file:
                 data = ""
                 lines = file.readlines()
                 N_TOP = 50
@@ -1354,12 +1598,18 @@ class MethylAnalysis:
                         list_of_contents, list_of_names, list_of_dates
                     )
                 ]
-                self.update_paths()
+                self._update_paths()
                 return children
 
         return app
 
     def run_app(self, *, open_tab=False):
+        """Runs the mepylome Dash application.
+
+        Args:
+            open_tab (bool, optional): Whether to automatically open a new
+                browser tab with the application URL. Defaults to False.
+        """
         self.app = self.get_app()
         if open_tab:
 
@@ -1378,19 +1628,38 @@ class MethylAnalysis:
         title = "MethylAnalysis():"
         lines = [
             title + "\n" + "*" * len(title),
-            f"cnv_id:\n{self.cnv_id}",
-            f"n_cpgs:\n{self.n_cpgs}",
             f"analysis_dir:\n{self.analysis_dir}",
-            f"reference_dir:\n{self.reference_dir}",
-            f"output_dir:\n{self.output_dir}",
-            f"umap_dir:\n{self.umap_dir}",
-            f"cnv_dir:\n{self.cnv_dir}",
-            f"selected_columns:\n{self.idat_handler.selected_columns}",
             f"annotation:\n{self.annotation}",
-            f"prep:\n{self.prep}",
-            f"precalculate_cnv:\n{self.precalculate_cnv}",
+            f"app:\n{self.app}",
+            f"betas_df:\n{self.betas_df}",
+            f"betas_df_all_cpgs:\n{self.betas_df_all_cpgs}",
+            f"betas_path:\n{self.betas_path}",
+            f"cnv_dir:\n{self.cnv_dir}",
+            f"cnv_id:\n{self.cnv_id}",
+            f"cnv_plot:\n{str(self.cnv_plot)[:80]}...",
             f"cpg_selection:\n{self.cpg_selection}",
+            f"cpgs:\n{self.cpgs}",
+            f"debug:\n{self.debug}",
+            f"do_seg:\n{self.do_seg}",
+            f"dropdown_id:\n{self.dropdown_id}",
+            f"host:\n{self.host}",
+            f"ids:\n{self.ids}",
+            f"ids_to_highlight:\n{self.ids_to_highlight}",
+            f"load_full_betas:\n{self.load_full_betas}",
+            f"n_cpgs:\n{self.n_cpgs}",
+            f"output_dir:\n{self.output_dir}",
+            f"overlap:\n{self.overlap}",
+            f"port:\n{self.port}",
+            f"precalculate_cnv:\n{self.precalculate_cnv}",
+            f"prep:\n{self.prep}",
+            f"raw_umap_plot:\n{str(self.raw_umap_plot)[:80]}...",
+            f"reference_dir:\n{self.reference_dir}",
+            f"selected_columns:\n{self.idat_handler.selected_columns}",
+            f"umap_cpgs:\n{self.umap_cpgs}",
             f"umap_df:\n{self.umap_df}",
+            f"umap_dir:\n{self.umap_dir}",
+            f"umap_plot_path:\n{self.umap_plot_path}",
+            f"upload_dir:\n{self.upload_dir}",
             f"verbose:\n{self.verbose}",
         ]
         return "\n\n".join(lines)

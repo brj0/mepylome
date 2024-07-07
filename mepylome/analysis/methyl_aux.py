@@ -1,3 +1,5 @@
+"""Auxiliary methods for the methylation analysis."""
+
 import pickle
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -212,6 +214,14 @@ class IdatHandler:
 
 
 def check_memory(nrows, ncols, dtype):
+    """Checks if sufficient free memory is available for a given numpy array.
+
+    Raises:
+        MemoryError: If the required memory exceeds the available memory.
+
+    Example:
+        >>> check_memory(1000, 500000, np.float32)
+    """
     available_memory = psutil.virtual_memory().available
     dtype_size = np.dtype(dtype).itemsize
     required_memory = nrows * ncols * dtype_size
@@ -225,6 +235,7 @@ def check_memory(nrows, ncols, dtype):
 
 
 def get_array_cpgs():
+    """Returns all CpG sites for all array types."""
     path = MEPYLOME_TMP_DIR / "all_cpgs.pkl"
     if not path.exists():
         with path.open("wb") as f:
@@ -239,12 +250,31 @@ def get_array_cpgs():
 
 
 class BetasHandler:
+    """Manages storage and retrieval of beta values.
+
+    Args:
+        directory (str or Path): Directory path where beta files ara stored.
+        array_cpgs (dict, optional): Dictionary mapping ArrayType names to CpG
+            arrays. If not provided, CpG arrays are fetched using default
+            method.
+
+    Attributes:
+        basedir (Path): Path to the directory containing beta files.
+        array_cpgs (dict): Dictionary mapping ArrayType names to CpG arrays.
+        dir (dict): Dictionary mapping ArrayType and 'error' to subdirectories
+            of basedir.
+        array_type_from_dir (dict): Reverse mapping of directory paths to
+            ArrayType names.
+        paths (dict): Dictionary of all beta file paths.
+        invalid_paths (dict): Dictionary of invalid beta file paths.
+
+    """
+
     def __init__(self, directory, array_cpgs=None):
         self.basedir = Path(directory).expanduser()
         self.array_cpgs = array_cpgs
         if self.array_cpgs is None:
             self.array_cpgs = get_array_cpgs()
-        dirname = self.basedir.name
         self.dir = {}
         for key in self.array_cpgs:
             self.dir[key] = self.basedir / f"{key}"
@@ -259,20 +289,25 @@ class BetasHandler:
 
     @property
     def ids(self):
+        """Returns all ids."""
         return list(self.paths.keys())
 
     @property
     def invalid_ids(self):
+        """Returns all invalid ids."""
         return list(self.invalid_paths.keys())
 
     def add(self, betas, id_, array_type):
+        """Adds beta values to the file system on disk."""
         betas.astype(DTYPE).tofile(self.dir[array_type] / id_)
 
     def add_error(self, id_, msg):
+        """Adds error message to the file system on disk."""
         with (self.dir["error"] / id_).open("w") as f:
             f.write(str(msg))
 
     def get(self, ids, cpgs, fill=NEUTRAL_BETA, parallel=False):
+        """Retrieves beta values for specified IDs and CpGs."""
         check_memory(len(ids), len(cpgs), DTYPE)
         result = np.full((len(ids), len(cpgs)), fill, dtype=DTYPE)
         left_idx = {}
@@ -309,6 +344,7 @@ class BetasHandler:
         return pd.DataFrame(result, columns=cpgs, index=ids)
 
     def update(self):
+        """Updates the paths if beta vales were added after initialization."""
         self.paths = {
             path.name: path
             for path in self.basedir.rglob("*")
@@ -374,5 +410,3 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
         id_ for id_ in idat_handler.ids if id_ not in betas_handler.invalid_ids
     ]
     return betas_handler.get(valid_ids, cpgs)
-
-

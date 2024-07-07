@@ -1,3 +1,5 @@
+"""Contains plotting functions for visualizing methylation analysis results."""
+
 import colorsys
 import hashlib
 from functools import lru_cache, partial
