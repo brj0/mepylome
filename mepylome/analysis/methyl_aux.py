@@ -159,7 +159,7 @@ class IdatHandler:
             self.annotated_samples = self.annotated_samples.loc[
                 self.sample_paths.keys()
             ]
-        self.selected_columns = self.annotated_samples.columns[0]
+        self.selected_columns = [self.annotated_samples.columns[0]]
 
     def __len__(self):
         return len(self.sample_paths)

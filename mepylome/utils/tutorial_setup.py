@@ -70,12 +70,33 @@ def setup_tutorial_files(analysis_dir, reference_dir):
     analysis_dir.mkdir(parents=True, exist_ok=True)
     reference_dir.mkdir(parents=True, exist_ok=True)
     PACKAGE_DIR = Path(pkg_resources.resource_filename("mepylome", ""))
-    tutorial_df = pd.read_csv(
-        PACKAGE_DIR / "data" / "tutorial.csv.gz"
-    )
+    tutorial_df = pd.read_csv(PACKAGE_DIR / "data" / "tutorial.csv.gz")
     tutorial_df.drop(columns=["Url_Grn"]).to_csv(
         analysis_dir / "annotation.csv", index=False
     )
     is_control = tutorial_df["Diagnosis"] == CONTROL
     download_idats(analysis_dir, tutorial_df["Url_Grn"])
     download_idats(reference_dir, tutorial_df[is_control]["Url_Grn"])
+
+
+def start_mepylome_tutorial():
+    """Installes tutorial data and starts Dash application."""
+    DIR = Path.home() / "Documents" / "mepylome" / "tutorial"
+    ANALYSIS_DIR = DIR / "tutorial_analysis"
+    REFERENCE_DIR = DIR / "tutorial_reference"
+    if not ANALYSIS_DIR.exists() and not REFERENCE_DIR.exists():
+        setup_tutorial_files(ANALYSIS_DIR, REFERENCE_DIR)
+
+    from mepylome.analysis.cli import print_welcome_message
+
+    print_welcome_message()
+
+    from mepylome.analysis.methyl import MethylAnalysis
+
+    methyl_analysis = MethylAnalysis(
+        analysis_dir=ANALYSIS_DIR,
+        reference_dir=REFERENCE_DIR,
+        load_full_betas=True,
+        cpgs="epic",
+    )
+    methyl_analysis.run_app(open_tab=True)

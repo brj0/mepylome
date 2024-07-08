@@ -493,7 +493,7 @@ def get_cpgs_from_file(input_path):
         cpgs_df = read_dataframe(path, header=None)
         cpgs = [cpg for cpg in cpgs_df.values.flatten() if not pd.isna(cpg)]
         return np.array(cpgs)
-    except (TypeError, FileNotFoundError, pd.errors.EmptyDataError):
+    except Exception:
         return None
 
 
@@ -555,10 +555,11 @@ class MethylAnalysis:
 
         verbose (bool): Flag to enable verbose logging (default: True).
 
-    Attributes:
-        umap_cpgs (NoneType): CpG sites for UMAP analysis, initially set to
-            None.
+    Note:
+        Many parameters can be modified within the GUI application after
+        initialization, but not all.
 
+    Attributes:
         analysis_dir (Path): Path to the directory containing IDAT files for
             analysis.
 
@@ -570,19 +571,6 @@ class MethylAnalysis:
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
 
-        cpg_selection (str): Method to select CpG sites ('top' or 'random')
-            (default: 'top'). For 'top', CpG sites are selected based on their
-            variation, taking the most varying ones. For 'random', CpG sites are
-            randomly selected.
-
-        host (str): Host address for the Dash application (default:
-            'localhost').
-
-        port (int): Port number for the Dash application (default: 8050).
-
-        debug (bool): Flag to enable debug mode for the Dash application
-            (default: False).
-
         reference_dir (Path): Path to the reference directory containing
             reference IDAT files.
 
@@ -592,25 +580,38 @@ class MethylAnalysis:
         upload_dir (NoneType): Directory for uploaded files, initially set to
             None.
 
+        prep (str): Prepreparation method used for data preparation (default:
+            "illumina").
+
+        cpg_selection (str): Method to select CpG sites ('top' or 'random')
+            (default: 'top'). For 'top', CpG sites are selected based on their
+            variation, taking the most varying ones. For 'random', CpG sites
+            are randomly selected.
+
+        host (str): Host address for the Dash application (default:
+            'localhost').
+
+        port (int): Port number for the Dash application (default: 8050).
+
+        debug (bool): Flag to enable debug mode for the Dash application
+            (default: False).
+
+        verbose (bool): Flag to enable verbose logging (default: True).
+
         cnv_dir (NoneType): Directory for CNV (Copy Number Variation) data,
             initially set to None.
 
         umap_dir (NoneType): Directory for UMAP (Uniform Manifold Approximation
             and Projection) data, initially set to None.
 
-        prep (str): Prepreparation method used for data preparation (default:
-            "illumina").
+        umap_cpgs (NoneType): CpG sites for UMAP analysis, initially set to
+            None.
 
         precalculate_cnv (bool): Flag to precalculate CNV information by
             invoking 'precalculate_all_cnvs' (default: False).
 
         load_full_betas (bool): Flag to load beta values for all CpG sites into
             memory (default: False).
-
-        umap_plot (Figure): Plot for UMAP, initially set to EMPTY_FIGURE.
-
-        umap_plot_path (NoneType): Path to the CSV file containing the UMAP
-            plot data, initially set to None.
 
         betas_df (NoneType): Dataframe containing beta values, initially set to
             None.
@@ -621,18 +622,21 @@ class MethylAnalysis:
         betas_path (NoneType): Path to the betas directory, initially set to
             None.
 
+        umap_plot (Figure): Plot for UMAP, initially set to EMPTY_FIGURE.
+
+        umap_plot_path (NoneType): Path to the CSV file containing the UMAP
+            plot data, initially set to None.
+
         umap_df (NoneType): Dataframe containing UMAP data, initially set to
             None.
 
         umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
             'euclidean', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
-        verbose (bool): Flag to enable verbose logging (default: True).
+        raw_umap_plot (NoneType): Raw UMAP plot data, initially set to None.
 
         cnv_plot (Figure): Plot for CNV (Copy Number Variation) visualization,
             initially set to EMPTY_FIGURE.
-
-        raw_umap_plot (NoneType): Raw UMAP plot data, initially set to None.
 
         cnv_id (NoneType): ID for CNV (Copy Number Variation) sample, initially
             set to None.
@@ -649,10 +653,10 @@ class MethylAnalysis:
 
 
     Raises:
-        ValueError: If `cpg_selection` is not 'top' or 'random'.
-
         FileNotFoundError: If `annotation` file does not exist and cannot be
             guessed.
+
+        ValueError: If `cpg_selection` is not 'top' or 'random'.
 
     Examples:
         >>> # Basic usage
@@ -915,61 +919,61 @@ class MethylAnalysis:
         self._prog_bar.reset(len(self.idat_handler), text="(betas)")
         self.set_betas()
         self._prog_bar.reset(1, 1)
-        umap_2d = self.compute_umap()
-        self.make_umap_plot(umap_2d)
+        self.compute_umap()
+        self.make_umap_plot()
 
     def compute_umap(self):
         """Applies the UMAP algorithm on 'betas_df'.
 
-        Returns the 2D embedding. Ensure 'betas_df' is set by 'set_betas'
-        before invoking this method.
+        Saves the 2D embedding in 'umap_df' and and on disk.
+
+        Raises:
+            AttributeError: If a dimension mismatch occurs, or if 'betas_df' is
+                not set.
         """
+        if self.betas_df is None:
+            msg = "'betas_df' is not set. First run 'set_betas'"
+            raise AttributeError(msg)
         if self.verbose:
             log("[MethylAnalysis] Importing umap library...")
         import umap
 
         if self.verbose:
             log("[MethylAnalysis] Start UMAP algorithm...")
-        return umap.UMAP(**self.umap_parms).fit_transform(self.betas_df)
+        umap_2d = umap.UMAP(**self.umap_parms).fit_transform(self.betas_df)
+        if len(self.idat_handler.ids) != len(umap_2d):
+            msg = (
+                "Dimension mismatch 1: Analysis files may have changed. "
+                f"Try to delete cached files in {self.output_dir}."
+            )
+            raise AttributeError(msg)
+        umap_df = pd.DataFrame(
+            umap_2d,
+            columns=["Umap_x", "Umap_y"],
+            index=self.idat_handler.ids,
+        )
+        self.umap_df = pd.concat(
+            [
+                umap_df,
+                self.idat_handler.annotated_samples,
+            ],
+            axis=1,
+        )
+        self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
 
-    def make_umap_plot(self, umap_2d=None):
+    def make_umap_plot(self):
         """Generates a UMAP plot from the given 2D embedding.
 
-        If 'umap_2d' is provided, it creates and saves the UMAP DataFrame, then
-        generates the plot. If 'umap_2d' is not provided, ensures 'umap_df' is
-        set before plotting. The scatter plot color is based on selected
-        columns in 'idat_handler.selected_columns'.
-
-        Args:
-            umap_2d (array-like, optional): 2D embedding from UMAP.
+        Generates the UMAP plot from the data provided in 'umap_df'. The
+        scatter plot color is based on selected columns in
+        'idat_handler.selected_columns'.
 
         Raises:
             AttributeError: If a dimension mismatch occurs, or if 'umap_df' is
-                not set and 'umap_2d' is not provided.
+                not set.
         """
         if self.verbose:
             log("[MethylAnalysis] Make UMAP plot...")
-        if umap_2d is not None:
-            if len(self.idat_handler.ids) != len(umap_2d):
-                msg = (
-                    "Dimension mismatch 1: Analysis files may have changed. "
-                    f"Try to delete cached files in {self.output_dir}."
-                )
-                raise AttributeError(msg)
-            umap_df = pd.DataFrame(
-                umap_2d,
-                columns=["Umap_x", "Umap_y"],
-                index=self.idat_handler.ids,
-            )
-            self.umap_df = pd.concat(
-                [
-                    umap_df,
-                    self.idat_handler.annotated_samples,
-                ],
-                axis=1,
-            )
-            self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
-
         if self.umap_df is None:
             msg = "'umap_df' not set. Run 'make_umap' instead."
             raise AttributeError(msg)
@@ -1339,22 +1343,29 @@ class MethylAnalysis:
                 Output("annotation-file", "valid"),
                 Output("annotation-file-validation", "children"),
                 Output("umap-annotation-color", "options"),
+                Output("umap-annotation-color", "value"),
             ],
             [Input("annotation-file", "value")],
             prevent_initial_call=False,
         )
         def validate_annotation_file(input_path):
+            selection = self.idat_handler.selected_columns
             try:
                 path = Path(input_path).expanduser()
                 if path.exists() and not os.access(path, os.W_OK):
-                    return False, f"Protected file: {path}", no_update
+                    return (
+                        False,
+                        f"Protected file: {path}",
+                        no_update,
+                        selection,
+                    )
                 if path.exists():
                     self.annotation = path
-                    return True, "", self.idat_handler.properties
+                    return True, "", self.idat_handler.properties, selection
             except Exception:
-                return False, "Invalid path format", no_update
+                return False, "Invalid path format", no_update, selection
             else:
-                return False, f"Not a file: {path}", no_update
+                return False, f"Not a file: {path}", no_update, selection
 
         @app.callback(
             [

@@ -127,11 +127,13 @@ def parse_args():
         "-D",
         "--do_seg",
         action="store_true",
-        help="Add horizontal segmentation lines in CNV plot (slow).",
+        help=(
+            "Add horizontal segmentation lines in CNV plot "
+            "(adds 1-2 seconds per sample)."
+        ),
     )
 
     return parser.parse_args()
-
 
 
 

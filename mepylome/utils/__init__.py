@@ -12,7 +12,7 @@ from .files import (
     get_file_object,
     reset_file,
 )
-from .tutorial_setup import setup_tutorial_files
+from .tutorial_setup import setup_tutorial_files, start_mepylome_tutorial
 from .varia import Timer, log, normexp_get_xs
 
 __all__ = [
@@ -23,6 +23,7 @@ __all__ = [
     "log",
     "reset_file",
     "setup_tutorial_files",
+    "start_mepylome_tutorial",
     "Timer",
     "normexp_get_xs",
     "MEPYLOME_TMP_DIR",

@@ -40,7 +40,7 @@ def convert_py_to_rst(py_path, rst_path):
                 rst_lines.append("\n.. code-block:: python\n\n")
                 code_block = True
             if line.lstrip().startswith("##"):
-                rst_lines.append("    >>> " + line[1:])
+                rst_lines.append("    >>> " + line.replace("##", "#", 1))
             else:
                 rst_lines.append("    >>> " + line)
     with open(rst_path, "w") as rst_file:

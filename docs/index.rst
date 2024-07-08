@@ -19,11 +19,28 @@ an interactive GUI that enables users to generate UMAP plots and CNV plots
 Mepylome is open source, and hosted at github: https://github.com/brj0/mepylome
 
 
+Features
+~~~~~~~~
+
+- Support for Illumina array types: 450k, EPIC, EPICv2
+- Significantly faster compared to `minfi <https://github.com/hansenlab/minfi>`_
+  and `conumee2 <https://github.com/hovestadtlab/conumee2>`_
+- Parsing of IDAT files
+- Extraction of methylation signals
+- Calculation of copy number variations (CNV) with Plotly plots visualization
+- Methylation analysis tool with a graphical browser interface for UMAP
+  analysis and CNV plots
+
+  - Can be run from the command line with minimal setup or customized through a
+    Python script
+
+
 
 Documentation outline
 ~~~~~~~~~~~~~~~~~~~~~
 
 #. :doc:`Installation instructions <./installation>`
+#. :doc:`The GUI <./gui_cli>`,  recommended for all new users
 #. :doc:`The tutorial <./tutorial>`,  recommended for all new users
 
 
@@ -32,6 +49,7 @@ Documentation outline
    :caption: Contents:
 
    installation
+   gui_cli
    tutorial
    performance
    api
