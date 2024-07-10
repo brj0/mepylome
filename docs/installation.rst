@@ -80,3 +80,19 @@ To uninstall Mepylome:
 
    - ~/.mepylome  (Contains manifest files)
    - /tmp/mepylome  (Default output directory, if not changed)
+
+
+Platform Compatibility
+----------------------
+
+This package is written for Linux and has been tested under Ubuntu.
+
+.. warning::
+    Windows users may encounter issues with the `pyranges` package, which
+    affects CNV calculation, making it not possible to perform CNV calculations
+    on Windows directly. However, apart from CNV calculations, other
+    functionalities of the package should work on Windows.
+
+To overcome this limitation, Windows users are advised to use Windows Subsystem
+for Linux (WSL).
+
