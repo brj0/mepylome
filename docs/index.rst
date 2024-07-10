@@ -22,17 +22,19 @@ Mepylome is open source, and hosted at github: https://github.com/brj0/mepylome
 Features
 ~~~~~~~~
 
-- Support for Illumina array types: 450k, EPIC, EPICv2
-- Significantly faster compared to `minfi <https://github.com/hansenlab/minfi>`_
-  and `conumee2 <https://github.com/hovestadtlab/conumee2>`_
 - Parsing of IDAT files
 - Extraction of methylation signals
-- Calculation of copy number variations (CNV) with Plotly plots visualization
+- Calculation of Copy Number Variations (CNV) with visualization using
+  `plotly <https://github.com/plotly/plotly.py>`_
+- Support for the following Illumina array types: 450k, EPIC, EPICv2
+- Significantly faster compared to `minfi <https://github.com/hansenlab/minfi>`_
+  and `conumee2 <https://github.com/hovestadtlab/conumee2>`_
 - Methylation analysis tool with a graphical browser interface for UMAP
   analysis and CNV plots
 
   - Can be run from the command line with minimal setup or customized through a
     Python script
+
 
 
 

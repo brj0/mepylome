@@ -35,7 +35,10 @@ command:
 
 .. code-block:: sh
 
-    pip install numpy==1.26.4 cython ailist==1.0.4 cbseg
+    pip install cython ailist==1.0.4 cbseg
+
+If you encounter any compatibility issues, you may need to downgrade numpy to
+version 1.26.4.
 
 
 **For Python 3.10 and Later**, you can install the linear_segment package
@@ -61,3 +64,19 @@ enable it, install from source after you execute the following command:
 
     export MEPYLOME_CPP=1
 
+
+Uninstallation
+--------------
+
+To uninstall Mepylome:
+
+1. Run:
+
+   .. code-block:: sh
+
+      pip uninstall mepylome
+
+2. Delete the following directories:
+
+   - ~/.mepylome  (Contains manifest files)
+   - /tmp/mepylome  (Default output directory, if not changed)

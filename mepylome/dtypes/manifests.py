@@ -220,7 +220,9 @@ class Manifest:
             >>> Manifest.load()
 
             >>> # Load specific manifests:
-            >>> Manifest.load([ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC])
+            >>> Manifest.load(
+            >>>     [ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC]
+            >>> )
             >>> Manifest.load("epicv2")
         """
         if array_types is None:

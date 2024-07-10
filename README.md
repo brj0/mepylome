@@ -20,12 +20,13 @@ an interactive GUI that enables users to generate UMAP plots and CNV plots
 
 ## Features
 
-- Support for Illumina array types: 450k, EPIC, EPICv2
-- Significantly faster compared to [minfi](https://github.com/hansenlab/minfi)
-  and [conumee2](https://github.com/hovestadtlab/conumee2).
 - Parsing of IDAT files
 - Extraction of methylation signals
-- Calculation of copy number variations (CNV) with Plotly plots visualization
+- Calculation of Copy Number Variations (CNV) with visualization using
+  [plotly](https://github.com/plotly/plotly.py).
+- Support for the following Illumina array types: 450k, EPIC, EPICv2
+- Significantly faster compared to [minfi](https://github.com/hansenlab/minfi)
+  and [conumee2](https://github.com/hovestadtlab/conumee2).
 - Methylation analysis tool with a graphical browser interface for UMAP
   analysis and CNV plots
   - Can be run from the command line with minimal setup or customized through a
@@ -84,6 +85,18 @@ the following command to initiate the analysis:
 ```sh
 mepylome --analysis_dir /path/to/idats --reference_dir /path/to/ref
 ```
+
+If you want to perform a **quick test**, use:
+
+```sh
+mepylome --tutorial
+```
+
+This command downloads sample IDAT files and provides a demonstration of the
+package's functionality.
+
+See <https://mepylome.readthedocs.io/> for details.
+
 
 ## C++ parser
 

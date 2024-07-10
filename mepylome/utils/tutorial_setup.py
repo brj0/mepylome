@@ -1,6 +1,9 @@
+"""Contains functions for setting up and downloading data for the tutorial."""
+
 import gzip
 import os
 import shutil
+from http import HTTPStatus
 from itertools import repeat
 from multiprocessing import Pool
 from pathlib import Path
@@ -16,7 +19,7 @@ CONTROL = "Control (muscle tissue)"
 def download_file(url, save_path):
     """Function to download a file."""
     response = requests.get(url, stream=True)
-    if response.status_code == 200:
+    if response.status_code == HTTPStatus.OK:
         with open(save_path, "wb") as file:
             for chunk in response.iter_content(chunk_size=1024):
                 file.write(chunk)
@@ -65,6 +68,7 @@ def download_idats(download_dir, idat_grn_urls):
 
 
 def setup_tutorial_files(analysis_dir, reference_dir):
+    """Set up tutorial directory structure and download IDAT files."""
     analysis_dir = Path(analysis_dir)
     reference_dir = Path(reference_dir)
     analysis_dir.mkdir(parents=True, exist_ok=True)
@@ -77,26 +81,3 @@ def setup_tutorial_files(analysis_dir, reference_dir):
     is_control = tutorial_df["Diagnosis"] == CONTROL
     download_idats(analysis_dir, tutorial_df["Url_Grn"])
     download_idats(reference_dir, tutorial_df[is_control]["Url_Grn"])
-
-
-def start_mepylome_tutorial():
-    """Installes tutorial data and starts Dash application."""
-    DIR = Path.home() / "Documents" / "mepylome" / "tutorial"
-    ANALYSIS_DIR = DIR / "tutorial_analysis"
-    REFERENCE_DIR = DIR / "tutorial_reference"
-    if not ANALYSIS_DIR.exists() and not REFERENCE_DIR.exists():
-        setup_tutorial_files(ANALYSIS_DIR, REFERENCE_DIR)
-
-    from mepylome.analysis.cli import print_welcome_message
-
-    print_welcome_message()
-
-    from mepylome.analysis.methyl import MethylAnalysis
-
-    methyl_analysis = MethylAnalysis(
-        analysis_dir=ANALYSIS_DIR,
-        reference_dir=REFERENCE_DIR,
-        load_full_betas=True,
-        cpgs="epic",
-    )
-    methyl_analysis.run_app(open_tab=True)

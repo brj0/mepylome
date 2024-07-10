@@ -56,7 +56,7 @@ with open("README.md") as f:
 
 setup(
     name="mepylome",
-    version="0.1.2",
+    version="0.2.0",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
     long_description=long_description,
@@ -95,7 +95,6 @@ setup(
     entry_points={
         "console_scripts": [
             "mepylome=mepylome.analysis.cli:start_mepylome",
-            "mepyltut=mepylome.utils.tutorial_setup:start_mepylome_tutorial",
         ]
     },
 )

@@ -132,20 +132,47 @@ def parse_args():
             "(adds 1-2 seconds per sample)."
         ),
     )
+    parser.add_argument(
+        "--tutorial",
+        action="store_true",
+        help=(
+            "Downloads test IDAT files used in the tutorial and then launches "
+            "the mepylome GUI session. Use this for a quick demonstration of "
+            "how this package works."
+        ),
+    )
 
     return parser.parse_args()
-
 
 
 def start_mepylome():
     """Entry point to start mepylome methylation analysis from command line."""
     args = parse_args()
-    methyl_analysis_args = {
-        k: v for k, v in vars(args).items() if v is not None
-    }
+    cli_args = {k: v for k, v in vars(args).items() if v is not None}
 
     print_welcome_message()
     from .methyl import MethylAnalysis
 
-    methyl_analysis = MethylAnalysis(**methyl_analysis_args)
+    if cli_args["tutorial"]:
+        from pathlib import Path
+
+        from mepylome.utils.tutorial_setup import setup_tutorial_files
+
+        DIR = Path.home() / "Documents" / "mepylome" / "tutorial"
+        cli_args["analysis_dir"] = DIR / "tutorial_analysis"
+        cli_args["reference_dir"] = DIR / "tutorial_reference"
+        if (
+            not cli_args["analysis_dir"].exists()
+            and not cli_args["reference_dir"].exists()
+        ):
+            "Download Tutorial IDAT files"
+            setup_tutorial_files(
+                cli_args["analysis_dir"], cli_args["reference_dir"]
+            )
+        cli_args["load_full_betas"] = True
+        cli_args["cpgs"] = "epic"
+
+    cli_args.pop('tutorial', None)
+
+    methyl_analysis = MethylAnalysis(**cli_args)
     methyl_analysis.run_app(open_tab=True)

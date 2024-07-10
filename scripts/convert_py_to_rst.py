@@ -1,3 +1,5 @@
+"""This script translates the commented rtd_tutorial.py file to rst format."""
+
 from pathlib import Path
 
 import pkg_resources
@@ -16,6 +18,7 @@ def parse_print_block(lines):
 
 
 def convert_py_to_rst(py_path, rst_path):
+    """Converts a python file with comments to a rst file."""
     with open(py_path) as py_file:
         py_lines = py_file.readlines()
     rst_lines = []

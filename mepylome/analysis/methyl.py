@@ -1585,6 +1585,7 @@ class MethylAnalysis:
                 decoded = base64.b64decode(content_string)
                 with open(file_path, "wb") as f:
                     f.write(decoded)
+                log(f"[MethylAnalysis] Upload of {filename} completed.")
                 return html.Div(
                     [
                         html.H6(filename),

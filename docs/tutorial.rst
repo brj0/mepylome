@@ -611,17 +611,8 @@ Methylation Analysis
 --------------------
 
 
-For methylation analysis, ensure you have an analysis directory containing
-the IDAT files you wish to analyze, as well as a CNV-neutral reference set
-located in another directory. Additionally, you will need an annotation file.
-This spreadsheet should meet the following criteria: it must have a header,
-and the first column should contain the Illumina Sentrix ID of the samples
-you want to analyze. It can include additional columns with parameters
-specific to the samples. In the GUI, you can later color the sample dots
-according to each column in the annotation file.
-You can either place the annotation file within the analysis directory, in
-which case mepylome will automatically detect it, or you need to explicitly
-provide the file path during the initialization phase.
+For methylation analysis, ensure you have the setup described in
+:ref:`general_setup`
 
 First, import the `MethylAnalysis` class from the `mepylome.analysis` module.
 
