@@ -27,7 +27,7 @@ from mepylome.utils.varia import log
 __all__ = ["Manifest"]
 
 
-MANIFEST_DIR = Path.home() / ".mepylome" / "manifest_files"
+MANIFEST_DIR = Path.home() / ".mepylome" / "manifest_files_v0"
 DOWNLOAD_DIR = MEPYLOME_TMP_DIR / "manifests"
 
 ENDING_CONTROL_PROBES = "_control-probes"
@@ -47,6 +47,7 @@ MANIFEST_URL = {
         "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip"
     ),
 }
+PROCESSED_MANIFEST_URL = f"https://raw.githubusercontent.com/brj0/mepylome-data/main/{MANIFEST_DIR.name}/"
 
 REMOTE_FILENAME = {
     ArrayType.ILLUMINA_450K: "humanmethylation450_15017482_v1-2.csv",
@@ -134,7 +135,10 @@ class Manifest:
 
     def __getnewargs__(self):
         # Necessary for pickle
-        return self.array_type, self.filepath,
+        return (
+            self.array_type,
+            self.filepath,
+        )
 
     def __init__(
         self,
@@ -237,11 +241,13 @@ class Manifest:
             _ = Manifest(array_type)
 
     @staticmethod
-    def _get_processed_manifest(array_type):
+    def _get_processed_manifest(array_type, download_preprocessed=True):
         """Downloads the appropriate manifest file if necessary.
 
         Args:
             array_type: The manifest array type.
+            download_preprocessed (bool): Whether to download preprocessed
+                files.
 
         Returns:
             tuple of paths: Local paths to the manifest file and its control
@@ -252,6 +258,14 @@ class Manifest:
         control_filepath = Manifest._get_control_path(local_filepath)
 
         if local_filepath.exists() and control_filepath.exists():
+            return local_filepath, control_filepath
+
+        # Try to download allready preprocessed manifest files (much faster)
+        if (
+            download_preprocessed
+            and Manifest._download_preprocessed_manifest(local_filepath)
+            and Manifest._download_preprocessed_manifest(control_filepath)
+        ):
             return local_filepath, control_filepath
 
         download_dir = Path(DOWNLOAD_DIR).expanduser()
@@ -271,10 +285,18 @@ class Manifest:
             dest_control=control_filepath,
         )
 
-        # Remove downloaded files
-        # shutil.rmtree(DOWNLOAD_DIR)
-
         return local_filepath, control_filepath
+
+    @staticmethod
+    def _download_preprocessed_manifest(dest):
+        """Download processed manifest file and return true if successful."""
+        ensure_directory_exists(dest)
+        src_url = PROCESSED_MANIFEST_URL + dest.name
+        try:
+            download_file(src_url, dest)
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def _get_control_path(probes_path):

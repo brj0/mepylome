@@ -696,7 +696,7 @@ class MethylAnalysis:
     ):
         self.umap_cpgs = None
         self.analysis_dir = Path(analysis_dir).expanduser()
-        self._old_analysis_dir = self.analysis_dir
+        self._prev_analysis_dir = self.analysis_dir
         self.annotation = Path(annotation).expanduser()
         self.overlap = overlap
         self._idat_handler = None
@@ -710,7 +710,6 @@ class MethylAnalysis:
         self.upload_dir = None
         self.cnv_dir = None
         self.umap_dir = None
-        self._old_umap_dir = self.umap_dir
         self.prep = prep
         self.precalculate_cnv = precalculate_cnv
         self.load_full_betas = load_full_betas
@@ -854,21 +853,21 @@ class MethylAnalysis:
             log("[MethylAnalysis] Update filepaths...")
         if not self.output_dir.exists():
             return
-        if self._old_analysis_dir != self.analysis_dir:
-            self._old_analysis_dir = self.analysis_dir
+        if self._prev_analysis_dir != self.analysis_dir:
+            self._prev_analysis_dir = self.analysis_dir
             self.cpgs = self._get_cpgs()
             self.betas_df_all_cpgs = None
             self.betas_df = None
 
         # betas dir
-        old_betas_path = self.betas_path
+        prev_betas_path = self.betas_path
         betas_hash_key = input_args_id(
             "betas",
             self.analysis_dir,
             self.prep,
         )
         self.betas_path = self.output_dir / f"{betas_hash_key}"
-        if old_betas_path != self.betas_path:
+        if prev_betas_path != self.betas_path:
             self.betas_df_all_cpgs = None
 
         # cnv dir
@@ -891,7 +890,7 @@ class MethylAnalysis:
         ensure_directory_exists(self.upload_dir)
 
         # umap dir
-        self._old_umap_dir = self.umap_dir
+        prev_umap_dir = self.umap_dir
         uploaded_files = sorted(str(x) for x in self.upload_dir.iterdir())
         umap_hash_key = input_args_id(
             "umap",
@@ -904,10 +903,9 @@ class MethylAnalysis:
         self.umap_dir = self.output_dir / f"{umap_hash_key}"
         self.umap_plot_path = self.umap_dir / "umap_plot.csv"
         ensure_directory_exists(self.umap_dir)
-        if self._old_umap_dir != self.umap_dir:
+        if prev_umap_dir != self.umap_dir:
             self.betas_df_all_cpgs = None
             self.betas_df = None
-            self._idat_handler = None
 
     def make_umap(self):
         """Generates the UMAP plot.

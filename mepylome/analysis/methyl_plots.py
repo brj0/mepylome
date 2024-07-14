@@ -139,12 +139,12 @@ def get_reference_methyl_data(reference_dir, prep):
 
 
 def write_single_cnv_to_disk(
-    idat_basename, reference_dir, cnv_dir, prep, do_seg, verbose
+    idat_basepath, reference_dir, cnv_dir, prep, do_seg, verbose
 ):
     """Performs CNV analysis on a single sample and writes results to disk."""
-    sample_id = idat_basename.name
+    sample_id = idat_basepath.name
     try:
-        sample_methyl = MethylData(file=idat_basename)
+        sample_methyl = MethylData(file=idat_basepath)
         reference = get_reference_methyl_data(reference_dir, prep)
         cnv = CNV.set_all(
             sample_methyl, reference, do_seg=do_seg, verbose=verbose
@@ -155,7 +155,7 @@ def write_single_cnv_to_disk(
         cnv_filename = sample_id + ERROR_ENDING
         files_on_disk = [
             f"{x}, size={x.stat().st_size} B"
-            for x in idat_basename.parent.glob(f"{sample_id}*")
+            for x in idat_basepath.parent.glob(f"{sample_id}*")
         ]
         error_message = (
             "During processing '"

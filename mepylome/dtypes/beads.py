@@ -979,7 +979,7 @@ class ReferenceMethylData:
         idat_files = idat_basepaths(self.file)
 
         # Load data from disk
-        filepath = ReferenceMethylData.pickle_filename(idat_files)
+        filepath = ReferenceMethylData.pickle_filename(self.prep, idat_files)
         if self.save_to_disk and filepath.exists():
             with filepath.open("rb") as f:
                 self = pickle.load(f)
@@ -1007,12 +1007,13 @@ class ReferenceMethylData:
                 pickle.dump(self, f)
 
     @staticmethod
-    def pickle_filename(idat_files):
-        string = ",".join(sorted(str(x) for x in idat_files))
+    def pickle_filename(prep, idat_files):
+        string = prep + "," + ",".join(sorted(str(x) for x in idat_files))
         hash_str = hashlib.md5(string.encode()).hexdigest()
         dir_str = idat_files[0].parent.name
         return (
-            MEPYLOME_TMP_DIR / f"ReferenceMethylData-{dir_str}-{hash_str}.pkl"
+            MEPYLOME_TMP_DIR
+            / f"ReferenceMethylData-{dir_str}-{prep}-{hash_str}.pkl"
         )
 
     def __getitem__(self, array_type):
