@@ -56,13 +56,14 @@ with open("README.md") as f:
 
 setup(
     name="mepylome",
-    version="0.2.1",
+    version="0.2.2",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[
         "numpy",
+        "odfpy",
         "pandas",
         # "openpyxl",
         "tqdm",

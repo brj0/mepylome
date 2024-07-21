@@ -90,8 +90,8 @@ class ProgressBar:
 def read_dataframe(path, **kwargs):
     """Reads a DataFrame from the specified file path.
 
-    Supports xlsx, xls, csv (comma-separated), csv (column-separated), and tsv
-    formats.
+    Supports ods, xlsx, xls, csv (comma-separated), csv (column-separated), and
+    tsv formats.
 
     Args:
         path (str): The file path to read the DataFrame from.
@@ -107,10 +107,12 @@ def read_dataframe(path, **kwargs):
     path = Path(path)
     if path.suffix in [".xlsx", ".xls"]:
         return pd.read_excel(path, **kwargs)
+    elif path.suffix == ".ods":
+        return pd.read_excel(path, engine="odf", **kwargs)
     elif path.suffix in [".csv", ".tsv"]:
         return pd.read_csv(path, sep=None, **kwargs, engine="python")
     raise ValueError(
-        "Unsupported file format. Supported: xlsx, xls, csv, tsv."
+        "Unsupported file format. Supported: ods, xlsx, xls, csv, tsv."
     )
 
 

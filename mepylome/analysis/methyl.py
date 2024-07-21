@@ -36,6 +36,9 @@ from mepylome.analysis.methyl_aux import (
     get_betas,
     read_dataframe,
 )
+from mepylome.analysis.methyl_clf import (
+    fit_and_evaluate_classifiers,
+)
 from mepylome.analysis.methyl_plots import (
     EMPTY_FIGURE,
     ERROR_ENDING,
@@ -118,8 +121,13 @@ class DualOutput:
 
 # Save console output to file
 ensure_directory_exists(MEPYLOME_TMP_DIR)
-LOG_FILE = Path(MEPYLOME_TMP_DIR, "stdout.log")
+LOG_FILE = MEPYLOME_TMP_DIR / "stdout.log"
+CLF_FILE = MEPYLOME_TMP_DIR / "clf.log"
 sys.stdout = DualOutput(LOG_FILE)
+
+# Clean the file
+with CLF_FILE.open("w"):
+    pass
 
 
 def get_all_genes():
@@ -415,6 +423,62 @@ def get_side_navigation(
                             html.Div(id="output-idat-upload"),
                         ],
                     ),
+                    dbc.Tab(
+                        label="Classify",
+                        children=[
+                            html.Br(),
+                            html.H6("Which CpG's should be used"),
+                            dcc.Dropdown(
+                                id="clf-cpg-dropdown",
+                                options={
+                                    "not_all": "Use the same CpGs as in UMAP",
+                                    "all": "Use all CpGs (memory intensive)",
+                                },
+                                value="not_all",
+                                multi=False,
+                            ),
+                            html.Br(),
+                            html.H6("Classifiers to use"),
+                            dcc.Dropdown(
+                                id="clf-clf-dropdown",
+                                options={
+                                    "rf": "Random Forest",
+                                    "knn": "k-Nearest Neighbors",
+                                    "nn": "Neural Network",
+                                    "svm": "Support Vector Machine",
+                                },
+                                value=["rf", "knn"],
+                                multi=True,
+                            ),
+                            html.Br(),
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        dbc.Button(
+                                            "Start",
+                                            id="clf-start-button",
+                                            color="primary",
+                                        ),
+                                        width={"size": 6},
+                                    ),
+                                ],
+                            ),
+                            html.Div(id="clf-error-out"),
+                            html.Br(),
+                            html.Div(
+                                id="clf-out",
+                                style={
+                                    "overflow": "hidden",
+                                    "fontFamily": "monospace",
+                                    "fontSize": "9px",
+                                    "whiteSpace": "pre-wrap",
+                                    # "height": "40vh",
+                                    "display": "flex",
+                                    "flexDirection": "column-reverse",
+                                },
+                            ),
+                        ],
+                    ),
                 ],
             ),
         ],
@@ -423,22 +487,13 @@ def get_side_navigation(
 
 
 def guess_annotation_file(directory, verbose=False):
-    """Returns the first csv or xlsx file in the given directory."""
+    """Returns the first spreadsheat file in the given directory."""
     if verbose:
-        log("[MethylAnalysis] Try to read annotation file...")
-    files = list(directory.glob("*"))
-    csv_files = [f for f in files if f.suffix == ".csv"]
-    tsv_files = [f for f in files if f.suffix == ".tsv"]
-    xls_files = [f for f in files if f.suffix == ".xls"]
-    xlsx_files = [f for f in files if f.suffix == ".xlsx"]
-    if csv_files:
-        return csv_files[0]
-    if tsv_files:
-        return tsv_files[0]
-    if xls_files:
-        return xls_files[0]
-    if xlsx_files:
-        return xlsx_files[0]
+        print("[MethylAnalysis] Try to read annotation file...")
+    supported_extensions = [".csv", ".tsv", ".ods", ".xls", ".xlsx"]
+    for file in directory.glob("*"):
+        if file.suffix in supported_extensions:
+            return file
     return INVALID_PATH
 
 
@@ -1173,6 +1228,51 @@ class MethylAnalysis:
         )
         self._prog_bar.reset(1, 1)
 
+    def classify(self, clf_list=None, use_all_cpgs=False):
+        """Classify the sample using specified classifiers.
+
+        This method classifies the sample using a list of supervised
+        classifiers. The possible classes are selected from 'selected_columns'.
+        Returns trained classifiers with their evaluations and prints
+        classification to console.
+
+        Args:
+            clf_list (list, optional): List of classifier objects to use for
+                classification. Defaults to None.
+            use_all_cpgs (bool, optional): Whether to use all CpGs
+                ('betas_df_all_cpgs') or just the ones selected in the UMAP
+                plot ('betas_df'). Defaults to False
+
+        Returns:
+            list[dict]: List of dictionaries containing trained classifiers
+                with their evaluations.
+
+        Raises:
+            ValueError: If `self.cnv_id` is not set.
+        """
+        if self.cnv_id is None:
+            msg = "Must set 'cnv_id' before calling classify()."
+            raise ValueError(msg)
+
+        if use_all_cpgs:
+            self.load_full_betas = True
+
+        self._update_paths()
+        self.set_betas()
+        classes_ = self.idat_handler.compound_class(
+            self.idat_handler.selected_columns
+        )
+        log("[MethylAnalysis] Start classifying...")
+
+        betas = self.betas_df_all_cpgs if use_all_cpgs else self.betas_df
+        return fit_and_evaluate_classifiers(
+            betas_df=betas,
+            classes_=classes_,
+            log_file=CLF_FILE,
+            sample_id=self.cnv_id,
+            clf_list=clf_list,
+        )
+
     def get_app(self):
         """Returns a Dash application object for methylation analysis."""
         current_dir = Path(__file__).resolve().parent
@@ -1445,7 +1545,7 @@ class MethylAnalysis:
                 (Output("start-button", "disabled"), True, False),
             ],
         )
-        def on_start_button_click(
+        def on_umap_start_button_click(
             n_clicks,
             n_cpgs,
             analysis_dir,
@@ -1555,6 +1655,7 @@ class MethylAnalysis:
                 Output("umap-progress-bar", "value"),
                 Output("umap-progress-bar", "label"),
                 Output("console-out", "children"),
+                Output("clf-out", "children"),
             ],
             [Input("clock", "n_intervals")],
         )
@@ -1562,13 +1663,15 @@ class MethylAnalysis:
             progress = self._prog_bar.get_progress()
             out_str = self._prog_bar.get_text()
             with LOG_FILE.open("r") as file:
-                data = ""
+                log_str = ""
                 lines = file.readlines()
                 N_TOP = 50
                 last_lines = lines if len(lines) <= N_TOP else lines[-N_TOP:]
                 for line in last_lines:
-                    data = data + line
-            return progress, out_str, data
+                    log_str = log_str + line
+            with CLF_FILE.open("r") as file:
+                clf_str = file.readlines()
+            return progress, out_str, log_str, clf_str
 
         @app.callback(
             Output("output-idat-upload", "children"),
@@ -1599,6 +1702,48 @@ class MethylAnalysis:
                 ]
                 self._update_paths()
                 return children
+
+        # TODO
+        @app.callback(
+            Output("clf-error-out", "children"),
+            [
+                Input("clf-start-button", "n_clicks"),
+            ],
+            [
+                State("clf-cpg-dropdown", "value"),
+                State("clf-clf-dropdown", "value"),
+            ],
+            prevent_initial_call=True,
+            running=[
+                (Output("clf-start-button", "disabled"), True, False),
+            ],
+        )
+        def on_clf_start_button_click(
+            n_clicks,
+            cpgs_to_use,
+            clf_list,
+        ):
+            if not n_clicks:
+                return no_update
+
+            error_message = None
+            if cpgs_to_use is None:
+                error_message = "Invalid CpGs selection method."
+            elif clf_list is None or len(clf_list) == 0:
+                error_message = "No classifiers selected."
+            elif self.cnv_id is None:
+                error_message = "No sample selected."
+            if error_message:
+                return error_message
+
+            use_all_cpgs = cpgs_to_use == "all"
+
+            try:
+                _ = self.classify(clf_list, use_all_cpgs)
+            except Exception as exc:
+                log(f"[MethylAnalysis] An error occured (4): {exc}")
+                return f"{exc}"
+            return ""
 
         return app
 
