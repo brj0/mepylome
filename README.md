@@ -28,7 +28,7 @@ an interactive GUI that enables users to generate UMAP plots and CNV plots
 - Significantly faster compared to [minfi](https://github.com/hansenlab/minfi)
   and [conumee2](https://github.com/hovestadtlab/conumee2).
 - Methylation analysis tool with a graphical browser interface for UMAP
-  analysis and CNV plots
+  analysis, CNV plots and supervised classification
   - Can be run from the command line with minimal setup or customized through a
     Python script
 

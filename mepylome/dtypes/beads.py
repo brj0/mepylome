@@ -402,21 +402,19 @@ class MethylData:
         """
         self._methylated_df = None
         self._unmethylated_df = None
-        self._illumina_control_normalization()
-        self._illumina_bg_correction()
-        self.preprocess_raw()
+        ci = MethylData._cached_indices(self.manifest, self.ids, "illumina")
+        self._illumina_control_normalization(ci=ci)
+        self._illumina_bg_correction(ci)
+        self._preprocess_raw(ci)
 
-    def _illumina_control_normalization(self, reference=0):
+    def _illumina_control_normalization(self, ci, reference=0):
         """Performs normalization using control probes."""
-        at_controls = self.manifest.control_address(["NORM_A", "NORM_T"])
-        cg_controls = self.manifest.control_address(["NORM_C", "NORM_G"])
-
         grn_average = np.mean(
-            self._grn[:, np.isin(self.ids, cg_controls, assume_unique=True)],
+            self._grn[:, ci["ids_cg_cont"]],
             axis=1,
         )
         red_average = np.mean(
-            self._red[:, np.isin(self.ids, at_controls, assume_unique=True)],
+            self._red[:, ci["ids_at_cont"]],
             axis=1,
         )
 
@@ -427,16 +425,10 @@ class MethylData:
         self._grn = grn_factor[:, np.newaxis] * self._grn
         self._red = red_factor[:, np.newaxis] * self._red
 
-    def _illumina_bg_correction(self):
+    def _illumina_bg_correction(self, ci):
         """Performs background normalization using negative control probes."""
-        neg_controls = self.manifest.control_address("NEGATIVE")
-
-        grn_bg = np.sort(
-            self._grn[:, np.isin(self.ids, neg_controls, assume_unique=True)]
-        )[:, 30]
-        red_bg = np.sort(
-            self._red[:, np.isin(self.ids, neg_controls, assume_unique=True)]
-        )[:, 30]
+        grn_bg = np.sort(self._grn[:, ci["ids_ng_cont"]])[:, 30]
+        red_bg = np.sort(self._red[:, ci["ids_ng_cont"]])[:, 30]
 
         self._grn = np.maximum(self._grn - grn_bg[:, np.newaxis], 0)
         self._red = np.maximum(self._red - red_bg[:, np.newaxis], 0)
@@ -502,12 +494,14 @@ class MethylData:
         self._unmethylated_df = result.set_index("IlmnID")
 
     @memoize
-    def _cached_indices(manifest, illumina_ids):
+    def _cached_indices(manifest, illumina_ids, prep):
         """Cache the indices required for data processing.
 
         Args:
             manifest (Manifest): Manifest object.
             illumina_ids (array): Array of Illumina IDs.
+            prep (str): Preprocessing method. Options: "illumina", "noob",
+                "raw".
 
         Returns:
             dict: Cached indices including probe indices, Illumina IDs indices,
@@ -529,55 +523,50 @@ class MethylData:
         )
         ilmnid = manifest.data_frame.IlmnID.values[idx.values]
         ids = pd.Index(illumina_ids)
-        ids_1_red_a = ids.get_indexer(type_1_red["AddressA_ID"])
-        ids_1_red_b = ids.get_indexer(type_1_red["AddressB_ID"])
-        ids_1_grn_a = ids.get_indexer(type_1_grn["AddressA_ID"])
-        ids_1_grn_b = ids.get_indexer(type_1_grn["AddressB_ID"])
-        ids_2_____a = ids.get_indexer(type_2["AddressA_ID"])
-        idx_1_red__ = idx.get_indexer(type_1_red.index)
-        idx_1_grn__ = idx.get_indexer(type_1_grn.index)
-        idx_2______ = idx.get_indexer(type_2.index)
-        return {
-            "idx": idx.values,
-            "ilmnid": ilmnid,
-            "ids_1_red_a": ids_1_red_a,
-            "ids_1_red_b": ids_1_red_b,
-            "ids_1_grn_a": ids_1_grn_a,
-            "ids_1_grn_b": ids_1_grn_b,
-            "ids_2_____a": ids_2_____a,
-            "idx_1_red__": idx_1_red__,
-            "idx_1_grn__": idx_1_grn__,
-            "idx_2______": idx_2______,
-        }
+        ci = {"idx": idx.values, "ilmnid": ilmnid}
+        ci["ids_1_red_a"] = ids.get_indexer(type_1_red["AddressA_ID"])
+        ci["ids_1_red_b"] = ids.get_indexer(type_1_red["AddressB_ID"])
+        ci["ids_1_grn_a"] = ids.get_indexer(type_1_grn["AddressA_ID"])
+        ci["ids_1_grn_b"] = ids.get_indexer(type_1_grn["AddressB_ID"])
+        ci["ids_2_____a"] = ids.get_indexer(type_2["AddressA_ID"])
+        ci["idx_1_red__"] = idx.get_indexer(type_1_red.index)
+        ci["idx_1_grn__"] = idx.get_indexer(type_1_grn.index)
+        ci["idx_2______"] = idx.get_indexer(type_2.index)
 
-    @memoize
-    def _cached_control_indices(manifest, illumina_ids):
-        """Cache the control indices required for data processing.
+        if prep == "illumina":
+            at_controls = manifest.control_address(["NORM_A", "NORM_T"])
+            ng_controls = manifest.control_address("NEGATIVE")
+            cg_controls = manifest.control_address(["NORM_C", "NORM_G"])
 
-        Args:
-            manifest (Manifest): Manifest object.
-            illumina_ids (array): Array of Illumina IDs.
+            def valid_ids(indices):
+                return indices[indices != -1]
 
-        Returns:
-            dict: Cached indices.
-        """
-        ids = pd.Index(illumina_ids)
-        control_probes = manifest.control_data_frame
-        control_probes = control_probes[
-            control_probes.Address_ID.isin(ids)
-        ].reset_index(drop=True)
-        idx_cg = control_probes[
-            control_probes.Control_Type.isin(["NORM_C", "NORM_G"])
-        ].index.values
-        idx_at = control_probes[
-            control_probes.Control_Type.isin(["NORM_A", "NORM_T"])
-        ].index.values
-        ids_ctr = ids.get_indexer(control_probes["Address_ID"])
-        return {
-            "ids_ctr": ids_ctr,
-            "idx_at": idx_at,
-            "idx_cg": idx_cg,
-        }
+            ci["ids_at_cont"] = valid_ids(ids.get_indexer(at_controls))
+            ci["ids_cg_cont"] = valid_ids(ids.get_indexer(cg_controls))
+            ci["ids_ng_cont"] = valid_ids(ids.get_indexer(ng_controls))
+
+        if prep == "swan":
+            ng_controls = manifest.control_address("NEGATIVE")
+
+            def valid_ids(indices):
+                return indices[indices != -1]
+
+            ci["ids_ng_cont"] = valid_ids(ids.get_indexer(ng_controls))
+
+        if prep == "noob":
+            control_probes = manifest.control_data_frame
+            control_probes = control_probes[
+                control_probes.Address_ID.isin(ids)
+            ].reset_index(drop=True)
+            ci["idx_cg"] = control_probes[
+                control_probes.Control_Type.isin(["NORM_C", "NORM_G"])
+            ].index.values
+            ci["idx_at"] = control_probes[
+                control_probes.Control_Type.isin(["NORM_A", "NORM_T"])
+            ].index.values
+            ci["ids_ctr"] = ids.get_indexer(control_probes["Address_ID"])
+
+        return ci
 
     def preprocess_raw(self):
         """Calculates methylated/unmethylated arrays without preprocessing.
@@ -585,7 +574,11 @@ class MethylData:
         Converts the Red/Green channel for an Illumina methylation array
         into methylation signal, without using any normalization.
         """
-        ci = MethylData._cached_indices(self.manifest, self.ids)
+        ci = MethylData._cached_indices(self.manifest, self.ids, "raw")
+        self._preprocess_raw(ci)
+
+    def _preprocess_raw(self, ci):
+        """Internal preprocess logic."""
         self.methyl = np.full((len(self.probes), len(ci["idx"])), np.nan)
         self.methyl[:, ci["idx_1_red__"]] = self._red[:, ci["ids_1_red_b"]]
         self.methyl[:, ci["idx_1_grn__"]] = self._grn[:, ci["ids_1_grn_b"]]
@@ -597,15 +590,14 @@ class MethylData:
         self.methyl_index = ci["idx"]
         self.methyl_ilmnid = ci["ilmnid"]
 
-    def _swan_bg_intensity(self):
+    def _swan_bg_intensity(self, ci):
         """Intensity background normalization used for SWAN preprocessing."""
-        neg_controls = self.manifest.control_address("NEGATIVE")
         grn_med = np.median(
-            self._grn[:, np.isin(self.ids, neg_controls, assume_unique=True)],
+            self._grn[:, ci["ids_ng_cont"]],
             axis=1,
         )
         red_med = np.median(
-            self._red[:, np.isin(self.ids, neg_controls, assume_unique=True)],
+            self._red[:, ci["ids_ng_cont"]],
             axis=1,
         )
         return np.mean([grn_med, red_med], axis=0)
@@ -671,8 +663,9 @@ class MethylData:
         """
         self._methylated_df = None
         self._unmethylated_df = None
-        self.preprocess_raw()
-        bg_intensity = self._swan_bg_intensity()
+        ci = MethylData._cached_indices(self.manifest, self.ids, "swan")
+        self._preprocess_raw(ci)
+        bg_intensity = self._swan_bg_intensity(ci)
         all_indices, random_subset_indices = MethylData._swan_indices(
             self.manifest, self.methyl_index
         )
@@ -745,9 +738,10 @@ class MethylData:
         """
         self._methylated_df = None
         self._unmethylated_df = None
-        self.preprocess_raw()
 
-        ci = MethylData._cached_indices(self.manifest, self.ids)
+        ci = MethylData._cached_indices(self.manifest, self.ids, "noob")
+
+        self._preprocess_raw(ci)
 
         grn_oob = np.concatenate(
             [self._grn[:, ci["ids_1_red_a"]], self._grn[:, ci["ids_1_red_b"]]],
@@ -798,10 +792,8 @@ class MethylData:
 
         # Dye correction
 
-        cci = MethylData._cached_control_indices(self.manifest, self.ids)
-
-        grn_control = self._grn[:, cci["ids_ctr"]]
-        red_control = self._red[:, cci["ids_ctr"]]
+        grn_control = self._grn[:, ci["ids_ctr"]]
+        red_control = self._red[:, ci["ids_ctr"]]
 
         xcs_grn = normexp_get_xs(
             grn_control, param=xs_grn["param"], offset=offset
@@ -810,8 +802,8 @@ class MethylData:
             red_control, param=xs_red["param"], offset=offset
         )
 
-        grn_avg = np.mean(xcs_grn["xs"][:, cci["idx_cg"]], axis=1)
-        red_avg = np.mean(xcs_red["xs"][:, cci["idx_at"]], axis=1)
+        grn_avg = np.mean(xcs_grn["xs"][:, ci["idx_cg"]], axis=1)
+        red_avg = np.mean(xcs_red["xs"][:, ci["idx_at"]], axis=1)
 
         red_grn_ratio = red_avg / grn_avg
 

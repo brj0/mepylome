@@ -36,7 +36,7 @@ if prep not in preps:
     sys.exit()
 
 
-print(f"Time for importing mepylome: {time1 - time0}")
+print(f"Time for importing mepylome: {time1 - time0} s")
 
 HOME_DIR = Path.home()
 TEST_DIR = Path(HOME_DIR, "Documents", "mepylome", "tests")
@@ -58,8 +58,8 @@ time1 = time.time()
 N = len(idat_files)
 tpc = (time1 - time0) / N
 
-print(f"Time for analysis ({prep}): {time1 - time0} ({N} cases)")
-print(f"    Time per case: {tpc}")
+print(f"Time for analysis ({prep}): {time1 - time0} s ({N} cases)")
+print(f"    Time per case: {tpc} s")
 
 if len(sys.argv) < 3 or sys.argv[2] != "--save":
     print(

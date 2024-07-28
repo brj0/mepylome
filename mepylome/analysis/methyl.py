@@ -1703,7 +1703,6 @@ class MethylAnalysis:
                 self._update_paths()
                 return children
 
-        # TODO
         @app.callback(
             Output("clf-error-out", "children"),
             [
