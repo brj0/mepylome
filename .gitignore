@@ -168,7 +168,6 @@ cython_debug/
 tags
 
 # Debug files
-Makefile
 _Makefile
 callgrind.out.*
 gmon.out
