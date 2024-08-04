@@ -16,7 +16,7 @@ class ArrayType(Enum):
     ILLUMINA_EPIC = "epic"
     ILLUMINA_EPIC_V2 = "epicv2"
     ILLUMINA_MOUSE = "mouse"
-    INVALID = "invalid"
+    UNKNOWN = "invalid"
 
     def __str__(self):
         return self.value
@@ -42,5 +42,4 @@ class ArrayType(Enum):
         if 315000 <= probe_count <= 362000:
             return cls.ILLUMINA_MOUSE
 
-        msg = f"Unknown array type: {probe_count} probes detected"
-        raise ValueError(msg)
+        return cls.UNKNOWN

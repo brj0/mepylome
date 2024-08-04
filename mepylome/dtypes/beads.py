@@ -138,10 +138,11 @@ class RawData:
 
     Args:
         basenames (list): List of basepaths to IDAT files.
+        manifest (Manifest, optional): The manifest associated with the array.
+            If not provided, it will be determined from the probe count.
 
     Attributes:
         array_type (str): Type of Illumina array.
-        manifest (Manifest): Manifest associated with the array.
         probes (list): List of probe names corresponding to the IDAT files.
         ids (array): Array of probe IDs.
         _grn (array): Array of raw intensity values from the green channel.
@@ -154,7 +155,8 @@ class RawData:
         >>> raw_data = RawData([idat_basepath0, idat_basepath1])
     """
 
-    def __init__(self, basenames):
+    def __init__(self, basenames, *, manifest=None):
+        self.manifest = manifest
         _basenames = idat_basepaths(basenames)
 
         self.probes = [path.name.replace(ENDING_GZ, "") for path in _basenames]
@@ -214,7 +216,8 @@ class RawData:
                     for idat in red_idat
                 ]
             )
-        self.manifest = Manifest(self.array_type)
+        if self.manifest is None:
+            self.manifest = Manifest(self.array_type)
 
         self._grn_df = None
         self._red_df = None
@@ -294,6 +297,8 @@ class MethylData:
             intensity data.
         prep (str): Preprocessing method. Options: "illumina", "swan",
             "noob".
+        seed (int, optional): Seed value used for random number generation in
+            the SWAN preprocessing method. Default is None.
 
     Note:
         If 'data' is not provided, it will attempt to create a RawData object
@@ -308,7 +313,7 @@ class MethylData:
         >>> methyl_data = MethylData(file=file_path, prep="swan")
     """
 
-    def __init__(self, data=None, file=None, prep="illumina"):
+    def __init__(self, data=None, file=None, prep="illumina", seed=None):
         if data is None and file is None:
             msg = "'data' or 'file' must be given."
             raise ValueError(msg)
@@ -317,6 +322,7 @@ class MethylData:
         elif not isinstance(data, RawData):
             msg = "'data' is not of type 'RawData'."
             raise ValueError(msg)
+        self.seed = seed
         self._grn = data._grn
         self._red = data._red
         self.array_type = data.array_type
@@ -427,6 +433,9 @@ class MethylData:
 
     def _illumina_bg_correction(self, ci):
         """Performs background normalization using negative control probes."""
+        if len(ci["ids_ng_cont"]) <= 30:
+            return
+
         grn_bg = np.sort(self._grn[:, ci["ids_ng_cont"]])[:, 30]
         red_bg = np.sort(self._red[:, ci["ids_ng_cont"]])[:, 30]
 
@@ -501,7 +510,7 @@ class MethylData:
             manifest (Manifest): Manifest object.
             illumina_ids (array): Array of Illumina IDs.
             prep (str): Preprocessing method. Options: "illumina", "noob",
-                "raw".
+                "swan", "raw".
 
         Returns:
             dict: Cached indices including probe indices, Illumina IDs indices,
@@ -603,7 +612,8 @@ class MethylData:
         return np.mean([grn_med, red_med], axis=0)
 
     @staticmethod
-    def _swan_indices(manifest, methyl_index):
+    def _swan_indices(manifest, methyl_index, seed=None):
+        rng = np.random.default_rng(seed)
         all_ncpgs = (
             manifest.data_frame[["Probe_Type", "N_CpG"]]
             .loc[methyl_index]
@@ -612,7 +622,11 @@ class MethylData:
         subset_sizes = all_ncpgs.groupby(
             ["Probe_Type", "N_CpG"], dropna=False
         ).size()
-        subset_size = min(subset_sizes.loc[(slice(None), slice(1, 3))])
+        subset_size = min(
+            subset_sizes.get((probe_type, n_cpg), 0)
+            for probe_type in [ProbeType.ONE, ProbeType.TWO]
+            for n_cpg in [1, 2, 3]
+        )
         all_indices = {}
         random_subset_indices = {}
         for probe_type in [ProbeType.ONE, ProbeType.TWO]:
@@ -622,7 +636,6 @@ class MethylData:
             indices = []
             for ncpgs in range(1, 4):
                 ids = all_ncpts_type.index[all_ncpts_type.N_CpG == ncpgs]
-                rng = np.random.default_rng()
                 ids_subset = rng.permutation(ids)[:subset_size]
                 indices.append(ids_subset)
             random_subset_indices[probe_type] = np.sort(
@@ -667,7 +680,7 @@ class MethylData:
         self._preprocess_raw(ci)
         bg_intensity = self._swan_bg_intensity(ci)
         all_indices, random_subset_indices = MethylData._swan_indices(
-            self.manifest, self.methyl_index
+            self.manifest, self.methyl_index, self.seed
         )
         self.methyl = MethylData._preprocess_swan_main(
             self.methyl, bg_intensity, all_indices, random_subset_indices

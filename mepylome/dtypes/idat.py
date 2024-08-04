@@ -1,14 +1,13 @@
 """Contains a IDAT file parser."""
 
-import logging
+import gzip
+import io
 import os
 from enum import IntEnum, unique
 
 import numpy as np
 
 from mepylome.utils.files import get_file_object
-
-LOGGER = logging.getLogger(__name__)
 
 __all__ = ["IdatParser"]
 
@@ -57,10 +56,6 @@ def read_array(infile, dtype, n):
     return np.frombuffer(alldata, dtype)
 
 
-LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.WARNING)
-
-
 DEFAULT_IDAT_VERSION = 3
 DEFAULT_IDAT_FILE_ID = "IDAT"
 
@@ -89,6 +84,21 @@ class IdatSectionCode(IntEnum):
     UNKNOWN_7 = 510  # unknown
     NUM_SNPS_READ = 1000
 
+def _get_file_size(file_like):
+    """Get the size of a file-like object."""
+    # Check if the file-like object has a fileno method
+    if isinstance(file_like, (io.BufferedReader, gzip.GzipFile)):
+        return os.fstat(file_like.fileno()).st_size
+
+    if isinstance(file_like, io.BytesIO):
+        current_pos = file_like.tell()
+        file_like.seek(0, io.SEEK_END)
+        size = file_like.tell()
+        file_like.seek(current_pos)
+        return size
+
+    msg = "Cannot determine file size. Unknown file format"
+    raise ValueError(msg)
 
 class IdatParser:
     """Reads and parses an IDAT file.
@@ -117,7 +127,7 @@ class IdatParser:
         """Reads and parses the IDAT file."""
         self.intensity_only = intensity_only
         with get_file_object(file) as idat_file:
-            self.file_size = os.fstat(idat_file.fileno()).st_size
+            self.file_size = _get_file_size(idat_file)
 
             self._parse_header(idat_file)
             self._parse_body(idat_file)

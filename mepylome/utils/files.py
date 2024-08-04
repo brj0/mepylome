@@ -6,13 +6,13 @@ file-like objects and archives.
 """
 
 import gzip
-import shutil
-import ssl
 import tempfile
 import zipfile
 from pathlib import Path, PurePath
 from urllib.error import URLError
-from urllib.request import urlopen
+
+import requests
+from tqdm import tqdm
 
 from mepylome.utils.varia import log
 
@@ -26,6 +26,7 @@ __all__ = [
 ]
 
 MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
+
 
 def make_path_like(path_like):
     """Attempts to convert a string to a Path instance."""
@@ -80,15 +81,22 @@ def download_file(src_url, dest, overwrite=False):
         return
     try:
         log(
-            f"Downloading manifest from {src_url} to {dest_dir}.\n"
+            f"Downloading from {src_url} to {dest_dir}.\n"
             "Can take several minutes..."
         )
-        # Skip the SSL certificate check
-        context = ssl._create_unverified_context()
-        with urlopen(src_url, context=context) as response, dest_path.open(
-            "wb"
-        ) as out_file:
-            shutil.copyfileobj(response, out_file)
+        response = requests.get(src_url, stream=True)
+        response.raise_for_status()
+        total_size = int(response.headers.get("content-length", 0))
+        block_size = 1024
+        progress_bar = tqdm(
+            total=total_size, unit="iB", unit_scale=True, desc="Downloading"
+        )
+        with dest_path.open("wb") as out_file:
+            for chunk in response.iter_content(chunk_size=block_size):
+                if chunk:
+                    out_file.write(chunk)
+                    progress_bar.update(len(chunk))
+        progress_bar.close()
     except URLError as error:
         msg = f"Failed to download manifest from {src_url}"
         raise URLError(msg) from error
@@ -102,18 +110,17 @@ def is_file_like(obj):
     objects must be iterable, but iterable objects need not be file-like.
 
     Arguments:
-        obj {any} --The object to check.
+        obj (any): The object to check.
 
     Returns:
-        [boolean] -- [description]
+        boolean: description
 
     Examples:
-    --------
-    >>> buffer(StringIO("data"))
-    >>> is_file_like(buffer)
-    True
-    >>> is_file_like([1, 2, 3])
-    False
+        >>> buffer(StringIO("data"))
+        >>> is_file_like(buffer)
+        True
+        >>> is_file_like([1, 2, 3])
+        False
     """
     if not (hasattr(obj, "read") or hasattr(obj, "write")):
         return False

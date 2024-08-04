@@ -578,6 +578,10 @@ class MethylAnalysis:
             '450k', 'epic', 'epicv2', or 'auto' for automatic detection. It can
             also be a path to a CSV file containing the CpG sites.
 
+
+        cpg_blacklist (set or list, optional): A list or set of CpG sites to
+            exclude. Default is None.
+
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
 
         precalculate_cnv (bool): Flag to precalculate CNV information by
@@ -737,6 +741,7 @@ class MethylAnalysis:
         output_dir=DEFAULT_OUTPUT_DIR,
         prep="illumina",
         cpgs="auto",
+        cpg_blacklist=None,
         n_cpgs=DEFAULT_N_CPGS,
         precalculate_cnv=False,
         load_full_betas=False,
@@ -756,6 +761,7 @@ class MethylAnalysis:
         self.overlap = overlap
         self._idat_handler = None
         self.n_cpgs = n_cpgs
+        self.cpg_blacklist = set(cpg_blacklist or [])
         self.cpg_selection = cpg_selection
         self.host = host
         self.port = port
@@ -854,17 +860,24 @@ class MethylAnalysis:
     def _get_cpgs(self, input_var="auto"):
         """Returns CpG sites based on the provided input variable."""
         self._internal_cpgs_hash = None
+
+        def exclude_blacklist(cpgs):
+            return np.sort(np.array(list(set(cpgs) - self.cpg_blacklist)))
+
         if self.verbose:
             log("[MethylAnalysis] Determine CpG sites...")
-        if isinstance(input_var, np.ndarray):
-            return np.sort(input_var)
+
+        if isinstance(input_var, (np.ndarray, set, list)):
+            return exclude_blacklist(input_var)
+
         cpgs_from_file = get_cpgs_from_file(input_var)
         if cpgs_from_file is not None:
-            return cpgs_from_file
-        valid_parms = ["auto", "450k", "epic", "epicv2"]
+            return exclude_blacklist(cpgs_from_file)
+
+        valid_str_parms = ["auto", "450k", "epic", "epicv2"]
 
         if isinstance(input_var, str):
-            input_var = [input_var]
+            input_var = input_var.split("+")
 
         if "auto" in input_var:
             input_var = {
@@ -878,20 +891,26 @@ class MethylAnalysis:
                     f"detected: {input_var}"
                 )
 
-        if all(x in valid_parms for x in input_var):
+        if all(x in valid_str_parms for x in input_var):
             if not input_var:
                 return np.array([])
 
-            input_var = valid_parms if "all" in input_var else input_var
+            if "all" in input_var:
+                input_var = valid_str_parms
+
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
-                for array_type in valid_parms[1:]
+                for array_type in valid_str_parms[1:]
                 if array_type in input_var
             ]
             cpgs = set.intersection(*cpg_sets)
-            return np.sort(np.array(list(cpgs)))
+            return exclude_blacklist(cpgs)
 
-        msg = f"'cpgs' must be a numpy array or list of {valid_parms}"
+        msg = (
+            "'cpgs' must be one of the following:\n"
+            "- a list, set, or array of CpG sites\n"
+            "- a '+' joined string of valid parameters: {valid_str_parms}"
+        )
         raise ValueError(msg)
 
     def _update_paths(self):
@@ -1058,9 +1077,10 @@ class MethylAnalysis:
                 self.umap_plot_path, sep="\t", index_col=0
             )
             self.umap_df = self.umap_df.fillna("")
-            self.make_umap_plot()
-            return True
-        return False
+            try:
+                self.make_umap_plot()
+            except AttributeError:
+                log("[MethylAnalysis] Probable dimension mismatch.")
 
     def set_betas(self):
         """Sets the beta values DataFrame ('betas_df') for further analysis.

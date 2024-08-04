@@ -90,18 +90,25 @@ class Manifest:
     """Provides an object interface to an Illumina array manifest file.
 
     This class provides functionality for reading and processing Illumina array
-    manifest files. If the manifest is used for the first time, the data is
-    automatically downloaded, transformed, and saved locally, which may take
-    some time.
+    manifest files. A manifest can be loaded automatically based on the array
+    type or provided as a raw manifest file. On first use, the necessary data
+    is automatically downloaded if needed, transformed, and saved locally,
+    which might take some time. The processed manifest is then saved locally
+    and loaded in its processed form on subsequent uses. During a running
+    session, all loaded manifests are cached in memory.
 
     Args:
         array_type (str or ArrayType): The type of array to process. Use either
             ArrayType (ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC,
             ArrayType.ILLUMINA_EPIC_V2) or corresponding string ('450k',
             'epic', 'epicv2')
-
-        filepath (str or Path): A pre-existing manifest filepath (default:
-            None)
+        proc_path (str or Path): The path to the local processed manifest file
+            (default: None).
+        raw_path (str or Path, optional): Path to the raw manifest file.
+            Default is None.
+        download_proc (bool, optional): If True and there is no locally saved
+            processed manifest file, attempts to download the processed
+            manifest file instead of the raw one. Defaults to True.
 
     Examples:
         >>> # To initialize a manifest object for Illumina 450k array:
@@ -120,10 +127,12 @@ class Manifest:
 
     def __new__(
         cls,
-        array_type,
-        filepath=None,
+        array_type=None,
+        raw_path=None,
+        proc_path=None,
+        download_proc=True,
     ):
-        key = cache_key(array_type, filepath)
+        key = cache_key(array_type, raw_path, proc_path)
         if key in cls._cache:
             return cls._cache[key]
 
@@ -137,33 +146,77 @@ class Manifest:
         # Necessary for pickle
         return (
             self.array_type,
-            self.filepath,
+            self.raw_path,
+            self.proc_path,
+            self.download_proc,
         )
 
     def __init__(
         self,
-        array_type,
-        filepath=None,
+        array_type=None,
+        raw_path=None,
+        proc_path=None,
+        download_proc=True,
     ):
         if hasattr(self, "_cached"):
             return
         self._cached = True
-        if isinstance(array_type, str):
-            array_type = ArrayType(array_type)
 
-        self.array_type = array_type
-        self.filepath = filepath
+        def to_path(x):
+            return x if x is None else Path(x)
 
-        if self.filepath is None:
-            (
-                self.filepath,
-                control_filepath,
-            ) = self._get_processed_manifest(array_type)
-        else:
-            control_filepath = self._get_control_path(self.filepath)
+        self.array_type = ArrayType(array_type) if array_type else None
+        self.raw_path = to_path(raw_path)
+        self.proc_path = to_path(proc_path)
+        self.download_proc = download_proc
 
-        self.__data_frame = self._read_probes(self.filepath)
-        self.__control_data_frame = self._read_control_probes(control_filepath)
+        if self.array_type == ArrayType.UNKNOWN:
+            self.__data_frame = pd.DataFrame()
+            self.__control_data_frame = pd.DataFrame()
+            self.__snp_data_frame = pd.DataFrame()
+            self.__methyl_probes = None
+            return
+
+        # Set processed manifest path
+        if self.proc_path is None:
+            if self.array_type is not None:
+                self.proc_path = MANIFEST_DIR / LOCAL_FILENAME[self.array_type]
+            elif self.raw_path is not None:
+                if self.raw_path.suffix == ".zip":
+                    gz_filename = "proc_" + self.raw_path.stem + ".gz"
+                else:
+                    gz_filename = "proc_" + self.raw_path.name + ".gz"
+                self.proc_path = DOWNLOAD_DIR / gz_filename
+            else:
+                msg = "Provide either array_type or proc_path or raw_path"
+                raise ValueError(msg)
+
+        self.ctrl_path = Manifest._get_control_path(self.proc_path)
+
+        # Create processed manifest files if they do not exist
+        if not (self.proc_path.exists() and self.ctrl_path.exists()):
+            # If array type is given, download the files
+            if self.array_type is not None:
+                if (
+                    not self.download_proc
+                    or not self._download_processed_manifest()
+                ):
+                    self._download_manifest()
+                    csv_filename = REMOTE_FILENAME[self.array_type]
+                    self._process_manifest(csv_filename=csv_filename)
+            # Else process from raw_path
+            elif self.raw_path is not None:
+                if self.raw_path.suffix == ".zip":
+                    csv_filename = self.raw_path.stem
+                else:
+                    csv_filename = self.raw_path.name
+                self._process_manifest(csv_filename=csv_filename)
+            else:
+                msg = "Provide either array_type or proc_path or raw_path"
+                raise ValueError(msg)
+
+        self.__data_frame = self._read_probes(self.proc_path)
+        self.__control_data_frame = self._read_control_probes(self.ctrl_path)
         self.__snp_data_frame = self._read_snp_probes()
         self.__methyl_probes = None
 
@@ -240,60 +293,34 @@ class Manifest:
         for array_type in array_types:
             _ = Manifest(array_type)
 
-    @staticmethod
-    def _get_processed_manifest(array_type, download_preprocessed=True):
-        """Downloads the appropriate manifest file if necessary.
+    def _download_manifest(
+        self,
+    ):
+        """Downloads the appropriate manifest file.
 
-        Args:
-            array_type: The manifest array type.
-            download_preprocessed (bool): Whether to download preprocessed
-                files.
+        This method downloads the manifest file based on the `array_type`
+        specified during the initialization of the Manifest object. It stores
+        the downloaded file in the path of the `raw_path` attribute.
 
-        Returns:
-            tuple of paths: Local paths to the manifest file and its control
-                file.
+        Raises:
+            KeyError: If the array type is not found in MANIFEST_URL.
         """
-        local_filename = LOCAL_FILENAME[array_type]
-        local_filepath = Path(MANIFEST_DIR, local_filename).expanduser()
-        control_filepath = Manifest._get_control_path(local_filepath)
-
-        if local_filepath.exists() and control_filepath.exists():
-            return local_filepath, control_filepath
-
-        # Try to download allready preprocessed manifest files (much faster)
-        if (
-            download_preprocessed
-            and Manifest._download_preprocessed_manifest(local_filepath)
-            and Manifest._download_preprocessed_manifest(control_filepath)
-        ):
-            return local_filepath, control_filepath
-
-        download_dir = Path(DOWNLOAD_DIR).expanduser()
-
-        source_url = MANIFEST_URL[array_type]
+        source_url = MANIFEST_URL[self.array_type]
         source_filename = Path(source_url).name
+
         log(f"[Manifest] Downloading manifest: {source_filename}")
-        download_file(source_url, Path(download_dir, source_filename))
 
-        downloaded_filepath = Path(download_dir, source_filename).expanduser()
-        # Remove the .gz suffix
-        remote_filename = REMOTE_FILENAME[array_type]
-        Manifest._process_manifest(
-            filepath=downloaded_filepath,
-            manifest_name=remote_filename,
-            dest_probes=local_filepath,
-            dest_control=control_filepath,
-        )
+        self.raw_path = DOWNLOAD_DIR / source_filename
+        download_file(source_url, self.raw_path)
 
-        return local_filepath, control_filepath
-
-    @staticmethod
-    def _download_preprocessed_manifest(dest):
+    def _download_processed_manifest(self):
         """Download processed manifest file and return true if successful."""
-        ensure_directory_exists(dest)
-        src_url = PROCESSED_MANIFEST_URL + dest.name
+        log(f"[Manifest] Downloading processed {self.array_type} manifest")
         try:
-            download_file(src_url, dest)
+            for path in [self.proc_path, self.ctrl_path]:
+                ensure_directory_exists(path)
+                url = PROCESSED_MANIFEST_URL + path.name
+                download_file(url, path)
             return True
         except Exception:
             return False
@@ -305,21 +332,24 @@ class Manifest:
         split_filename[0] += ENDING_CONTROL_PROBES
         return Path(probes_path.parent, ".".join(split_filename))
 
-    @staticmethod
-    def _process_manifest(filepath, manifest_name, dest_probes, dest_control):
-        """Processes the manifest file and saves it locally to disk.
+    def _process_manifest(self, csv_filename=None):
+        """Process the manifest file and save it locally to disk.
+
+        This method processes the raw manifest file by extracting the necessary
+        probe and control probe information, and then saves these processed
+        details to local files with pathnames `probes_path` and `ctrl_path`.
 
         Args:
-            filepath (Path): Path to the downloaded manifest archive.
-            manifest_name (str): Name of the manifest file inside the archive.
-            dest_probes (Path): Local destination path to save the processed
-                probes.
-            dest_control (Path): Local destination path to save the processed
-                control probes.
+            csv_filename (str, optional): Name of the manifest file inside the
+                archive. If not provided, it defaults to the name of the
+                raw_path file.
         """
-        ensure_directory_exists(dest_probes)
-        ensure_directory_exists(dest_control)
-        with get_csv_file(filepath, manifest_name) as manifest_file:
+        log(f"[Manifest] Process raw manifest {self.raw_path}")
+        if csv_filename is None:
+            csv_filename = self.raw_path.name
+        ensure_directory_exists(self.proc_path)
+        ensure_directory_exists(self.ctrl_path)
+        with get_csv_file(self.raw_path, csv_filename) as manifest_file:
             # Process probes
             Manifest._seek_to_start(manifest_file)
             probes_df = pd.read_csv(
@@ -330,7 +360,7 @@ class Manifest:
             n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
             probes_df = probes_df[:n_probes]
             probes_df = Manifest._process_probes(probes_df)
-            probes_df.to_csv(dest_probes, index=False)
+            probes_df.to_csv(self.proc_path, index=False)
             # Process controls
             Manifest._seek_to_start(manifest_file)
             controls_df = pd.read_csv(
@@ -344,7 +374,7 @@ class Manifest:
             controls_df["Address_ID"] = controls_df["Address_ID"].astype(
                 "int32"
             )
-            controls_df.to_csv(dest_control, index=False)
+            controls_df.to_csv(self.ctrl_path, index=False)
 
     @staticmethod
     def _process_probes(data_frame):
@@ -362,12 +392,19 @@ class Manifest:
         data_frame.IlmnID = data_frame.Name
         data_frame = data_frame.drop(columns="Name")
         channel_to_int = {"Grn": Channel.GRN, "Red": Channel.RED}
-        data_frame["Color_Channel"] = data_frame["Color_Channel"].replace(
-            channel_to_int
-        )
-        data_frame["Infinium_Design_Type"] = data_frame[
-            "Infinium_Design_Type"
-        ].replace({"I": InfiniumDesignType.I, "II": InfiniumDesignType.II})
+        with pd.option_context("future.no_silent_downcasting", True):
+            data_frame["Color_Channel"] = (
+                data_frame["Color_Channel"]
+                .replace(channel_to_int)
+                .infer_objects()
+            )
+            data_frame["Infinium_Design_Type"] = (
+                data_frame["Infinium_Design_Type"]
+                .replace(
+                    {"I": InfiniumDesignType.I, "II": InfiniumDesignType.II}
+                )
+                .infer_objects()
+            )
         data_frame["TypeI_N_CpG"] = np.maximum(
             0, data_frame["AlleleB_ProbeSeq"].fillna("").str.count("CG") - 1
         )
@@ -452,7 +489,7 @@ class Manifest:
             manifest_file.seek(current_pos - 1)
 
     def _read_probes(self, probes_file):
-        """Reads and returns probes from local file {probes_file}."""
+        """Reads and returns probes from local file `probes_file`."""
         data_frame = pd.read_csv(
             probes_file,
             dtype=self._get_data_types(),
@@ -464,7 +501,7 @@ class Manifest:
         return data_frame.reset_index(drop=True)
 
     def _read_control_probes(self, control_file):
-        """Reads and returns control probes from local file {control_file}."""
+        """Reads and returns control probes from local file `control_file`."""
         data_frame = pd.read_csv(
             control_file,
             dtype=self._get_data_types(),
