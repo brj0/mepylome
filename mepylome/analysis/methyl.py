@@ -389,6 +389,17 @@ def get_side_navigation(
                                 multi=True,
                             ),
                             html.Br(),
+                            html.H6("Color scheme"),
+                            dcc.Dropdown(
+                                id="umap-color-scheme",
+                                options={
+                                    "discrete": "Discrete Colors",
+                                    "continuous": "Continuous Colors",
+                                },
+                                value="discrete",
+                                multi=False,
+                            ),
+                            html.Br(),
                             html.H6("Genes to highlight in CNV"),
                             dcc.Dropdown(
                                 id="selected-genes",
@@ -791,6 +802,7 @@ class MethylAnalysis:
         self.app = None
 
         self._prog_bar = ProgressBar()
+        self._use_discrete_colors = True
         self._internal_cpgs_hash = None
 
         if self.cpg_selection not in ["top", "random"]:
@@ -1060,7 +1072,9 @@ class MethylAnalysis:
             )
             raise AttributeError(msg)
         self.umap_df["Umap_color"] = umap_color
-        self.umap_plot = umap_plot_from_data(self.umap_df)
+        self.umap_plot = umap_plot_from_data(
+            self.umap_df, self._use_discrete_colors
+        )
         self.umap_plot = self.umap_plot.update_layout(
             margin={"l": 0, "r": 0, "t": 30, "b": 0},
         )
@@ -1237,14 +1251,17 @@ class MethylAnalysis:
             if not Path(self.cnv_dir, x.name + ZIP_ENDING).exists()
             and not Path(self.cnv_dir, str(x) + ERROR_ENDING).exists()
         ]
+        if len(sample_ids) == 0:
+            return
         self._prog_bar.reset(len(sample_ids), text="(CNV)")
         write_cnv_to_disk(
-            list(self.idat_handler.sample_paths.values()),
-            self.reference_dir,
-            self.cnv_dir,
-            self.prep,
-            self._prog_bar,
-            self.verbose,
+            sample_path=list(self.idat_handler.sample_paths.values()),
+            reference_dir=self.reference_dir,
+            cnv_dir=self.cnv_dir,
+            prep=self.prep,
+            do_seg=self.do_seg,
+            pbar=self._prog_bar,
+            verbose=self.verbose,
         )
         self._prog_bar.reset(1, 1)
 
@@ -1373,6 +1390,7 @@ class MethylAnalysis:
                 Input("umap-plot", "clickData"),
                 Input("ids-to-highlight", "value"),
                 Input("umap-annotation-color", "value"),
+                Input("umap-color-scheme", "value"),
                 Input("selected-genes", "value"),
             ],
             State("umap-plot", "figure"),
@@ -1381,9 +1399,19 @@ class MethylAnalysis:
             click_data,
             ids_to_highlight,
             umap_color_columns,
+            umap_color_scheme,
             genes_sel,
             curr_umap_plot,
         ):
+            def update_umap_plot():
+                try:
+                    self.make_umap_plot()
+                    self._umap_plot_highlight(cnv_id=self.cnv_id)
+                    self._retrieve_zoom(curr_umap_plot)
+                except AttributeError:
+                    return no_update, no_update, no_update
+                else:
+                    return self.umap_plot, no_update, ""
             genes_sel = tuple(genes_sel) if genes_sel else ()
             trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
             self.ids_to_highlight = ids_to_highlight
@@ -1396,14 +1424,13 @@ class MethylAnalysis:
                 and umap_color_columns is not None
             ):
                 self.idat_handler.selected_columns = umap_color_columns
-                try:
-                    self.make_umap_plot()
-                    self._umap_plot_highlight(cnv_id=self.cnv_id)
-                    self._retrieve_zoom(curr_umap_plot)
-                except AttributeError:
-                    return no_update, no_update, no_update
-                else:
-                    return self.umap_plot, no_update, ""
+                update_umap_plot()
+            if (
+                trigger == "umap-color-scheme"
+                and umap_color_scheme is not None
+            ):
+                self._use_discrete_colors = umap_color_scheme == "discrete"
+                update_umap_plot()
 
             if trigger == "umap-plot" and isinstance(click_data, dict):
                 points = click_data.get("points")

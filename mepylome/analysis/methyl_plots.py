@@ -7,6 +7,7 @@ from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
+import plotly.colors
 import plotly.express as px
 import plotly.graph_objects as go
 from tqdm import tqdm
@@ -83,18 +84,38 @@ def discrete_colors(names):
     }
 
 
-def umap_plot_from_data(umap_df):
+def continuous_colors(names):
+    """Returns a continuous colorscheme for all methylation classes."""
+    sorted_names = sorted(names)
+    n_names = len(sorted_names)
+    color_scale = plotly.colors.get_colorscale("Plasma")
+    colors = {}
+    for i, name in enumerate(sorted_names):
+        fraction = i / max(1, n_names - 1)
+        color = plotly.colors.sample_colorscale(
+            color_scale, fraction, colortype="rgb"
+        )
+        colors[name] = color[0]
+    return colors
+
+
+def umap_plot_from_data(umap_df, use_discrete_colors=True):
     """Create and return umap plot from UMAP data.
 
     Args:
         umap_df: pandas data frame containing UMAP matrix and
             attributes. First row,w corresponds to sample.
+        use_discrete_colors: Wheather to use discrete or continuous colors.
+            Defaults to True.
 
     Returns:
         UMAP plot as plotly object.
     """
     methyl_classes = np.sort(umap_df["Umap_color"].unique())
-    color_map = discrete_colors(methyl_classes)
+    if use_discrete_colors:
+        color_map = discrete_colors(methyl_classes)
+    else:
+        color_map = continuous_colors(methyl_classes)
     category_orders = {"Umap_color": methyl_classes}
     umap_plot = px.scatter(
         umap_df,
@@ -243,7 +264,12 @@ def get_cnv_plot(
     """
     sample_id = sample_path.name
     write_cnv_to_disk(
-        [sample_path], reference_dir, cnv_dir, prep, do_seg, verbose=verbose
+        sample_path=[sample_path],
+        reference_dir=reference_dir,
+        cnv_dir=cnv_dir,
+        prep=prep,
+        do_seg=do_seg,
+        verbose=verbose,
     )
     bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
     plot = cnv_plot_from_data(

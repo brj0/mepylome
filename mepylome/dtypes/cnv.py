@@ -669,7 +669,7 @@ class CNV:
         cbsegment = _get_cgsegment()
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
-        seg = cbsegment(bin_values, shuffles=1000, p=0.0001)
+        seg = cbsegment(bin_values, shuffles=1000, p=0.01)
         return pd.DataFrame(
             [
                 [chrom, df.Start.iloc[s.start], df.End.iloc[s.end - 1]]
