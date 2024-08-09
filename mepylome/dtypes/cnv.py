@@ -28,26 +28,36 @@ UNSET = object()
 ZIP_ENDING = "_cnv.zip"
 
 
-def _get_cgsegment():
-    try:
-        import linear_segment
-
-        return linear_segment.segment
-    except ModuleNotFoundError:
-        pass
-    try:
-        import cbseg
-
-        return cbseg.segment
-    except ModuleNotFoundError:
-        return None
-
-
 def _missing_cbseg_msg():
     log(
         "[CNV] **Warning**: Segmentation won't be calculated due to missing "
         "'linear_segment' resp. 'cbseg' package. See documentation."
     )
+
+
+def _get_cgsegment(verbose=False):
+    try:
+        import linear_segment
+
+        def function(bin_values):
+            return linear_segment.segment(
+                bin_values, shuffles=1000, cutoff=0.3
+            )
+
+        return function
+    except Exception:
+        pass
+    try:
+        import cbseg
+
+        def function(bin_values):
+            return cbseg.segment(bin_values, shuffles=1000, p=0.0001)
+
+        return function
+    except Exception:
+        if verbose:
+            _missing_cbseg_msg()
+        return None
 
 
 class Annotation:
@@ -217,7 +227,7 @@ class Annotation:
 
     def make_bins(self):
         """Creates equidistant bins and then removes genomic gaps."""
-        bins = pr.gf.tile_genome(self.chromsizes, int(5e4))
+        bins = pr.gf.tile_genome(self.chromsizes, int(self.bin_size))
         bins = bins[bins.Chromosome != "chrM"]
         if self.gap is not None:
             bins = bins.subtract(self.gap)
@@ -551,9 +561,7 @@ class CNV:
         if np.min(mean_intensity) < 5000 and self.verbose:
             log(f"[CNV] {prefix}: Intensities are abnormally low (< 5000).")
         if np.max(mean_intensity) > 50000 and self.verbose:
-            log(
-                f"[CNV] {prefix}: Intensities are abnormally high (> 50000)."
-            )
+            log(f"[CNV] {prefix}: Intensities are abnormally high (> 50000).")
         methyl_data.intensity = pd.DataFrame(
             intensity.T,
             columns=methyl_data.probes,
@@ -669,7 +677,7 @@ class CNV:
         cbsegment = _get_cgsegment()
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
-        seg = cbsegment(bin_values, shuffles=1000, p=0.01)
+        seg = cbsegment(bin_values)
         return pd.DataFrame(
             [
                 [chrom, df.Start.iloc[s.start], df.End.iloc[s.end - 1]]
@@ -686,8 +694,7 @@ class CNV:
         It calculates the CNV segments for each chromosome and stores them
         in the 'segments' attribute of the object.
         """
-        if _get_cgsegment() is None:
-            _missing_cbseg_msg()
+        if _get_cgsegment(verbose=True) is None:
             return
         if self.verbose:
             log(f"[CNV] {self.probe} Setting segments...")

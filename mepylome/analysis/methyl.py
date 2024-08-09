@@ -818,7 +818,7 @@ class MethylAnalysis:
             log("[MethylAnalysis] No annotation file found")
         if self.verbose:
             log("[MethylAnalysis] Try to import cbseg or linear_segment...")
-        self.do_seg = False if _get_cgsegment() is None else do_seg
+        self.do_seg = False if _get_cgsegment(verbose=True) is None else do_seg
 
         self._update_paths()
         self.read_umap_plot_from_disk()
