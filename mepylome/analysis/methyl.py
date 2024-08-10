@@ -55,6 +55,7 @@ from mepylome.dtypes import (
     _overlap_indices,
     idat_basepaths,
     is_valid_idat_basepath,
+    read_cnv_data_from_disk,
 )
 from mepylome.utils import (
     MEPYLOME_TMP_DIR,
@@ -1265,6 +1266,43 @@ class MethylAnalysis:
         )
         self._prog_bar.reset(1, 1)
 
+    def get_cnv(self, sample_id):
+        """Retrieves the CNV information for a specified sample.
+
+        This method locates the IDAT file corresponding to the provided
+        `sample_id`, processes it to generate CNV data if not already
+        available, and reads the resulting CNV information from disk.
+
+        Args:
+            sample_id (str): The identifier for the sample whose CNV data is to
+                be retrieved.
+
+        Returns:
+            tuple: A tuple containing the following elements:
+                - bins (DataFrame): Data representing CNV bins.
+                - detail (DataFrame): Gene CNV information.
+                - segments (DataFrame): Segmented CNV data.
+                If CNV data is not found or cannot be generated, returns (None,
+                None, None).
+        """
+        idat_path = self.idat_handler.sample_paths[sample_id]
+        cnv_path = self.cnv_dir / (sample_id + ZIP_ENDING)
+        write_cnv_to_disk(
+            sample_path=[idat_path],
+            reference_dir=self.reference_dir,
+            cnv_dir=self.cnv_dir,
+            prep=self.prep,
+            do_seg=self.do_seg,
+            pbar=self._prog_bar,
+            verbose=self.verbose,
+        )
+        if cnv_path.exists():
+            bins, detail, segments = read_cnv_data_from_disk(
+                self.cnv_dir, sample_id
+            )
+            return bins, detail, segments
+        return None, None, None
+
     def classify(self, clf_list=None, use_all_cpgs=False):
         """Classify the sample using specified classifiers.
 
@@ -1412,6 +1450,7 @@ class MethylAnalysis:
                     return no_update, no_update, no_update
                 else:
                     return self.umap_plot, no_update, ""
+
             genes_sel = tuple(genes_sel) if genes_sel else ()
             trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
             self.ids_to_highlight = ids_to_highlight
