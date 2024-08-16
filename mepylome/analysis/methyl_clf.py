@@ -67,7 +67,8 @@ def _evaluate_clf(clf, x_sample, X_test, y_test):
 
 def _classifier_data(betas_df, classes_, sample_id):
     """Prepares training and test datasets for classifier training."""
-    idx = betas_df.index.get_loc(sample_id)
+    # idx = betas_df.index.get_loc(sample_id)
+    idx = betas_df.index.tolist().index(sample_id)
     x_sample = betas_df.iloc[idx].values
     X = betas_df.drop(index=sample_id).values
     y = classes_.copy()

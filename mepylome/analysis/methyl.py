@@ -1285,17 +1285,18 @@ class MethylAnalysis:
                 If CNV data is not found or cannot be generated, returns (None,
                 None, None).
         """
-        idat_path = self.idat_handler.sample_paths[sample_id]
         cnv_path = self.cnv_dir / (sample_id + ZIP_ENDING)
-        write_cnv_to_disk(
-            sample_path=[idat_path],
-            reference_dir=self.reference_dir,
-            cnv_dir=self.cnv_dir,
-            prep=self.prep,
-            do_seg=self.do_seg,
-            pbar=self._prog_bar,
-            verbose=self.verbose,
-        )
+        if not cnv_path.exists():
+            idat_path = self.idat_handler.sample_paths[sample_id]
+            write_cnv_to_disk(
+                sample_path=[idat_path],
+                reference_dir=self.reference_dir,
+                cnv_dir=self.cnv_dir,
+                prep=self.prep,
+                do_seg=self.do_seg,
+                pbar=self._prog_bar,
+                verbose=self.verbose,
+            )
         if cnv_path.exists():
             bins, detail, segments = read_cnv_data_from_disk(
                 self.cnv_dir, sample_id
@@ -1340,6 +1341,20 @@ class MethylAnalysis:
         log("[MethylAnalysis] Start classifying...")
 
         betas = self.betas_df_all_cpgs if use_all_cpgs else self.betas_df
+        sample_index = betas.index.tolist().index(self.cnv_id)
+
+        def _empty_class(cls):
+            return cls.strip("|") == ""
+
+        valid_indices = [
+            i
+            for i, x in enumerate(classes_)
+            if (not _empty_class(x) or i == sample_index)
+            and not (i > sample_index and betas.index[i] == self.cnv_id)
+        ]
+        classes_ = [classes_[i] for i in valid_indices]
+        betas = betas.iloc[valid_indices]
+
         return fit_and_evaluate_classifiers(
             betas_df=betas,
             classes_=classes_,

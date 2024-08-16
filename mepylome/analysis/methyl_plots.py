@@ -86,17 +86,24 @@ def discrete_colors(names):
 
 def continuous_colors(names):
     """Returns a continuous colorscheme for all methylation classes."""
-    sorted_names = sorted(names)
-    n_names = len(sorted_names)
+    n_names = len(names)
     color_scale = plotly.colors.get_colorscale("Plasma")
     colors = {}
-    for i, name in enumerate(sorted_names):
+    for i, name in enumerate(names):
         fraction = i / max(1, n_names - 1)
         color = plotly.colors.sample_colorscale(
             color_scale, fraction, colortype="rgb"
         )
         colors[name] = color[0]
     return colors
+
+
+def _mixed_sort_key(s):
+    """Sorts numeric if input is a number, else alphanumeric."""
+    try:
+        return (0, float(s))
+    except ValueError:
+        return (1, s)
 
 
 def umap_plot_from_data(umap_df, use_discrete_colors=True):
@@ -115,6 +122,7 @@ def umap_plot_from_data(umap_df, use_discrete_colors=True):
     if use_discrete_colors:
         color_map = discrete_colors(methyl_classes)
     else:
+        methyl_classes = sorted(methyl_classes, key=_mixed_sort_key)
         color_map = continuous_colors(methyl_classes)
     category_orders = {"Umap_color": methyl_classes}
     umap_plot = px.scatter(
