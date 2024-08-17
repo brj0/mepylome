@@ -2,6 +2,8 @@
 
 from enum import Enum, unique
 
+from mepylome.dtypes.idat import IdatParser
+
 
 @unique
 class ArrayType(Enum):
@@ -43,3 +45,9 @@ class ArrayType(Enum):
             return cls.ILLUMINA_MOUSE
 
         return cls.UNKNOWN
+
+    @classmethod
+    def from_idat(cls, path):
+        """Infers array type from idat_file."""
+        probe_count = IdatParser(path, array_type_only=True).n_snps_read
+        return ArrayType.from_probe_count(probe_count)

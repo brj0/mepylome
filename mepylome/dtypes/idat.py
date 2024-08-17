@@ -84,6 +84,7 @@ class IdatSectionCode(IntEnum):
     UNKNOWN_7 = 510  # unknown
     NUM_SNPS_READ = 1000
 
+
 def _get_file_size(file_like):
     """Get the size of a file-like object."""
     # Check if the file-like object has a fileno method
@@ -99,6 +100,7 @@ def _get_file_size(file_like):
 
     msg = "Cannot determine file size. Unknown file format"
     raise ValueError(msg)
+
 
 class IdatParser:
     """Reads and parses an IDAT file.
@@ -123,9 +125,11 @@ class IdatParser:
         file,
         *,
         intensity_only=False,
+        array_type_only=False,
     ):
         """Reads and parses the IDAT file."""
         self.intensity_only = intensity_only
+        self.array_type_only = array_type_only
         with get_file_object(file) as idat_file:
             self.file_size = _get_file_size(idat_file)
 
@@ -162,6 +166,9 @@ class IdatParser:
 
         seek_to_section(IdatSectionCode.NUM_SNPS_READ)
         self.n_snps_read = read_int(idat_file)
+
+        if self.array_type_only:
+            return
 
         seek_to_section(IdatSectionCode.ILLUMINA_ID)
         self.illumina_ids = read_array(idat_file, "<i4", self.n_snps_read)

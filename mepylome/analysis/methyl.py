@@ -49,8 +49,8 @@ from mepylome.analysis.methyl_plots import (
 from mepylome.dtypes import (
     ZIP_ENDING,
     Annotation,
+    ArrayType,
     Manifest,
-    RawData,
     _get_cgsegment,
     _overlap_indices,
     idat_basepaths,
@@ -484,7 +484,6 @@ def get_side_navigation(
                                     "fontFamily": "monospace",
                                     "fontSize": "9px",
                                     "whiteSpace": "pre-wrap",
-                                    # "height": "40vh",
                                     "display": "flex",
                                     "flexDirection": "column-reverse",
                                 },
@@ -501,7 +500,7 @@ def get_side_navigation(
 def guess_annotation_file(directory, verbose=False):
     """Returns the first spreadsheat file in the given directory."""
     if verbose:
-        print("[MethylAnalysis] Try to read annotation file...")
+        log("[MethylAnalysis] Try to read annotation file...")
     supported_extensions = [".csv", ".tsv", ".ods", ".xls", ".xlsx"]
     for file in directory.glob("*"):
         if file.suffix in supported_extensions:
@@ -649,7 +648,7 @@ class MethylAnalysis:
             saved (default: "/tmp/mepylome/analysis").
 
         upload_dir (NoneType): Directory for uploaded files, initially set to
-            None.
+            invalid path.
 
         prep (str): Prepreparation method used for data preparation (default:
             "illumina").
@@ -768,7 +767,6 @@ class MethylAnalysis:
     ):
         self.umap_cpgs = None
         self.analysis_dir = Path(analysis_dir).expanduser()
-        self._prev_analysis_dir = self.analysis_dir
         self.annotation = Path(annotation).expanduser()
         self.overlap = overlap
         self._idat_handler = None
@@ -780,7 +778,7 @@ class MethylAnalysis:
         self.debug = debug
         self.reference_dir = Path(reference_dir).expanduser()
         self.output_dir = Path(output_dir).expanduser()
-        self.upload_dir = None
+        self.upload_dir = INVALID_PATH
         self.cnv_dir = None
         self.umap_dir = None
         self.prep = prep
@@ -821,6 +819,7 @@ class MethylAnalysis:
             log("[MethylAnalysis] Try to import cbseg or linear_segment...")
         self.do_seg = False if _get_cgsegment(verbose=True) is None else do_seg
 
+        self._prev_vars = self._get_vars_or_hashes()
         self._update_paths()
         self.read_umap_plot_from_disk()
 
@@ -863,12 +862,30 @@ class MethylAnalysis:
         }
         return {**default, **umap_parms}
 
-    @property
-    def _cpgs_hash(self):
-        """Returnd or computes and caches the hash of the CpG array."""
+    def _get_cpgs_hash(self):
+        """Returns or computes and caches the hash of the CpG array."""
         if self._internal_cpgs_hash is None:
             self._internal_cpgs_hash = input_args_id(self.cpgs)
         return self._internal_cpgs_hash
+
+    def _get_uploaded_files_hash(self):
+        """Returns the hash of the uploaded files."""
+        if not self.upload_dir.exists():
+            return ""
+        return input_args_id(
+            extra_hash=sorted(str(x) for x in self.upload_dir.iterdir())
+        )
+
+    def _get_vars_or_hashes(self):
+        """Returns current variables and hashes."""
+        return {
+            "analysis_dir": self.analysis_dir,
+            "prep": self.prep,
+            "n_cpgs": self.n_cpgs,
+            "cpg_selection": self.cpg_selection,
+            "cpgs": self._get_cpgs_hash(),
+            "uploaded_files": self._get_uploaded_files_hash(),
+        }
 
     def _get_cpgs(self, input_var="auto"):
         """Returns CpG sites based on the provided input variable."""
@@ -894,7 +911,7 @@ class MethylAnalysis:
 
         if "auto" in input_var:
             input_var = {
-                RawData(path).array_type.value
+                str(ArrayType.from_idat(str(path) + "_Grn.idat"))
                 for path in self.idat_handler.sample_paths.values()
             }
             input_var = list(input_var)
@@ -940,22 +957,16 @@ class MethylAnalysis:
             log("[MethylAnalysis] Update filepaths...")
         if not self.output_dir.exists():
             return
-        if self._prev_analysis_dir != self.analysis_dir:
-            self._prev_analysis_dir = self.analysis_dir
+        if self._prev_vars["analysis_dir"] != self.analysis_dir:
             self.cpgs = self._get_cpgs()
-            self.betas_df_all_cpgs = None
-            self.betas_df = None
 
         # betas dir
-        prev_betas_path = self.betas_path
         betas_hash_key = input_args_id(
             "betas",
             self.analysis_dir,
             self.prep,
         )
         self.betas_path = self.output_dir / f"{betas_hash_key}"
-        if prev_betas_path != self.betas_path:
-            self.betas_df_all_cpgs = None
 
         # cnv dir
         cnv_hash_key = input_args_id(
@@ -977,22 +988,48 @@ class MethylAnalysis:
         ensure_directory_exists(self.upload_dir)
 
         # umap dir
-        prev_umap_dir = self.umap_dir
-        uploaded_files = sorted(str(x) for x in self.upload_dir.iterdir())
+        cur_vars = self._get_vars_or_hashes()
         umap_hash_key = input_args_id(
             "umap",
             self.analysis_dir,
             self.prep,
             self.n_cpgs,
             self.cpg_selection,
-            extra_hash=[self._cpgs_hash] + uploaded_files,
+            extra_hash=[cur_vars["cpgs"], cur_vars["uploaded_files"]],
         )
         self.umap_dir = self.output_dir / f"{umap_hash_key}"
         self.umap_plot_path = self.umap_dir / "umap_plot.csv"
         ensure_directory_exists(self.umap_dir)
-        if prev_umap_dir != self.umap_dir:
-            self.betas_df_all_cpgs = None
+
+        # Reset betas_df if necessary
+        dependencies = [
+            "analysis_dir",
+            "prep",
+            "n_cpgs",
+            "cpg_selection",
+            "cpgs",
+            "uploaded_files",
+        ]
+        if any(
+            self._prev_vars[arg] != cur_vars[arg] for arg in dependencies
+        ):
             self.betas_df = None
+
+        # Reset betas_df_all_cpgs if necessary
+        dependencies = [
+            "analysis_dir",
+            "prep",
+            "cpg_selection",
+            "cpgs",
+            "uploaded_files",
+        ]
+        if any(
+            self._prev_vars[arg] != cur_vars[arg] for arg in dependencies
+        ):
+            self.betas_df_all_cpgs = None
+
+        # Update variables/hashes
+        self._prev_vars = cur_vars
 
     def make_umap(self):
         """Generates the UMAP plot.
@@ -1497,21 +1534,21 @@ class MethylAnalysis:
                     self._retrieve_zoom(curr_umap_plot)
                     try:
                         self.make_cnv_plot(sample_id, genes_sel)
-                    except Exception as e:
-                        log("[MethylAnalysis] umap failed:", e)
+                    except Exception as exc:
+                        log("[MethylAnalysis] umap failed:", exc)
                         log("[MethylAnalysis] sample_id:", sample_id)
                         log("[MethylAnalysis] MethylAnalysis:", self)
-                        return no_update, no_update, str(e)
+                        return no_update, no_update, str(exc)
                     else:
                         return self.umap_plot, self.cnv_plot, ""
             if trigger == "selected-genes" and genes_sel is not None:
                 try:
                     self.make_cnv_plot(self.cnv_id, genes_sel)
-                except Exception as e:
-                    log("[MethylAnalysis] selected-genes failed:", e)
+                except Exception as exc:
+                    log("[MethylAnalysis] selected-genes failed:", exc)
                     log("[MethylAnalysis] self.cnv_id:", self.cnv_id)
                     log("[MethylAnalysis] genes_sel:", genes_sel)
-                    return no_update, no_update, str(e)
+                    return no_update, no_update, str(exc)
                 else:
                     return no_update, self.cnv_plot, ""
             return self.umap_plot, self.cnv_plot, ""
@@ -1801,6 +1838,7 @@ class MethylAnalysis:
                         list_of_contents, list_of_names, list_of_dates
                     )
                 ]
+                self.idat_handler = None
                 self._update_paths()
                 return children
 
