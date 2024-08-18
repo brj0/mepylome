@@ -227,6 +227,8 @@ def write_cnv_to_disk(
     ]
     if len(new_idat_paths) == 0:
         return
+    if verbose:
+        log("[CNV-Plot] Write CNV to disk...")
     # Load the reference into memory before parallelization to prevent loading
     # it for each core.
     Manifest.load()
@@ -279,6 +281,8 @@ def get_cnv_plot(
         do_seg=do_seg,
         verbose=verbose,
     )
+    if verbose:
+        log("[CNV-Plot] Read CNV from disk....")
     bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
     plot = cnv_plot_from_data(
         sample_id,

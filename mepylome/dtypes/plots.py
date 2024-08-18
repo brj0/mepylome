@@ -4,13 +4,14 @@ import io
 import threading
 import webbrowser
 import zipfile
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 
+from mepylome.dtypes.cache import memoize
 from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
 from mepylome.utils import log
 from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
@@ -94,7 +95,8 @@ def get_x_mid(df):
     return df["Chromosome"].map(offset) + (df["Start"] + df["End"]) // 2
 
 
-def cnv_grid(genome):
+@lru_cache
+def cnv_grid():
     """Returns chromosome grid for CNV Plot as a cached plotly object."""
     from plotly.io import from_json
 
@@ -110,14 +112,14 @@ def cnv_grid(genome):
             "linecolor": "black",
             "linewidth": 1,
             "mirror": True,
-            "range": [0, len(genome)],
+            "range": [0, len(reference_genome)],
             "showgrid": False,
             "ticklen": 10,
             "tickmode": "array",
             "ticks": "outside",
             "tickson": "boundaries",
-            "ticktext": genome.chrom.name,
-            "tickvals": genome.chrom.center,
+            "ticktext": reference_genome.chrom.name,
+            "tickvals": reference_genome.chrom.center,
             "zeroline": False,
         },
         yaxis={
@@ -129,47 +131,47 @@ def cnv_grid(genome):
         template="simple_white",
     )
     # Vertical line: centromere.
-    for i in genome.chrom.centromere_offset:
+    for i in reference_genome.chrom.centromere_offset:
         grid.add_vline(x=i, line_color="black", line_dash="dot", line_width=1)
     # Vertical line: chromosomes.
-    for i in [*genome.chrom.offset.tolist(), len(genome)]:
+    for i in [*reference_genome.chrom.offset.tolist(), len(reference_genome)]:
         grid.add_vline(x=i, line_color="black", line_width=1)
+    # Draw horizontal line.
+    grid.add_hline(y=0, line_color="black", line_width=1)
     # Save to disk
     grid.write_json(CNV_GRID)
     return grid
 
 
-def cnv_bins_plot(data_frame, title, labels, genome):
+def cnv_bins_plot(data_frame, title, labels):
     """Create CNV plot from CNV data.
 
     Args:
         data_frame: DataFrame with columns 'x', 'y', and 'hover_data'
         title: Title of plot
         labels: Touple of labels for x-axis and y-axis.
-        genome: Reference Genome.
     """
-    grid = cnv_grid(genome)
-    # Draw horizontal line.
-    grid.add_hline(y=0, line_color="black", line_width=1)
-    plot = px.scatter(
-        data_frame=data_frame,
-        x="x",
-        y="y",
-        labels={
-            "x": labels[0],
-            "y": labels[1],
-        },
+    scatter_trace = go.Scattergl(
+        x=data_frame["x"],
+        y=data_frame["y"],
+        mode="markers",
+        marker=dict(
+            color=data_frame["y"], colorscale="RdBu", cmin=-0.4, cmax=0.4
+        ),
+        text=data_frame["hover_data"],
+        hovertemplate=(
+            "<b>Value:</b> %{y}<br><b>Genes:</b> %{text}<extra></extra>"
+        ),
+        showlegend=False,
+    )
+    plot = go.Figure(cnv_grid())
+    plot.add_trace(scatter_trace)
+    plot.update_layout(
         title=title,
-        color="y",
-        range_color=[-0.4, 0.4],
-        color_continuous_scale="RdBu",
-        render_mode=PLOTLY_RENDER_MODE,
-        hover_data=["hover_data"],
+        yaxis_range=[-2, 2],
+        xaxis_title=labels[0],
+        yaxis_title=labels[1],
     )
-    plot.update_traces(
-        hovertemplate="<b>Value:</b> %{y} <br><b>Genes:</b> %{customdata[0]}",
-    )
-    plot.update_layout(grid.layout, yaxis_range=[-2, 2])
     return plot
 
 
@@ -254,6 +256,7 @@ def add_highlited_bins(plot, highlighted_bins):
     return plot
 
 
+@memoize
 def find_genes_within_bins(bins, detail):
     """Determine genes overlapping with each bin and add them as a column.
 
@@ -268,25 +271,31 @@ def find_genes_within_bins(bins, detail):
     Raises:
         ValueError: If the 'bins' DataFrame is not sorted.
     """
-    bins["X_start"] = add_offset(bins, "Chromosome", "Start")
-    bins["X_end"] = add_offset(bins, "Chromosome", "End")
-    if not bins.X_start.is_monotonic_increasing:
+    bins_X_start = add_offset(bins, "Chromosome", "Start")
+    bins_X_end = add_offset(bins, "Chromosome", "End")
+    if not bins_X_start.is_monotonic_increasing:
         msg = "'bins' is not sorted"
         raise ValueError(msg)
-    detail["X_start"] = add_offset(detail, "Chromosome", "Start")
-    detail["X_end"] = add_offset(detail, "Chromosome", "End")
-    detail["Start_bin"] = np.digitize(detail.X_start, bins.X_start) - 1
-    detail["Start_bin_"] = np.digitize(detail.X_start, bins.X_end, right=True)
-    detail["End_bin"] = np.digitize(detail.X_end, bins.X_start) - 1
+    detail_X_start = add_offset(detail, "Chromosome", "Start")
+    detail_X_end = add_offset(detail, "Chromosome", "End")
+    detail_Start_bin = np.digitize(detail_X_start, bins_X_start) - 1
+    detail_Start_bin_ = np.digitize(detail_X_start, bins_X_end, right=True)
+    detail_End_bin = np.digitize(detail_X_end, bins_X_start) - 1
     # Identify genes that start within gaps between bins
-    detail.loc[(detail["Start_bin"] < detail["Start_bin_"]), "Start_bin"] += 1
-    detail["Range"] = [
+    detail_Start_bin[detail_Start_bin < detail_Start_bin_] += 1
+    detail_Range = [
         np.arange(start, end)
-        for start, end in zip(detail["Start_bin"], detail["End_bin"] + 1)
+        for start, end in zip(detail_Start_bin, detail_End_bin + 1)
     ]
-    df_long_format = detail[["Name", "Range"]].explode("Range")
-    bins["Genes"] = (
-        df_long_format.dropna()
+    lengths = [len(x) for x in detail_Range]
+    df_expanded = pd.DataFrame(
+        {
+            "Name": np.repeat(detail["Name"].values, lengths),
+            "Range": np.concatenate(detail_Range),
+        }
+    )
+    bins_Genes = (
+        df_expanded
         # By sorting first, resultig string will be sorted too
         .sort_values(by="Name")
         .groupby("Range")["Name"]
@@ -294,10 +303,7 @@ def find_genes_within_bins(bins, detail):
         .reindex(range(len(bins)), fill_value="")
         .reset_index(drop=True)
     )
-    detail = detail.drop(
-        columns=["Start_bin", "Start_bin_", "End_bin"],
-    )
-    return bins, detail
+    return bins_Genes, detail_Range
 
 
 def _find_genes_within_bins(bins, detail):
@@ -362,24 +368,28 @@ def cnv_plot_from_data(
         Plotly Figure: A Plotly figure representing the CNV plot.
     """
     if verbose:
-        log("[CNV-Plot] Read CNV from disk...")
-    bins, detail = find_genes_within_bins(bins, detail)
+        log("[CNV-Plot] Make CNV plot: prepare data...")
+    bins_Genes, detail_Range = find_genes_within_bins(
+        bins[["Chromosome", "Start", "End"]],
+        detail[["Chromosome", "Start", "End", "Name"]],
+    )
+    bins["Genes"] = bins_Genes
+    detail["Range"] = detail_Range
     scatter_df = bins[["X_mid", "Median", "Genes"]]
     scatter_df.columns = ["x", "y", "hover_data"]
 
     # Base scatterplot
     if verbose:
-        log("[CNV-Plot] Make plot: bins...")
+        log("[CNV-Plot] Make CNV plot: bins...")
     plot = cnv_bins_plot(
         data_frame=scatter_df,
         title=f"Sample ID: {sample_id}",
         labels=("", ""),
-        genome=reference_genome,
     )
 
     # Highlight bins adjacent to the added genes
     if verbose:
-        log("[CNV-Plot] Make plot: genes...")
+        log("[CNV-Plot] Make CNV plot: genes...")
     genes_sel = genes_sel if genes_sel else []
     genes_x_range = (
         detail[detail["Name"].isin(genes_sel)]["Range"].explode().tolist()
@@ -394,7 +404,7 @@ def cnv_plot_from_data(
 
     # Draw the segments
     if verbose:
-        log("[CNV-Plot] Make plot: segments...")
+        log("[CNV-Plot] Make CNV plot: segments...")
     plot = add_segments(plot, segments)
     return plot
 
@@ -415,6 +425,7 @@ class CNVPlot:
         port (int): Port number for running the Dash app. Defaults to 8050.
         app (Dash): Dash application object created for the CNV plot.
     """
+
     def __init__(
         self,
         cnv_dir,

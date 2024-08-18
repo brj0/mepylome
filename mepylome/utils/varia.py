@@ -18,7 +18,7 @@ __all__ = ["Timer", "normexp_get_xs"]
 def log(*args, sep=" ", end="\n"):
     """Print message with time stamp."""
     timestamp = datetime.now().strftime("%H:%M:%S")
-    # timestamp = datetime.now().strftime("%a %b %d %H:%M:%S %Y")
+    # timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
     message = sep.join(map(str, args))
     print(f"{timestamp} {message}", end=end)
 

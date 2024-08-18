@@ -1015,10 +1015,9 @@ class ReferenceMethylData:
     def pickle_filename(prep, idat_files):
         string = prep + "," + ",".join(sorted(str(x) for x in idat_files))
         hash_str = hashlib.md5(string.encode()).hexdigest()
-        dir_str = idat_files[0].parent.name
         return (
             MEPYLOME_TMP_DIR
-            / f"ReferenceMethylData-{dir_str}-{prep}-{hash_str}.pkl"
+            / f"ReferenceMethylData-{prep}-{hash_str}.pkl"
         )
 
     def __getitem__(self, array_type):

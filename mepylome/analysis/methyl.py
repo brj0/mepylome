@@ -928,6 +928,13 @@ class MethylAnalysis:
             if "all" in input_var:
                 input_var = valid_str_parms
 
+
+            if self.verbose:
+                log(
+                    "[MethylAnalysis] Load manifests and "
+                    "calculate CpG overlap..."
+                )
+
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
                 for array_type in valid_str_parms[1:]

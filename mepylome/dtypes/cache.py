@@ -69,6 +69,7 @@ def cache_key(*args):
         "RangeIndex": lambda x: x.values.tobytes(),
         "Index": lambda x: x.values.tobytes(),
         "ndarray": np_hash,
+        "DataFrame": lambda df: tuple(np_hash(df[col].values) for col in df),
     }
     keys = []
     for arg in args:
