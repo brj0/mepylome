@@ -759,7 +759,10 @@ class CNV:
             dfs_to_write.append(("segments.csv", self.segments.df))
         if "metadata" in data:
             metadata_df = pd.DataFrame(
-                {"Array_type": [str(self.annotation.array_type)]},
+                {
+                    "Array_type": [str(self.annotation.array_type)],
+                    "Noise": [self.noise],
+                },
             )
             dfs_to_write.append(("metadata.csv", metadata_df))
         base_path = Path(path).expanduser()

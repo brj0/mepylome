@@ -173,6 +173,7 @@ def get_navbar():
 
 def get_side_navigation(
     sample_ids,
+    ids_to_highlight,
     annotation_columns,
     analysis_dir,
     annotation,
@@ -379,6 +380,7 @@ def get_side_navigation(
                             dcc.Dropdown(
                                 id="ids-to-highlight",
                                 options=sample_ids,
+                                value=ids_to_highlight,
                                 multi=True,
                             ),
                             html.Br(),
@@ -800,6 +802,8 @@ class MethylAnalysis:
         self.ids_to_highlight = None
         self.app = None
 
+        ensure_directory_exists(self.output_dir)
+
         self._prog_bar = ProgressBar()
         self._use_discrete_colors = True
         self._internal_cpgs_hash = None
@@ -928,7 +932,6 @@ class MethylAnalysis:
             if "all" in input_var:
                 input_var = valid_str_parms
 
-
             if self.verbose:
                 log(
                     "[MethylAnalysis] Load manifests and "
@@ -1017,9 +1020,7 @@ class MethylAnalysis:
             "cpgs",
             "uploaded_files",
         ]
-        if any(
-            self._prev_vars[arg] != cur_vars[arg] for arg in dependencies
-        ):
+        if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
             self.betas_df = None
 
         # Reset betas_df_all_cpgs if necessary
@@ -1030,9 +1031,7 @@ class MethylAnalysis:
             "cpgs",
             "uploaded_files",
         ]
-        if any(
-            self._prev_vars[arg] != cur_vars[arg] for arg in dependencies
-        ):
+        if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
             self.betas_df_all_cpgs = None
 
         # Update variables/hashes
@@ -1310,7 +1309,7 @@ class MethylAnalysis:
         )
         self._prog_bar.reset(1, 1)
 
-    def get_cnv(self, sample_id):
+    def get_cnv(self, sample_id, extract=None):
         """Retrieves the CNV information for a specified sample.
 
         This method locates the IDAT file corresponding to the provided
@@ -1320,15 +1319,24 @@ class MethylAnalysis:
         Args:
             sample_id (str): The identifier for the sample whose CNV data is to
                 be retrieved.
+            extract (list): Specifies the data to extract from the CNV
+                analysis.
+                    Options include:
+                    - "bins": Raw CNV data at the bin level.
+                    - "detail": Detailed CNV information (generally genes).
+                    - "segments": Segmented CNV regions.
+                    - "metadata": CNV analysis metadata.
 
         Returns:
             tuple: A tuple containing the following elements:
                 - bins (DataFrame): Data representing CNV bins.
                 - detail (DataFrame): Gene CNV information.
                 - segments (DataFrame): Segmented CNV data.
-                If CNV data is not found or cannot be generated, returns (None,
-                None, None).
+                If CNV data is not found or cannot be generated, returns None
+                for each extract value.
         """
+        if extract is None:
+            extract = ["bins", "detail", "segments"]
         cnv_path = self.cnv_dir / (sample_id + ZIP_ENDING)
         if not cnv_path.exists():
             idat_path = self.idat_handler.sample_paths[sample_id]
@@ -1342,11 +1350,12 @@ class MethylAnalysis:
                 verbose=self.verbose,
             )
         if cnv_path.exists():
-            bins, detail, segments = read_cnv_data_from_disk(
-                self.cnv_dir, sample_id
+            return read_cnv_data_from_disk(
+                self.cnv_dir,
+                sample_id,
+                extract=extract,
             )
-            return bins, detail, segments
-        return None, None, None
+        return (None,) * len(extract)
 
     def classify(self, clf_list=None, use_all_cpgs=False):
         """Classify the sample using specified classifiers.
@@ -1421,6 +1430,7 @@ class MethylAnalysis:
         app.title = "mepylome"
         side_navigation = get_side_navigation(
             self.ids,
+            self.ids_to_highlight,
             self.idat_handler.properties,
             self.analysis_dir,
             self.idat_handler.annotation_file,
