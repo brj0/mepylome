@@ -23,7 +23,7 @@ Performance Comparison
   CNV (Copy Number Variation) analysis multiple times faster than `minfi` and
   `conumee2.0`.
 - **Overall Speed**: On average, `mepylome` is >100 times faster than `minfi`
-  and >10 times faster `conumee2.0`.
+  and >10 times faster than `conumee2.0`.
 - **Memory Consumption**: `mepylome` uses >3 times less memory compared to
   `minfi` and `conumee2.0` together.
 
