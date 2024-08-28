@@ -19,5 +19,6 @@ class TestManifests(unittest.TestCase):
         manifest.proc_path.unlink()
         manifest.ctrl_path.unlink()
 
+
 if __name__ == "__main__":
     unittest.main()

@@ -436,11 +436,16 @@ class MethylData:
         if len(ci["ids_ng_cont"]) <= 30:
             return
 
-        grn_bg = np.sort(self._grn[:, ci["ids_ng_cont"]])[:, 30]
-        red_bg = np.sort(self._red[:, ci["ids_ng_cont"]])[:, 30]
+        grn_bg = np.partition(self._grn[:, ci["ids_ng_cont"]], 30)[:, 30]
+        red_bg = np.partition(self._red[:, ci["ids_ng_cont"]], 30)[:, 30]
 
-        self._grn = np.maximum(self._grn - grn_bg[:, np.newaxis], 0)
-        self._red = np.maximum(self._red - red_bg[:, np.newaxis], 0)
+        # Subtract and threshold at zero, using in-place operations
+        np.subtract(self._grn, grn_bg[:, np.newaxis], out=self._grn)
+        np.maximum(self._grn, 0, out=self._grn)
+
+        # Subtract and threshold at zero, using in-place operations
+        np.subtract(self._red, red_bg[:, np.newaxis], out=self._red)
+        np.maximum(self._red, 0, out=self._red)
 
     def _preprocess_raw_uncached(self):
         """Calculates methylated/unmethylated arrays without preprocessing.
@@ -586,8 +591,8 @@ class MethylData:
         ci = MethylData._cached_indices(self.manifest, self.ids, "raw")
         self._preprocess_raw(ci)
 
-    def _preprocess_raw(self, ci):
-        """Internal preprocess logic."""
+    def _preprocess_raw_old(self, ci):
+        """Same as _preprocess_raw just slower and cleaner."""
         self.methyl = np.full((len(self.probes), len(ci["idx"])), np.nan)
         self.methyl[:, ci["idx_1_red__"]] = self._red[:, ci["ids_1_red_b"]]
         self.methyl[:, ci["idx_1_grn__"]] = self._grn[:, ci["ids_1_grn_b"]]
@@ -596,6 +601,32 @@ class MethylData:
         self.unmethyl[:, ci["idx_1_red__"]] = self._red[:, ci["ids_1_red_a"]]
         self.unmethyl[:, ci["idx_1_grn__"]] = self._grn[:, ci["ids_1_grn_a"]]
         self.unmethyl[:, ci["idx_2______"]] = self._red[:, ci["ids_2_____a"]]
+        self.methyl_index = ci["idx"]
+        self.methyl_ilmnid = ci["ilmnid"]
+
+    def _preprocess_raw(self, ci):
+        """Internal preprocess logic."""
+        methyl_shape = (len(self.probes), len(ci["idx"]))
+        self.methyl = np.full(methyl_shape, np.nan)
+        self.unmethyl = np.full(methyl_shape, np.nan)
+        self.methyl[:, ci["idx_1_red__"]] = np.take(
+            self._red, ci["ids_1_red_b"], axis=1
+        )
+        self.methyl[:, ci["idx_1_grn__"]] = np.take(
+            self._grn, ci["ids_1_grn_b"], axis=1
+        )
+        self.methyl[:, ci["idx_2______"]] = np.take(
+            self._grn, ci["ids_2_____a"], axis=1
+        )
+        self.unmethyl[:, ci["idx_1_red__"]] = np.take(
+            self._red, ci["ids_1_red_a"], axis=1
+        )
+        self.unmethyl[:, ci["idx_1_grn__"]] = np.take(
+            self._grn, ci["ids_1_grn_a"], axis=1
+        )
+        self.unmethyl[:, ci["idx_2______"]] = np.take(
+            self._red, ci["ids_2_____a"], axis=1
+        )
         self.methyl_index = ci["idx"]
         self.methyl_ilmnid = ci["ilmnid"]
 
@@ -1015,10 +1046,7 @@ class ReferenceMethylData:
     def pickle_filename(prep, idat_files):
         string = prep + "," + ",".join(sorted(str(x) for x in idat_files))
         hash_str = hashlib.md5(string.encode()).hexdigest()
-        return (
-            MEPYLOME_TMP_DIR
-            / f"ReferenceMethylData-{prep}-{hash_str}.pkl"
-        )
+        return MEPYLOME_TMP_DIR / f"ReferenceMethylData-{prep}-{hash_str}.pkl"
 
     def __getitem__(self, array_type):
         if array_type not in self._methyl_data:

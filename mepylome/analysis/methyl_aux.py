@@ -107,9 +107,9 @@ def read_dataframe(path, **kwargs):
     path = Path(path)
     if path.suffix in [".xlsx", ".xls"]:
         return pd.read_excel(path, **kwargs)
-    elif path.suffix == ".ods":
+    if path.suffix == ".ods":
         return pd.read_excel(path, engine="odf", **kwargs)
-    elif path.suffix in [".csv", ".tsv"]:
+    if path.suffix in [".csv", ".tsv"]:
         return pd.read_csv(path, sep=None, **kwargs, engine="python")
     raise ValueError(
         "Unsupported file format. Supported: ods, xlsx, xls, csv, tsv."

@@ -11,21 +11,34 @@ import zipfile
 from pathlib import Path, PurePath
 from urllib.error import URLError
 
-import requests
 from tqdm import tqdm
 
 from mepylome.utils.varia import log
+
+try:
+    from importlib.resources import files
+except (ImportError, ModuleNotFoundError):
+    from importlib_resources import files
+
 
 __all__ = [
     "MEPYLOME_TMP_DIR",
     "download_file",
     "ensure_directory_exists",
     "get_file_object",
+    "get_resource_path",
     "get_csv_file",
     "reset_file",
 ]
 
 MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
+
+
+def get_resource_path(package, resource_name=""):
+    """Returns the full path to the resource within the specified package."""
+    package_path = files(package)
+    resource_path = package_path.joinpath(resource_name)
+    return resource_path
 
 
 def make_path_like(path_like):
@@ -84,6 +97,8 @@ def download_file(src_url, dest, overwrite=False):
             f"Downloading from {src_url} to {dest_dir}.\n"
             "Can take several minutes..."
         )
+        import requests
+
         response = requests.get(src_url, stream=True)
         response.raise_for_status()
         total_size = int(response.headers.get("content-length", 0))

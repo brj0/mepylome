@@ -16,9 +16,7 @@ from sklearn.svm import SVC
 
 def _get_clf_repr(clf):
     if isinstance(clf, KNeighborsClassifier):
-        return (
-            f"KNeighborsClassifier(n_neighbors={clf.n_neighbors})"
-        )
+        return f"KNeighborsClassifier(n_neighbors={clf.n_neighbors})"
     return repr(clf)
 
 
@@ -139,7 +137,7 @@ def fit_and_evaluate_classifiers(
     if len(x_sample) == 0:
         with open(log_file, "a") as f:
             f.write("No data to fit.\n")
-        return
+        return None
     # Otherwise train classifiers and evaluate.
     result = []
     for clf in clfs:

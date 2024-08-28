@@ -23,8 +23,6 @@ def log(*args, sep=" ", end="\n"):
     print(f"{timestamp} {message}", end=end)
 
 
-
-
 class Timer:
     """Measures the time elapsed in milliseconds."""
 

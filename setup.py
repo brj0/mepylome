@@ -56,7 +56,7 @@ with open("README.md") as f:
 
 setup(
     name="mepylome",
-    version="0.3.6",
+    version="0.3.7",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
     long_description=long_description,
@@ -74,6 +74,7 @@ setup(
         "dash>=2.16.0",
         "umap-learn",
         "dash_bootstrap_components",
+        "importlib_resources; python_version < '3.9'",
     ],
     ext_modules=ext_modules,
     keywords="Illumina, Methylation, Infinum, Microarray, BeadChip",

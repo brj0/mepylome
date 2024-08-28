@@ -10,6 +10,7 @@ from .files import (
     ensure_directory_exists,
     get_csv_file,
     get_file_object,
+    get_resource_path,
     reset_file,
 )
 from .tutorial_setup import setup_tutorial_files
@@ -22,6 +23,7 @@ __all__ = [
     "get_csv_file",
     "log",
     "reset_file",
+    "get_resource_path",
     "setup_tutorial_files",
     "Timer",
     "normexp_get_xs",

@@ -19,11 +19,9 @@ TEST_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output_tests")
 
 def difference(path_py, path_r):
     """Compares mepylome output with minfi output."""
-    title = (
-        f"{path_py.with_suffix('').name} vs. {path_r.with_suffix('').name}"
-    )
+    title = f"{path_py.with_suffix('').name} vs. {path_r.with_suffix('').name}"
     print("\n\n" + title)
-    print("*"*len(title))
+    print("*" * len(title))
     df_py = pd.read_csv(path_py, index_col=0)
     df_r = pd.read_csv(path_r, index_col=0)
     missing_cpgs = set(df_r.index) - set(df_py.index)
@@ -33,7 +31,7 @@ def difference(path_py, path_r):
     rel_diff = diff / df_r.loc[overlap_cpgs]
     abs_max = abs(diff).max().iloc[0]
     rel_abs_max = abs(rel_diff).max().iloc[0]
-    corr = df_py.iloc[:,0].corr(df_r.iloc[:,0])
+    corr = df_py.iloc[:, 0].corr(df_r.iloc[:, 0])
     print(f"    No. of CpG's in minfi not in mepylome: {len(missing_cpgs)}")
     print(f"    No. of CpG's in mepylome not in minfi: {len(extra_cpgs)}")
     print(f"    No. of CpG's in mepylome and in minfi: {len(overlap_cpgs)}")
@@ -43,6 +41,7 @@ def difference(path_py, path_r):
     print(f"    Difference of data frames:\n{diff}")
     print(f"    Relative difference of data frames:\n{rel_diff}")
     print(f"    Difference of data frames (summary):\n{diff.describe()}")
+
 
 idat_paths = sorted(TEST_OUTPUT_DIR.iterdir())
 

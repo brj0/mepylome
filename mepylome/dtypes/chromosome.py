@@ -10,7 +10,6 @@ Usage:
     df['Chromosome_2'] = Chromosome.pd_to_string(df['Chromosome_1'])
 """
 
-
 from enum import IntEnum, unique
 
 
@@ -32,6 +31,7 @@ class Chromosome(IntEnum):
         - pd_to_string(col): Converts Chromosome enum values to chromosome
             strings.
     """
+
     CHR0 = 0
     CHR1 = 1
     CHR2 = 2

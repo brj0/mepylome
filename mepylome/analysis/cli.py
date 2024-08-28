@@ -172,7 +172,7 @@ def start_mepylome():
         cli_args["load_full_betas"] = True
         cli_args["cpgs"] = "epic"
 
-    cli_args.pop('tutorial', None)
+    cli_args.pop("tutorial", None)
 
     methyl_analysis = MethylAnalysis(**cli_args)
     methyl_analysis.run_app(open_tab=True)

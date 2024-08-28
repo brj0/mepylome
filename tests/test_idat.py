@@ -10,6 +10,7 @@ from mepylome.tests.helpers import TempIdatFile
 
 class TestIdatParser(unittest.TestCase):
     """Unittest for IDAT parser."""
+
     def _check_idat_parser(self, test_data, gzipped):
         """Check the data consistency between writer and parser."""
         tmp_idat = TempIdatFile(test_data, gzipped)

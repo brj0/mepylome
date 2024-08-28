@@ -125,6 +125,7 @@ class IdatWriter:
             **self.data,
             **{k: v for k, v in default.items() if k not in self.data},
         }
+
         def check_type(key, dtype):
             if self.data[key].dtype != dtype:
                 expected = np.dtype(dtype)

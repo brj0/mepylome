@@ -9,15 +9,17 @@ from multiprocessing import Pool
 from pathlib import Path
 
 import pandas as pd
-import pkg_resources
-import requests
 from tqdm import tqdm
+
+from mepylome.utils.files import get_resource_path
 
 CONTROL = "Control (muscle tissue)"
 
 
 def download_file(url, save_path):
     """Function to download a file."""
+    import requests
+
     response = requests.get(url, stream=True)
     if response.status_code == HTTPStatus.OK:
         with open(save_path, "wb") as file:
@@ -73,8 +75,8 @@ def setup_tutorial_files(analysis_dir, reference_dir):
     reference_dir = Path(reference_dir)
     analysis_dir.mkdir(parents=True, exist_ok=True)
     reference_dir.mkdir(parents=True, exist_ok=True)
-    PACKAGE_DIR = Path(pkg_resources.resource_filename("mepylome", ""))
-    tutorial_df = pd.read_csv(PACKAGE_DIR / "data" / "tutorial.csv.gz")
+    TUTORIAL_CSV = get_resource_path("mepylome", "data/tutorial.csv.gz")
+    tutorial_df = pd.read_csv(TUTORIAL_CSV)
     tutorial_df.drop(columns=["Url_Grn"]).to_csv(
         analysis_dir / "annotation.csv", index=False
     )
