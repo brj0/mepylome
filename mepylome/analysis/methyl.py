@@ -1270,12 +1270,12 @@ class MethylAnalysis:
         if self.verbose:
             log(f"[MethylAnalysis] Make CNV for {sample_id}...")
         self.cnv_plot = get_cnv_plot(
-            idat_basepath,
-            self.reference_dir,
-            self.prep,
-            self.cnv_dir,
-            genes_sel,
-            self.do_seg,
+            sample_path=idat_basepath,
+            reference_dir=self.reference_dir,
+            prep=self.prep,
+            cnv_dir=self.cnv_dir,
+            genes_sel=genes_sel,
+            do_seg=self.do_seg,
             verbose=self.verbose,
         )
 

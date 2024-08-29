@@ -340,14 +340,14 @@ def read_cnv_data_from_disk(cnv_dir, sample_id, extract=None):
     )
     results = {key: value for key, value in zip(extract, unzipped)}
     # Calculate some plot x-values
-    if "bins" in results:
+    if results.get("bins") is not None:
         results["bins"]["X_mid"] = get_x_mid(results["bins"])
-    if "detail" in results:
+    if results.get("detail") is not None:
         results["detail"]["X_mid"] = get_x_mid(results["detail"])
         results["detail"]["Len"] = (
             results["detail"]["End"] - results["detail"]["Start"]
         )
-    if "segments" in results:
+    if results.get("segments") is not None:
         results["segments"]["X_start"] = add_offset(
             results["segments"], "Chromosome", "Start"
         )
