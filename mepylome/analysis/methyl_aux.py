@@ -18,9 +18,6 @@ from mepylome.dtypes.beads import (
     is_valid_idat_basepath,
 )
 from mepylome.dtypes.manifests import Manifest
-from mepylome.utils import (
-    log,
-)
 from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
 
 NEUTRAL_BETA = 0.49
@@ -45,9 +42,6 @@ class ProgressBar:
 
     def reset(self, max_value=100, cur_value=0, text=""):
         with self.lock:
-            if self.max_value == 0:
-                msg = "ProgressBar cannot be initailized with 0 samples."
-                raise ValueError(msg)
             self.cur_value = cur_value
             self.max_value = int(max_value)
             self.text = str(text)
@@ -59,7 +53,6 @@ class ProgressBar:
     def get_progress(self):
         with self.lock:
             if self.max_value == 0:
-                log("[ProgressBar] max_value is 0")
                 return 100
             return self.cur_value * 100 // self.max_value
 

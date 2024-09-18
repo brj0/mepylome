@@ -41,7 +41,6 @@ from mepylome.analysis.methyl_clf import (
 )
 from mepylome.analysis.methyl_plots import (
     EMPTY_FIGURE,
-    ERROR_ENDING,
     get_cnv_plot,
     umap_plot_from_data,
     write_cnv_to_disk,
@@ -53,6 +52,7 @@ from mepylome.dtypes import (
     Manifest,
     _get_cgsegment,
     _overlap_indices,
+    get_cn_summary,
     idat_basepaths,
     is_valid_idat_basepath,
     read_cnv_data_from_disk,
@@ -598,7 +598,7 @@ class MethylAnalysis:
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
 
         precalculate_cnv (bool): Flag to precalculate CNV information by
-            invoking 'precalculate_all_cnvsi (default: False).
+            invoking 'precompute_cnvs' (default: False).
 
         load_full_betas (bool): Flag to load beta values for all CpG sites
             into memory (default: False).
@@ -632,43 +632,8 @@ class MethylAnalysis:
         initialization, but not all.
 
     Attributes:
-        analysis_dir (Path): Path to the directory containing IDAT files for
-            analysis.
-
-        annotation (Path): Path to an annotation spreadsheet where Sentrix IDs
-            are listed in the first column.
-
-        overlap (bool): Flag to analyze only samples that are both in the
-            analysis directory and within the annotation file (default: False).
-
-        n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
-
-        reference_dir (Path): Path to the reference directory containing
-            reference IDAT files.
-
-        output_dir (Path): Path to the directory where output files will be
-            saved (default: "/tmp/mepylome/analysis").
-
         upload_dir (NoneType): Directory for uploaded files, initially set to
             invalid path.
-
-        prep (str): Prepreparation method used for data preparation (default:
-            "illumina").
-
-        cpg_selection (str): Method to select CpG sites ('top' or 'random')
-            (default: 'top'). For 'top', CpG sites are selected based on their
-            variation, taking the most varying ones. For 'random', CpG sites
-            are randomly selected.
-
-        host (str): Host address for the Dash application (default:
-            'localhost').
-
-        port (int): Port number for the Dash application (default: 8050).
-
-        debug (bool): Flag to enable debug mode for the Dash application
-            (default: False).
-
-        verbose (bool): Flag to enable verbose logging (default: True).
 
         cnv_dir (NoneType): Directory for CNV (Copy Number Variation) data,
             initially set to None.
@@ -678,12 +643,6 @@ class MethylAnalysis:
 
         umap_cpgs (NoneType): CpG sites for UMAP analysis, initially set to
             None.
-
-        precalculate_cnv (bool): Flag to precalculate CNV information by
-            invoking 'precalculate_all_cnvs' (default: False).
-
-        load_full_betas (bool): Flag to load beta values for all CpG sites into
-            memory (default: False).
 
         betas_df (NoneType): Dataframe containing beta values, initially set to
             None.
@@ -1279,27 +1238,32 @@ class MethylAnalysis:
             verbose=self.verbose,
         )
 
-    def precalculate_all_cnvs(self):
+    def precompute_cnvs(self, sample_ids=None):
         """Precalculates CNVs for all samples and saves them to disk.
+
+        This method performs CNV analysis, and writes the output to the
+        configured CNV directory. If `sample_ids` is not provided, the method
+        will compute CNVs for all samples found in the `analysis_dir`.
+
+        Args:
+            sample_ids (list, optional): A list of sample IDs to process. If
+                `None`, the function will compute CNVs for all samples in the
+                `analysis_dir`. Default is `None`.
 
         Note:
             Precalculating CNVs improves performance but requires additional
             memory space in the output directory.
         """
         if self.verbose:
-            log("[MethylAnalysis] Precalculate all CNV's...")
+            log("[MethylAnalysis] Precalculate CNV's...")
         self._update_paths()
-        sample_ids = [
-            x.name
-            for x in idat_basepaths(self.analysis_dir)
-            if not Path(self.cnv_dir, x.name + ZIP_ENDING).exists()
-            and not Path(self.cnv_dir, str(x) + ERROR_ENDING).exists()
-        ]
-        if len(sample_ids) == 0:
-            return
+        if sample_ids is None:
+            sample_ids = [x.name for x in idat_basepaths(self.analysis_dir)]
         self._prog_bar.reset(len(sample_ids), text="(CNV)")
         write_cnv_to_disk(
-            sample_path=list(self.idat_handler.sample_paths.values()),
+            sample_path=[
+                self.idat_handler.sample_paths[x] for x in sample_ids
+            ],
             reference_dir=self.reference_dir,
             cnv_dir=self.cnv_dir,
             prep=self.prep,
@@ -1320,42 +1284,47 @@ class MethylAnalysis:
             sample_id (str): The identifier for the sample whose CNV data is to
                 be retrieved.
             extract (list): Specifies the data to extract from the CNV
-                analysis.
-                    Options include:
-                    - "bins": Raw CNV data at the bin level.
-                    - "detail": Detailed CNV information (generally genes).
-                    - "segments": Segmented CNV regions.
-                    - "metadata": CNV analysis metadata.
+                analysis. Available options include:
+                - "bins": Raw CNV data at the bin level.
+                - "detail": Detailed CNV information (generally genes).
+                - "segments": Segmented CNV regions.
+                - "metadata": CNV analysis metadata.
 
         Returns:
             tuple: A tuple containing the following elements:
                 - bins (DataFrame): Data representing CNV bins.
                 - detail (DataFrame): Gene CNV information.
                 - segments (DataFrame): Segmented CNV data.
+
                 If CNV data is not found or cannot be generated, returns None
                 for each extract value.
         """
         if extract is None:
             extract = ["bins", "detail", "segments"]
-        cnv_path = self.cnv_dir / (sample_id + ZIP_ENDING)
-        if not cnv_path.exists():
-            idat_path = self.idat_handler.sample_paths[sample_id]
-            write_cnv_to_disk(
-                sample_path=[idat_path],
-                reference_dir=self.reference_dir,
-                cnv_dir=self.cnv_dir,
-                prep=self.prep,
-                do_seg=self.do_seg,
-                pbar=self._prog_bar,
-                verbose=self.verbose,
-            )
-        if cnv_path.exists():
+        write_cnv_to_disk(
+            sample_path=[self.idat_handler.sample_paths[sample_id]],
+            reference_dir=self.reference_dir,
+            cnv_dir=self.cnv_dir,
+            prep=self.prep,
+            do_seg=self.do_seg,
+            pbar=self._prog_bar,
+            verbose=self.verbose,
+        )
+        if (self.cnv_dir / (sample_id + ZIP_ENDING)).exists():
             return read_cnv_data_from_disk(
                 self.cnv_dir,
                 sample_id,
                 extract=extract,
             )
         return (None,) * len(extract)
+
+    def cn_summary(self, sample_ids):
+        if not self.do_seg:
+            msg = "To use CN-summary plots you must set 'do_seg' to 'True'."
+            raise ValueError(msg)
+        self.precompute_cnvs(sample_ids)
+        plot, disjoint_segments = get_cn_summary(self.cnv_dir, sample_ids)
+        return plot, disjoint_segments
 
     def classify(self, clf_list=None, use_all_cpgs=False):
         """Classify the sample using specified classifiers.
@@ -1801,7 +1770,7 @@ class MethylAnalysis:
                 and state.get("status") == "umap_done"
                 and self.precalculate_cnv
             ):
-                self.precalculate_all_cnvs()
+                self.precompute_cnvs()
             # Dummy update
             return no_update
 

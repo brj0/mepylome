@@ -20,7 +20,12 @@ from .genetic_data import (
 )
 from .idat import IdatParser
 from .manifests import Manifest
-from .plots import CNVPlot, cnv_plot_from_data, read_cnv_data_from_disk
+from .plots import (
+    CNVPlot,
+    cnv_plot_from_data,
+    get_cn_summary,
+    read_cnv_data_from_disk,
+)
 from .probes import Channel, InfiniumDesignType, ProbeType
 
 __all__ = [
@@ -44,6 +49,7 @@ __all__ = [
     "ZIP_ENDING",
     "cache",
     "cnv_plot_from_data",
+    "get_cn_summary",
     "get_id_tuple",
     "idat_basepaths",
     "is_valid_idat_basepath",

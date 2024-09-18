@@ -484,6 +484,8 @@ cnv.plot()
 # --------------------
 
 
+# **1. Set up analysis object and run GUI in browser**
+
 # For methylation analysis, ensure you have the setup described in
 # :ref:`general_setup`
 
@@ -682,6 +684,8 @@ methyl_analysis = MethylAnalysis(
 # initialization, but not all.
 
 
+# **2. Set up beta values and generate UMAP**
+
 # All calculations that can be performed within the GUI can also be done manually. For example, to extract the beta values:
 methyl_analysis.set_betas()
 
@@ -750,5 +754,41 @@ methyl_analysis.make_umap_plot()
 
 # The Plotly object for the UMAP plot is then available in
 # `methyl_analysis.umap_plot`.
+
+
+# **3. CN-summary plots**
+
+# Mepylome has the ability to calculate CN-summary plots, which provide an
+# overview of copy number variations (CNV) across samples. To calculate these
+# plots, you need to activate segmentation by setting 'do_seg' to True when
+# initializing the analysis.
+methyl_analysis = MethylAnalysis(
+    analysis_dir=ANALYSIS_DIR,
+    reference_dir=REFERENCE_DIR,
+    do_seg=True,
+)
+
+# The annotation dataframe contains metadata for each sample, including
+# diagnosis information.
+annotation_df = methyl_analysis.idat_handler.annotated_samples
+
+# Loop through each unique diagnosis in the dataset to generate CN-summary
+# plots for all diagnosis categories.
+for diagnosis in annotation_df["Diagnosis"].unique():
+    ## Filter sample IDs for the current diagnosis group.
+    sample_ids = annotation_df[annotation_df["Diagnosis"] == diagnosis].index
+    ## Generate CN-summary plot and retrieve disjoint segments (if needed for
+    ## further analysis).
+    cn_plot, disjoint_segments = methyl_analysis.cn_summary(sample_ids)
+    ## Update the plot layout with a title for the diagnosis group and label
+    ## the y-axis.
+    cn_plot.update_layout(
+        title=f"CN-summary for {diagnosis}",
+        yaxis_title="Proportion of CNV gains/losses"
+    )
+    ## Display the CN-summary plot in the browser.
+    cn_plot.show()
+
+
 
 # For further details and advanced usage, refer to the mepylome documentation.
