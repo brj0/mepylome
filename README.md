@@ -31,6 +31,7 @@ an interactive GUI that enables users to generate UMAP plots and CNV plots
   analysis, CNV plots and supervised classification
   - Can be run from the command line with minimal setup or customized through a
     Python script
+- CN-summary plots
 
 
 ## Documentation

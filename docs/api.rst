@@ -35,3 +35,10 @@ mepylome.analysis.methyl
 .. automodule:: mepylome.analysis.methyl
 .. autoclass:: mepylome.analysis.methyl.MethylAnalysis
    :members:
+
+mepylome.analysis.methyl_aux
+----------------------------
+
+.. automodule:: mepylome.analysis.methyl_aux
+.. autoclass:: mepylome.analysis.methyl_aux.IdatHandler
+   :members:

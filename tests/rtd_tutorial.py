@@ -777,9 +777,9 @@ annotation_df = methyl_analysis.idat_handler.annotated_samples
 for diagnosis in annotation_df["Diagnosis"].unique():
     ## Filter sample IDs for the current diagnosis group.
     sample_ids = annotation_df[annotation_df["Diagnosis"] == diagnosis].index
-    ## Generate CN-summary plot and retrieve disjoint segments (if needed for
-    ## further analysis).
-    cn_plot, disjoint_segments = methyl_analysis.cn_summary(sample_ids)
+    ## Generate CN-summary plot and retrieve data (if needed for further
+    ## analysis).
+    cn_plot, df_cn_summary = methyl_analysis.cn_summary(sample_ids)
     ## Update the plot layout with a title for the diagnosis group and label
     ## the y-axis.
     cn_plot.update_layout(

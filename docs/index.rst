@@ -34,6 +34,7 @@ Features
 
   - Can be run from the command line with minimal setup or customized through a
     Python script
+- CN-summary plots
 
 
 

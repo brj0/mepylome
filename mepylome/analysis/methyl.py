@@ -603,6 +603,12 @@ class MethylAnalysis:
         load_full_betas (bool): Flag to load beta values for all CpG sites
             into memory (default: False).
 
+        feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
+            user-provided feature matrix to be used for UMAP dimensionality
+            reduction. If provided, this matrix will be used instead of
+            `betas_df`. If not provided (default is None), the `betas_df`
+            containing methylation beta values will be used for UMAP.
+
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
 
@@ -632,8 +638,43 @@ class MethylAnalysis:
         initialization, but not all.
 
     Attributes:
+        analysis_dir (Path): Path to the directory containing IDAT files for
+            analysis.
+
+        annotation (Path): Path to an annotation spreadsheet where Sentrix IDs
+            are listed in the first column.
+
+        overlap (bool): Flag to analyze only samples that are both in the
+            analysis directory and within the annotation file (default: False).
+
+        n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
+
+        reference_dir (Path): Path to the reference directory containing
+            reference IDAT files.
+
+        output_dir (Path): Path to the directory where output files will be
+            saved (default: "/tmp/mepylome/analysis").
+
         upload_dir (NoneType): Directory for uploaded files, initially set to
             invalid path.
+
+        prep (str): Prepreparation method used for data preparation (default:
+            "illumina").
+
+        cpg_selection (str): Method to select CpG sites ('top' or 'random')
+            (default: 'top'). For 'top', CpG sites are selected based on their
+            variation, taking the most varying ones. For 'random', CpG sites
+            are randomly selected.
+
+        host (str): Host address for the Dash application (default:
+            'localhost').
+
+        port (int): Port number for the Dash application (default: 8050).
+
+        debug (bool): Flag to enable debug mode for the Dash application
+            (default: False).
+
+        verbose (bool): Flag to enable verbose logging (default: True).
 
         cnv_dir (NoneType): Directory for CNV (Copy Number Variation) data,
             initially set to None.
@@ -644,8 +685,20 @@ class MethylAnalysis:
         umap_cpgs (NoneType): CpG sites for UMAP analysis, initially set to
             None.
 
+        precalculate_cnv (bool): Flag to precalculate CNV information by
+            invoking 'precalculate_all_cnvs' (default: False).
+
+        load_full_betas (bool): Flag to load beta values for all CpG sites into
+            memory (default: False).
+
         betas_df (NoneType): Dataframe containing beta values, initially set to
             None.
+
+        feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
+            user-provided feature matrix to be used for UMAP dimensionality
+            reduction. If provided, this matrix will be used instead of
+            `betas_df`. If not provided (default is None), the `betas_df`
+            containing methylation beta values will be used for UMAP.
 
         betas_df_all_cpgs (NoneType): Dataframe containing beta values for all
             CpG sites, initially set to None.
@@ -717,6 +770,7 @@ class MethylAnalysis:
         n_cpgs=DEFAULT_N_CPGS,
         precalculate_cnv=False,
         load_full_betas=False,
+        feature_matrix=None,
         overlap=False,
         cpg_selection="top",
         do_seg=False,
@@ -745,6 +799,7 @@ class MethylAnalysis:
         self.prep = prep
         self.precalculate_cnv = precalculate_cnv
         self.load_full_betas = load_full_betas
+        self.feature_matrix = feature_matrix
         self.umap_plot = EMPTY_FIGURE
         self.umap_plot_path = None
         self.betas_df = None
@@ -1018,22 +1073,34 @@ class MethylAnalysis:
             AttributeError: If a dimension mismatch occurs, or if 'betas_df' is
                 not set.
         """
-        if self.betas_df is None:
+        if self.betas_df is None and self.feature_matrix is None:
             msg = "'betas_df' is not set. First run 'set_betas'"
             raise AttributeError(msg)
         if self.verbose:
             log("[MethylAnalysis] Importing umap library...")
         import umap
 
+        matrix_to_use = (
+            self.betas_df
+            if self.feature_matrix is None
+            else self.feature_matrix
+        )
+        if len(self.idat_handler.ids) != len(matrix_to_use):
+            if self.feature_matrix is not None:
+                msg = (
+                    "Dimension mismatch 0: 'feature_matrix' has not the same "
+                    "number of rows as there are samples in "
+                    "'idat_handler.ids'."
+                )
+            else:
+                msg = (
+                    "Dimension mismatch 1: Analysis files may have changed. "
+                    f"Try to delete cached files in {self.output_dir}."
+                )
+            raise AttributeError(msg)
         if self.verbose:
             log("[MethylAnalysis] Start UMAP algorithm...")
-        umap_2d = umap.UMAP(**self.umap_parms).fit_transform(self.betas_df)
-        if len(self.idat_handler.ids) != len(umap_2d):
-            msg = (
-                "Dimension mismatch 1: Analysis files may have changed. "
-                f"Try to delete cached files in {self.output_dir}."
-            )
-            raise AttributeError(msg)
+        umap_2d = umap.UMAP(**self.umap_parms).fit_transform(matrix_to_use)
         umap_df = pd.DataFrame(
             umap_2d,
             columns=["Umap_x", "Umap_y"],
@@ -1323,8 +1390,8 @@ class MethylAnalysis:
             msg = "To use CN-summary plots you must set 'do_seg' to 'True'."
             raise ValueError(msg)
         self.precompute_cnvs(sample_ids)
-        plot, disjoint_segments = get_cn_summary(self.cnv_dir, sample_ids)
-        return plot, disjoint_segments
+        plot, df_cn_summary = get_cn_summary(self.cnv_dir, sample_ids)
+        return plot, df_cn_summary
 
     def classify(self, clf_list=None, use_all_cpgs=False):
         """Classify the sample using specified classifiers.

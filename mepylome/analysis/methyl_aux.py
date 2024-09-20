@@ -114,6 +114,37 @@ class IdatHandler:
 
     Includes reading annotation from various file formats and provides
     description lookups for methylation classes.
+
+    Args:
+        idat_dir (str or Path): The directory where the IDAT files are located.
+        annotation_file (str or Path, optional): The path to the annotation
+            file. Defaults to None.
+        upload_dir (str or Path, optional): The directory where uploaded IDAT
+            files are stored. Defaults to None.
+        overlap (bool, optional): If True, restricts the sample paths to only
+            those present in both the IDAT files and the annotation file.
+            Defaults to False.
+
+    Attributes:
+        idat_dir (Path): The directory path where the IDAT files are located.
+        upload_dir (Path or None): The directory path for uploaded IDAT files,
+            if provided. If not provided or the directory does not exist, this
+            is set to None.
+        overlap (bool): A flag indicating whether to restrict sample paths to
+            only those present in both the IDAT files and the annotation file.
+        uploaded_sample_ids (list): A sorted list of valid uploaded IDAT sample
+            IDs.
+        sample_paths (dict): A dictionary where the keys are sample IDs and the
+            values are the file paths of IDAT files (from both `idat_dir` and
+            `upload_dir`).
+        annotation_file (Path): The path to the annotation file.
+        annotation_df (pandas.DataFrame or None): A DataFrame containing the
+            annotation data, if loaded.
+        annotated_samples (pandas.DataFrame or None): A DataFrame containing
+            the samples that are present in the annotation file with existing
+            IDAT files.
+        selected_columns (list): A list of selected columns from the annotated
+            samples, initialized with the first column.
     """
 
     def __init__(

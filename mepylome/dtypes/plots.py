@@ -548,10 +548,12 @@ class CNVPlot:
         self.app.run(debug=True, host=self.host, use_reloader=False)
 
 
-def _get_disjoint_intervals(df_seg, threshold=0.1):
+def _cn_summary_per_chrom(df_seg, threshold=0.1):
+    """Generates a CN summary on disjoint intervals for a single chromosome."""
     df_seg["Gain"] = df_seg["Median"] > threshold
     df_seg["Loss"] = df_seg["Median"] < -threshold
     df_seg["Balanced"] = ~(df_seg["Gain"] | df_seg["Loss"])
+    # Determine boundaries for disjoint segments
     boundaries = sorted(set(df_seg["Start"]).union(set(df_seg["End"])))
     result_intervals = []
     for i in range(1, len(boundaries)):
@@ -561,9 +563,8 @@ def _get_disjoint_intervals(df_seg, threshold=0.1):
             (df_seg["Start"] <= start) & (df_seg["End"] >= end)
         ]
         if not involved_segments.empty:
-            n_involved = len(involved_segments)
-            gain_ratio = involved_segments["Gain"].sum() / n_involved
-            loss_ratio = involved_segments["Loss"].sum() / n_involved
+            gain_ratio = involved_segments["Gain"].mean()
+            loss_ratio = involved_segments["Loss"].mean()
             result_intervals.append(
                 {
                     "Chromosome": involved_segments.iloc[0]["Chromosome"],
@@ -591,10 +592,10 @@ def get_cn_summary(cnv_dir, sample_ids):
     Returns:
         plot (plotly.graph_objects.Figure): A Plotly figure object containing
             the gain/loss ratio plot.
-        disjoint_segments (pd.DataFrame): A pandas DataFrame containing the
+        df_cn_summary (pd.DataFrame): A pandas DataFrame containing the
             data used for the plot.
     """
-    sample_id_list = []
+    segment_list = []
     for sample_id in sample_ids:
         segment = read_cnv_data_from_disk(
             cnv_dir, sample_id, extract="segments"
@@ -603,39 +604,39 @@ def get_cn_summary(cnv_dir, sample_ids):
             msg = f"CNV for {sample_id} does not contain 'segments'."
             raise ValueError(msg)
         segment["Id"] = sample_id
-        sample_id_list.append(segment)
-    segments = pd.concat(sample_id_list)
-    disjoint_segments = pd.concat(
+        segment_list.append(segment)
+    segments = pd.concat(segment_list)
+    df_cn_summary = pd.concat(
         [
-            _get_disjoint_intervals(group)
-            for _, group in segments.groupby("Chromosome")
+            _cn_summary_per_chrom(segments_on_chrom)
+            for _, segments_on_chrom in segments.groupby("Chromosome")
         ]
     )
-    disjoint_segments["X_start"] = add_offset(
-        disjoint_segments, "Chromosome", "Start"
+    df_cn_summary["X_start"] = add_offset(
+        df_cn_summary, "Chromosome", "Start"
     )
-    disjoint_segments["X_end"] = add_offset(
-        disjoint_segments, "Chromosome", "End"
+    df_cn_summary["X_end"] = add_offset(
+        df_cn_summary, "Chromosome", "End"
     )
     loss_color = "#1F77B4"
     gain_color = "#D62728"
     contour_color = "black"
     plot = go.Figure(cnv_grid())
-    for chrom in disjoint_segments["Chromosome"].unique():
-        chrom_data = disjoint_segments[
-            disjoint_segments["Chromosome"] == chrom
+    for chrom in df_cn_summary["Chromosome"].unique():
+        df_cn_summary_chrom = df_cn_summary[
+            df_cn_summary["Chromosome"] == chrom
         ]
-        first_start = chrom_data.iloc[0]["X_start"]
+        first_start = df_cn_summary_chrom.iloc[0]["X_start"]
         x_vals_gain = [first_start]
         y_vals_gain = [0]
         x_vals_loss = [first_start]
         y_vals_loss = [0]
-        for _, row in chrom_data.iterrows():
+        for _, row in df_cn_summary_chrom.iterrows():
             x_vals_gain.extend([row["X_start"], row["X_end"]])
             y_vals_gain.extend([row["Gain_ratio"], row["Gain_ratio"]])
             x_vals_loss.extend([row["X_start"], row["X_end"]])
             y_vals_loss.extend([row["Loss_ratio"], row["Loss_ratio"]])
-        last_end = chrom_data.iloc[-1]["X_end"]
+        last_end = df_cn_summary_chrom.iloc[-1]["X_end"]
         x_vals_gain.append(last_end)
         y_vals_gain.append(0)
         x_vals_loss.append(last_end)
@@ -667,4 +668,4 @@ def get_cn_summary(cnv_dir, sample_ids):
     plot.update_layout(
         yaxis_range=[-1, 1],
     )
-    return plot, disjoint_segments
+    return plot, df_cn_summary
