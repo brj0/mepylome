@@ -553,6 +553,7 @@ def _cn_summary_per_chrom(df_seg, threshold=0.1):
     df_seg["Gain"] = df_seg["Median"] > threshold
     df_seg["Loss"] = df_seg["Median"] < -threshold
     df_seg["Balanced"] = ~(df_seg["Gain"] | df_seg["Loss"])
+    chromosome = df_seg.iloc[0]["Chromosome"]
     # Determine boundaries for disjoint segments
     boundaries = sorted(set(df_seg["Start"]).union(set(df_seg["End"])))
     result_intervals = []
@@ -562,19 +563,18 @@ def _cn_summary_per_chrom(df_seg, threshold=0.1):
         involved_segments = df_seg[
             (df_seg["Start"] <= start) & (df_seg["End"] >= end)
         ]
-        if not involved_segments.empty:
-            gain_ratio = involved_segments["Gain"].mean()
-            loss_ratio = involved_segments["Loss"].mean()
-            result_intervals.append(
-                {
-                    "Chromosome": involved_segments.iloc[0]["Chromosome"],
-                    "Start": start,
-                    "End": end,
-                    "Gain_ratio": gain_ratio,
-                    "Loss_ratio": -loss_ratio,
-                    "Balanced_ratio": 1 - gain_ratio - loss_ratio,
-                }
-            )
+        gain_ratio = involved_segments["Gain"].mean()
+        loss_ratio = involved_segments["Loss"].mean()
+        result_intervals.append(
+            {
+                "Chromosome": chromosome,
+                "Start": start,
+                "End": end,
+                "Gain_ratio": gain_ratio,
+                "Loss_ratio": -loss_ratio,
+                "Balanced_ratio": 1 - gain_ratio - loss_ratio,
+            }
+        )
     return pd.DataFrame(result_intervals)
 
 
@@ -612,20 +612,17 @@ def get_cn_summary(cnv_dir, sample_ids):
             for _, segments_on_chrom in segments.groupby("Chromosome")
         ]
     )
-    df_cn_summary["X_start"] = add_offset(
-        df_cn_summary, "Chromosome", "Start"
-    )
-    df_cn_summary["X_end"] = add_offset(
-        df_cn_summary, "Chromosome", "End"
-    )
+    df_cn_summary["X_start"] = add_offset(df_cn_summary, "Chromosome", "Start")
+    df_cn_summary["X_end"] = add_offset(df_cn_summary, "Chromosome", "End")
     loss_color = "#1F77B4"
     gain_color = "#D62728"
     contour_color = "black"
     plot = go.Figure(cnv_grid())
     for chrom in df_cn_summary["Chromosome"].unique():
+        # If there are gaps in the genome, ratios may be nan
         df_cn_summary_chrom = df_cn_summary[
             df_cn_summary["Chromosome"] == chrom
-        ]
+        ].fillna(0)
         first_start = df_cn_summary_chrom.iloc[0]["X_start"]
         x_vals_gain = [first_start]
         y_vals_gain = [0]
