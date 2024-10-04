@@ -159,16 +159,14 @@ class Annotation:
         self.verbose = verbose
         self.chromsizes = pr.data.chromsizes()
 
-        if isinstance(array_type, str):
-            array_type = ArrayType(array_type)
-
-        self.array_type = array_type
         if array_type is None:
             self.array_type = manifest.array_type
+        else:
+            self.array_type = ArrayType(array_type)
 
         self.manifest = manifest
         if manifest is None:
-            self.manifest = Manifest(array_type)
+            self.manifest = Manifest(self.array_type)
 
         manifest_df = self.manifest.data_frame.copy()
         manifest_df = manifest_df[

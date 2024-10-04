@@ -65,9 +65,15 @@ public:
     std::string unknown_5_;
     std::string unknown_6_;
     std::string unknown_7_;
+    bool intensity_only;
+    bool array_type_only;
 
 
-    IdatParser(const std::string& filepath);
+    IdatParser(
+        const std::string& filepath,
+        bool intensity_only = false,
+        bool array_type_only = false
+    );
 
     size_t get_file_size() const { return file_size_; }
     uint32_t get_num_fields() const { return num_fields_; }

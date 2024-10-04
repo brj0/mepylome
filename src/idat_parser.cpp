@@ -29,14 +29,6 @@ inline T read(std::ifstream& infile)
     return result;
 }
 
-template <typename T>
-inline std::vector<T> read(std::ifstream& infile, const int num)
-{
-    std::vector<T> result(num);
-    infile.read(reinterpret_cast<char*>(result.data()), sizeof(T) * num);
-    return result;
-}
-
 inline uint8_t read_byte(std::ifstream& infile)
 {
     return read<uint8_t>(infile);
@@ -47,19 +39,10 @@ inline uint16_t read_short(std::ifstream& infile)
     return read<uint16_t>(infile);
 }
 
-inline std::vector<uint16_t> read_short(std::ifstream& infile, const int num)
-{
-    return read<uint16_t>(infile, num);
-}
 
 inline int32_t read_int(std::ifstream& infile)
 {
     return read<int32_t>(infile);
-}
-
-inline std::vector<int32_t> read_int(std::ifstream& infile, const int num)
-{
-    return read<int32_t>(infile, num);
 }
 
 inline int64_t read_long(std::ifstream& infile)
@@ -69,10 +52,8 @@ inline int64_t read_long(std::ifstream& infile)
 
 inline std::string read_char(std::ifstream& infile, const int num)
 {
-    char* buffer = new char[num];
-    infile.read(buffer, num);
-    std::string result(buffer, num);
-    delete[] buffer;
+    std::string result(num, '\0');
+    infile.read(&result[0], num);
     return result;
 }
 
@@ -100,20 +81,17 @@ inline std::string read_string(std::ifstream& infile)
 }
 
 template <typename T>
-std::vector<T> read_array(std::istream& ifstream, std::size_t length)
+std::vector<T> read_array(std::istream& infile, std::size_t length)
 {
-    std::vector<char> buffer(sizeof(T) * length);
-    ifstream.read(buffer.data(), buffer.size());
-    if (ifstream.gcount() != static_cast<std::streamsize>(sizeof(T) * length))
+    std::vector<T> vec(length);
+    infile.read(reinterpret_cast<char*>(vec.data()), length * sizeof(T));
+    if (infile.gcount() != static_cast<std::streamsize>(length * sizeof(T)))
     {
         throw std::ios_base::failure(
-            "Parser reached the end of the IDAT prematurely (read_array)."
+            "Parser reached the end of the file prematurely (read_array)."
         );
     }
-    return std::vector<T>(
-        reinterpret_cast<T*>(buffer.data()),
-        reinterpret_cast<T*>(buffer.data() + buffer.size())
-    );
+    return vec;
 }
 
 std::ostream& operator<<(std::ostream& os, IdatSectionCode code)
@@ -128,8 +106,14 @@ std::ifstream::pos_type filesize(const std::string filename)
     return in.tellg();
 }
 
-IdatParser::IdatParser(const std::string& filepath)
+IdatParser::IdatParser(
+    const std::string& filepath,
+    bool intensity_only,
+    bool array_type_only
+)
     : file_size_(static_cast<size_t>(filesize(filepath)))
+    , intensity_only(intensity_only)
+    , array_type_only(array_type_only)
 {
     // Start parsing IDAT file
 
@@ -178,21 +162,31 @@ IdatParser::IdatParser(const std::string& filepath)
     idat_file.seekg(offsets_[IdatSectionCode::NUM_SNPS_READ]);
     n_snps_read_ = read_int(idat_file);
 
+    if (array_type_only)
+    {
+        return;
+    }
+
     idat_file.seekg(offsets_[IdatSectionCode::ILLUMINA_ID]);
     illumina_ids_ = read_array<int32_t>(idat_file, n_snps_read_);
 
-    idat_file.seekg(offsets_[IdatSectionCode::STD_DEV]);
-    std_dev_= read_short(idat_file, n_snps_read_);
-
     idat_file.seekg(offsets_[IdatSectionCode::MEAN]);
     probe_means_= read_array<uint16_t>(idat_file, n_snps_read_);
+
+    if (intensity_only)
+    {
+        return;
+    }
+
+    idat_file.seekg(offsets_[IdatSectionCode::STD_DEV]);
+    std_dev_= read_array<uint16_t>(idat_file, n_snps_read_);
 
     idat_file.seekg(offsets_[IdatSectionCode::NUM_BEADS]);
     n_beads_= read_array<uint8_t>(idat_file, n_snps_read_);
 
     idat_file.seekg(offsets_[IdatSectionCode::MID_BLOCK]);
     int32_t n_mid_block = read_int(idat_file);
-    mid_block_ = read_int(idat_file, n_mid_block);
+    mid_block_ = read_array<int32_t>(idat_file, n_mid_block);
 
     idat_file.seekg(offsets_[IdatSectionCode::RUN_INFO]);
     int32_t runinfo_entry_count = read_int(idat_file);

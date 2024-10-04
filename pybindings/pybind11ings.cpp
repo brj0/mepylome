@@ -23,7 +23,11 @@ class PyIdatParser : public IdatParser {
 public:
     // Constructor explicitly calling base class constructor
     // Without this line pybind11 generates a compiler error
-    PyIdatParser(const std::string& filepath) : IdatParser(filepath) {}
+    PyIdatParser(
+        const std::string& filepath,
+        bool intensity_only,
+        bool array_type_only
+    ) : IdatParser(filepath, intensity_only, array_type_only) {}
 
     // PyIdatParser(const fs::path& filepath) : IdatParser(filepath.string()) {}
 
@@ -56,8 +60,10 @@ PYBIND11_MODULE(_mepylome, m)
     py::class_<PyIdatParser>(m, "IdatParser")
 
         .def(
-            py::init< const std::string& >(),
-            py::arg("filepath")
+            py::init<const std::string&, bool, bool>(),
+            py::arg("filepath"),
+            py::arg("intensity_only") = false,
+            py::arg("array_type_only") = false
         )
         // .def(
             // py::init<const fs::path &>(),

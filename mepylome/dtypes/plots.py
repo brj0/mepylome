@@ -180,7 +180,7 @@ def add_segments(plot, seg_df):
     seg_lines = [
         go.Scattergl(
             x=[seg["X_start"], seg["X_end"]],
-            y=[seg["Mean"], seg["Mean"]],
+            y=[seg["Median"], seg["Median"]],
             mode="lines",
             line={"color": "darkslategrey"},
             showlegend=False,

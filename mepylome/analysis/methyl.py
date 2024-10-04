@@ -187,10 +187,12 @@ def get_side_navigation(
     n_neighbors,
     metric,
     min_dist,
+    use_discrete_colors,
 ):
     """Generates a side navigation panel for setting up parameters."""
     n_cpgs_max = np.inf if len(cpgs) == 0 else len(cpgs)
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
+    color_scheme = "discrete" if use_discrete_colors else "continuous"
     return dbc.Col(
         [
             dbc.Tabs(
@@ -364,8 +366,6 @@ def get_side_navigation(
                                 id="umap-min_dist",
                                 type="number",
                                 min=0,
-                                max=1,
-                                step=0.01,
                                 value=min_dist,
                             ),
                             html.Br(),
@@ -399,7 +399,7 @@ def get_side_navigation(
                                     "discrete": "Discrete Colors",
                                     "continuous": "Continuous Colors",
                                 },
-                                value="discrete",
+                                value=color_scheme,
                                 multi=False,
                             ),
                             html.Br(),
@@ -826,7 +826,6 @@ class MethylAnalysis:
             msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
             raise ValueError(msg)
 
-        self.cpgs = self._get_cpgs(cpgs)
         if self.annotation == INVALID_PATH:
             self.annotation = guess_annotation_file(
                 self.analysis_dir, self.verbose
@@ -837,6 +836,7 @@ class MethylAnalysis:
             log("[MethylAnalysis] Try to import cbseg or linear_segment...")
         self.do_seg = False if _get_cgsegment(verbose=True) is None else do_seg
 
+        self.cpgs = self._get_cpgs(cpgs)
         self._prev_vars = self._get_vars_or_hashes()
         self._update_paths()
         self.read_umap_plot_from_disk()
@@ -932,12 +932,12 @@ class MethylAnalysis:
                 str(ArrayType.from_idat(str(path) + "_Grn.idat"))
                 for path in self.idat_handler.sample_paths.values()
             }
-            input_var = list(input_var)
             if self.verbose:
                 log(
                     f"[MethylAnalysis] The following array types were "
                     f"detected: {input_var}"
                 )
+            input_var = list(input_var - {str(ArrayType.UNKNOWN)})
 
         if all(x in valid_str_parms for x in input_var):
             if not input_var:
@@ -1099,7 +1099,11 @@ class MethylAnalysis:
                 )
             raise AttributeError(msg)
         if self.verbose:
-            log("[MethylAnalysis] Start UMAP algorithm...")
+            shape = matrix_to_use.shape
+            log(
+                "[MethylAnalysis] Starting UMAP for matrix with shape "
+                f"{shape}..."
+            )
         umap_2d = umap.UMAP(**self.umap_parms).fit_transform(matrix_to_use)
         umap_df = pd.DataFrame(
             umap_2d,
@@ -1480,6 +1484,7 @@ class MethylAnalysis:
             self.umap_parms["n_neighbors"],
             self.umap_parms["metric"],
             self.umap_parms["min_dist"],
+            self._use_discrete_colors,
         )
         dash_plots = dbc.Col(
             [

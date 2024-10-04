@@ -130,6 +130,7 @@ class IdatParser:
         """Reads and parses the IDAT file."""
         self.intensity_only = intensity_only
         self.array_type_only = array_type_only
+        self._file = file
         with get_file_object(file) as idat_file:
             self.file_size = _get_file_size(idat_file)
 
@@ -140,7 +141,10 @@ class IdatParser:
         file_type = read_char(idat_file, len(DEFAULT_IDAT_FILE_ID))
         # Assert file is indeed IDAT format
         if file_type != DEFAULT_IDAT_FILE_ID:
-            msg = "Parser could not open file as its not a valid IDAT file."
+            msg = (
+                f"Parser could not open file {self._file} as its not a valid "
+                "IDAT file."
+            )
             raise ValueError(msg)
 
         idat_version = read_long(idat_file)
@@ -148,8 +152,8 @@ class IdatParser:
         # Assert correct IDAT file version
         if idat_version != DEFAULT_IDAT_VERSION:
             msg = (
-                "Parser could not open file as its not a version 3 "
-                "IDAT file."
+                f"Parser could not open file {self._filei} as its not a "
+                "version 3 IDAT file."
             )
             raise ValueError(msg)
 
