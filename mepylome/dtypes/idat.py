@@ -152,7 +152,7 @@ class IdatParser:
         # Assert correct IDAT file version
         if idat_version != DEFAULT_IDAT_VERSION:
             msg = (
-                f"Parser could not open file {self._filei} as its not a "
+                f"Parser could not open file {self._file} as its not a "
                 "version 3 IDAT file."
             )
             raise ValueError(msg)
