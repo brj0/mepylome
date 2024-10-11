@@ -121,13 +121,15 @@ def fit_and_evaluate_classifiers(
     )
     if clf_list is None:
         clf_list = ["rf", "knn"]
+    if not isinstance(clf_list, (list, tuple)):
+        clf_list = [clf_list]
     name_to_clf = {"rf": rf_clf, "knn": knn_clf, "nn": nn_clf, "svm": svm_clf}
     clfs = [name_to_clf[x] for x in clf_list]
     # Clean file.
     with open(log_file, "w") as f:
         log_str = f"Supervised classification: {sample_id}"
         log_str += "\n" + "=" * len(log_str) + "\n\n"
-        log_str += f"Number of CpG's: {betas_df.shape[1]}\n"
+        log_str += f"Number of features: {betas_df.shape[1]}\n"
         log_str += f"Training samples: {X_train.shape[0]}\n"
         log_str += f"Test samples: {X_test.shape[0]}\n"
         log_str += "\n"

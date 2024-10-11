@@ -1397,7 +1397,7 @@ class MethylAnalysis:
         plot, df_cn_summary = get_cn_summary(self.cnv_dir, sample_ids)
         return plot, df_cn_summary
 
-    def classify(self, clf_list=None, use_all_cpgs=False):
+    def classify(self, sample_id, clf_list=None, use_all_cpgs=False):
         """Classify the sample using specified classifiers.
 
         This method classifies the sample using a list of supervised
@@ -1406,6 +1406,7 @@ class MethylAnalysis:
         classification to console.
 
         Args:
+            sample_id (str): Sample to classify.
             clf_list (list, optional): List of classifier objects to use for
                 classification. Defaults to None.
             use_all_cpgs (bool, optional): Whether to use all CpGs
@@ -1417,10 +1418,10 @@ class MethylAnalysis:
                 with their evaluations.
 
         Raises:
-            ValueError: If `self.cnv_id` is not set.
+            ValueError: If `sample_id` is not set.
         """
-        if self.cnv_id is None:
-            msg = "Must set 'cnv_id' before calling classify()."
+        if sample_id is None:
+            msg = "Must set 'sample_id' before calling classify()."
             raise ValueError(msg)
 
         if use_all_cpgs:
@@ -1433,17 +1434,26 @@ class MethylAnalysis:
         )
         log("[MethylAnalysis] Start classifying...")
 
-        betas = self.betas_df_all_cpgs if use_all_cpgs else self.betas_df
-        sample_index = betas.index.tolist().index(self.cnv_id)
+        if self.feature_matrix is not None:
+            betas = pd.DataFrame(
+                self.feature_matrix, index=self.betas_df.index
+            )
+        elif use_all_cpgs:
+            betas = self.betas_df_all_cpgs
+        else:
+            betas = self.betas_df
+
+        sample_index = betas.index.tolist().index(sample_id)
 
         def _empty_class(cls):
             return cls.strip("|") == ""
 
+        # Remove all samples with unknown classification.
         valid_indices = [
             i
             for i, x in enumerate(classes_)
             if (not _empty_class(x) or i == sample_index)
-            and not (i > sample_index and betas.index[i] == self.cnv_id)
+            and not (i > sample_index and betas.index[i] == sample_id)
         ]
         classes_ = [classes_[i] for i in valid_indices]
         betas = betas.iloc[valid_indices]
@@ -1452,7 +1462,7 @@ class MethylAnalysis:
             betas_df=betas,
             classes_=classes_,
             log_file=CLF_FILE,
-            sample_id=self.cnv_id,
+            sample_id=sample_id,
             clf_list=clf_list,
         )
 
@@ -1935,7 +1945,7 @@ class MethylAnalysis:
             use_all_cpgs = cpgs_to_use == "all"
 
             try:
-                _ = self.classify(clf_list, use_all_cpgs)
+                _ = self.classify(self.cnv_id, clf_list, use_all_cpgs)
             except Exception as exc:
                 log(f"[MethylAnalysis] An error occured (4): {exc}")
                 return f"{exc}"
