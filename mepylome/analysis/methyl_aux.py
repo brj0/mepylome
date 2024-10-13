@@ -1,6 +1,7 @@
 """Auxiliary methods for the methylation analysis."""
 
 import pickle
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -19,6 +20,7 @@ from mepylome.dtypes.beads import (
 )
 from mepylome.dtypes.manifests import Manifest
 from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
+from mepylome.utils.varia import log
 
 NEUTRAL_BETA = 0.49
 DTYPE = np.float32
@@ -176,11 +178,10 @@ class IdatHandler:
         self.annotation_df = None
         self.annotated_samples = self.load_annotated_samples()
         if self.overlap and self.annotated_samples is not None:
-            ids_annotation = self.annotation_df.index
             self.sample_paths = {
                 x: i
                 for x, i in self.sample_paths.items()
-                if x in ids_annotation
+                if x in self.annotation_df.index
             }
             self.annotated_samples = self.annotated_samples.loc[
                 self.sample_paths.keys()
@@ -200,12 +201,35 @@ class IdatHandler:
                 )
             except ValueError:
                 self.annotation_df = result_df
+                log("[IdatHandler] No valid annotation file.")
+            if not set(result_df.index).intersection(self.annotation_df.index):
+                log("[IdatHandler] No IDAT file found in annotation.")
+                self._extract_sentrix_ids()
+                result_df = pd.DataFrame(index=self.sample_paths.keys())
             result_df = result_df.join(self.annotation_df)
             result_df = result_df.fillna("")
         if len(result_df.columns) == 0:
             result_df["Methylation_Class"] = "NO_DIAGNOSIS"
         result_df.loc[self.uploaded_sample_ids] = "UPLOADED"
         return result_df.fillna("")
+
+    def _extract_sentrix_ids(self):
+        def extract_sentrix_id(text):
+            sentrix_id = re.findall(r"\d+_R\d{2}C\d{2}", str(text))
+            return sentrix_id[-1] if sentrix_id else text
+
+        new_paths = {
+            extract_sentrix_id(k): v for k, v in self.sample_paths.items()
+        }
+
+        if len(new_paths) != len(self.sample_paths):
+            return
+
+        self.sample_paths = new_paths
+        self.annotation_df.index = [
+            extract_sentrix_id(x) for x in self.annotation_df.index
+        ]
+        log("[IdatHandler] ...attempting to extract Sentrix IDs instead.")
 
     @property
     def ids(self):
@@ -383,12 +407,12 @@ class BetasHandler:
 
 def extract_beta(data):
     """Extracts and saves beta values for specified CpGs from an IDAT file."""
-    idat_file, prep, betas_handler = data
+    file_name, idat_file, prep, betas_handler = data
     try:
         methyl = MethylData(file=idat_file, prep=prep)
         betas = methyl.betas_at().values.ravel()
         array_type = methyl.array_type
-        betas_handler.add(betas, idat_file.name, array_type)
+        betas_handler.add(betas, file_name, array_type)
     except Exception as error:
         betas_handler.add_error(idat_file.name, error)
         print(f"The following error occured for {idat_file.name}: {error}")
@@ -416,7 +440,7 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
     missing_ids = list(set(idat_handler.ids) - set(betas_handler.ids))
     if len(missing_ids) > 0:
         args_list = [
-            (idat_handler.sample_paths[id_], prep, betas_handler)
+            (id_, idat_handler.sample_paths[id_], prep, betas_handler)
             for id_ in missing_ids
         ]
         with ThreadPoolExecutor() as executor:
