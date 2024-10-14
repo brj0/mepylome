@@ -231,7 +231,7 @@ class IdatHandler:
 
         if (
             len(new_paths) != len(self.sample_paths)
-            or len(new_index) != len(self.annotation_df.index)
+            or len(set(new_index)) != len(set(self.annotation_df.index))
             or not set(new_paths.keys()).intersection(new_index)
         ):
             return
