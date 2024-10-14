@@ -836,9 +836,13 @@ class MethylAnalysis:
             log("[MethylAnalysis] Try to import cbseg or linear_segment...")
         self.do_seg = False if _get_cgsegment(verbose=True) is None else do_seg
 
+        # Set upload dir, as it is needed by _get_cpgs
+        self._set_upload_dir()
         self.cpgs = self._get_cpgs(cpgs)
+
         self._prev_vars = self._get_vars_or_hashes()
         self._update_paths()
+
         self.read_umap_plot_from_disk()
 
     @property
@@ -974,6 +978,14 @@ class MethylAnalysis:
         )
         raise ValueError(msg)
 
+    def _set_upload_dir(self):
+        upload_hash_key = input_args_id(
+            "upload",
+            self.analysis_dir,
+        )
+        self.upload_dir = self.output_dir / f"{upload_hash_key}"
+        ensure_directory_exists(self.upload_dir)
+
     def _update_paths(self):
         """Update file paths and directories based on current settings.
 
@@ -1011,12 +1023,7 @@ class MethylAnalysis:
         ensure_directory_exists(self.cnv_dir)
 
         # upload dir
-        upload_hash_key = input_args_id(
-            "upload",
-            self.analysis_dir,
-        )
-        self.upload_dir = self.output_dir / f"{upload_hash_key}"
-        ensure_directory_exists(self.upload_dir)
+        self._set_upload_dir()
 
         # umap dir
         cur_vars = self._get_vars_or_hashes()

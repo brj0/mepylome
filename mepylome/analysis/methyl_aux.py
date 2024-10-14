@@ -201,9 +201,15 @@ class IdatHandler:
                 )
             except ValueError:
                 self.annotation_df = result_df
-                log("[IdatHandler] No valid annotation file.")
+                log(
+                    "[IdatHandler] Annotation file is invalid or could not "
+                    "be read."
+                )
             if not set(result_df.index).intersection(self.annotation_df.index):
-                log("[IdatHandler] No IDAT file found in annotation.")
+                log(
+                    "[IdatHandler] No matching IDAT files on disk found in "
+                    "the annotation file."
+                )
                 self._extract_sentrix_ids()
                 result_df = pd.DataFrame(index=self.sample_paths.keys())
             result_df = result_df.join(self.annotation_df)
@@ -221,15 +227,18 @@ class IdatHandler:
         new_paths = {
             extract_sentrix_id(k): v for k, v in self.sample_paths.items()
         }
+        new_index = [extract_sentrix_id(x) for x in self.annotation_df.index]
 
-        if len(new_paths) != len(self.sample_paths):
+        if (
+            len(new_paths) != len(self.sample_paths)
+            or len(new_index) != len(self.annotation_df.index)
+            or not set(new_paths.keys()).intersection(new_index)
+        ):
             return
 
-        self.sample_paths = new_paths
-        self.annotation_df.index = [
-            extract_sentrix_id(x) for x in self.annotation_df.index
-        ]
         log("[IdatHandler] ...attempting to extract Sentrix IDs instead.")
+        self.sample_paths = new_paths
+        self.annotation_df.index = new_index
 
     @property
     def ids(self):
