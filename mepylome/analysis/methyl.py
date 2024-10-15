@@ -1344,7 +1344,7 @@ class MethylAnalysis:
             log("[MethylAnalysis] Precalculate CNV's...")
         self._update_paths()
         if sample_ids is None:
-            sample_ids = [x.name for x in idat_basepaths(self.analysis_dir)]
+            sample_ids = self.idat_handler.sample_paths.keys()
         self._prog_bar.reset(len(sample_ids), text="(CNV)")
         write_cnv_to_disk(
             sample_path=[
