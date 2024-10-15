@@ -15,6 +15,7 @@ from mepylome.dtypes.cache import memoize
 from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
 from mepylome.utils import log
 from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
+from mepylome.utils.varia import get_free_port
 
 PLOTLY_RENDER_MODE = "webgl"
 ZIP_ENDING = "_cnv.zip"
@@ -538,14 +539,17 @@ class CNVPlot:
     def run_app(self):
         """Opens new tab and runs app in browser."""
         init_sample_id = self.cnv_file.replace(ZIP_ENDING, "")
+        free_port = get_free_port(self.port)
 
         def open_browser_tab():
             webbrowser.open_new_tab(
-                f"http://{self.host}:{self.port}/{init_sample_id}"
+                f"http://{self.host}:{free_port}/{init_sample_id}"
             )
 
         threading.Timer(1, open_browser_tab).start()
-        self.app.run(debug=True, host=self.host, use_reloader=False)
+        self.app.run(
+            debug=True, host=self.host, use_reloader=False, port=free_port
+        )
 
 
 def _cn_summary_per_chrom(df_seg, threshold=0.1):

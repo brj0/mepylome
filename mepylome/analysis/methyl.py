@@ -61,6 +61,7 @@ from mepylome.utils import (
     MEPYLOME_TMP_DIR,
     Timer,
     ensure_directory_exists,
+    get_free_port,
     log,
 )
 
@@ -1975,10 +1976,11 @@ class MethylAnalysis:
                 browser tab with the application URL. Defaults to False.
         """
         self.app = self.get_app()
+        free_port = get_free_port(self.port)
         if open_tab:
 
             def open_browser_tab():
-                webbrowser.open_new_tab(f"http://{self.host}:{self.port}")
+                webbrowser.open_new_tab(f"http://{self.host}:{free_port}")
 
             threading.Timer(1, open_browser_tab).start()
 
@@ -1986,7 +1988,12 @@ class MethylAnalysis:
         flask_logger = logging.getLogger("werkzeug")
         flask_logger.setLevel(logging.ERROR)
 
-        self.app.run(debug=self.debug, host=self.host, use_reloader=False)
+        self.app.run(
+            debug=self.debug,
+            host=self.host,
+            use_reloader=False,
+            port=free_port,
+        )
 
     def __repr__(self):
         title = "MethylAnalysis():"

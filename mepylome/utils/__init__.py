@@ -14,7 +14,7 @@ from .files import (
     reset_file,
 )
 from .tutorial_setup import setup_tutorial_files
-from .varia import Timer, log, normexp_get_xs
+from .varia import Timer, get_free_port, log, normexp_get_xs
 
 __all__ = [
     "download_file",
@@ -25,6 +25,7 @@ __all__ = [
     "reset_file",
     "get_resource_path",
     "setup_tutorial_files",
+    "get_free_port",
     "Timer",
     "normexp_get_xs",
     "MEPYLOME_TMP_DIR",

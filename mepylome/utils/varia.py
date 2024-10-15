@@ -7,6 +7,7 @@ Usage:
     timer.stop("process_name")
 """
 
+import socket
 import time
 from datetime import datetime
 
@@ -176,3 +177,13 @@ def normexp_get_xs(xf, controls=None, offset=50, param=None):
         "xs": result + offset,
         "param": param,
     }
+
+
+def get_free_port(start_port):
+    """Returns the first free port from start position."""
+    port = start_port
+    while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("localhost", port)) != 0:
+                return port
+            port += 1
