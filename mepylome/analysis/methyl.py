@@ -981,8 +981,8 @@ class MethylAnalysis:
 
     def _set_upload_dir(self):
         upload_hash_key = input_args_id(
-            "upload",
             self.analysis_dir,
+            "upload",
         )
         self.upload_dir = self.output_dir / f"{upload_hash_key}"
         ensure_directory_exists(self.upload_dir)
@@ -1006,16 +1006,16 @@ class MethylAnalysis:
 
         # betas dir
         betas_hash_key = input_args_id(
-            "betas",
             self.analysis_dir,
+            "betas",
             self.prep,
         )
         self.betas_path = self.output_dir / f"{betas_hash_key}"
 
         # cnv dir
         cnv_hash_key = input_args_id(
-            "cnv",
             self.analysis_dir,
+            "cnv",
             self.reference_dir,
             self.prep,
             self.do_seg,
@@ -1029,8 +1029,8 @@ class MethylAnalysis:
         # umap dir
         cur_vars = self._get_vars_or_hashes()
         umap_hash_key = input_args_id(
-            "umap",
             self.analysis_dir,
+            "umap",
             self.prep,
             self.n_cpgs,
             self.cpg_selection,
