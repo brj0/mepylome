@@ -197,7 +197,6 @@ class IdatHandler:
             try:
                 self.annotation_df = read_dataframe(
                     self.annotation_file,
-                    index_col=0,
                 )
             except ValueError:
                 self.annotation_df = result_df
@@ -205,40 +204,47 @@ class IdatHandler:
                     "[IdatHandler] Annotation file is invalid or could not "
                     "be read."
                 )
-            if not set(result_df.index).intersection(self.annotation_df.index):
+            for col in self.annotation_df.columns:
+                if self._extract_sentrix_ids(col):
+                    result_df = pd.DataFrame(index=self.sample_paths.keys())
+                    break
+            else:
                 log(
                     "[IdatHandler] No matching IDAT files on disk found in "
                     "the annotation file."
                 )
-                self._extract_sentrix_ids()
-                result_df = pd.DataFrame(index=self.sample_paths.keys())
-            result_df = result_df.join(self.annotation_df)
-            result_df = result_df.fillna("")
-        if len(result_df.columns) == 0:
+            result_df = result_df.join(self.annotation_df).fillna("")
+        if result_df.empty:
             result_df["Methylation_Class"] = "NO_DIAGNOSIS"
         result_df.loc[self.uploaded_sample_ids] = "UPLOADED"
         return result_df.fillna("")
 
-    def _extract_sentrix_ids(self):
+    def _extract_sentrix_ids(self, col):
+        if set(self.sample_paths.keys()).intersection(self.annotation_df[col]):
+            log(f"[IdatHandler] Setting column '{col}' as annotation index.")
+            self.annotation_df = self.annotation_df.set_index(col)
+            return True
+
         def extract_sentrix_id(text):
-            sentrix_id = re.findall(r"\d+_R\d{2}C\d{2}", str(text))
-            return sentrix_id[-1] if sentrix_id else text
+            matches = re.findall(r"\d+_R\d{2}C\d{2}", str(text))
+            return matches[-1] if matches else text
 
         new_paths = {
             extract_sentrix_id(k): v for k, v in self.sample_paths.items()
         }
-        new_index = [extract_sentrix_id(x) for x in self.annotation_df.index]
+        new_index = [extract_sentrix_id(x) for x in self.annotation_df[col]]
 
         if (
-            len(new_paths) != len(self.sample_paths)
-            or len(set(new_index)) != len(set(self.annotation_df.index))
-            or not set(new_paths.keys()).intersection(new_index)
+            len(new_paths) == len(self.sample_paths)
+            and len(set(new_index)) == len(set(self.annotation_df[col]))
+            and set(new_paths.keys()).intersection(new_index)
         ):
-            return
+            log(f"[IdatHandler] Extracted Sentrix IDs from column '{col}'.")
+            self.sample_paths = new_paths
+            self.annotation_df.index = new_index
+            return True
 
-        log("[IdatHandler] ...attempting to extract Sentrix IDs instead.")
-        self.sample_paths = new_paths
-        self.annotation_df.index = new_index
+        return False
 
     @property
     def ids(self):
