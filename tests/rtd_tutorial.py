@@ -770,7 +770,7 @@ methyl_analysis = MethylAnalysis(
 
 # The annotation dataframe contains metadata for each sample, including
 # diagnosis information.
-annotation_df = methyl_analysis.idat_handler.annotated_samples
+annotation_df = methyl_analysis.idat_handler.samples_annotated
 
 # Loop through each unique diagnosis in the dataset to generate CN-summary
 # plots for all diagnosis categories.

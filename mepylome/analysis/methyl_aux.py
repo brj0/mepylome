@@ -22,8 +22,9 @@ from mepylome.dtypes.manifests import Manifest
 from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
 from mepylome.utils.varia import log
 
-NEUTRAL_BETA = 0.49
 DTYPE = np.float32
+INVALID_PATH = Path("None")
+NEUTRAL_BETA = 0.49
 
 
 class ProgressBar:
@@ -111,6 +112,23 @@ def read_dataframe(path, **kwargs):
     )
 
 
+def guess_annotation_file(directory, verbose=False):
+    """Returns the first spreadsheat file in the given directory."""
+    if verbose:
+        log("[MethylAnalysis] Try to read annotation file...")
+    supported_extensions = [".csv", ".tsv", ".ods", ".xls", ".xlsx"]
+    for file in directory.glob("*"):
+        if file.suffix in supported_extensions:
+            return file
+    return INVALID_PATH
+
+
+def extract_sentrix_id(text):
+    """Extracts the sentrix ID if found."""
+    matches = re.findall(r"\d+_R\d{2}C\d{2}", str(text))
+    return matches[-1] if matches else text
+
+
 class IdatHandler:
     """A class for handling IDAT files with annotation.
 
@@ -126,6 +144,9 @@ class IdatHandler:
         overlap (bool, optional): If True, restricts the sample paths to only
             those present in both the IDAT files and the annotation file.
             Defaults to False.
+        sample_ids (list, optional): A list of sample IDs. If provided, the
+            analysis will be restricted to these samples only. If `None`, the
+            analysis will include all available samples.
 
     Attributes:
         idat_dir (Path): The directory path where the IDAT files are located.
@@ -136,17 +157,19 @@ class IdatHandler:
             only those present in both the IDAT files and the annotation file.
         uploaded_sample_ids (list): A sorted list of valid uploaded IDAT sample
             IDs.
-        sample_paths (dict): A dictionary where the keys are sample IDs and the
+        id_to_path (dict): A dictionary where the keys are sample IDs and the
             values are the file paths of IDAT files (from both `idat_dir` and
             `upload_dir`).
         annotation_file (Path): The path to the annotation file.
         annotation_df (pandas.DataFrame or None): A DataFrame containing the
             annotation data, if loaded.
-        annotated_samples (pandas.DataFrame or None): A DataFrame containing
-            the samples that are present in the annotation file with existing
-            IDAT files.
+        samples_annotated (pandas.DataFrame or None): A DataFrame containing
+            the samples as index and the annotation in the columns.
         selected_columns (list): A list of selected columns from the annotated
             samples, initialized with the first column.
+        sample_ids (list, optional): A list of sample IDs. If provided, the
+            analysis will be restricted to these samples only. If `None`, the
+            analysis will include all available samples.
     """
 
     def __init__(
@@ -156,111 +179,136 @@ class IdatHandler:
         *,
         upload_dir=None,
         overlap=False,
+        sample_ids=None,
     ):
+        self._annotation_samples_mismatch = False
         self.idat_dir = Path(idat_dir)
+        self.sample_ids = sample_ids
+        self.overlap = overlap
+
         if upload_dir is not None and Path(upload_dir).exists():
             self.upload_dir = Path(upload_dir)
             uploaded_sample_paths = idat_basepaths(self.upload_dir)
         else:
             self.upload_dir = None
             uploaded_sample_paths = []
-        self.annotation_file = Path(annotation_file)
-        self.overlap = overlap
+
+        if annotation_file is None:
+            self.annotation_file = guess_annotation_file(
+                self.idat_dir, verbose=True
+            )
+        else:
+            self.annotation_file = Path(annotation_file)
+
         # Sort uploaded IDAT's for consistent hash
         self.uploaded_sample_ids = sorted(
             x.name for x in uploaded_sample_paths if is_valid_idat_basepath(x)
         )
-        self.sample_paths = {
+
+        self.id_to_path = {
             x.name: x
             for x in idat_basepaths(self.idat_dir) + uploaded_sample_paths
             if is_valid_idat_basepath(x)
         }
-        self.annotation_df = None
-        self.annotated_samples = self.load_annotated_samples()
-        if self.overlap and self.annotated_samples is not None:
-            self.sample_paths = {
-                x: i
-                for x, i in self.sample_paths.items()
-                if x in self.annotation_df.index
-            }
-            self.annotated_samples = self.annotated_samples.loc[
-                self.sample_paths.keys()
-            ]
-        self.selected_columns = [self.annotated_samples.columns[0]]
+
+        self.annotation_df = self._get_annotation()
+        self.samples_annotated = self._get_samples_annotated()
+
+        if self.overlap:
+            valid_ids = self.annotation_df.index.intersection(
+                self.id_to_path.keys()
+            )
+            self.id_to_path = {x: self.id_to_path[x] for x in valid_ids}
+            self.samples_annotated = self.samples_annotated.loc[valid_ids]
+
+        # Need to extract sentrix ID's if necessary
+        if self._annotation_samples_mismatch and self.sample_ids is not None:
+            _sample_ids = [extract_sentrix_id(x) for x in self.sample_ids]
+        else:
+            _sample_ids = self.sample_ids
+
+        if _sample_ids is not None:
+            self.id_to_path = {x: self.id_to_path[x] for x in _sample_ids}
+            self.samples_annotated = self.samples_annotated.loc[_sample_ids]
+
+        self.selected_columns = [self.samples_annotated.columns[0]]
 
     def __len__(self):
-        return len(self.sample_paths)
+        return len(self.id_to_path)
 
-    def load_annotated_samples(self):
-        result_df = pd.DataFrame(index=self.sample_paths.keys())
-        if self.annotation_file.exists():
-            try:
-                self.annotation_df = read_dataframe(
-                    self.annotation_file,
-                )
-            except ValueError:
-                self.annotation_df = result_df
-                log(
-                    "[IdatHandler] Annotation file is invalid or could not "
-                    "be read."
-                )
-            for col in self.annotation_df.columns:
-                if self._extract_sentrix_ids(col):
-                    result_df = pd.DataFrame(index=self.sample_paths.keys())
-                    break
-            else:
-                log(
-                    "[IdatHandler] No matching IDAT files on disk found in "
-                    "the annotation file."
-                )
+    def _get_annotation(self):
+        try:
+            return read_dataframe(self.annotation_file)
+        except (FileNotFoundError, ValueError):
+            log(
+                "[IdatHandler] Annotation file is missing, invalid or could "
+                "not be read."
+            )
+            return pd.DataFrame()
+
+    def _get_samples_annotated(self):
+        # Check if any column in annotation_df contains existing IDAT samples
+        if any(
+            self._extract_sentrix_ids(col)
+            for col in self.annotation_df.columns
+        ):
+            result_df = pd.DataFrame(index=self.id_to_path.keys())
             result_df = result_df.join(self.annotation_df).fillna("")
+        else:
+            result_df = pd.DataFrame(index=self.id_to_path.keys())
+            log(
+                "[IdatHandler] No matching IDAT files on disk found in "
+                "the annotation file."
+            )
+
         if result_df.empty:
             result_df["Methylation_Class"] = "NO_DIAGNOSIS"
         result_df.loc[self.uploaded_sample_ids] = "UPLOADED"
-        return result_df.fillna("")
+        return result_df
 
     def _extract_sentrix_ids(self, col):
-        if set(self.sample_paths.keys()).intersection(self.annotation_df[col]):
+        if set(self.id_to_path.keys()).intersection(self.annotation_df[col]):
             log(f"[IdatHandler] Setting column '{col}' as annotation index.")
             self.annotation_df = self.annotation_df.set_index(col)
             return True
 
-        def extract_sentrix_id(text):
-            matches = re.findall(r"\d+_R\d{2}C\d{2}", str(text))
-            return matches[-1] if matches else text
-
         new_paths = {
-            extract_sentrix_id(k): v for k, v in self.sample_paths.items()
+            extract_sentrix_id(k): v for k, v in self.id_to_path.items()
         }
         new_index = [extract_sentrix_id(x) for x in self.annotation_df[col]]
 
         if (
-            len(new_paths) == len(self.sample_paths)
+            len(new_paths) == len(self.id_to_path)
             and len(set(new_index)) == len(set(self.annotation_df[col]))
             and set(new_paths.keys()).intersection(new_index)
         ):
             log(f"[IdatHandler] Extracted Sentrix IDs from column '{col}'.")
-            self.sample_paths = new_paths
+            self.id_to_path = new_paths
             self.annotation_df.index = new_index
+            self._annotation_samples_mismatch = True
             return True
 
         return False
 
     @property
     def ids(self):
-        return self.annotated_samples.index.tolist()
+        return list(self.id_to_path.keys())
+
+    @property
+    def paths(self):
+        return list(self.id_to_path.values())
 
     @property
     def properties(self):
-        return self.annotated_samples.columns.tolist()
+        return self.samples_annotated.columns.tolist()
 
     def compound_class(self, columns=None):
         if columns is None:
-            return self.annotated_samples.iloc[:, 0].tolist()
+            return self.samples_annotated.iloc[:, 0].tolist()
         if not isinstance(columns, list):
             columns = [columns]
         return (
-            self.annotated_samples[columns]
+            self.samples_annotated[columns]
             .apply(lambda row: "|".join(row.values.astype(str)), axis=1)
             .tolist()
         )
@@ -269,7 +317,7 @@ class IdatHandler:
         lines = [
             "IdatHandler():",
             f"annotation_file: '{self.annotation_file}'",
-            f"annotated_samples:\n{self.annotated_samples}",
+            f"samples_annotated:\n{self.samples_annotated}",
             f"selected_columns:\n{self.selected_columns}",
         ]
         return "\n".join(lines)
@@ -455,7 +503,7 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
     missing_ids = list(set(idat_handler.ids) - set(betas_handler.ids))
     if len(missing_ids) > 0:
         args_list = [
-            (id_, idat_handler.sample_paths[id_], prep, betas_handler)
+            (id_, idat_handler.id_to_path[id_], prep, betas_handler)
             for id_ in missing_ids
         ]
         with ThreadPoolExecutor() as executor:

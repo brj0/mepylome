@@ -949,7 +949,7 @@ diagnosis information.
 
 .. code-block:: python
 
-    >>> annotation_df = methyl_analysis.idat_handler.annotated_samples
+    >>> annotation_df = methyl_analysis.idat_handler.samples_annotated
 
 
 Loop through each unique diagnosis in the dataset to generate CN-summary

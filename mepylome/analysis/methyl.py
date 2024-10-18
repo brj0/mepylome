@@ -31,9 +31,11 @@ from dash import (
 )
 
 from mepylome.analysis.methyl_aux import (
+    INVALID_PATH,
     IdatHandler,
     ProgressBar,
     get_betas,
+    guess_annotation_file,
     read_dataframe,
 )
 from mepylome.analysis.methyl_clf import (
@@ -53,7 +55,6 @@ from mepylome.dtypes import (
     _get_cgsegment,
     _overlap_indices,
     get_cn_summary,
-    idat_basepaths,
     is_valid_idat_basepath,
     read_cnv_data_from_disk,
 )
@@ -69,7 +70,6 @@ timer = Timer()
 
 
 DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "analysis")
-INVALID_PATH = Path("None")
 
 DEFAULT_N_CPGS = 25000
 NEUTRAL_BETA = 0.49
@@ -500,17 +500,6 @@ def get_side_navigation(
     )
 
 
-def guess_annotation_file(directory, verbose=False):
-    """Returns the first spreadsheat file in the given directory."""
-    if verbose:
-        log("[MethylAnalysis] Try to read annotation file...")
-    supported_extensions = [".csv", ".tsv", ".ods", ".xls", ".xlsx"]
-    for file in directory.glob("*"):
-        if file.suffix in supported_extensions:
-            return file
-    return INVALID_PATH
-
-
 def input_args_id(*args, extra_hash=None):
     """Returns a unique identifier for a set of arguments."""
     hasher = hashlib.md5()
@@ -578,7 +567,10 @@ class MethylAnalysis:
             analysis.
 
         annotation (str or Path): Path to an annotation spreadsheet where
-            Sentrix IDs are listed in the first column.
+            Sentrix IDs are preferably listed in the first column. If not
+            provided, the system will attempt to infer the correct column
+            automatically, and if an annotation file is missing, it will try to
+            detect a spreadsheet in the `analysis_dir` if available.
 
         reference_dir (str or Path): Directory containing reference IDAT files.
 
@@ -613,6 +605,10 @@ class MethylAnalysis:
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
 
+        sample_ids (list, optional): A list of sample IDs. If provided, the
+            analysis will be restricted to these samples only. If `None`, the
+            analysis will include all available samples.
+
         cpg_selection (str): Method to select CpG sites ('top' or 'random')
             (default: 'top'). For 'top', CpG sites are selected based on their
             variation, taking the most varying ones. For 'random', CpG sites
@@ -642,11 +638,18 @@ class MethylAnalysis:
         analysis_dir (Path): Path to the directory containing IDAT files for
             analysis.
 
-        annotation (Path): Path to an annotation spreadsheet where Sentrix IDs
-            are listed in the first column.
+        annotation (str or Path): Path to an annotation spreadsheet where
+            Sentrix IDs are preferably listed in the first column. If not
+            provided, the system will attempt to infer the correct column
+            automatically, and if an annotation file is missing, it will try to
+            detect a spreadsheet in the `analysis_dir` if available.
 
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
+
+        sample_ids (list, optional): A list of sample IDs. If provided, the
+            analysis will be restricted to these samples only. If `None`, the
+            analysis will include all available samples.
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
 
@@ -738,9 +741,6 @@ class MethylAnalysis:
 
 
     Raises:
-        FileNotFoundError: If `annotation` file does not exist and cannot be
-            guessed.
-
         ValueError: If `cpg_selection` is not 'top' or 'random'.
 
     Examples:
@@ -773,6 +773,7 @@ class MethylAnalysis:
         load_full_betas=False,
         feature_matrix=None,
         overlap=False,
+        sample_ids=None,
         cpg_selection="top",
         do_seg=False,
         host="localhost",
@@ -785,6 +786,7 @@ class MethylAnalysis:
         self.analysis_dir = Path(analysis_dir).expanduser()
         self.annotation = Path(annotation).expanduser()
         self.overlap = overlap
+        self.sample_ids = None if sample_ids is None else list(sample_ids)
         self._idat_handler = None
         self.n_cpgs = n_cpgs
         self.cpg_blacklist = set(cpg_blacklist or [])
@@ -839,12 +841,33 @@ class MethylAnalysis:
 
         # Set upload dir, as it is needed by _get_cpgs
         self._set_upload_dir()
-        self.cpgs = self._get_cpgs(cpgs)
+        self._cpgs = self._get_cpgs(cpgs)
 
         self._prev_vars = self._get_vars_or_hashes()
         self._update_paths()
 
         self.read_umap_plot_from_disk()
+
+    @property
+    def cpgs(self):
+        """Get the CpG sites to analyze."""
+        return self._cpgs
+
+    @cpgs.setter
+    def cpgs(self, cpgs):
+        """Set the CpG sites for analysis.
+
+        Args:
+            cpgs (str or np.ndarray): An array of CpG sites to analyze, or one
+                of the following strings: '450k', 'epic', 'epicv2', or 'auto'
+                for automatic detection. It can also be a path to a CSV file
+                containing the CpG sites.
+
+        Raises:
+            ValueError: If the provided cpgs value is not a valid type or
+                format.
+        """
+        self._cpgs = self._get_cpgs(cpgs)
 
     @property
     def idat_handler(self):
@@ -854,18 +877,29 @@ class MethylAnalysis:
             IdatHandler: An instance of IdatHandler configured with current
             settings.
         """
+
+        def _to_list(sample_ids):
+            if sample_ids is None:
+                return []
+            if isinstance(sample_ids, (pd.Series, np.ndarray)):
+                return sample_ids.tolist()
+            return list(sample_ids)
+
         if (
             self._idat_handler is None
             or self.analysis_dir != self._idat_handler.idat_dir
             or self.annotation != self._idat_handler.annotation_file
             or self.overlap != self._idat_handler.overlap
             or self.upload_dir != self._idat_handler.upload_dir
+            or _to_list(self.sample_ids)
+            != _to_list(self._idat_handler.sample_ids)
         ):
             self._idat_handler = IdatHandler(
                 self.analysis_dir,
                 self.annotation,
                 overlap=self.overlap,
                 upload_dir=self.upload_dir,
+                sample_ids=self.sample_ids,
             )
         return self._idat_handler
 
@@ -942,7 +976,7 @@ class MethylAnalysis:
 
             input_var = {
                 str(ArrayType.from_idat(get_grn_idat_path(path)))
-                for path in self.idat_handler.sample_paths.values()
+                for path in self.idat_handler.paths
             }
             if self.verbose:
                 log(
@@ -1128,7 +1162,7 @@ class MethylAnalysis:
         self.umap_df = pd.concat(
             [
                 umap_df,
-                self.idat_handler.annotated_samples,
+                self.idat_handler.samples_annotated,
             ],
             axis=1,
         )
@@ -1304,7 +1338,7 @@ class MethylAnalysis:
                 analysis directory or if the reference directory does not
                 exist.
         """
-        idat_basepath = self.idat_handler.sample_paths[sample_id]
+        idat_basepath = self.idat_handler.id_to_path[sample_id]
         if not is_valid_idat_basepath(idat_basepath):
             msg = f"Sample {sample_id} not found in {self.analysis_dir}"
             raise FileNotFoundError(msg)
@@ -1344,12 +1378,10 @@ class MethylAnalysis:
             log("[MethylAnalysis] Precalculate CNV's...")
         self._update_paths()
         if sample_ids is None:
-            sample_ids = self.idat_handler.sample_paths.keys()
+            sample_ids = self.idat_handler.ids
         self._prog_bar.reset(len(sample_ids), text="(CNV)")
         write_cnv_to_disk(
-            sample_path=[
-                self.idat_handler.sample_paths[x] for x in sample_ids
-            ],
+            sample_path=[self.idat_handler.id_to_path[x] for x in sample_ids],
             reference_dir=self.reference_dir,
             cnv_dir=self.cnv_dir,
             prep=self.prep,
@@ -1388,7 +1420,7 @@ class MethylAnalysis:
         if extract is None:
             extract = ["bins", "detail", "segments"]
         write_cnv_to_disk(
-            sample_path=[self.idat_handler.sample_paths[sample_id]],
+            sample_path=[self.idat_handler.id_to_path[sample_id]],
             reference_dir=self.reference_dir,
             cnv_dir=self.cnv_dir,
             prep=self.prep,
