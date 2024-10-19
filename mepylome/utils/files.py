@@ -137,13 +137,7 @@ def is_file_like(obj):
         >>> is_file_like([1, 2, 3])
         False
     """
-    if not (hasattr(obj, "read") or hasattr(obj, "write")):
-        return False
-
-    if not hasattr(obj, "__iter__"):
-        return False
-
-    return True
+    return all(hasattr(obj, attr) for attr in ("read", "write", "__iter__"))
 
 
 def get_file_object(filepath_or_buffer):

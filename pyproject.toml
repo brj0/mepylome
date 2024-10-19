@@ -51,6 +51,16 @@ ignore = [
     "T201",
     # Trailing comma missing
     "COM812",
+    # Magic value used in comparison
+    "PLR2004",
+    # Too many return statements
+    "PLR0911",
+    # Use a context manager for opening files
+    "SIM115",
+    # Too many arguments in function definition
+    "PLR0913",
+    # Too many statements
+    "PLR0915",
 ]
 
 [tool.ruff.lint.pydocstyle]
