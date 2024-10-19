@@ -942,6 +942,7 @@ class MethylAnalysis:
             "cpg_selection": self.cpg_selection,
             "cpgs": self._get_cpgs_hash(),
             "uploaded_files": self._get_uploaded_files_hash(),
+            "sample_ids": self.sample_ids,
         }
 
     def _get_cpgs(self, input_var="auto"):
@@ -1086,6 +1087,7 @@ class MethylAnalysis:
             "cpg_selection",
             "cpgs",
             "uploaded_files",
+            "sample_ids",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
             self.betas_df = None
@@ -1097,6 +1099,7 @@ class MethylAnalysis:
             "cpg_selection",
             "cpgs",
             "uploaded_files",
+            "sample_ids",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
             self.betas_df_all_cpgs = None
