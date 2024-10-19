@@ -1068,7 +1068,11 @@ class MethylAnalysis:
             self.prep,
             self.n_cpgs,
             self.cpg_selection,
-            extra_hash=[cur_vars["cpgs"], cur_vars["uploaded_files"]],
+            extra_hash=[
+                cur_vars["cpgs"],
+                cur_vars["uploaded_files"],
+                self.annotation,
+            ],
         )
         self.umap_dir = self.output_dir / f"{umap_hash_key}"
         self.umap_plot_path = self.umap_dir / "umap_plot.csv"

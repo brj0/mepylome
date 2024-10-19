@@ -232,6 +232,9 @@ class IdatHandler:
             self.samples_annotated = self.samples_annotated.loc[_sample_ids]
 
         self.selected_columns = [self.samples_annotated.columns[0]]
+        self.idat_basename_to_id = {
+            v.name: k for k, v in self.id_to_path.items()
+        }
 
     def __len__(self):
         return len(self.id_to_path)
@@ -262,7 +265,7 @@ class IdatHandler:
             )
 
         if result_df.empty:
-            result_df["Methylation_Class"] = "NO_DIAGNOSIS"
+            result_df["Methylation_Class"] = "NO_ANNOTATION"
         result_df.loc[self.uploaded_sample_ids] = "UPLOADED"
         return result_df
 
@@ -293,6 +296,10 @@ class IdatHandler:
     @property
     def ids(self):
         return list(self.id_to_path.keys())
+
+    @property
+    def idat_basenames(self):
+        return list(self.idat_basename_to_id.keys())
 
     @property
     def paths(self):
@@ -401,60 +408,60 @@ class BetasHandler:
         self.update()
 
     @property
-    def ids(self):
-        """Returns all ids."""
+    def filenames(self):
+        """Returns all idat basenames."""
         return list(self.paths.keys())
 
     @property
-    def invalid_ids(self):
-        """Returns all invalid ids."""
+    def invalid_filenames(self):
+        """Returns all invalid invalid basenames."""
         return list(self.invalid_paths.keys())
 
-    def add(self, betas, id_, array_type):
+    def add(self, betas, filename, array_type):
         """Adds beta values to the file system on disk."""
-        betas.astype(DTYPE).tofile(self.dir[array_type] / id_)
+        betas.astype(DTYPE).tofile(self.dir[array_type] / filename)
 
-    def add_error(self, id_, msg):
+    def add_error(self, filename, msg):
         """Adds error message to the file system on disk."""
-        with (self.dir["error"] / id_).open("w") as f:
+        with (self.dir["error"] / filename).open("w") as f:
             f.write(str(msg))
 
-    def get(self, ids, cpgs, fill=NEUTRAL_BETA, parallel=False):
+    def get(self, filenames, cpgs, fill=NEUTRAL_BETA, parallel=False):
         """Retrieves beta values for specified IDs and CpGs."""
-        check_memory(len(ids), len(cpgs), DTYPE)
-        result = np.full((len(ids), len(cpgs)), fill, dtype=DTYPE)
+        check_memory(len(filenames), len(cpgs), DTYPE)
+        beta_matrix = np.full((len(filenames), len(cpgs)), fill, dtype=DTYPE)
         left_idx = {}
         right_idx = {}
         for key, item in self.array_cpgs.items():
             left_idx[key], right_idx[key] = _overlap_indices(cpgs, item)
 
-        def process_id(i, id_):
-            path = self.paths.get(id_, None)
+        def process_beta_value(i, filename):
+            path = self.paths.get(filename, None)
             if path is not None:
                 key = self.array_type_from_dir[path.parent]
                 betas = np.fromfile(path, dtype=DTYPE)
-                result[i, left_idx[key]] = betas[right_idx[key]]
+                beta_matrix[i, left_idx[key]] = betas[right_idx[key]]
 
         if parallel:
             with ThreadPoolExecutor() as executor:
                 futures = [
-                    executor.submit(process_id, i, id_)
-                    for i, id_ in enumerate(ids)
+                    executor.submit(process_beta_value, i, filename)
+                    for i, filename in enumerate(filenames)
                 ]
                 for future in tqdm(
                     as_completed(futures),
                     total=len(futures),
                     desc="Reading beta values from disk (parallel)",
                 ):
-                    future.result()
+                    future.beta_matrix()
         else:
-            for i, id_ in tqdm(
-                enumerate(ids),
+            for i, filename in tqdm(
+                enumerate(filenames),
                 desc="Reading beta values from disk (serial)",
-                total=len(ids),
+                total=len(filenames),
             ):
-                process_id(i, id_)
-        return pd.DataFrame(result, columns=cpgs, index=ids)
+                process_beta_value(i, filename)
+        return pd.DataFrame(beta_matrix, columns=cpgs, index=filenames)
 
     def update(self):
         """Updates the paths if beta vales were added after initialization."""
@@ -470,12 +477,12 @@ class BetasHandler:
 
 def extract_beta(data):
     """Extracts and saves beta values for specified CpGs from an IDAT file."""
-    file_name, idat_file, prep, betas_handler = data
+    idat_file, prep, betas_handler = data
     try:
         methyl = MethylData(file=idat_file, prep=prep)
         betas = methyl.betas_at().values.ravel()
         array_type = methyl.array_type
-        betas_handler.add(betas, file_name, array_type)
+        betas_handler.add(betas, idat_file.name, array_type)
     except Exception as error:
         betas_handler.add_error(idat_file.name, error)
         print(f"The following error occured for {idat_file.name}: {error}")
@@ -500,10 +507,14 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
             CpGs.
     """
     betas_handler = BetasHandler(betas_path)
-    missing_ids = list(set(idat_handler.ids) - set(betas_handler.ids))
+    ids_found = {
+        idat_handler.idat_basename_to_id.get(x)
+        for x in betas_handler.filenames
+    }
+    missing_ids = list(set(idat_handler.ids) - ids_found)
     if len(missing_ids) > 0:
         args_list = [
-            (id_, idat_handler.id_to_path[id_], prep, betas_handler)
+            (idat_handler.id_to_path[id_], prep, betas_handler)
             for id_ in missing_ids
         ]
         with ThreadPoolExecutor() as executor:
@@ -519,7 +530,9 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
                     if pbar is not None:
                         pbar.increment()
         betas_handler.update()
-    valid_ids = [
-        id_ for id_ in idat_handler.ids if id_ not in betas_handler.invalid_ids
+    valid_beta_value_files = [
+        filename
+        for filename in idat_handler.idat_basenames
+        if filename not in betas_handler.invalid_filenames
     ]
-    return betas_handler.get(valid_ids, cpgs)
+    return betas_handler.get(valid_beta_value_files, cpgs)

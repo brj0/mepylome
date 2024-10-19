@@ -65,7 +65,7 @@ setup(
         "numpy",
         "odfpy",
         "pandas",
-        # "openpyxl",
+        "openpyxl",
         "tqdm",
         "pyranges",
         "psutil",
