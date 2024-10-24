@@ -1500,6 +1500,8 @@ class MethylAnalysis:
         sample_index = betas.index.tolist().index(sample_id)
 
         def _empty_class(cls):
+            if not isinstance(cls, str):
+                return False
             return cls.strip("|") == ""
 
         # Remove all samples with unknown classification.

@@ -113,13 +113,17 @@ def read_dataframe(path, **kwargs):
 
 
 def guess_annotation_file(directory, verbose=False):
-    """Returns the first spreadsheat file in the given directory."""
+    """Returns the first spreadsheat file recursively found."""
     if verbose:
-        log("[MethylAnalysis] Try to read annotation file...")
+        log("[guess_annotation_file] Searching for annotation file...")
     supported_extensions = [".csv", ".tsv", ".ods", ".xls", ".xlsx"]
-    for file in directory.glob("*"):
-        if file.suffix in supported_extensions:
+    for file in directory.rglob("*"):
+        if file.suffix.lower() in supported_extensions:
+            if verbose:
+                log(f"[guess_annotation_file] Found annotation file: {file}")
             return file
+    if verbose:
+        log("[guess_annotation_file] No annotation file found.")
     return INVALID_PATH
 
 
@@ -256,7 +260,11 @@ class IdatHandler:
             for col in self.annotation_df.columns
         ):
             result_df = pd.DataFrame(index=self.id_to_path.keys())
-            result_df = result_df.join(self.annotation_df).fillna("")
+            # Remove duplicate rows
+            unique_annotation_df = self.annotation_df.loc[
+                ~self.annotation_df.index.duplicated(keep='first')
+            ]
+            result_df = result_df.join(unique_annotation_df).fillna("")
         else:
             result_df = pd.DataFrame(index=self.id_to_path.keys())
             log(
@@ -314,6 +322,8 @@ class IdatHandler:
             return self.samples_annotated.iloc[:, 0].tolist()
         if not isinstance(columns, list):
             columns = [columns]
+        if len(columns) == 1:
+            return self.samples_annotated[columns[0]].tolist()
         return (
             self.samples_annotated[columns]
             .apply(lambda row: "|".join(row.values.astype(str)), axis=1)

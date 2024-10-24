@@ -39,7 +39,7 @@ def _evaluate_clf(clf, x_sample, X_test, y_test):
     prob_per_class = list(zip(prob, clf.classes_))
     prob_per_class.sort(reverse=True, key=lambda x: x[0])
     clf_str = _get_clf_repr(clf)
-    class_len = min(30, max(len(x) for x in clf.classes_)) + 4
+    class_len = min(30, max(len(str(x)) for x in clf.classes_)) + 4
     n_test = len(y_test)
     log_str = (
         clf_str
@@ -52,7 +52,7 @@ def _evaluate_clf(clf, x_sample, X_test, y_test):
         )
     )
     for p, c in prob_per_class[: min(len(prob_per_class), 10)]:
-        log_str += f"- {c[:30]:<{class_len}} : {p*100:.2f} %\n"
+        log_str += f"- {str(c)[:30]:<{class_len}} : {p*100:.2f} %\n"
     log_str += "\n"
     return {
         "clf": clf,
