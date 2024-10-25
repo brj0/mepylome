@@ -262,7 +262,7 @@ class IdatHandler:
             result_df = pd.DataFrame(index=self.id_to_path.keys())
             # Remove duplicate rows
             unique_annotation_df = self.annotation_df.loc[
-                ~self.annotation_df.index.duplicated(keep='first')
+                ~self.annotation_df.index.duplicated(keep="first")
             ]
             result_df = result_df.join(unique_annotation_df).fillna("")
         else:

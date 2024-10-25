@@ -2,10 +2,10 @@
 
 Usage:
     $ mepylome                     # Run mepylome with default settings
-    $ mepylome -a /path/to/idats   # Specify anylsis IDAT files directory
+    $ mepylome -a /path/to/idats   # Specify analysis IDAT files directory
                -r /path/to/ref     # Specify reference IDAT directory
                -c 450k             # Specify CpG's to use
-               -s                  # Improve UMAP speed by saving betas to disk
+               -s                  # Add horizontal segmentation lines
     $ mepylome --help              # Show all parameters
 
 """
@@ -87,12 +87,16 @@ def parse_args():
     )
     parser.add_argument(
         "-l",
-        "--load_full_betas",
-        action="store_true",
+        "--no_load_full_betas",
+        action="store_false",
+        dest="load_full_betas",
         help=(
-            "Load betas for all CpG's into memory to improve the speed of "
-            "generating multiple UMAP plots. Can lead to memory overflow if "
-            "not enough memory available (3-4 MB per sample needed)."
+            "Prevent loading betas for all CpG's into memory. By default, "
+            "betas are loaded for all CpG's to improve the speed of "
+            "generating "
+            "multiple UMAP plots. Use this option to avoid "
+            "potential memory overflow if insufficient memory is available "
+            "(3-4 MB per sample needed)."
         ),
     )
     parser.add_argument(
@@ -108,6 +112,7 @@ def parse_args():
         "-S",
         "--cpg_selection",
         type=str,
+        default="top",
         help=(
             "Method for selecting the number of CpGs. Either 'random' or "
             "'top', where 'top' selects the CpGs with the highest variation "
@@ -124,7 +129,7 @@ def parse_args():
         "-d", "--debug", action="store_true", help="Use debug mode in dash."
     )
     parser.add_argument(
-        "-D",
+        "-s",
         "--do_seg",
         action="store_true",
         help=(
@@ -151,6 +156,15 @@ def start_mepylome():
     cli_args = {k: v for k, v in vars(args).items() if v is not None}
 
     print_welcome_message()
+
+    if not cli_args["load_full_betas"] and cli_args["cpg_selection"] == "top":
+        cli_args["cpg_selection"] = "random"
+        msg = (
+            "Warning: Since '-no_load_full_betas' is set, 'cpg_selection' "
+            "has been automatically changed to 'random'.\n"
+        )
+        print(msg)
+
     from .methyl import MethylAnalysis
 
     if cli_args["tutorial"]:

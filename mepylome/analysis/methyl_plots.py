@@ -6,7 +6,6 @@ from functools import lru_cache, partial
 from multiprocessing import Pool
 from pathlib import Path
 
-import numpy as np
 import plotly.colors
 import plotly.express as px
 import plotly.graph_objects as go
@@ -118,11 +117,12 @@ def umap_plot_from_data(umap_df, use_discrete_colors=True):
     Returns:
         UMAP plot as plotly object.
     """
-    methyl_classes = np.sort(umap_df["Umap_color"].unique())
+    methyl_classes = sorted(
+        umap_df["Umap_color"].unique(), key=_mixed_sort_key
+    )
     if use_discrete_colors:
         color_map = discrete_colors(methyl_classes)
     else:
-        methyl_classes = sorted(methyl_classes, key=_mixed_sort_key)
         color_map = continuous_colors(methyl_classes)
     category_orders = {"Umap_color": methyl_classes}
     # If there are too many columns, they are not displayed correctly

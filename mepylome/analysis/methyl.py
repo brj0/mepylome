@@ -594,7 +594,7 @@ class MethylAnalysis:
             invoking 'precompute_cnvs' (default: False).
 
         load_full_betas (bool): Flag to load beta values for all CpG sites
-            into memory (default: False).
+            into memory (default: True).
 
         feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
             user-provided feature matrix to be used for UMAP dimensionality
@@ -693,7 +693,7 @@ class MethylAnalysis:
             invoking 'precalculate_all_cnvs' (default: False).
 
         load_full_betas (bool): Flag to load beta values for all CpG sites into
-            memory (default: False).
+            memory (default: True).
 
         betas_df (NoneType): Dataframe containing beta values, initially set to
             None.
@@ -770,7 +770,7 @@ class MethylAnalysis:
         cpg_blacklist=None,
         n_cpgs=DEFAULT_N_CPGS,
         precalculate_cnv=False,
-        load_full_betas=False,
+        load_full_betas=True,
         feature_matrix=None,
         overlap=False,
         sample_ids=None,
@@ -827,6 +827,13 @@ class MethylAnalysis:
 
         if self.cpg_selection not in ["top", "random"]:
             msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
+            raise ValueError(msg)
+
+        if not self.load_full_betas and self.cpg_selection == "top":
+            msg = (
+                "If 'load_full_betas' is disabled, 'cpg_selection' must be "
+                " set to 'random'"
+            )
             raise ValueError(msg)
 
         if self.annotation == INVALID_PATH:
@@ -1201,7 +1208,7 @@ class MethylAnalysis:
                 f"Try to delete cached files in {self.output_dir}."
             )
             raise AttributeError(msg)
-        self.umap_df["Umap_color"] = umap_color
+        self.umap_df["Umap_color"] = [str(x) for x in umap_color]
         self.umap_plot = umap_plot_from_data(
             self.umap_df, self._use_discrete_colors
         )
@@ -1454,18 +1461,28 @@ class MethylAnalysis:
     def classify(self, sample_id, clf_list=None, use_all_cpgs=False):
         """Classify the sample using specified classifiers.
 
-        This method classifies the sample using a list of supervised
-        classifiers. The possible classes are selected from 'selected_columns'.
-        Returns trained classifiers with their evaluations and prints
-        classification to console.
+        This method classifies a given sample using a list of supervised
+        classifiers. The possible class labels are derived from
+        `selected_columns`. If `feature_matrix` is provided (i.e., not None),
+        it will be used as the feature set for classification, which can be any
+        custom data related or unrelated to the methylation data. If
+        `feature_matrix` is not provided, the classification will be based on
+        CpG methylation data, using either `betas_df` (selected CpGs) or
+        `betas_df_all_cpgs` (all CpGs), depending on the `use_all_cpgs` flag.
+
+        After training the classifiers, the method returns their evaluation
+        results and prints the classification outcome to the console.
 
         Args:
-            sample_id (str): Sample to classify.
+            sample_id (str): The ID of the sample to classify.
             clf_list (list, optional): List of classifier objects to use for
-                classification. Defaults to None.
-            use_all_cpgs (bool, optional): Whether to use all CpGs
-                ('betas_df_all_cpgs') or just the ones selected in the UMAP
-                plot ('betas_df'). Defaults to False
+                classification. If None, a default set of classifiers will be
+                used. Possible values are `rf` (random forest), `knn`
+                (k-nearest neighbors), `nn` (neural network) or `svm` (support
+                vector machine).
+            use_all_cpgs (bool, optional): Whether to use all CpGs from
+                `betas_df_all_cpgs` or just the subset selected for the UMAP
+                plot (`betas_df`). Defaults to False.
 
         Returns:
             list[dict]: List of dictionaries containing trained classifiers
