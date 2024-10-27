@@ -9,7 +9,7 @@ from .beads import (
     idat_basepaths,
     is_valid_idat_basepath,
 )
-from .cache import get_id_tuple, memoize
+from .cache import get_id_tuple, input_args_id, memoize
 from .chromosome import Chromosome
 from .cnv import CNV, ZIP_ENDING, Annotation, _get_cgsegment
 from .genetic_data import (
@@ -34,6 +34,7 @@ __all__ = [
     "CHROMOSOME_DATA",
     "CNV",
     "CNVPlot",
+    "input_args_id",
     "Channel",
     "Chromosome",
     "GAPS",

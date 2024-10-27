@@ -7,7 +7,6 @@ interactive web application for the exploration of methylation data.
 """
 
 import base64
-import hashlib
 import logging
 import os
 import sys
@@ -55,6 +54,7 @@ from mepylome.dtypes import (
     _get_cgsegment,
     _overlap_indices,
     get_cn_summary,
+    input_args_id,
     is_valid_idat_basepath,
     read_cnv_data_from_disk,
 )
@@ -498,25 +498,6 @@ def get_side_navigation(
         ],
         width={"size": 2},
     )
-
-
-def input_args_id(*args, extra_hash=None):
-    """Returns a unique identifier for a set of arguments."""
-    hasher = hashlib.md5()
-    components = []
-    for arg in args:
-        if isinstance(arg, np.ndarray):
-            hasher.update(str(arg.tolist()).encode())
-        elif isinstance(arg, Path):
-            hasher.update(str(arg).encode())
-            components.append(arg.name)
-        else:
-            hasher.update(str(arg).encode())
-            components.append(str(arg))
-    extra_hash = [] if extra_hash is None else extra_hash
-    hasher.update(",".join([str(x) for x in extra_hash]).encode())
-    components.append(hasher.hexdigest())
-    return "-".join(components)
 
 
 def extract_sub_dataframe(data_frame, columns, fill=0.49):
@@ -2054,41 +2035,30 @@ class MethylAnalysis:
         )
 
     def __repr__(self):
-        title = "MethylAnalysis():"
-        lines = [
-            title + "\n" + "*" * len(title),
-            f"analysis_dir:\n{self.analysis_dir}",
-            f"annotation:\n{self.annotation}",
-            f"app:\n{self.app}",
-            f"betas_df:\n{self.betas_df}",
-            f"betas_df_all_cpgs:\n{self.betas_df_all_cpgs}",
-            f"betas_path:\n{self.betas_path}",
-            f"cnv_dir:\n{self.cnv_dir}",
-            f"cnv_id:\n{self.cnv_id}",
-            f"cnv_plot:\n{str(self.cnv_plot)[:80]}...",
-            f"cpg_selection:\n{self.cpg_selection}",
-            f"cpgs:\n{self.cpgs}",
-            f"debug:\n{self.debug}",
-            f"do_seg:\n{self.do_seg}",
-            f"dropdown_id:\n{self.dropdown_id}",
-            f"host:\n{self.host}",
-            f"ids:\n{self.ids}",
-            f"ids_to_highlight:\n{self.ids_to_highlight}",
-            f"load_full_betas:\n{self.load_full_betas}",
-            f"n_cpgs:\n{self.n_cpgs}",
-            f"output_dir:\n{self.output_dir}",
-            f"overlap:\n{self.overlap}",
-            f"port:\n{self.port}",
-            f"precalculate_cnv:\n{self.precalculate_cnv}",
-            f"prep:\n{self.prep}",
-            f"raw_umap_plot:\n{str(self.raw_umap_plot)[:80]}...",
-            f"reference_dir:\n{self.reference_dir}",
-            f"selected_columns:\n{self.idat_handler.selected_columns}",
-            f"umap_cpgs:\n{self.umap_cpgs}",
-            f"umap_df:\n{self.umap_df}",
-            f"umap_dir:\n{self.umap_dir}",
-            f"umap_plot_path:\n{self.umap_plot_path}",
-            f"upload_dir:\n{self.upload_dir}",
-            f"verbose:\n{self.verbose}",
-        ]
+        title = f"{self.__class__.__name__}()"
+        header = title + "\n" + "*" * len(title)
+        lines = [header]
+
+        def format_value(value):
+            length_info = ""
+            if isinstance(value, (pd.DataFrame, pd.Series, pd.Index)):
+                display_value = str(value)
+            elif isinstance(value, np.ndarray):
+                display_value = str(value)
+                length_info = f"\n\n[{len(value)} items]"
+            elif hasattr(value, "__len__"):
+                display_value = str(value)[:80] + (
+                    "..." if len(str(value)) > 80 else ""
+                )
+                if len(value) > 80:
+                    length_info = f"\n\n[{len(value)} items]"
+            else:
+                display_value = str(value)[:80] + (
+                    "..." if len(str(value)) > 80 else ""
+                )
+            return display_value, length_info
+
+        for attr, value in sorted(self.__dict__.items()):
+            display_value, length_info = format_value(value)
+            lines.append(f"{attr}:\n{display_value}{length_info}")
         return "\n\n".join(lines)

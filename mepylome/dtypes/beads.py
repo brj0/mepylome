@@ -1018,7 +1018,8 @@ class ReferenceMethylData:
         filepath = ReferenceMethylData.pickle_filename(self.prep, idat_files)
         if self.save_to_disk and filepath.exists():
             with filepath.open("rb") as f:
-                self = pickle.load(f)
+                saved_instance = pickle.load(f)
+                self.__dict__.update(saved_instance.__dict__)
                 return
 
         reference_files = collections.defaultdict(list)

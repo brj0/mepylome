@@ -5,6 +5,7 @@ Illumina array manifest files, which contain information about probes and their
 characteristics.
 """
 
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +13,7 @@ import pandas as pd
 import pyranges as pr
 
 from mepylome.dtypes.arrays import ArrayType
-from mepylome.dtypes.cache import cache_key
+from mepylome.dtypes.cache import cache_key, input_args_id
 from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.probes import Channel, InfiniumDesignType, ProbeType
 from mepylome.utils.files import (
@@ -170,6 +171,17 @@ class Manifest:
         self.proc_path = to_path(proc_path)
         self.download_proc = download_proc
 
+        # Load cached data from disk
+        pickle_hash = input_args_id(
+            "manifest", self.array_type, self.raw_path, self.proc_path
+        )
+        pickle_path = MEPYLOME_TMP_DIR / f"{pickle_hash}.pkl"
+        if pickle_path.exists():
+            with pickle_path.open("rb") as file:
+                saved_instance = pickle.load(file)
+                self.__dict__.update(saved_instance.__dict__)
+                return
+
         if self.array_type == ArrayType.UNKNOWN:
             self.__data_frame = pd.DataFrame()
             self.__control_data_frame = pd.DataFrame()
@@ -219,6 +231,10 @@ class Manifest:
         self.__control_data_frame = self._read_control_probes(self.ctrl_path)
         self.__snp_data_frame = self._read_snp_probes()
         self.__methyl_probes = None
+
+        # Save to disk
+        with pickle_path.open("wb") as file:
+            pickle.dump(self, file)
 
     @property
     def data_frame(self):

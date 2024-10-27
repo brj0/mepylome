@@ -4,7 +4,9 @@ Utility functions and classes for caching and memoization to optimize
 performance by storing and reusing computed results.
 """
 
+import hashlib
 import inspect
+from pathlib import Path
 
 import numpy as np
 
@@ -166,3 +168,22 @@ def memoize(f):
             return isinstance(other, self.cls)
 
     return Memoize(f)
+
+
+def input_args_id(*args, extra_hash=None):
+    """Returns a unique identifier for a set of arguments."""
+    hasher = hashlib.md5()
+    components = []
+    for arg in args:
+        if isinstance(arg, np.ndarray):
+            hasher.update(str(arg.tolist()).encode())
+        elif isinstance(arg, Path):
+            hasher.update(str(arg).encode())
+            components.append(arg.name)
+        else:
+            hasher.update(str(arg).encode())
+            components.append(str(arg))
+    extra_hash = [] if extra_hash is None else extra_hash
+    hasher.update(",".join([str(x) for x in extra_hash]).encode())
+    components.append(hasher.hexdigest())
+    return "-".join(components)
