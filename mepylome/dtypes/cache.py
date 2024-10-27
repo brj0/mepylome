@@ -170,20 +170,26 @@ def memoize(f):
     return Memoize(f)
 
 
-def input_args_id(*args, extra_hash=None):
+def input_args_id(*args, extra_hash=None, suffix_limit=40):
     """Returns a unique identifier for a set of arguments."""
-    hasher = hashlib.md5()
     components = []
-    for arg in args:
+
+    def _encode_arg(arg):
         if isinstance(arg, np.ndarray):
-            hasher.update(str(arg.tolist()).encode())
+            return str(arg.tolist()).encode()
         elif isinstance(arg, Path):
-            hasher.update(str(arg).encode())
             components.append(arg.name)
-        else:
-            hasher.update(str(arg).encode())
-            components.append(str(arg))
-    extra_hash = [] if extra_hash is None else extra_hash
-    hasher.update(",".join([str(x) for x in extra_hash]).encode())
-    components.append(hasher.hexdigest())
-    return "-".join(components)
+            return str(arg).encode()
+        elif isinstance(arg, list):
+            return str(np.array(arg).tolist()).encode()
+        components.append(str(arg))
+        return str(arg).encode()
+
+    hasher = hashlib.md5()
+    for arg in args:
+        hasher.update(_encode_arg(arg))
+    if extra_hash:
+        hasher.update(",".join(map(str, extra_hash)).encode())
+    arg_hash = hasher.hexdigest()
+    suffix = "-".join(components)[:suffix_limit]
+    return f"{suffix}-{arg_hash}" if suffix else arg_hash

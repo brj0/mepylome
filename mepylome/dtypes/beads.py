@@ -5,7 +5,6 @@ preprocessing techniques, normalization, and data handling.
 """
 
 import collections
-import hashlib
 import pickle
 from functools import reduce
 from pathlib import Path
@@ -15,7 +14,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from mepylome.dtypes.arrays import ArrayType
-from mepylome.dtypes.cache import cache_key, memoize
+from mepylome.dtypes.cache import cache_key, input_args_id, memoize
 from mepylome.dtypes.idat import IdatParser
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.probes import Channel, ProbeType
@@ -1045,9 +1044,9 @@ class ReferenceMethylData:
 
     @staticmethod
     def pickle_filename(prep, idat_files):
-        string = prep + "," + ",".join(sorted(str(x) for x in idat_files))
-        hash_str = hashlib.md5(string.encode()).hexdigest()
-        return MEPYLOME_TMP_DIR / f"ReferenceMethylData-{prep}-{hash_str}.pkl"
+        return MEPYLOME_TMP_DIR / input_args_id(
+            "ReferenceMethylData", prep, sorted(str(x) for x in idat_files)
+        )
 
     def __getitem__(self, array_type):
         if array_type not in self._methyl_data:
