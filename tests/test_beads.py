@@ -25,6 +25,7 @@ class TestIdatPreprocessing(unittest.TestCase):
         # Clean up
         manifest.proc_path.unlink()
         manifest.ctrl_path.unlink()
+        manifest._pickle_path.unlink()
 
     def _test_raw_data(self, n_cpgs, manifest, n_probes):
         id_list = sorted(

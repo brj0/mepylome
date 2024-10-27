@@ -18,6 +18,7 @@ class TestManifests(unittest.TestCase):
         # Clean up
         manifest.proc_path.unlink()
         manifest.ctrl_path.unlink()
+        manifest._pickle_path.unlink()
 
 
 if __name__ == "__main__":

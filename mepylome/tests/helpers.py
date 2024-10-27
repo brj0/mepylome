@@ -124,7 +124,7 @@ class TempManifest:
 
     def __init__(self):
         basename = str(uuid.uuid4())
-        self.path = TEST_DIR / ("manifest_" + basename + ".csv")
+        self.path = TEST_DIR / ("tmp_manifest_" + basename + ".csv")
         _write_binary(self.path, TEST_MANIFEST_CSV)
 
     def __del__(self):

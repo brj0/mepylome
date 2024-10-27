@@ -175,9 +175,9 @@ class Manifest:
         pickle_hash = input_args_id(
             "manifest", self.array_type, self.raw_path, self.proc_path
         )
-        pickle_path = MEPYLOME_TMP_DIR / f"{pickle_hash}.pkl"
-        if pickle_path.exists():
-            with pickle_path.open("rb") as file:
+        self._pickle_path = MEPYLOME_TMP_DIR / f"{pickle_hash}.pkl"
+        if self._pickle_path.exists():
+            with self._pickle_path.open("rb") as file:
                 saved_instance = pickle.load(file)
                 self.__dict__.update(saved_instance.__dict__)
                 return
@@ -233,7 +233,7 @@ class Manifest:
         self.__methyl_probes = None
 
         # Save to disk
-        with pickle_path.open("wb") as file:
+        with self._pickle_path.open("wb") as file:
             pickle.dump(self, file)
 
     @property
