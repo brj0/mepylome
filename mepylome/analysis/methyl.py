@@ -520,9 +520,10 @@ def extract_sub_dataframe(data_frame, columns, fill=0.49):
 
 def reorder_columns_by_variance(data_frame):
     """Reorders data frame by descending column variance."""
-    variances = data_frame.var()
-    sorted_columns = variances.sort_values(ascending=False).index
-    return data_frame[sorted_columns]
+    variances = np.var(data_frame.values, axis=0)
+    sorted_columns = np.argsort(-variances)
+    sorted_column_names = data_frame.columns[sorted_columns]
+    return data_frame[sorted_column_names]
 
 
 def get_cpgs_from_file(input_path):
@@ -1423,10 +1424,11 @@ class MethylAnalysis:
             pbar=self._prog_bar,
             verbose=self.verbose,
         )
-        if (self.cnv_dir / (sample_id + ZIP_ENDING)).exists():
+        basename = self.idat_handler.id_to_basename[sample_id]
+        if (self.cnv_dir / (basename + ZIP_ENDING)).exists():
             return read_cnv_data_from_disk(
                 self.cnv_dir,
-                sample_id,
+                basename,
                 extract=extract,
             )
         return (None,) * len(extract)
@@ -1436,7 +1438,8 @@ class MethylAnalysis:
             msg = "To use CN-summary plots you must set 'do_seg' to 'True'."
             raise ValueError(msg)
         self.precompute_cnvs(sample_ids)
-        plot, df_cn_summary = get_cn_summary(self.cnv_dir, sample_ids)
+        basenames = [self.idat_handler.id_to_basename[x] for x in sample_ids]
+        plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
         return plot, df_cn_summary
 
     def classify(self, sample_id, clf_list=None, use_all_cpgs=False):

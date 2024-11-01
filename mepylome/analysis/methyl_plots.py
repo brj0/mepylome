@@ -247,6 +247,7 @@ def write_cnv_to_disk(
     if len(new_idat_paths) == 1:
         _write_single_cnv_to_disk(new_idat_paths[0])
     else:
+        # TODO Sometimes this freezes and pbar does not work.
         with Pool() as pool, tqdm(
             total=len(new_idat_paths), desc="Generating CNV files"
         ) as tqdm_bar:

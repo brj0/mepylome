@@ -239,6 +239,7 @@ class IdatHandler:
         self.idat_basename_to_id = {
             v.name: k for k, v in self.id_to_path.items()
         }
+        self.id_to_basename = {k: v.name for k, v in self.id_to_path.items()}
 
     def __len__(self):
         return len(self.id_to_path)

@@ -73,15 +73,8 @@ def cache_key(*args):
         "ndarray": np_hash,
         "DataFrame": lambda df: tuple(np_hash(df[col].values) for col in df),
     }
-    keys = []
-    for arg in args:
-        arg_type = (
-            arg.__class__.__name__ if hasattr(arg, "__class__") else None
-        )
-        keys.append(type_map.get(arg_type, id)(arg))
-    if len(args) == 1:
-        return keys[0]
-    return tuple(keys)
+    keys = tuple(type_map.get(type(arg).__name__, id)(arg) for arg in args)
+    return keys[0] if len(args) == 1 else keys
 
 
 def get_id_tuple(f, args, kwargs):
