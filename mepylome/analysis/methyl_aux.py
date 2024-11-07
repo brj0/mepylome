@@ -25,6 +25,7 @@ from mepylome.utils.varia import log
 DTYPE = np.float32
 INVALID_PATH = Path("None")
 NEUTRAL_BETA = 0.49
+UPLOADED = "Uploaded"
 
 
 class ProgressBar:
@@ -274,8 +275,8 @@ class IdatHandler:
             )
 
         if result_df.empty:
-            result_df["Methylation_Class"] = "NO_ANNOTATION"
-        result_df.loc[self.uploaded_sample_ids] = "UPLOADED"
+            result_df["Methylation_Class"] = ""
+        result_df.loc[self.uploaded_sample_ids] = UPLOADED
         return result_df
 
     def _extract_sentrix_ids(self, col):

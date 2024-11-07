@@ -17,6 +17,7 @@ from pathlib import Path
 import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
+import plotly
 import plotly.graph_objects as go
 from dash import (
     Dash,
@@ -31,15 +32,14 @@ from dash import (
 
 from mepylome.analysis.methyl_aux import (
     INVALID_PATH,
+    UPLOADED,
     IdatHandler,
     ProgressBar,
     get_betas,
     guess_annotation_file,
     read_dataframe,
 )
-from mepylome.analysis.methyl_clf import (
-    fit_and_evaluate_classifiers,
-)
+from mepylome.analysis.methyl_clf import fit_and_evaluate_classifiers
 from mepylome.analysis.methyl_plots import (
     EMPTY_FIGURE,
     get_cnv_plot,
@@ -442,27 +442,18 @@ def get_side_navigation(
                         label="Classify",
                         children=[
                             html.Br(),
-                            html.H6("Which CpG's should be used"),
-                            dcc.Dropdown(
-                                id="clf-cpg-dropdown",
-                                options={
-                                    "not_all": "Use the same CpGs as in UMAP",
-                                    "all": "Use all CpGs (memory intensive)",
-                                },
-                                value="not_all",
-                                multi=False,
-                            ),
-                            html.Br(),
                             html.H6("Classifiers to use"),
                             dcc.Dropdown(
                                 id="clf-clf-dropdown",
                                 options={
-                                    "rf": "Random Forest",
-                                    "knn": "k-Nearest Neighbors",
-                                    "nn": "Neural Network",
-                                    "svm": "Support Vector Machine",
+                                    "none-kbest-lr": "LinearRegression",
+                                    "none-kbest-et": "ExtraTreesClassifier",
+                                    "none-kbest-rf": "RandomForestClassifier",
+                                    "none-kbest-svc_rbf": "SVC(kernel='rbf')",
+                                    "none-pca-lr": "PCALinearRegression",
+                                    "none-pca-et": "PCAExtraTreesClassifier",
                                 },
-                                value=["rf", "knn"],
+                                value=["none-kbest-lr", "none-kbest-et"],
                                 multi=True,
                             ),
                             html.Br(),
@@ -781,6 +772,7 @@ class MethylAnalysis:
         self.upload_dir = INVALID_PATH
         self.cnv_dir = None
         self.umap_dir = None
+        self.clf_dir = None
         self.prep = prep
         self.precalculate_cnv = precalculate_cnv
         self.load_full_betas = load_full_betas
@@ -1067,6 +1059,20 @@ class MethylAnalysis:
         self.umap_dir = self.output_dir / f"{umap_hash_key}"
         self.umap_plot_path = self.umap_dir / "umap_plot.csv"
         ensure_directory_exists(self.umap_dir)
+
+        # clf dir
+        clf_hash_key = input_args_id(
+            self.analysis_dir,
+            "clf",
+            self.prep,
+            self.feature_matrix is None,
+            extra_hash=[
+                cur_vars["cpgs"],
+                self.annotation,
+                self.idat_handler.selected_columns,
+            ],
+        )
+        self.clf_dir = self.output_dir / f"{clf_hash_key}"
 
         # Reset betas_df if necessary
         dependencies = [
@@ -1442,20 +1448,21 @@ class MethylAnalysis:
         plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
         return plot, df_cn_summary
 
-    def classify(self, sample_id, clf_list=None, use_all_cpgs=False):
+    def classify(self, sample_id, clf_list=None):
         """Classify the sample using specified classifiers.
 
-        This method classifies a given sample using a list of supervised
+        This method classifies a given sample using supervised
         classifiers. The possible class labels are derived from
         `selected_columns`. If `feature_matrix` is provided (i.e., not None),
         it will be used as the feature set for classification, which can be any
         custom data related or unrelated to the methylation data. If
         `feature_matrix` is not provided, the classification will be based on
         CpG methylation data, using either `betas_df` (selected CpGs) or
-        `betas_df_all_cpgs` (all CpGs), depending on the `use_all_cpgs` flag.
+        `betas_df_all_cpgs` (all CpGs), depending on the `self.load_full_betas`
+        flag.
 
-        After training the classifiers, the method returns their evaluation
-        results and prints the classification outcome to the console.
+        After training the classifiers, the method returns their results and
+        reports.
 
         Args:
             sample_id (str): The ID of the sample to classify.
@@ -1464,9 +1471,6 @@ class MethylAnalysis:
                 used. Possible values are `rf` (random forest), `knn`
                 (k-nearest neighbors), `nn` (neural network) or `svm` (support
                 vector machine).
-            use_all_cpgs (bool, optional): Whether to use all CpGs from
-                `betas_df_all_cpgs` or just the subset selected for the UMAP
-                plot (`betas_df`). Defaults to False.
 
         Returns:
             list[dict]: List of dictionaries containing trained classifiers
@@ -1479,9 +1483,6 @@ class MethylAnalysis:
             msg = "Must set 'sample_id' before calling classify()."
             raise ValueError(msg)
 
-        if use_all_cpgs:
-            self.load_full_betas = True
-
         self._update_paths()
         self.set_betas()
         classes_ = self.idat_handler.compound_class(
@@ -1493,33 +1494,33 @@ class MethylAnalysis:
             betas = pd.DataFrame(
                 self.feature_matrix, index=self.betas_df.index
             )
-        elif use_all_cpgs:
+        elif self.load_full_betas:
             betas = self.betas_df_all_cpgs
         else:
             betas = self.betas_df
 
-        sample_index = betas.index.tolist().index(sample_id)
+        basename = self.idat_handler.id_to_basename[sample_id]
 
         def _empty_class(cls):
             if not isinstance(cls, str):
                 return False
-            return cls.strip("|") == ""
+            return cls == UPLOADED or cls.strip("|") == ""
 
         # Remove all samples with unknown classification.
         valid_indices = [
-            i
-            for i, x in enumerate(classes_)
-            if (not _empty_class(x) or i == sample_index)
-            and not (i > sample_index and betas.index[i] == sample_id)
+            i for i, x in enumerate(classes_) if not _empty_class(x)
         ]
         classes_ = [classes_[i] for i in valid_indices]
         betas = betas.iloc[valid_indices]
 
+        ensure_directory_exists(self.clf_dir)
+
         return fit_and_evaluate_classifiers(
-            betas_df=betas,
-            classes_=classes_,
+            X=betas,
+            y=classes_,
+            sample_id=basename,
+            directory=self.clf_dir,
             log_file=CLF_FILE,
-            sample_id=sample_id,
             clf_list=clf_list,
         )
 
@@ -1973,7 +1974,6 @@ class MethylAnalysis:
                 Input("clf-start-button", "n_clicks"),
             ],
             [
-                State("clf-cpg-dropdown", "value"),
                 State("clf-clf-dropdown", "value"),
             ],
             prevent_initial_call=True,
@@ -1983,26 +1983,21 @@ class MethylAnalysis:
         )
         def on_clf_start_button_click(
             n_clicks,
-            cpgs_to_use,
             clf_list,
         ):
             if not n_clicks:
                 return no_update
 
             error_message = None
-            if cpgs_to_use is None:
-                error_message = "Invalid CpGs selection method."
-            elif clf_list is None or len(clf_list) == 0:
+            if clf_list is None or len(clf_list) == 0:
                 error_message = "No classifiers selected."
             elif self.cnv_id is None:
                 error_message = "No sample selected."
             if error_message:
                 return error_message
 
-            use_all_cpgs = cpgs_to_use == "all"
-
             try:
-                _ = self.classify(self.cnv_id, clf_list, use_all_cpgs)
+                _ = self.classify(self.cnv_id, clf_list)
             except Exception as exc:
                 log(f"[MethylAnalysis] An error occured (4): {exc}")
                 return f"{exc}"
@@ -2055,6 +2050,21 @@ class MethylAnalysis:
                 )
                 if len(value) > 80:
                     length_info = f"\n\n[{len(value)} items]"
+            elif isinstance(value, (plotly.graph_objs.Figure)):
+                data_str = (
+                    str(value.data[0])[:70].replace("\n", " ")
+                    if value.data
+                    else "No data"
+                )
+                layout_str = str(value.layout)[:70].replace("\n", " ")
+                data_str += "..." if len(data_str) == 70 else ""
+                layout_str += "..." if len(layout_str) == 70 else ""
+                display_value = (
+                    f"Figure(\n"
+                    f"    data: {data_str}\n"
+                    f"    layout: {layout_str}\n"
+                    f")"
+                )
             else:
                 display_value = str(value)[:80] + (
                     "..." if len(str(value)) > 80 else ""

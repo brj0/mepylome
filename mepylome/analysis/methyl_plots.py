@@ -3,7 +3,7 @@
 import colorsys
 import hashlib
 from functools import lru_cache, partial
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 
 import plotly.colors
@@ -247,8 +247,9 @@ def write_cnv_to_disk(
     if len(new_idat_paths) == 1:
         _write_single_cnv_to_disk(new_idat_paths[0])
     else:
-        # TODO Sometimes this freezes and pbar does not work.
-        with Pool() as pool, tqdm(
+        # If we use all cores pooling will freeze.
+        num_cores = max(1, cpu_count() - 1)
+        with Pool(num_cores) as pool, tqdm(
             total=len(new_idat_paths), desc="Generating CNV files"
         ) as tqdm_bar:
             for _ in pool.imap(_write_single_cnv_to_disk, new_idat_paths):
