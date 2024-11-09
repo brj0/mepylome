@@ -265,12 +265,18 @@ def evaluate_classifier_cv(clf, X, y, probabilities_cv, cv):
         y_pred = y_pred_cv[test_idx]
         accuracy_scores.append(accuracy_score(y_true, y_pred))
         f1_scores.append(f1_score(y_true, y_pred, average="weighted"))
-        roc_auc = roc_auc_score(
-            y_true,
-            probabilities_cv_test,
-            multi_class=multi_class_strategy,
-            average="weighted",
-        )
+        # Calculate ROC AUC score
+        if len(np.unique(y_true)) == 2:
+            # Binary classification: use probabilities for the positive class
+            roc_auc = roc_auc_score(y_true, probabilities_cv_test[:, 1])
+        else:
+            # Multiclass classification: use the full probabilities matrix
+            roc_auc = roc_auc_score(
+                y_true,
+                probabilities_cv_test,
+                multi_class=multi_class_strategy,
+                average="weighted",
+            )
         auc_scores.append(roc_auc)
 
     return {
