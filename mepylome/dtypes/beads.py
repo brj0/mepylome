@@ -1050,6 +1050,9 @@ class ReferenceMethylData:
 
     def __getitem__(self, array_type):
         if array_type not in self._methyl_data:
-            msg = f"No reference files found for array type {array_type.value}"
+            msg = (
+                f"No copy number neutral reference files found for "
+                f"array type {array_type.value}."
+            )
             raise ValueError(msg)
         return self._methyl_data[array_type]

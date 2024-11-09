@@ -452,6 +452,7 @@ def get_side_navigation(
                                     "none-kbest-svc_rbf": "SVC(kernel='rbf')",
                                     "none-pca-lr": "PCALinearRegression",
                                     "none-pca-et": "PCAExtraTreesClassifier",
+                                    "none-none-knn": "KNeighborsClassifier",
                                 },
                                 value=["none-kbest-lr", "none-kbest-et"],
                                 multi=True,
@@ -509,12 +510,12 @@ def extract_sub_dataframe(data_frame, columns, fill=0.49):
     return pd.DataFrame(result_np, columns=columns, index=data_frame.index)
 
 
-def reorder_columns_by_variance(data_frame):
-    """Reorders data frame by descending column variance."""
+def reordered_cpgs_by_variance(data_frame):
+    """Reorders CpGs by descending column variance."""
     variances = np.var(data_frame.values, axis=0)
-    sorted_columns = np.argsort(-variances)
+    sorted_columns = np.argsort(-variances, kind="stable")
     sorted_column_names = data_frame.columns[sorted_columns]
-    return data_frame[sorted_column_names]
+    return sorted_column_names
 
 
 def get_cpgs_from_file(input_path):
@@ -562,6 +563,9 @@ class MethylAnalysis:
             exclude. Default is None.
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
+
+        n_jobs (int): Number of parallel processes to run for classifying
+            (default: 1). Choose -1 for using all available cores.
 
         precalculate_cnv (bool): Flag to precalculate CNV information by
             invoking 'precompute_cnvs' (default: False).
@@ -625,6 +629,9 @@ class MethylAnalysis:
             analysis will include all available samples.
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
+
+        n_jobs (int): Number of parallel processes to run for classifying
+            (default: 1). Choose -1 for using all available cores.
 
         reference_dir (Path): Path to the reference directory containing
             reference IDAT files.
@@ -742,6 +749,7 @@ class MethylAnalysis:
         cpgs="auto",
         cpg_blacklist=None,
         n_cpgs=DEFAULT_N_CPGS,
+        n_jobs=1,
         precalculate_cnv=False,
         load_full_betas=True,
         feature_matrix=None,
@@ -762,6 +770,7 @@ class MethylAnalysis:
         self.sample_ids = None if sample_ids is None else list(sample_ids)
         self._idat_handler = None
         self.n_cpgs = n_cpgs
+        self.n_jobs = n_jobs
         self.cpg_blacklist = set(cpg_blacklist or [])
         self.cpg_selection = cpg_selection
         self.host = host
@@ -798,6 +807,8 @@ class MethylAnalysis:
         self._prog_bar = ProgressBar()
         self._use_discrete_colors = True
         self._internal_cpgs_hash = None
+        self._old_selected_columns = None
+        self._sorted_cpgs = None
 
         if self.cpg_selection not in ["top", "random"]:
             msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
@@ -828,6 +839,9 @@ class MethylAnalysis:
         self._update_paths()
 
         self.read_umap_plot_from_disk()
+
+        if self.verbose:
+            log("[MethylAnalysis] Initialization completed.")
 
     @property
     def cpgs(self):
@@ -866,6 +880,9 @@ class MethylAnalysis:
                 return sample_ids.tolist()
             return list(sample_ids)
 
+        if self._idat_handler is not None:
+            self._old_selected_columns = self._idat_handler.selected_columns
+
         if (
             self._idat_handler is None
             or self.analysis_dir != self._idat_handler.idat_dir
@@ -876,12 +893,20 @@ class MethylAnalysis:
             != _to_list(self._idat_handler.sample_ids)
         ):
             self._idat_handler = IdatHandler(
-                self.analysis_dir,
-                self.annotation,
+                idat_dir=self.analysis_dir,
+                annotation_file=self.annotation,
                 overlap=self.overlap,
                 upload_dir=self.upload_dir,
                 sample_ids=self.sample_ids,
             )
+
+        # Restore old selected columns if they are still valid
+        if self._old_selected_columns and all(
+            x in self._idat_handler.samples_annotated.columns
+            for x in self._old_selected_columns
+        ):
+            self._idat_handler.selected_columns = self._old_selected_columns
+
         return self._idat_handler
 
     @idat_handler.setter
@@ -1266,7 +1291,7 @@ class MethylAnalysis:
                 return extract_sub_dataframe(
                     self.betas_df_all_cpgs, self.umap_cpgs
                 )
-            return self.betas_df_all_cpgs.iloc[:, : self.n_cpgs]
+            return self.betas_df_all_cpgs[self._sorted_cpgs[: self.n_cpgs]]
 
         if self.cpg_selection == "random":
             self.umap_cpgs = get_random_cpgs()
@@ -1276,7 +1301,7 @@ class MethylAnalysis:
 
         elif self.load_full_betas or self.cpg_selection == "top":
             self.betas_df_all_cpgs = _get_betas(self.cpgs)
-            self.betas_df_all_cpgs = reorder_columns_by_variance(
+            self._sorted_cpgs = reordered_cpgs_by_variance(
                 self.betas_df_all_cpgs
             )
             self.betas_df = _extract_sub_dataframe()
@@ -1457,8 +1482,7 @@ class MethylAnalysis:
         it will be used as the feature set for classification, which can be any
         custom data related or unrelated to the methylation data. If
         `feature_matrix` is not provided, the classification will be based on
-        CpG methylation data, using either `betas_df` (selected CpGs) or
-        `betas_df_all_cpgs` (all CpGs), depending on the `self.load_full_betas`
+        CpG methylation data, using `betas_df_all_cpgs` (all CpGs).
         flag.
 
         After training the classifiers, the method returns their results and
@@ -1485,43 +1509,48 @@ class MethylAnalysis:
 
         self._update_paths()
         self.set_betas()
-        classes_ = self.idat_handler.compound_class(
+        ensure_directory_exists(self.clf_dir)
+
+        y = self.idat_handler.compound_class(
             self.idat_handler.selected_columns
         )
         log("[MethylAnalysis] Start classifying...")
 
         if self.feature_matrix is not None:
-            betas = pd.DataFrame(
-                self.feature_matrix, index=self.betas_df.index
-            )
+            X = pd.DataFrame(self.feature_matrix, index=self.betas_df.index)
         elif self.load_full_betas:
-            betas = self.betas_df_all_cpgs
+            X = self.betas_df_all_cpgs
         else:
-            betas = self.betas_df
+            msg = (
+                "For classification either all CpGs must be loaded into "
+                "memory (enable 'load_full_betas') or 'feature_matrix' "
+                "must be provided."
+            )
+            raise ValueError(msg)
 
         basename = self.idat_handler.id_to_basename[sample_id]
 
-        def _empty_class(cls):
+        def _invalid_class(cls):
             if not isinstance(cls, str):
                 return False
             return cls == UPLOADED or cls.strip("|") == ""
 
         # Remove all samples with unknown classification.
-        valid_indices = [
-            i for i, x in enumerate(classes_) if not _empty_class(x)
-        ]
-        classes_ = [classes_[i] for i in valid_indices]
-        betas = betas.iloc[valid_indices]
+        valid_indices = [i for i, x in enumerate(y) if not _invalid_class(x)]
+        y = [y[i] for i in valid_indices]
 
-        ensure_directory_exists(self.clf_dir)
+        x_test = X.loc[[basename]]
+        X = X.iloc[valid_indices]
 
         return fit_and_evaluate_classifiers(
-            X=betas,
-            y=classes_,
-            sample_id=basename,
+            X=X,
+            y=y,
+            x_test=x_test,
+            id_test=basename,
             directory=self.clf_dir,
             log_file=CLF_FILE,
             clf_list=clf_list,
+            n_jobs=self.n_jobs,
         )
 
     def get_app(self):
@@ -1664,7 +1693,7 @@ class MethylAnalysis:
                         log("[MethylAnalysis] umap failed:", exc)
                         log("[MethylAnalysis] sample_id:", sample_id)
                         log("[MethylAnalysis] MethylAnalysis:", self)
-                        return no_update, no_update, str(exc)
+                        return self.umap_plot, EMPTY_FIGURE, str(exc)
                     else:
                         return self.umap_plot, self.cnv_plot, ""
             if trigger == "selected-genes" and genes_sel is not None:
@@ -1946,7 +1975,7 @@ class MethylAnalysis:
         def update_output(list_of_contents, list_of_names, list_of_dates):
             def parse_contents(contents, filename, date):
                 file_path = self.upload_dir / filename
-                content_type, content_string = contents.split(",")
+                content_string = contents.split(",")[1]
                 decoded = base64.b64decode(content_string)
                 with open(file_path, "wb") as f:
                     f.write(decoded)

@@ -289,6 +289,9 @@ class IdatHandler:
             extract_sentrix_id(k): v for k, v in self.id_to_path.items()
         }
         new_index = [extract_sentrix_id(x) for x in self.annotation_df[col]]
+        new_uploaded_sample_ids = [
+            extract_sentrix_id(x) for x in self.uploaded_sample_ids
+        ]
 
         if (
             len(new_paths) == len(self.id_to_path)
@@ -297,6 +300,7 @@ class IdatHandler:
         ):
             log(f"[IdatHandler] Extracted Sentrix IDs from column '{col}'.")
             self.id_to_path = new_paths
+            self.uploaded_sample_ids = new_uploaded_sample_ids
             self.annotation_df.index = new_index
             self._annotation_samples_mismatch = True
             return True
@@ -518,6 +522,8 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
         pd.DataFrame: DataFrame containing the beta values for the specified
             CpGs.
     """
+    # Loading manifests here prevents race conditions
+    Manifest.load()
     betas_handler = BetasHandler(betas_path)
     ids_found = {
         idat_handler.idat_basename_to_id.get(x)
