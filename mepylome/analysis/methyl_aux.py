@@ -233,8 +233,10 @@ class IdatHandler:
             _sample_ids = self.sample_ids
 
         if _sample_ids is not None:
-            self.id_to_path = {x: self.id_to_path[x] for x in _sample_ids}
-            self.samples_annotated = self.samples_annotated.loc[_sample_ids]
+            # Keep uploaded samples
+            selection = _sample_ids + self.uploaded_sample_ids
+            self.id_to_path = {x: self.id_to_path[x] for x in selection}
+            self.samples_annotated = self.samples_annotated.loc[selection]
 
         self.selected_columns = [self.samples_annotated.columns[0]]
         self.idat_basename_to_id = {
