@@ -195,7 +195,7 @@ def _make_clf_pipeline(scaler, selector, clf, X_shape):
     )
 
 
-def _evaluate_clf(clf, x_test, id_):
+def evaluate_clf(clf, x_test, id_):
     """Evaluates a classifier for given beta values and identifier.
 
     Args:
@@ -249,7 +249,7 @@ def _is_ovr_or_ovo(clf):
     return "ovr"
 
 
-def evaluate_classifier_cv(clf, X, y, probabilities_cv, cv):
+def cross_val_metrics(clf, X, y, probabilities_cv, cv):
     """Calculates cross-validation statistics for a classifier."""
     y_pred_cv = np.array(
         [clf.classes_[i] for i in np.argmax(probabilities_cv, axis=1)]
@@ -353,7 +353,7 @@ def train_clf(clf, X, y, directory, stats=None, n_jobs=1):
         probabilities_cv = cross_val_predict(
             clf, X, y, cv=cv, method="predict_proba", n_jobs=n_jobs
         )
-        stats = evaluate_classifier_cv(clf, X, y, probabilities_cv, cv)
+        stats = cross_val_metrics(clf, X, y, probabilities_cv, cv)
         trained_clf = TrainedSklearnCVClassifier(
             clf=clf, probabilities_cv=probabilities_cv, X=X, stats=stats
         )
@@ -384,14 +384,13 @@ def fit_and_evaluate_classifiers(
             will be saved.
         log_file (str or Path): Path to the log file for storing training and
             evaluation details.
-        clf_list (list, optional): List of classifiers or classifier
-            configurations to use.
-            Each element can be:
+        clf_list (list): List of classifiers or classifier configurations to
+            use. Each element can be:
             - A scikit-learn classifier object or pipeline (trained or
               untrained).
             - A tuple of 3 strings (scaler, selector, classifier) to create a
               pipeline.
-            - A string in the format "scaler-selector-classifier". Possivle
+            - A string in the format "scaler-selector-classifier". Possible
               values are:
                 scaler:
                     - "none": No scaling (passthrough).
@@ -455,7 +454,7 @@ def fit_and_evaluate_classifiers(
             )
         else:
             clf_to_evaluate = clf
-        classes, prediction, report = _evaluate_clf(
+        classes, prediction, report = evaluate_clf(
             clf_to_evaluate, x_test, id_test
         )
         result.append([classes, prediction])

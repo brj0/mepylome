@@ -514,10 +514,10 @@ annotation:
 app:
 None
 
-betas_df:
+betas_top:
 None
 
-betas_df_all_cpgs:
+betas_all:
 None
 
 betas_path:
@@ -691,7 +691,7 @@ methyl_analysis.set_betas()
 
 # The beta values are then stored in:
 
-methyl_analysis.betas_df
+methyl_analysis.betas_top
 """
                      cg15836656  cg12823387  cg25563772  ...  cg22115994  cg27601809  cg00444740
 200925700133_R04C01    0.117822    0.058700    0.058626  ...    0.295462    0.738677    0.474659

@@ -558,7 +558,6 @@ class MethylAnalysis:
             '450k', 'epic', 'epicv2', or 'auto' for automatic detection. It can
             also be a path to a CSV file containing the CpG sites.
 
-
         cpg_blacklist (set or list, optional): A list or set of CpG sites to
             exclude. Default is None.
 
@@ -576,7 +575,7 @@ class MethylAnalysis:
         feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
             user-provided feature matrix to be used for UMAP dimensionality
             reduction. If provided, this matrix will be used instead of
-            `betas_df`. If not provided (default is None), the `betas_df`
+            `betas_top`. If not provided (default is None), the `betas_top`
             containing methylation beta values will be used for UMAP.
 
         overlap (bool): Flag to analyze only samples that are both in the
@@ -615,7 +614,7 @@ class MethylAnalysis:
         analysis_dir (Path): Path to the directory containing IDAT files for
             analysis.
 
-        annotation (str or Path): Path to an annotation spreadsheet where
+        annotation (Path): Path to an annotation spreadsheet where
             Sentrix IDs are preferably listed in the first column. If not
             provided, the system will attempt to infer the correct column
             automatically, and if an annotation file is missing, it will try to
@@ -639,7 +638,7 @@ class MethylAnalysis:
         output_dir (Path): Path to the directory where output files will be
             saved (default: "/tmp/mepylome/analysis").
 
-        upload_dir (NoneType): Directory for uploaded files, initially set to
+        upload_dir (Path): Directory for uploaded files, initially set to
             invalid path.
 
         prep (str): Prepreparation method used for data preparation (default:
@@ -660,13 +659,13 @@ class MethylAnalysis:
 
         verbose (bool): Flag to enable verbose logging (default: True).
 
-        cnv_dir (NoneType): Directory for CNV (Copy Number Variation) data,
+        cnv_dir (Path): Directory for CNV (Copy Number Variation) data,
             initially set to None.
 
-        umap_dir (NoneType): Directory for UMAP (Uniform Manifold Approximation
+        umap_dir (Path): Directory for UMAP (Uniform Manifold Approximation
             and Projection) data, initially set to None.
 
-        umap_cpgs (NoneType): CpG sites for UMAP analysis, initially set to
+        umap_cpgs (numpy.array): CpG sites for UMAP analysis, initially set to
             None.
 
         precalculate_cnv (bool): Flag to precalculate CNV information by
@@ -675,49 +674,51 @@ class MethylAnalysis:
         load_full_betas (bool): Flag to load beta values for all CpG sites into
             memory (default: True).
 
-        betas_df (NoneType): Dataframe containing beta values, initially set to
-            None.
+        betas_top (pandas.DataFrame): Dataframe containing top variable beta
+            values, initially set to None.
+
+        betas_all (pandas.DataFrame): Dataframe containing beta values for all
+            CpG sites, initially set to None.
 
         feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
             user-provided feature matrix to be used for UMAP dimensionality
             reduction. If provided, this matrix will be used instead of
-            `betas_df`. If not provided (default is None), the `betas_df`
-            containing methylation beta values will be used for UMAP.
+            `betas_top` for UMAP plots and instead of `betas_all` for
+            classifying (default: None).
 
-        betas_df_all_cpgs (NoneType): Dataframe containing beta values for all
-            CpG sites, initially set to None.
-
-        betas_path (NoneType): Path to the betas directory, initially set to
+        betas_path (Path): Path to the betas directory, initially set to
             None.
 
-        umap_plot (Figure): Plot for UMAP, initially set to EMPTY_FIGURE.
+        umap_plot (plotly.Figure): Plot for UMAP, initially set to
+            EMPTY_FIGURE.
 
-        umap_plot_path (NoneType): Path to the CSV file containing the UMAP
+        umap_plot_path (Path): Path to the CSV file containing the UMAP
             plot data, initially set to None.
 
-        umap_df (NoneType): Dataframe containing UMAP data, initially set to
-            None.
+        umap_df (pandas.DataFrame): Dataframe containing UMAP data, initially
+            set to None.
 
         umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
             'euclidean', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
-        raw_umap_plot (NoneType): Raw UMAP plot data, initially set to None.
+        raw_umap_plot (plotly.Figure): Raw UMAP plot data, initially set to
+            None.
 
-        cnv_plot (Figure): Plot for CNV (Copy Number Variation) visualization,
-            initially set to EMPTY_FIGURE.
+        cnv_plot (plotly.Figure): Plot for CNV (Copy Number Variation)
+            visualization, initially set to EMPTY_FIGURE.
 
-        cnv_id (NoneType): ID for CNV (Copy Number Variation) sample, initially
+        cnv_id (str): ID for CNV (Copy Number Variation) sample, initially
             set to None.
 
-        dropdown_id (NoneType): ID for dropdown selection, initially set to
+        dropdown_id (list): ID for dropdown selection, initially set to
             None.
 
         ids (list): List of IDs, initially empty.
 
-        ids_to_highlight (NoneType): IDs to highlight in the plot, initially
+        ids_to_highlight (list): IDs to highlight in the plot, initially
             set to None.
 
-        app (NoneType): Dash application object, initially set to None.
+        app (dash.dash.Dash): Dash application object, initially set to None.
 
 
     Raises:
@@ -788,8 +789,8 @@ class MethylAnalysis:
         self.feature_matrix = feature_matrix
         self.umap_plot = EMPTY_FIGURE
         self.umap_plot_path = None
-        self.betas_df = None
-        self.betas_df_all_cpgs = None
+        self.betas_top = None
+        self.betas_all = None
         self.betas_path = None
         self.umap_df = None
         self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
@@ -1099,7 +1100,7 @@ class MethylAnalysis:
         )
         self.clf_dir = self.output_dir / f"{clf_hash_key}"
 
-        # Reset betas_df if necessary
+        # Reset betas_top if necessary
         dependencies = [
             "analysis_dir",
             "prep",
@@ -1110,9 +1111,9 @@ class MethylAnalysis:
             "sample_ids",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
-            self.betas_df = None
+            self.betas_top = None
 
-        # Reset betas_df_all_cpgs if necessary
+        # Reset betas_all if necessary
         dependencies = [
             "analysis_dir",
             "prep",
@@ -1122,7 +1123,7 @@ class MethylAnalysis:
             "sample_ids",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
-            self.betas_df_all_cpgs = None
+            self.betas_all = None
 
         # Update variables/hashes
         self._prev_vars = cur_vars
@@ -1141,23 +1142,23 @@ class MethylAnalysis:
         self.make_umap_plot()
 
     def compute_umap(self):
-        """Applies the UMAP algorithm on 'betas_df'.
+        """Applies the UMAP algorithm on 'betas_top'.
 
         Saves the 2D embedding in 'umap_df' and and on disk.
 
         Raises:
-            AttributeError: If a dimension mismatch occurs, or if 'betas_df' is
-                not set.
+            AttributeError: If a dimension mismatch occurs, or if 'betas_top'
+                is not set.
         """
-        if self.betas_df is None and self.feature_matrix is None:
-            msg = "'betas_df' is not set. First run 'set_betas'"
+        if self.betas_top is None and self.feature_matrix is None:
+            msg = "'betas_top' is not set. First run 'set_betas'"
             raise AttributeError(msg)
         if self.verbose:
             log("[MethylAnalysis] Importing umap library...")
         import umap
 
         matrix_to_use = (
-            self.betas_df
+            self.betas_top
             if self.feature_matrix is None
             else self.feature_matrix
         )
@@ -1247,7 +1248,7 @@ class MethylAnalysis:
                 log("[MethylAnalysis] Probable dimension mismatch.")
 
     def set_betas(self):
-        """Sets the beta values DataFrame ('betas_df') for further analysis.
+        """Sets the beta values DataFrame ('betas_top') for further analysis.
 
         This method reads the IDAT files located in 'analysis_dir', extracts
         the beta values, and saves them locally in 'output_dir'. Depending on
@@ -1288,26 +1289,22 @@ class MethylAnalysis:
             if self.verbose:
                 log("[MethylAnalysis] Extract beta values...")
             if self.cpg_selection == "random":
-                return extract_sub_dataframe(
-                    self.betas_df_all_cpgs, self.umap_cpgs
-                )
-            return self.betas_df_all_cpgs[self._sorted_cpgs[: self.n_cpgs]]
+                return extract_sub_dataframe(self.betas_all, self.umap_cpgs)
+            return self.betas_all[self._sorted_cpgs[: self.n_cpgs]]
 
         if self.cpg_selection == "random":
             self.umap_cpgs = get_random_cpgs()
 
-        if self.betas_df_all_cpgs is not None:
-            self.betas_df = _extract_sub_dataframe()
+        if self.betas_all is not None:
+            self.betas_top = _extract_sub_dataframe()
 
         elif self.load_full_betas or self.cpg_selection == "top":
-            self.betas_df_all_cpgs = _get_betas(self.cpgs)
-            self._sorted_cpgs = reordered_cpgs_by_variance(
-                self.betas_df_all_cpgs
-            )
-            self.betas_df = _extract_sub_dataframe()
+            self.betas_all = _get_betas(self.cpgs)
+            self._sorted_cpgs = reordered_cpgs_by_variance(self.betas_all)
+            self.betas_top = _extract_sub_dataframe()
 
         else:
-            self.betas_df = _get_betas(self.umap_cpgs)
+            self.betas_top = _get_betas(self.umap_cpgs)
 
     def _get_coordinates(self, sample_id):
         """Returns UMAP 2D embedding coordinates."""
@@ -1476,32 +1473,60 @@ class MethylAnalysis:
     def classify(self, sample_id, clf_list=None):
         """Classify the sample using specified classifiers.
 
-        This method classifies a given sample using supervised
-        classifiers. The possible class labels are derived from
-        `selected_columns`. If `feature_matrix` is provided (i.e., not None),
-        it will be used as the feature set for classification, which can be any
-        custom data related or unrelated to the methylation data. If
-        `feature_matrix` is not provided, the classification will be based on
-        CpG methylation data, using `betas_df_all_cpgs` (all CpGs).
-        flag.
+        This method classifies a given sample using supervised classifiers. The
+        possible class labels are derived from `selected_columns`. If
+        `feature_matrix` is provided (i.e., not None), it will be used as the
+        feature set for classification, which can be any custom data related or
+        unrelated to the methylation data. If `feature_matrix` is not provided,
+        the classification will be based on CpG methylation data, using
+        `betas_all` (all CpGs).
 
         After training the classifiers, the method returns their results and
         reports.
 
         Args:
             sample_id (str): The ID of the sample to classify.
-            clf_list (list, optional): List of classifier objects to use for
-                classification. If None, a default set of classifiers will be
-                used. Possible values are `rf` (random forest), `knn`
-                (k-nearest neighbors), `nn` (neural network) or `svm` (support
-                vector machine).
+            clf_list (list): List of classifiers or classifier configurations
+                to use. Each element can be:
+                - A scikit-learn classifier object or pipeline (trained or
+                  untrained).
+                - A tuple of 3 strings (scaler, selector, classifier) to create
+                  a pipeline.
+                - A string in the format "scaler-selector-classifier". Possible
+                  values are:
+                    scaler:
+                        - "none": No scaling (passthrough).
+                        - "std": Standard scaling (StandardScaler).
+                    selector:
+                        - "none": No feature selection (passthrough).
+                        - "kbest": Select the best features (SelectKBest).
+                        - "pca": Principal component analysis (PCA).
+                    clf:
+                        - "rf": RandomForestClassifier.
+                        - "lr": LogisticRegression.
+                        - "et": ExtraTreesClassifier.
+                        - "knn": KNeighborsClassifier.
+                        - "mlp": MLPClassifier.
+                        - "svc_linear": Support Vector Classifier (linear
+                          kernel).
+                        - "svc_rbf": Support Vector Classifier (RBF kernel).
+                        - "none": No classifier (passthrough).
 
         Returns:
-            list[dict]: List of dictionaries containing trained classifiers
-                with their evaluations.
+            tuple:
+                result (list): List of tuples containing:
+                    - Predicted classes.
+                    - Predicted probabilities.
+                reports (list): List of evaluation report strings for each
+                    classifier.
+
+        Outputs:
+            - Log file: Contains training times and evaluation metrics for each
+              classifier.
 
         Raises:
-            ValueError: If `sample_id` is not set.
+            ValueError: If both `load_full_betas` and `feature_matrix` are
+                not set.
         """
         if sample_id is None:
             msg = "Must set 'sample_id' before calling classify()."
@@ -1517,9 +1542,9 @@ class MethylAnalysis:
         log("[MethylAnalysis] Start classifying...")
 
         if self.feature_matrix is not None:
-            X = pd.DataFrame(self.feature_matrix, index=self.betas_df.index)
+            X = pd.DataFrame(self.feature_matrix, index=self.betas_top.index)
         elif self.load_full_betas:
-            X = self.betas_df_all_cpgs
+            X = self.betas_all
         else:
             msg = (
                 "For classification either all CpGs must be loaded into "
