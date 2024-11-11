@@ -178,7 +178,7 @@ def input_args_id(*args, extra_hash=None, suffix_limit=40):
         components.append(str(arg))
         return str(arg).encode()
 
-    hasher = hashlib.md5()
+    hasher = hashlib.blake2b(digest_size=16)
     for arg in args:
         hasher.update(_encode_arg(arg))
     if extra_hash:

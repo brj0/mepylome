@@ -42,7 +42,7 @@ EMPTY_FIGURE = go.Figure(layout=go.Layout(yaxis={"range": [-2, 2]}))
 
 def hash_from_str(string):
     """Calculates a pseudorandom int from a string."""
-    hash_str = hashlib.md5(string.encode()).hexdigest()
+    hash_str = hashlib.blake2b(string.encode(), digest_size=16).hexdigest()
     return int(hash_str, 16)
 
 

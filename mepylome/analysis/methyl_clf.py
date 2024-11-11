@@ -63,7 +63,7 @@ class TrainedClassifier(ABC):
     def description(self):
         """Provides a description/name of the classifier or its pipeline.
 
-        The description will be printet on the top of the classifiers report.
+        The description will be printed on the top of the classifiers report.
 
         Returns:
             str: A description of the classifier or its components.
@@ -72,7 +72,7 @@ class TrainedClassifier(ABC):
     def info(self):
         """Provides additional information about the classifier.
 
-        The info will be printet below the description of the classifiers
+        The info will be printed below the description of the classifiers
         report.
 
         Returns:
