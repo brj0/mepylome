@@ -5,6 +5,7 @@ preprocessing techniques, normalization, and data handling.
 """
 
 import collections
+import os
 import pickle
 from functools import reduce
 from pathlib import Path
@@ -24,6 +25,7 @@ from mepylome.utils.varia import normexp_get_xs
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
 ENDING_GZ = ".gz"
+ENDING_SUFFIXES = ("_Grn.idat", "_Red.idat", "_Grn.idat.gz", "_Red.idat.gz")
 
 NEUTRAL_BETA = 0.49
 
@@ -62,8 +64,8 @@ def idat_basepaths(files):
             considered.
 
     Example:
-        >>> idat_basepaths("/path/to/idat/dir")
-        [PosixPath('/path/to/idat/file1'), PosixPath('/path/to/idat/file2')]
+        >>> idat_basepaths("/path/to/dir")
+        [PosixPath('/path/to/dir/file1'), PosixPath('/path/to/dir/file2')]
 
         >>> idat_basepaths(["/path1/file1_Grn.idat", "/path2/file2_Red.idat"])
         [PosixPath('/path1/file1'), PosixPath('/path2/file2')]
@@ -71,25 +73,34 @@ def idat_basepaths(files):
         >>> idat_basepaths("/path/to/idat/file_Grn.idat.gz")
         [PosixPath('/path/to/idat/file')]
     """
-    if isinstance(files, list):
-        _files = files
-    elif Path(files).expanduser().is_dir():
-        # If basenames is dir take all files in it
-        _files = Path(files).expanduser().rglob("*_[GR][re][nd].idat*")
-    else:
-        _files = [files]
-    # Remove file endings
+
+    def get_idat_files(file_or_dir):
+        path = Path(file_or_dir).expanduser()
+        # If path is dir take all files in it
+        if path.is_dir():
+            for root, _, filenames in os.walk(path, followlinks=True):
+                for filename in filenames:
+                    if filename.endswith(ENDING_SUFFIXES):
+                        yield Path(root) / filename
+        else:
+            yield path
+
+    def strip_suffix(file_path):
+        path_str = str(file_path)
+        for suffix in ENDING_SUFFIXES:
+            if path_str.endswith(suffix):
+                return path_str[: -len(suffix)]
+        return path_str
+
+    if not isinstance(files, list):
+        files = [files]
     _files = [
-        Path(
-            str(name)
-            .replace(ENDING_GZ, "")
-            .replace(ENDING_GRN, "")
-            .replace(ENDING_RED, "")
-        ).expanduser()
-        for name in _files
+        strip_suffix(idat_file)
+        for file_or_dir in files
+        for idat_file in get_idat_files(file_or_dir)
     ]
     # Remove duplicates, keep ordering
-    return list(dict.fromkeys(_files))
+    return [Path(base) for base in list(dict.fromkeys(_files))]
 
 
 def idat_paths_from_basenames(basenames):

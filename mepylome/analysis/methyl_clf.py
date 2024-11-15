@@ -12,12 +12,40 @@ import numpy as np
 import pandas as pd
 from sklearn.base import ClassifierMixin
 from sklearn.decomposition import PCA
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
-from sklearn.feature_selection import SelectKBest
-from sklearn.linear_model import LogisticRegression
+from sklearn.discriminant_analysis import (
+    LinearDiscriminantAnalysis as LDA,
+)
+from sklearn.discriminant_analysis import (
+    QuadraticDiscriminantAnalysis as QDA,
+)
+from sklearn.ensemble import (
+    AdaBoostClassifier,
+    BaggingClassifier,
+    ExtraTreesClassifier,
+    GradientBoostingClassifier,
+    HistGradientBoostingClassifier,
+    RandomForestClassifier,
+    StackingClassifier,
+)
+from sklearn.feature_selection import (
+    SelectFromModel,
+    SelectKBest,
+    f_classif,
+    mutual_info_classif,
+)
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.linear_model import (
+    LassoCV,
+    LogisticRegression,
+    Perceptron,
+    RidgeClassifier,
+    SGDClassifier,
+)
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
+    precision_score,
+    recall_score,
     roc_auc_score,
 )
 from sklearn.model_selection import (
@@ -25,11 +53,19 @@ from sklearn.model_selection import (
     cross_val_predict,
 )
 from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
+from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import (
+    MinMaxScaler,
+    PowerTransformer,
+    QuantileTransformer,
+    RobustScaler,
+    StandardScaler,
+)
 from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 
 from mepylome.utils import (
     log,
@@ -81,19 +117,42 @@ class TrainedClassifier(ABC):
         """
         return ""
 
+    def get_clf(self):
+        """Returns the classifier (usually sklearn object)."""
+        return None
+
 
 def _get_pipeline_description(clf):
-    """Generates a summary string of the pipeline structure."""
+    """Generates a detailed summary string of the pipeline structure."""
+
+    def format_non_default_params(step):
+        """Formats non-default parameters for a given step or classifier."""
+        default_params = step.__class__().get_params()
+        current_params = step.get_params()
+        non_default_params = {
+            k: v
+            for k, v in current_params.items()
+            if default_params.get(k) != v
+        }
+        return [
+            f"    {param}: {value}"
+            for param, value in non_default_params.items()
+        ]
+
     lines = ["Pipeline Structure:"]
     if hasattr(clf, "steps"):
         for name, step in clf.steps:
             step_name = name.capitalize()
             step_type = (
-                str(step) if isinstance(step, str) else step.__class__.__name__
+                step if isinstance(step, str) else step.__class__.__name__
             )
             lines.append(f"- {step_name}: {step_type}")
+            if not isinstance(step, str):
+                lines.extend(format_non_default_params(step))
     else:
-        lines.append(f"  - Classifier: {clf}")
+        clf_name = clf.__class__.__name__
+        lines.append(f"- Classifier: {clf_name}")
+        lines.extend(format_non_default_params(clf))
     return "\n".join(lines)
 
 
@@ -119,6 +178,9 @@ class TrainedSklearnClassifier(TrainedClassifier):
     def description(self):
         return self.description_
 
+    def get_clf(self):
+        return self.clf
+
     def info(self):
         result = ""
         for key, value in self.stats.items():
@@ -143,15 +205,35 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         self.classes_ = clf.classes_
 
     def predict_proba(self, betas, id_):
-        if id_ in self.ids:
-            return self.probabilities_cv.loc[[id_]].values
-        return self.clf.predict_proba(betas)
+        if id_ is not None:
+            id_ = np.ravel(id_)
+            probabilities = np.zeros((len(betas), len(self.classes_)))
+
+            if len(betas) != len(id_):
+                raise ValueError("Length of 'betas' and 'id_' must match.")
+
+            mask_known_ids = np.isin(id_, self.ids)
+            if any(mask_known_ids):
+                probabilities[mask_known_ids] = self.probabilities_cv.loc[
+                    id_[mask_known_ids]
+                ].values
+            unknown_betas = betas[~mask_known_ids]
+            if len(unknown_betas) > 0:
+                probabilities[~mask_known_ids] = self.clf.predict_proba(
+                    unknown_betas
+                )
+            return probabilities
+        else:
+            return self.clf.predict_proba(betas)
 
     def classes(self):
         return self.classes_
 
     def description(self):
         return self.description_
+
+    def get_clf(self):
+        return self.clf
 
     def info(self):
         result = ""
@@ -160,28 +242,56 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         return result
 
 
-def _make_clf_pipeline(scaler, selector, clf, X_shape):
+def make_clf_pipeline(scaler, selector, clf, X_shape):
     """Sklearn pipeline with scaling, feature selection, and classifier."""
     n_splits = 5
     n_components_pca = min(((n_splits - 1) * X_shape[0] // n_splits), 50)
     scalers = {
+        "minmax": MinMaxScaler(),
         "none": "passthrough",
+        "power": PowerTransformer(),
+        "quantile": QuantileTransformer(output_distribution="uniform"),
+        "quantile_normal": QuantileTransformer(output_distribution="normal"),
+        "robust": RobustScaler(),
         "std": StandardScaler(),
     }
     selectors = {
-        "none": "passthrough",
+        "anova": SelectKBest(f_classif, k=10000),
         "kbest": SelectKBest(k=10000),
+        "lasso": SelectFromModel(LassoCV(cv=5)),
+        "lda": LDA(n_components=1),
+        "mutual_info": SelectKBest(mutual_info_classif, k=10000),
+        "none": "passthrough",
         "pca": PCA(n_components=n_components_pca),
     }
     classifiers = {
-        "lr": LogisticRegression(),
-        "rf": RandomForestClassifier(),
+        "ada": AdaBoostClassifier(),
+        "bag": BaggingClassifier(),
+        "dt": DecisionTreeClassifier(),
         "et": ExtraTreesClassifier(),
+        "gb": GradientBoostingClassifier(),
+        "gp": GaussianProcessClassifier(),
+        "hgb": HistGradientBoostingClassifier(),
         "knn": KNeighborsClassifier(n_neighbors=5, weights="distance"),
+        "lda": LDA(),
+        "lr": LogisticRegression(),
         "mlp": MLPClassifier(verbose=True),
+        "nb": GaussianNB(),
+        "none": "passthrough",
+        "perceptron": Perceptron(max_iter=1000, tol=1e-3),
+        "qda": QDA(),
+        "rf": RandomForestClassifier(),
+        "ridge": RidgeClassifier(),
+        "sgd": SGDClassifier(max_iter=1000, tol=1e-3),
+        "stacking": StackingClassifier(
+            estimators=[
+                ("rf", RandomForestClassifier()),
+                ("svc", SVC(kernel="linear", probability=True)),
+            ],
+            final_estimator=LogisticRegression(),
+        ),
         "svc_linear": SVC(kernel="linear", probability=True, verbose=True),
         "svc_rbf": SVC(kernel="rbf", probability=True, verbose=True),
-        "none": "passthrough",
     }
     scaler = scalers[scaler]
     selector = selectors[selector]
@@ -218,10 +328,10 @@ def evaluate_clf(clf, x_test, id_):
     report += "\n" + "=" * len(report) + "\n"
     class_with_prob = list(zip(classes, prediction.flatten()))
     class_with_prob.sort(reverse=True, key=lambda x: x[1])
-    shift_len = min(30, max(len(str(c)) for c in classes) + 3)
+    top_diagnosis = class_with_prob[: min(len(class_with_prob), 10)]
+    shift_len = max(len(str(c)) for c, _ in top_diagnosis) + 3
     lines = [
-        f"- {str(c)[:30]:<{shift_len}} : {p*100:6.2f} %"
-        for c, p in class_with_prob[: min(len(class_with_prob), 10)]
+        f"- {str(c):<{shift_len}} : {p*100:6.2f} %" for c, p in top_diagnosis
     ]
     dash_len = max(len(line) for line in lines) if lines else 0
     dashes = "-" * dash_len
@@ -258,13 +368,25 @@ def cross_val_metrics(clf, X, y, probabilities_cv, cv):
     auc_scores = []
     f1_scores = []
     multi_class_strategy = _is_ovr_or_ovo(clf)
+    precision_scores = []
+    recall_scores = []
 
     for _, test_idx in cv.split(X, y):
         y_true = np.array(y)[test_idx]
         probabilities_cv_test = probabilities_cv[test_idx, :]
         y_pred = y_pred_cv[test_idx]
+
         accuracy_scores.append(accuracy_score(y_true, y_pred))
         f1_scores.append(f1_score(y_true, y_pred, average="weighted"))
+        precision_scores.append(
+            precision_score(
+                y_true, y_pred, average="weighted", zero_division=0
+            )
+        )
+        recall_scores.append(
+            recall_score(y_true, y_pred, average="weighted", zero_division=0)
+        )
+
         # Calculate ROC AUC score
         if len(np.unique(y_true)) == 2:
             # Binary classification: use probabilities for the positive class
@@ -279,14 +401,18 @@ def cross_val_metrics(clf, X, y, probabilities_cv, cv):
             )
         auc_scores.append(roc_auc)
 
+    def format_metric_scores(scores):
+        return f"{np.mean(scores):.4f} (SD {np.std(scores):.4f})"
+
     return {
-        "Method": "5-fold cross validation",
-        "Accuracy": (
-            f"{np.mean(accuracy_scores):.3f} "
-            f"(SD {np.std(accuracy_scores):.3f})"
-        ),
-        "AUC": f"{np.mean(auc_scores):.3f} (SD {np.std(auc_scores):.3f})",
-        "F1-Score": f"{np.mean(f1_scores):.3f} (SD {np.std(f1_scores):.3f})",
+        "Method": f"{cv.n_splits}-fold cross validation",
+        "Number of Samples": X.shape[0],
+        "Number of Features": X.shape[1],
+        "Accuracy": format_metric_scores(accuracy_scores),
+        "AUC": format_metric_scores(auc_scores),
+        "F1-Score": format_metric_scores(f1_scores),
+        "Precision": format_metric_scores(precision_scores),
+        "Recall": format_metric_scores(recall_scores),
     }
 
 
@@ -443,12 +569,12 @@ def fit_and_evaluate_classifiers(
         if isinstance(clf, (Pipeline, ClassifierMixin)):
             clf_to_evaluate = train_clf(clf, X, y, directory, n_jobs=n_jobs)
         elif isinstance(clf, str):
-            pipeline = _make_clf_pipeline(*clf.split("-"), X.shape)
+            pipeline = make_clf_pipeline(*clf.split("-"), X.shape)
             clf_to_evaluate = train_clf(
                 pipeline, X, y, directory, n_jobs=n_jobs
             )
         elif hasattr(clf, "__len__") and len(clf) == 3:
-            pipeline = _make_clf_pipeline(*clf, X.shape)
+            pipeline = make_clf_pipeline(*clf, X.shape)
             clf_to_evaluate = train_clf(
                 pipeline, X, y, directory, n_jobs=n_jobs
             )

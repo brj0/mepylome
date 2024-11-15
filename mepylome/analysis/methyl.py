@@ -9,10 +9,13 @@ interactive web application for the exploration of methylation data.
 import base64
 import logging
 import os
+import re
 import sys
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -121,15 +124,21 @@ class DualOutput:
         self.log.close()
 
 
-# Save console output to file
+LOG_DIR = MEPYLOME_TMP_DIR / "log"
 ensure_directory_exists(MEPYLOME_TMP_DIR)
-LOG_FILE = MEPYLOME_TMP_DIR / "stdout.log"
-CLF_FILE = MEPYLOME_TMP_DIR / "clf.log"
-sys.stdout = DualOutput(LOG_FILE)
+ensure_directory_exists(LOG_DIR)
 
-# Clean the file
-with CLF_FILE.open("w"):
-    pass
+
+def _log_file(suffix):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_id = uuid4().hex[:8]
+    return LOG_DIR / f"{suffix}-{timestamp}-{unique_id}.log"
+
+
+# Save console output to file
+LOG_FILE = _log_file("stdout")
+LOG_FILE.touch(exist_ok=True)
+sys.stdout = DualOutput(LOG_FILE)
 
 
 def get_all_genes():
@@ -446,8 +455,8 @@ def get_side_navigation(
                             dcc.Dropdown(
                                 id="clf-clf-dropdown",
                                 options={
-                                    "none-kbest-lr": "LinearRegression",
                                     "none-kbest-et": "ExtraTreesClassifier",
+                                    "none-kbest-lr": "LinearRegression",
                                     "none-kbest-rf": "RandomForestClassifier",
                                     "none-kbest-svc_rbf": "SVC(kernel='rbf')",
                                     "none-pca-lr": "PCALinearRegression",
@@ -810,6 +819,8 @@ class MethylAnalysis:
         self._internal_cpgs_hash = None
         self._old_selected_columns = None
         self._sorted_cpgs = None
+        self._clf_log = _log_file(f"{self.analysis_dir.name}-clf")
+        self._clf_log.touch(exist_ok=True)
 
         if self.cpg_selection not in ["top", "random"]:
             msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
@@ -1087,15 +1098,36 @@ class MethylAnalysis:
         ensure_directory_exists(self.umap_dir)
 
         # clf dir
+        if self.feature_matrix is not None:
+            # TODO improve this
+            import xxhash
+
+            clf_features = "x".join(map(str, self.feature_matrix.shape))
+            hasher = xxhash.xxh64()
+            if isinstance(self.feature_matrix, np.ndarray):
+                hasher.update(self.feature_matrix)
+            elif isinstance(self.feature_matrix, pd.DataFrame):
+                hasher.update(self.feature_matrix.values)
+            else:
+                msg = (
+                    "'feature_matrix' must be numpy matrix or pandas DataFrame"
+                )
+                raise ValueError(msg)
+            clf_extra = hasher.hexdigest()
+        else:
+            clf_features = re.sub(
+                r"\W+", "", "_".join(self.idat_handler.selected_columns)
+            )
+            clf_extra = self.idat_handler.selected_columns
         clf_hash_key = input_args_id(
             self.analysis_dir,
             "clf",
             self.prep,
-            self.feature_matrix is None,
+            clf_features,
             extra_hash=[
                 cur_vars["cpgs"],
                 self.annotation,
-                self.idat_handler.selected_columns,
+                clf_extra,
             ],
         )
         self.clf_dir = self.output_dir / f"{clf_hash_key}"
@@ -1553,8 +1585,6 @@ class MethylAnalysis:
             )
             raise ValueError(msg)
 
-        basename = self.idat_handler.id_to_basename[sample_id]
-
         def _invalid_class(cls):
             if not isinstance(cls, str):
                 return False
@@ -1564,6 +1594,7 @@ class MethylAnalysis:
         valid_indices = [i for i, x in enumerate(y) if not _invalid_class(x)]
         y = [y[i] for i in valid_indices]
 
+        basename = self.idat_handler.id_to_basename[sample_id]
         x_test = X.loc[[basename]]
         X = X.iloc[valid_indices]
 
@@ -1573,7 +1604,7 @@ class MethylAnalysis:
             x_test=x_test,
             id_test=basename,
             directory=self.clf_dir,
-            log_file=CLF_FILE,
+            log_file=self._clf_log,
             clf_list=clf_list,
             n_jobs=self.n_jobs,
         )
@@ -1987,7 +2018,7 @@ class MethylAnalysis:
                 last_lines = lines if len(lines) <= N_TOP else lines[-N_TOP:]
                 for line in last_lines:
                     log_str = log_str + line
-            with CLF_FILE.open("r") as file:
+            with self._clf_log.open("r") as file:
                 clf_str = file.readlines()
             return progress, out_str, log_str, clf_str
 

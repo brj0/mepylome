@@ -71,7 +71,7 @@ def cache_key(*args):
         "RangeIndex": lambda x: x.values.tobytes(),
         "Index": lambda x: x.values.tobytes(),
         "ndarray": np_hash,
-        "DataFrame": lambda df: tuple(np_hash(df[col].values) for col in df),
+        # "DataFrame": lambda df: tuple(np_hash(df[col].values) for col in df),
     }
     keys = tuple(type_map.get(type(arg).__name__, id)(arg) for arg in args)
     return keys[0] if len(args) == 1 else keys
