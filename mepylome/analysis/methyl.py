@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import threading
+import time
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -35,14 +36,15 @@ from dash import (
 
 from mepylome.analysis.methyl_aux import (
     INVALID_PATH,
-    UPLOADED,
     IdatHandler,
     ProgressBar,
     get_betas,
     guess_annotation_file,
     read_dataframe,
 )
-from mepylome.analysis.methyl_clf import fit_and_evaluate_classifiers
+from mepylome.analysis.methyl_clf import (
+    fit_and_evaluate_clf,
+)
 from mepylome.analysis.methyl_plots import (
     EMPTY_FIGURE,
     get_cnv_plot,
@@ -262,7 +264,7 @@ def get_side_navigation(
                                 min=1,
                                 max=n_cpgs_max,
                                 step=1,
-                                value=n_cpgs,
+                                value=min(n_cpgs, len(cpgs)),
                             ),
                             html.Br(),
                             html.Br(),
@@ -560,6 +562,11 @@ class MethylAnalysis:
         output_dir (str or Path): Directory where output files will be saved
             (default: "/tmp/mepylome/analysis").
 
+        test_dir (Path or None): Directory for test files, including new cases
+            for analysis or validation. Files uploaded via the GUI will be
+            placed here. If set to `None`, the application will automatically
+            use a temporary directory.
+
         prep (str): Prepreparation method used for data preparation (default:
             "illumina").
 
@@ -647,8 +654,10 @@ class MethylAnalysis:
         output_dir (Path): Path to the directory where output files will be
             saved (default: "/tmp/mepylome/analysis").
 
-        upload_dir (Path): Directory for uploaded files, initially set to
-            invalid path.
+        test_dir (Path or None): Directory for test files, including new cases
+            for analysis or validation. Files uploaded via the GUI will be
+            placed here. If set to `None`, the application will automatically
+            use a temporary directory.
 
         prep (str): Prepreparation method used for data preparation (default:
             "illumina").
@@ -755,6 +764,7 @@ class MethylAnalysis:
         annotation=INVALID_PATH,
         reference_dir=INVALID_PATH,
         output_dir=DEFAULT_OUTPUT_DIR,
+        test_dir=INVALID_PATH,
         prep="illumina",
         cpgs="auto",
         cpg_blacklist=None,
@@ -788,7 +798,7 @@ class MethylAnalysis:
         self.debug = debug
         self.reference_dir = Path(reference_dir).expanduser()
         self.output_dir = Path(output_dir).expanduser()
-        self.upload_dir = INVALID_PATH
+        self.test_dir = Path(test_dir).expanduser()
         self.cnv_dir = None
         self.umap_dir = None
         self.clf_dir = None
@@ -821,6 +831,7 @@ class MethylAnalysis:
         self._sorted_cpgs = None
         self._clf_log = _log_file(f"{self.analysis_dir.name}-clf")
         self._clf_log.touch(exist_ok=True)
+        self._testdir_provided = self.test_dir != INVALID_PATH
 
         if self.cpg_selection not in ["top", "random"]:
             msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
@@ -843,14 +854,18 @@ class MethylAnalysis:
             log("[MethylAnalysis] Try to import cbseg or linear_segment...")
         self.do_seg = False if _get_cgsegment(verbose=True) is None else do_seg
 
-        # Set upload dir, as it is needed by _get_cpgs
-        self._set_upload_dir()
+        # Set test dir, as it is needed by _get_cpgs
+        self._set_test_dir()
         self._cpgs = self._get_cpgs(cpgs)
 
         self._prev_vars = self._get_vars_or_hashes()
         self._update_paths()
 
         self.read_umap_plot_from_disk()
+
+        if not self.test_dir.exists():
+            msg = f"'test_dir' {self.test_dir} does not exist."
+            raise ValueError(msg)
 
         if self.verbose:
             log("[MethylAnalysis] Initialization completed.")
@@ -900,7 +915,7 @@ class MethylAnalysis:
             or self.analysis_dir != self._idat_handler.idat_dir
             or self.annotation != self._idat_handler.annotation_file
             or self.overlap != self._idat_handler.overlap
-            or self.upload_dir != self._idat_handler.upload_dir
+            or self.test_dir != self._idat_handler.test_dir
             or _to_list(self.sample_ids)
             != _to_list(self._idat_handler.sample_ids)
         ):
@@ -908,7 +923,7 @@ class MethylAnalysis:
                 idat_dir=self.analysis_dir,
                 annotation_file=self.annotation,
                 overlap=self.overlap,
-                upload_dir=self.upload_dir,
+                test_dir=self.test_dir,
                 sample_ids=self.sample_ids,
             )
 
@@ -943,12 +958,12 @@ class MethylAnalysis:
             self._internal_cpgs_hash = input_args_id(self.cpgs)
         return self._internal_cpgs_hash
 
-    def _get_uploaded_files_hash(self):
-        """Returns the hash of the uploaded files."""
-        if not self.upload_dir.exists():
+    def _get_test_files_hash(self):
+        """Returns the hash of the test files."""
+        if not self.test_dir.exists():
             return ""
         return input_args_id(
-            extra_hash=sorted(str(x) for x in self.upload_dir.iterdir())
+            extra_hash=sorted(str(x) for x in self.test_dir.iterdir())
         )
 
     def _get_vars_or_hashes(self):
@@ -959,7 +974,7 @@ class MethylAnalysis:
             "n_cpgs": self.n_cpgs,
             "cpg_selection": self.cpg_selection,
             "cpgs": self._get_cpgs_hash(),
-            "uploaded_files": self._get_uploaded_files_hash(),
+            "test_files": self._get_test_files_hash(),
             "sample_ids": self.sample_ids,
         }
 
@@ -973,7 +988,7 @@ class MethylAnalysis:
         if self.verbose:
             log("[MethylAnalysis] Determine CpG sites...")
 
-        if isinstance(input_var, (np.ndarray, set, list)):
+        if isinstance(input_var, (np.ndarray, set, list, pd.Index)):
             return exclude_blacklist(input_var)
 
         cpgs_from_file = get_cpgs_from_file(input_var)
@@ -1032,13 +1047,15 @@ class MethylAnalysis:
         )
         raise ValueError(msg)
 
-    def _set_upload_dir(self):
-        upload_hash_key = input_args_id(
+    def _set_test_dir(self):
+        if self._testdir_provided:
+            return
+        test_hash_key = input_args_id(
             self.analysis_dir,
-            "upload",
+            "test",
         )
-        self.upload_dir = self.output_dir / f"{upload_hash_key}"
-        ensure_directory_exists(self.upload_dir)
+        self.test_dir = self.output_dir / f"{test_hash_key}"
+        ensure_directory_exists(self.test_dir)
 
     def _update_paths(self):
         """Update file paths and directories based on current settings.
@@ -1046,7 +1063,7 @@ class MethylAnalysis:
         This method recalculates and updates various internal paths and
         directories whenever changes occur in related attributes like
         'analysis_dir', 'prep', 'n_cpgs', 'cpg_selection', and uploaded files
-        in 'upload_dir'. It ensures that the correct paths are set for storing
+        in 'test_dir'. It ensures that the correct paths are set for storing
         beta values, copy number variation data, uploaded files, and UMAP
         plots.
         """
@@ -1076,8 +1093,8 @@ class MethylAnalysis:
         self.cnv_dir = self.output_dir / f"{cnv_hash_key}"
         ensure_directory_exists(self.cnv_dir)
 
-        # upload dir
-        self._set_upload_dir()
+        # test dir
+        self._set_test_dir()
 
         # umap dir
         cur_vars = self._get_vars_or_hashes()
@@ -1089,7 +1106,7 @@ class MethylAnalysis:
             self.cpg_selection,
             extra_hash=[
                 cur_vars["cpgs"],
-                cur_vars["uploaded_files"],
+                cur_vars["test_files"],
                 self.annotation,
             ],
         )
@@ -1098,36 +1115,18 @@ class MethylAnalysis:
         ensure_directory_exists(self.umap_dir)
 
         # clf dir
-        if self.feature_matrix is not None:
-            # TODO improve this
-            import xxhash
-
-            clf_features = "x".join(map(str, self.feature_matrix.shape))
-            hasher = xxhash.xxh64()
-            if isinstance(self.feature_matrix, np.ndarray):
-                hasher.update(self.feature_matrix)
-            elif isinstance(self.feature_matrix, pd.DataFrame):
-                hasher.update(self.feature_matrix.values)
-            else:
-                msg = (
-                    "'feature_matrix' must be numpy matrix or pandas DataFrame"
-                )
-                raise ValueError(msg)
-            clf_extra = hasher.hexdigest()
-        else:
-            clf_features = re.sub(
-                r"\W+", "", "_".join(self.idat_handler.selected_columns)
-            )
-            clf_extra = self.idat_handler.selected_columns
+        clf_label = re.sub(
+            r"\W+", "", "_".join(self.idat_handler.selected_columns)
+        )
         clf_hash_key = input_args_id(
             self.analysis_dir,
             "clf",
+            clf_label,
+            self.feature_matrix,
             self.prep,
-            clf_features,
             extra_hash=[
                 cur_vars["cpgs"],
                 self.annotation,
-                clf_extra,
             ],
         )
         self.clf_dir = self.output_dir / f"{clf_hash_key}"
@@ -1139,7 +1138,7 @@ class MethylAnalysis:
             "n_cpgs",
             "cpg_selection",
             "cpgs",
-            "uploaded_files",
+            "test_files",
             "sample_ids",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
@@ -1151,7 +1150,7 @@ class MethylAnalysis:
             "prep",
             "cpg_selection",
             "cpgs",
-            "uploaded_files",
+            "test_files",
             "sample_ids",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
@@ -1245,9 +1244,7 @@ class MethylAnalysis:
             msg = "'umap_df' not set. Run 'make_umap' instead."
             raise AttributeError(msg)
         self.ids = self.umap_df.index
-        umap_color = self.idat_handler.compound_class(
-            self.idat_handler.selected_columns
-        )
+        umap_color = self.idat_handler.features()
         if len(umap_color) != len(self.umap_df):
             msg = (
                 "Dimension mismatch 2: Analysis files may have changed. "
@@ -1502,79 +1499,80 @@ class MethylAnalysis:
         plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
         return plot, df_cn_summary
 
-    def classify(self, sample_id, clf_list=None):
-        """Classify the sample using specified classifiers.
+    def classify(self, ids=None, values=None, clf_list=None):
+        """Classify samples using specified classifiers.
 
-        This method classifies a given sample using supervised classifiers. The
-        possible class labels are derived from `selected_columns`. If
-        `feature_matrix` is provided (i.e., not None), it will be used as the
-        feature set for classification, which can be any custom data related or
-        unrelated to the methylation data. If `feature_matrix` is not provided,
-        the classification will be based on CpG methylation data, using
-        `betas_all` (all CpGs).
+        This method performs classification on given samples, defined either by
+        `ids` or by `values`, using one or more supervised classifiers. The
+        labels for classification are derived from the `selected_columns`.
+        Classification can either use a provided `feature_matrix` (custom
+        features), or default to CpG methylation data (`betas_all`). All
+        samples in `analysis_dir` resp. those in `sample_ids` with valid label
+        will be used for learning.
 
-        After training the classifiers, the method returns their results and
-        reports.
+
+        Classifiers are applied to the data, and the method returns their
+        predictions and performance reports.
 
         Args:
-            sample_id (str): The ID of the sample to classify.
-            clf_list (list): List of classifiers or classifier configurations
-                to use. Each element can be:
-                - A scikit-learn classifier object or pipeline (trained or
-                  untrained).
-                - A tuple of 3 strings (scaler, selector, classifier) to create
-                  a pipeline.
-                - A string in the format "scaler-selector-classifier". Possible
-                  values are:
-                    scaler:
-                        - "none": No scaling (passthrough).
-                        - "std": Standard scaling (StandardScaler).
-                    selector:
-                        - "none": No feature selection (passthrough).
-                        - "kbest": Select the best features (SelectKBest).
-                        - "pca": Principal component analysis (PCA).
-                    clf:
-                        - "rf": RandomForestClassifier.
-                        - "lr": LogisticRegression.
-                        - "et": ExtraTreesClassifier.
-                        - "knn": KNeighborsClassifier.
-                        - "mlp": MLPClassifier.
-                        - "svc_linear": Support Vector Classifier (linear
-                          kernel).
-                        - "svc_rbf": Support Vector Classifier (RBF kernel).
-                        - "none": No classifier (passthrough).
+            ids (list, tuple, np.ndarray, or None): Sample IDs for
+                prediction/classification. If `values` is provided, `ids` must
+                be `None`.
+            values (pd.DataFrame, np.ndarray, or None): Feature matrix for
+                prediction/classification. If `ids` is provided, `values` must
+                be `None`.
+            clf_list (list): List of classifiers to use. Can include:
+                - A scikit-learn classifier object (trained or untrained).
+                - A tuple of 3 strings (`scaler`, `selector`, `classifier`) to
+                  create a pipeline (see below).
+                - A string in the format `"scaler-selector-classifier"` where:
+                    - scaler: One of ["none", "std", "minmax", "robust",
+                      "power", "quantile", "quantile_normal"].
+                    - selector: One of ["none", "kbest", "pca", "anova",
+                      "lasso", "mutual_info"].
+                    - classifier: One of ["rf", "lr", "et", "knn", "mlp",
+                      "svc_linear", "svc_rbf", "none"].
 
         Returns:
-            tuple:
-                result (list): List of tuples containing:
-                    - Predicted classes.
-                    - Predicted probabilities.
-                reports (list): List of evaluation report strings for each
-                    classifier.
+            list: A list containing:
+                - pd.DataFrame: The predicted labels with probabilities.
+                - sklearn object or TrainedClassifier: The classifier object
+                  used.
+                - list: Evaluation metrics for the classifier.
 
         Outputs:
-            - Log file: Contains training times and evaluation metrics for each
-              classifier.
+            Log file: Contains training time, classifier performance metrics,
+                and evaluation results for each classifier.
 
         Raises:
-            ValueError: If both `load_full_betas` and `feature_matrix` are
-                not set.
+            ValueError: If not exactly one if `ids` or `values` is set.
         """
-        if sample_id is None:
-            msg = "Must set 'sample_id' before calling classify()."
+        if (ids is not None) and (values is not None):
+            msg = "Provide only one of 'ids' or 'values'."
             raise ValueError(msg)
+        if (ids is None) and (values is None):
+            msg = "Provide either 'ids' or 'values'."
+            raise ValueError(msg)
+
+        if ids and not isinstance(ids, (list, tuple, np.ndarray)):
+            ids = [ids]
+        if not isinstance(clf_list, (list, tuple)):
+            clf_list = [clf_list]
 
         self._update_paths()
         self.set_betas()
         ensure_directory_exists(self.clf_dir)
 
-        y = self.idat_handler.compound_class(
-            self.idat_handler.selected_columns
-        )
-        log("[MethylAnalysis] Start classifying...")
+        # Clean the file
+        with self._clf_log.open("w"):
+            pass
+
+        y = self.idat_handler.features()
+        if self.verbose:
+            log("[MethylAnalysis] Start classifying...")
 
         if self.feature_matrix is not None:
-            X = pd.DataFrame(self.feature_matrix, index=self.betas_top.index)
+            X = pd.DataFrame(self.feature_matrix, index=self.betas_all.index)
         elif self.load_full_betas:
             X = self.betas_all
         else:
@@ -1586,28 +1584,60 @@ class MethylAnalysis:
             raise ValueError(msg)
 
         def _invalid_class(cls):
-            if not isinstance(cls, str):
-                return False
-            return cls == UPLOADED or cls.strip("|") == ""
+            return isinstance(cls, str) and cls.strip("|") == ""
 
-        # Remove all samples with unknown classification.
-        valid_indices = [i for i, x in enumerate(y) if not _invalid_class(x)]
+        # Remove all test samples and samples with unknown classification.
+        test_indices = set(
+            X.index.get_indexer(self.idat_handler.test_sample_ids)
+        )
+        valid_indices = [
+            i
+            for i, x in enumerate(y)
+            if not _invalid_class(x) and i not in test_indices
+        ]
+        X = X.iloc[valid_indices]
         y = [y[i] for i in valid_indices]
 
-        basename = self.idat_handler.id_to_basename[sample_id]
-        x_test = X.loc[[basename]]
-        X = X.iloc[valid_indices]
+        if ids and len(ids):
+            basenames = [self.idat_handler.id_to_basename[x] for x in ids]
+            values = X.loc[basenames]
+        else:
+            basenames = None
 
-        return fit_and_evaluate_classifiers(
-            X=X,
-            y=y,
-            x_test=x_test,
-            id_test=basename,
-            directory=self.clf_dir,
-            log_file=self._clf_log,
-            clf_list=clf_list,
-            n_jobs=self.n_jobs,
-        )
+        def _log(string):
+            with self._clf_log.open("a") as f:
+                f.write(string)
+            print(string, end="")
+
+        # Stop if there is no data to fit.
+        if X.empty:
+            _log("No data to fit.\n")
+            return []
+
+        results = []
+        for i, clf in enumerate(clf_list):
+            if self.verbose:
+                _log(f"Start training classifier {i + 1}/{len(clf_list)}...\n")
+            start_time = time.time()
+            prediction, clf_out, metrics, reports = fit_and_evaluate_clf(
+                X=X,
+                y=y,
+                X_test=values,
+                id_test=basenames,
+                directory=self.clf_dir,
+                clf=clf,
+                n_jobs=self.n_jobs,
+            )
+            elapsed_time = time.time() - start_time
+            if self.verbose:
+                _log(f"Time used for classification: {elapsed_time:.2f} s\n\n")
+            if self.verbose and len(reports) == 1:
+                _log(reports[0] + "\n\n\n")
+            results.append(
+                [ prediction, clf_out, metrics, reports]
+            )
+
+        return results[0] if len(results) == 1 else results
 
     def get_app(self):
         """Returns a Dash application object for methylation analysis."""
@@ -2030,7 +2060,7 @@ class MethylAnalysis:
         )
         def update_output(list_of_contents, list_of_names, list_of_dates):
             def parse_contents(contents, filename, date):
-                file_path = self.upload_dir / filename
+                file_path = self.test_dir / filename
                 content_string = contents.split(",")[1]
                 decoded = base64.b64decode(content_string)
                 with open(file_path, "wb") as f:
@@ -2082,7 +2112,7 @@ class MethylAnalysis:
                 return error_message
 
             try:
-                _ = self.classify(self.cnv_id, clf_list)
+                _ = self.classify(ids=self.cnv_id, clf_list=clf_list)
             except Exception as exc:
                 log(f"[MethylAnalysis] An error occured (4): {exc}")
                 return f"{exc}"

@@ -1056,7 +1056,7 @@ class ReferenceMethylData:
     @staticmethod
     def pickle_filename(prep, idat_files):
         return MEPYLOME_TMP_DIR / input_args_id(
-            "ReferenceMethylData", prep, sorted(str(x) for x in idat_files)
+            "Ref", prep, sorted(str(x) for x in idat_files)
         )
 
     def __getitem__(self, array_type):

@@ -5,7 +5,6 @@ networks) for predicting the methylation class.
 """
 
 import pickle
-import time
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -95,31 +94,24 @@ class TrainedClassifier(ABC):
             array-like: The classes the classifier can predict.
         """
 
-    @abstractmethod
-    def description(self):
-        """Provides a description/name of the classifier or its pipeline.
+    def info(self):
+        """Provides additional information of the classifier or its pipeline.
 
-        The description will be printed on the top of the classifiers report.
+        The info will be printed on the top of the classifiers report. Should
+        contain classifier name and classifier metrics.
 
         Returns:
             str: A description of the classifier or its components.
         """
-
-    def info(self):
-        """Provides additional information about the classifier.
-
-        The info will be printed below the description of the classifiers
-        report.
-
-        Returns:
-            str: Information string about the classifier, including training
-                statistics.
-        """
         return ""
 
-    def get_clf(self):
+    def classifier(self):
         """Returns the classifier (usually sklearn object)."""
         return None
+
+    def metrics(self):
+        """Returns the metric statistics (usually sklearn object)."""
+        return {}
 
 
 def _get_pipeline_description(clf):
@@ -141,12 +133,13 @@ def _get_pipeline_description(clf):
 
     lines = ["Pipeline Structure:"]
     if hasattr(clf, "steps"):
+        step_name_len = max(len(name) for name, _ in clf.steps)
         for name, step in clf.steps:
             step_name = name.capitalize()
             step_type = (
                 step if isinstance(step, str) else step.__class__.__name__
             )
-            lines.append(f"- {step_name}: {step_type}")
+            lines.append(f"- {step_name:<{step_name_len}} : {step_type}")
             if not isinstance(step, str):
                 lines.extend(format_non_default_params(step))
     else:
@@ -159,33 +152,35 @@ def _get_pipeline_description(clf):
 class TrainedSklearnClassifier(TrainedClassifier):
     """Trained classifier implementation using fitted scikit-learn objecs."""
 
-    def __init__(self, clf, X=None, stats=None):
+    def __init__(self, clf, X=None, metrics=None):
         self.clf = clf
-        self.classes_ = clf.classes_
+        self._classes = clf.classes_
         self.ids = [] if X is None else X.index
-        self.description_ = _get_pipeline_description(clf)
-        self.stats = stats or {
-            "Number of features": X.shape[1] if X is not None else 0,
-            "Number of samples": X.shape[0] if X is not None else 0,
+        self._metrics = metrics or {
+            "n_features": X.shape[1] if X is not None else 0,
+            "n_samples": X.shape[0] if X is not None else 0,
         }
 
     def predict_proba(self, betas, id_=None):
         return self.clf.predict_proba(betas)
 
     def classes(self):
-        return self.classes_
-
-    def description(self):
-        return self.description_
-
-    def get_clf(self):
-        return self.clf
+        return self._classes
 
     def info(self):
-        result = ""
-        for key, value in self.stats.items():
-            result += f"{key}: {value}\n"
+        description = _get_pipeline_description(self.clf)
+        result = description + "\n\nMetrics:"
+        formatted_stats = _format_stats(self._metrics)
+        max_key_length = max(len(key) for key in formatted_stats)
+        for key, value in formatted_stats.items():
+            result += f"\n- {key:<{max_key_length}} : {value}"
         return result
+
+    def classifier(self):
+        return self.clf
+
+    def metrics(self):
+        return self._metrics
 
 
 class TrainedSklearnCVClassifier(TrainedClassifier):
@@ -196,18 +191,17 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
     provides additional statistics about the classifier.
     """
 
-    def __init__(self, clf, probabilities_cv, X, stats=None):
+    def __init__(self, clf, probabilities_cv, X, metrics=None):
         self.clf = clf
         self.probabilities_cv = pd.DataFrame(probabilities_cv, index=X.index)
         self.ids = X.index
-        self.description_ = _get_pipeline_description(clf)
-        self.stats = stats or {}
-        self.classes_ = clf.classes_
+        self._metrics = metrics or {}
+        self._classes = clf.classes_
 
     def predict_proba(self, betas, id_):
         if id_ is not None:
             id_ = np.ravel(id_)
-            probabilities = np.zeros((len(betas), len(self.classes_)))
+            probabilities = np.zeros((len(betas), len(self._classes)))
 
             if len(betas) != len(id_):
                 raise ValueError("Length of 'betas' and 'id_' must match.")
@@ -227,19 +221,22 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
             return self.clf.predict_proba(betas)
 
     def classes(self):
-        return self.classes_
-
-    def description(self):
-        return self.description_
-
-    def get_clf(self):
-        return self.clf
+        return self._classes
 
     def info(self):
-        result = ""
-        for key, value in self.stats.items():
-            result += f"{key}: {value}\n"
+        description = _get_pipeline_description(self.clf)
+        result = description + "\n\nMetrics:"
+        formatted_stats = _format_stats(self._metrics)
+        max_key_length = max(len(key) for key in formatted_stats)
+        for key, value in formatted_stats.items():
+            result += f"\n- {key:<{max_key_length}} : {value}"
         return result
+
+    def metrics(self):
+        return self._metrics
+
+    def classifier(self):
+        return self.clf
 
 
 def make_clf_pipeline(scaler, selector, clf, X_shape):
@@ -305,43 +302,42 @@ def make_clf_pipeline(scaler, selector, clf, X_shape):
     )
 
 
-def evaluate_clf(clf, x_test, id_):
-    """Evaluates a classifier for given beta values and identifier.
+def _make_reports(prediction, info):
+    """Generates detailed reports from classifier predictions.
 
     Args:
-        clf (TrainedClassifier): The trained classifier to evaluate.
-        x_test (pd.DataFrame or np.array): The input features for prediction.
-        id_ (str): Identifier for the sample being evaluated.
+        prediction (pd.DataFrame): DataFrame containing predicted probabilities
+            for each class, indexed by sample IDs.
+        info (str): A description of the classifier such as its name and
+            metrics. Will be printed before predictions.
 
     Returns:
-        tuple: A tuple containing:
-            - classes (list): List of class labels.
-            - prediction (ndarray): Predicted probabilities for each class.
-            - report (str): A detailed string report summarizing the
-              evaluation.
+        list[str]: A list of detailed string reports, one for each sample.
     """
-    classes = clf.classes()
-    prediction = clf.predict_proba(x_test, id_)
-    info = clf.info()
-    description = clf.description()
-    report = f"Supervised Classification: {id_}"
-    report += "\n" + "=" * len(report) + "\n"
-    class_with_prob = list(zip(classes, prediction.flatten()))
-    class_with_prob.sort(reverse=True, key=lambda x: x[1])
-    top_diagnosis = class_with_prob[: min(len(class_with_prob), 10)]
-    shift_len = max(len(str(c)) for c, _ in top_diagnosis) + 3
-    lines = [
-        f"- {str(c):<{shift_len}} : {p*100:6.2f} %" for c, p in top_diagnosis
-    ]
-    dash_len = max(len(line) for line in lines) if lines else 0
-    dashes = "-" * dash_len
-    lines = (
-        [f"{description}\n", info, "Classification probability:", dashes]
-        + lines
-        + [dashes]
-    )
-    report += "\n" + "\n".join(lines)
-    return classes, prediction, report
+    reports = []
+
+    for sample_id, row in prediction.iterrows():
+        top_predictions = row[row > 0].nlargest(10) * 100
+        report_lines = [
+            str(sample_id),
+            "=" * len(str(sample_id)),
+            f"\n{info}\n",
+            "Classification Probability:",
+        ]
+        label_len = max(len(str(label)) for label in top_predictions.index)
+        formatted_lines = [
+            f"- {label:<{label_len}} : {probability:6.2f} %"
+            for label, probability in top_predictions.items()
+        ]
+        n_dashes = (
+            max(len(line) for line in formatted_lines)
+            if formatted_lines
+            else 0
+        )
+        dashes = "-" * n_dashes
+        report_lines.extend([dashes, *formatted_lines, dashes])
+        reports.append("\n".join(report_lines))
+    return reports
 
 
 def _is_ovr_or_ovo(clf):
@@ -401,19 +397,49 @@ def cross_val_metrics(clf, X, y, probabilities_cv, cv):
             )
         auc_scores.append(roc_auc)
 
-    def format_metric_scores(scores):
-        return f"{np.mean(scores):.4f} (SD {np.std(scores):.4f})"
-
     return {
-        "Method": f"{cv.n_splits}-fold cross validation",
-        "Number of Samples": X.shape[0],
-        "Number of Features": X.shape[1],
-        "Accuracy": format_metric_scores(accuracy_scores),
-        "AUC": format_metric_scores(auc_scores),
-        "F1-Score": format_metric_scores(f1_scores),
-        "Precision": format_metric_scores(precision_scores),
-        "Recall": format_metric_scores(recall_scores),
+        "cv": cv,
+        "n_samples": X.shape[0],
+        "n_features": X.shape[1],
+        "accuracy_scores": accuracy_scores,
+        "auc_scores": auc_scores,
+        "f1_scores": f1_scores,
+        "precision_scores": precision_scores,
+        "recall_scores": recall_scores,
     }
+
+
+def _format_stats(metrics):
+    """Transforms classifier metrics to readable text."""
+
+    def format_metric_scores(scores):
+        if isinstance(scores, (list, np.ndarray)):
+            return f"{np.mean(scores):.4f} (SD {np.std(scores):.4f})"
+        return str(scores)
+
+    formatted_stats = {}
+
+    metric_keys = {
+        "Method": "cv",
+        "Samples": "n_samples",
+        "Features": "n_features",
+        "Accuracy": "accuracy_scores",
+        "AUC": "auc_scores",
+        "F1-Score": "f1_scores",
+        "Precision": "precision_scores",
+        "Recall": "recall_scores",
+    }
+
+    for key, metric in metric_keys.items():
+        if metric in metrics:
+            if metric == "cv":
+                formatted_stats[key] = (
+                    f"{metrics[metric].n_splits}-fold cross validation"
+                )
+            else:
+                formatted_stats[key] = format_metric_scores(metrics[metric])
+
+    return formatted_stats
 
 
 def is_trained(clf):
@@ -425,7 +451,7 @@ def is_trained(clf):
     return all(hasattr(clf_, attr) for attr in trained_attributes)
 
 
-def train_clf(clf, X, y, directory, stats=None, n_jobs=1):
+def train_clf(clf, X, y, directory, n_jobs=1):
     """Trains a classifier and stores the trained model to disk.
 
     If the classifier has already been trained (and saved), it loads the
@@ -438,8 +464,6 @@ def train_clf(clf, X, y, directory, stats=None, n_jobs=1):
         y (array-like): The target labels.
         directory (Path): The directory where the trained model should be
             saved.
-        stats (dict, optional): Additional statistics to be attached to the
-        trained model.
         n_jobs (int): Number of parallel processes to run.
 
     Returns:
@@ -449,7 +473,7 @@ def train_clf(clf, X, y, directory, stats=None, n_jobs=1):
     n_splits = 5
 
     if is_trained(clf):
-        return TrainedSklearnClassifier(clf, X=X, stats=stats)
+        return TrainedSklearnClassifier(clf, X=X)
 
     if hasattr(clf, "steps"):
         clf_filename = "-".join(str(x[1]) for x in clf.steps) + ".pkl"
@@ -472,16 +496,16 @@ def train_clf(clf, X, y, directory, stats=None, n_jobs=1):
             "[train_clf] Warning: One of the classes has fewer than 5 "
             "samples. Stats may not be computable."
         )
-        trained_clf = TrainedSklearnClassifier(clf=clf, X=X, stats=stats)
+        trained_clf = TrainedSklearnClassifier(clf=clf, X=X)
     else:
         cv = StratifiedKFold(n_splits=n_splits, shuffle=True)
         log("[train_clf] Start cross-validation...")
         probabilities_cv = cross_val_predict(
             clf, X, y, cv=cv, method="predict_proba", n_jobs=n_jobs
         )
-        stats = cross_val_metrics(clf, X, y, probabilities_cv, cv)
+        metrics = cross_val_metrics(clf, X, y, probabilities_cv, cv)
         trained_clf = TrainedSklearnCVClassifier(
-            clf=clf, probabilities_cv=probabilities_cv, X=X, stats=stats
+            clf=clf, probabilities_cv=probabilities_cv, X=X, metrics=metrics
         )
 
     with clf_path.open("wb") as file:
@@ -490,9 +514,7 @@ def train_clf(clf, X, y, directory, stats=None, n_jobs=1):
     return trained_clf
 
 
-def fit_and_evaluate_classifiers(
-    X, y, x_test, id_test, directory, log_file, clf_list, n_jobs=1
-):
+def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, n_jobs=1):
     """Predicts the methylation class by supervised learning classifier.
 
     Uses supervised machine learning classifiers (Random Forest, K-Nearest
@@ -504,14 +526,11 @@ def fit_and_evaluate_classifiers(
         X (pd.DataFrame): Feature matrix (rows as samples,
             columns as features).
         y (array-like): Class labels.
-        x_test (array-like): Value of the sample to be evaluated.
+        X_test (array-like): Value of the sample to be evaluated.
         id_test (str): Unique identifier for the test sample to be evaluated.
         directory (str or Path): Directory where the classifiers and results
             will be saved.
-        log_file (str or Path): Path to the log file for storing training and
-            evaluation details.
-        clf_list (list): List of classifiers or classifier configurations to
-            use. Each element can be:
+        clf (list): Classifier to use. Can be:
             - A scikit-learn classifier object or pipeline (trained or
               untrained).
             - A tuple of 3 strings (scaler, selector, classifier) to create a
@@ -538,55 +557,31 @@ def fit_and_evaluate_classifiers(
 
     Returns:
         tuple:
-            result (list): List of tuples containing:
-                - Predicted classes.
-                - Predicted probabilities.
-            reports (list): List of evaluation report strings for each
-                classifier.
-
-    Outputs:
-        - Log file (`log_file`): Contains training times and evaluation metrics
-          for each classifier.
+            - prediction (DataFrame): DataFrame containing the predicted
+              probabilities for each class.
+            - classifier (ClassifierMixin): The trained classifier object.
+            - metrics (dict): Dict containing a classifier metrics.
+            - reports (list): List of evaluation report strings for each
+              sample.
     """
-    if not isinstance(clf_list, list):
-        clf_list = [clf_list]
-    # Clean file.
-    with log_file.open("w") as f:
-        pass
-    # Stop if there is no data to fit.
-    if len(X) == 0:
-        with log_file.open("a") as f:
-            f.write("No data to fit.\n")
-        return None
-    # Otherwise train classifiers and evaluate.
-    result = []
-    reports = []
-    for clf in clf_list:
-        with log_file.open("a") as f:
-            f.write("Start training classifier...\n")
-        start = time.time()
-        clf_to_evaluate = None
-        if isinstance(clf, (Pipeline, ClassifierMixin)):
-            clf_to_evaluate = train_clf(clf, X, y, directory, n_jobs=n_jobs)
-        elif isinstance(clf, str):
-            pipeline = make_clf_pipeline(*clf.split("-"), X.shape)
-            clf_to_evaluate = train_clf(
-                pipeline, X, y, directory, n_jobs=n_jobs
-            )
-        elif hasattr(clf, "__len__") and len(clf) == 3:
-            pipeline = make_clf_pipeline(*clf, X.shape)
-            clf_to_evaluate = train_clf(
-                pipeline, X, y, directory, n_jobs=n_jobs
-            )
-        else:
-            clf_to_evaluate = clf
-        classes, prediction, report = evaluate_clf(
-            clf_to_evaluate, x_test, id_test
-        )
-        result.append([classes, prediction])
-        passed_time = time.time() - start
-        reports.append(report)
-        with log_file.open("a") as f:
-            f.write(f"Time used for classification: {passed_time:.2f} s\n\n")
-            f.write(report + "\n\n\n")
-    return result, reports
+    if isinstance(clf, (Pipeline, ClassifierMixin)):
+        trained_clf = train_clf(clf, X, y, directory, n_jobs=n_jobs)
+    elif isinstance(clf, str):
+        pipeline = make_clf_pipeline(*clf.split("-"), X.shape)
+        trained_clf = train_clf(pipeline, X, y, directory, n_jobs=n_jobs)
+    elif hasattr(clf, "__len__") and len(clf) == 3:
+        pipeline = make_clf_pipeline(*clf, X.shape)
+        trained_clf = train_clf(pipeline, X, y, directory, n_jobs=n_jobs)
+    else:
+        trained_clf = clf
+    classes = trained_clf.classes()
+    probabilities = trained_clf.predict_proba(X_test, id_test)
+    info = trained_clf.info()
+    prediction = pd.DataFrame(probabilities, index=id_test, columns=classes)
+    reports = _make_reports(prediction, info)
+    return (
+        prediction,
+        trained_clf.classifier(),
+        trained_clf.metrics(),
+        reports,
+    )

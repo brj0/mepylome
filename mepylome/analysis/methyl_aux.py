@@ -26,6 +26,7 @@ DTYPE = np.float32
 INVALID_PATH = Path("None")
 NEUTRAL_BETA = 0.49
 UPLOADED = "Uploaded"
+TEST_CASE = "Test_Case"
 
 
 class ProgressBar:
@@ -144,8 +145,9 @@ class IdatHandler:
         idat_dir (str or Path): The directory where the IDAT files are located.
         annotation_file (str or Path, optional): The path to the annotation
             file. Defaults to None.
-        upload_dir (str or Path, optional): The directory where uploaded IDAT
-            files are stored. Defaults to None.
+        test_dir (Path or None, optional): Directory for test files, including
+            new cases or validation IDAT files or other test cases. Defaults to
+            `None`.
         overlap (bool, optional): If True, restricts the sample paths to only
             those present in both the IDAT files and the annotation file.
             Defaults to False.
@@ -155,16 +157,16 @@ class IdatHandler:
 
     Attributes:
         idat_dir (Path): The directory path where the IDAT files are located.
-        upload_dir (Path or None): The directory path for uploaded IDAT files,
-            if provided. If not provided or the directory does not exist, this
-            is set to None.
+        test_dir (Path or None, optional): Directory for test files, including
+            new cases or validation IDAT files or other test cases. Defaults to
+            `None`.
         overlap (bool): A flag indicating whether to restrict sample paths to
             only those present in both the IDAT files and the annotation file.
-        uploaded_sample_ids (list): A sorted list of valid uploaded IDAT sample
+        test_sample_ids (list): A sorted list of valid test IDAT sample
             IDs.
         id_to_path (dict): A dictionary where the keys are sample IDs and the
             values are the file paths of IDAT files (from both `idat_dir` and
-            `upload_dir`).
+            `test_dir`).
         annotation_file (Path): The path to the annotation file.
         annotation_df (pandas.DataFrame or None): A DataFrame containing the
             annotation data, if loaded.
@@ -182,7 +184,7 @@ class IdatHandler:
         idat_dir,
         annotation_file=None,
         *,
-        upload_dir=None,
+        test_dir=None,
         overlap=False,
         sample_ids=None,
     ):
@@ -191,12 +193,12 @@ class IdatHandler:
         self.sample_ids = sample_ids
         self.overlap = overlap
 
-        if upload_dir is not None and Path(upload_dir).exists():
-            self.upload_dir = Path(upload_dir)
-            uploaded_sample_paths = idat_basepaths(self.upload_dir)
+        if test_dir is not None and Path(test_dir).exists():
+            self.test_dir = Path(test_dir)
+            test_sample_paths = idat_basepaths(self.test_dir)
         else:
-            self.upload_dir = None
-            uploaded_sample_paths = []
+            self.test_dir = None
+            test_sample_paths = []
 
         if annotation_file is None:
             self.annotation_file = guess_annotation_file(
@@ -205,14 +207,14 @@ class IdatHandler:
         else:
             self.annotation_file = Path(annotation_file)
 
-        # Sort uploaded IDAT's for consistent hash
-        self.uploaded_sample_ids = sorted(
-            x.name for x in uploaded_sample_paths if is_valid_idat_basepath(x)
+        # Sort test IDAT's for consistent hash
+        self.test_sample_ids = sorted(
+            x.name for x in test_sample_paths if is_valid_idat_basepath(x)
         )
 
         self.id_to_path = {
             x.name: x
-            for x in idat_basepaths(self.idat_dir) + uploaded_sample_paths
+            for x in idat_basepaths(self.idat_dir) + test_sample_paths
             if is_valid_idat_basepath(x)
         }
 
@@ -233,8 +235,8 @@ class IdatHandler:
             _sample_ids = self.sample_ids
 
         if _sample_ids is not None:
-            # Keep uploaded samples
-            selection = _sample_ids + self.uploaded_sample_ids
+            # Keep  samples
+            selection = _sample_ids + self.test_sample_ids
             self.id_to_path = {x: self.id_to_path[x] for x in selection}
             self.samples_annotated = self.samples_annotated.loc[selection]
 
@@ -278,7 +280,8 @@ class IdatHandler:
 
         if result_df.empty:
             result_df["Methylation_Class"] = ""
-        result_df.loc[self.uploaded_sample_ids] = UPLOADED
+        result_df[TEST_CASE] = False
+        result_df.loc[self.test_sample_ids, TEST_CASE] = True
         return result_df
 
     def _extract_sentrix_ids(self, col):
@@ -291,8 +294,8 @@ class IdatHandler:
             extract_sentrix_id(k): v for k, v in self.id_to_path.items()
         }
         new_index = [extract_sentrix_id(x) for x in self.annotation_df[col]]
-        new_uploaded_sample_ids = [
-            extract_sentrix_id(x) for x in self.uploaded_sample_ids
+        new_test_sample_ids = [
+            extract_sentrix_id(x) for x in self.test_sample_ids
         ]
 
         if (
@@ -302,7 +305,7 @@ class IdatHandler:
         ):
             log(f"[IdatHandler] Extracted Sentrix IDs from column '{col}'.")
             self.id_to_path = new_paths
-            self.uploaded_sample_ids = new_uploaded_sample_ids
+            self.test_sample_ids = new_test_sample_ids
             self.annotation_df.index = new_index
             self._annotation_samples_mismatch = True
             return True
@@ -325,16 +328,40 @@ class IdatHandler:
     def properties(self):
         return self.samples_annotated.columns.tolist()
 
-    def compound_class(self, columns=None):
+    def features(self, columns=None, separator="|"):
+        """Combines specified columns into a single label per sample.
+
+        If `columns` is not provided, it defaults to the first column in
+        `samples_annotated` or `selected_columns` if they are available. The
+        function joins the values from the specified columns for each sample,
+        converting them to strings and joining them with the specified
+        separator.
+
+        Args:
+            columns (list, str, or None): List of column names (or a single
+                column name) to use for creating the label. If None, defaults
+                to the first column in `samples_annotated` or
+                `selected_columns` if not None.
+            separator (str): The separator used to join values from the
+                columns. Default is "|".
+
+        Returns:
+            list: A list of combined labels, one per sample.
+
+        Example:
+            >>> idat_handler.features(columns=["GEO", "CNVs"])
+            ['SGT_103|Balanced', 'SGT_056|Balanced', 'SGT_276|Balanced', ...]
+        """
         if columns is None:
-            return self.samples_annotated.iloc[:, 0].tolist()
+            if self.selected_columns is not None:
+                columns = self.selected_columns
+            else:
+                columns = [self.samples_annotated.columns[0]]
         if not isinstance(columns, list):
             columns = [columns]
-        if len(columns) == 1:
-            return self.samples_annotated[columns[0]].tolist()
         return (
             self.samples_annotated[columns]
-            .apply(lambda row: "|".join(row.values.astype(str)), axis=1)
+            .apply(lambda row: separator.join(row.values.astype(str)), axis=1)
             .tolist()
         )
 

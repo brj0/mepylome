@@ -5,5 +5,6 @@ application.
 """
 
 from .methyl import MethylAnalysis
+from .methyl_clf import TrainedClassifier
 
-__all__ = ["MethylAnalysis"]
+__all__ = ["MethylAnalysis", "TrainedClassifier"]

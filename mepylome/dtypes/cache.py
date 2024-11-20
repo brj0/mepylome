@@ -4,11 +4,13 @@ Utility functions and classes for caching and memoization to optimize
 performance by storing and reusing computed results.
 """
 
-import hashlib
 import inspect
+import re
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
+import xxhash
 
 
 def np_hash(array):
@@ -45,12 +47,17 @@ def np_hash(array):
     )
 
 
+def pd_hash(data_frame):
+    """Generates a hashable key for a pandas DataFrame."""
+    return (tuple(np_hash(data_frame[col].values) for col in data_frame),)
+
+
 def cache_key(*args):
     """Generates a cache key for arguments based on their type.
 
     Args:
         arg: The input arguments, which can be of various types such as
-            ArrayType, Manifest, PosixPath, bool, int, NoneType, str,
+            ArrayType, Manifest, Path, bool, int, NoneType, str,
             RangeIndex, Index, or ndarray.
 
     Returns:
@@ -64,6 +71,8 @@ def cache_key(*args):
         "ArrayType": str,
         "Manifest": lambda x: x.array_type.value,
         "PosixPath": str,
+        "WindowsPath": str,
+        "Path": str,
         "bool": str,
         "int": str,
         "NoneType": str,
@@ -71,7 +80,7 @@ def cache_key(*args):
         "RangeIndex": lambda x: x.values.tobytes(),
         "Index": lambda x: x.values.tobytes(),
         "ndarray": np_hash,
-        # "DataFrame": lambda df: tuple(np_hash(df[col].values) for col in df),
+        "DataFrame": pd_hash,
     }
     keys = tuple(type_map.get(type(arg).__name__, id)(arg) for arg in args)
     return keys[0] if len(args) == 1 else keys
@@ -166,23 +175,30 @@ def memoize(f):
 def input_args_id(*args, extra_hash=None, suffix_limit=40):
     """Returns a unique identifier for a set of arguments."""
     components = []
+    hasher = xxhash.xxh64()
 
     def _encode_arg(arg):
         if isinstance(arg, np.ndarray):
-            return str(arg.tolist()).encode()
+            return arg.tobytes()
+        elif isinstance(arg, pd.DataFrame):
+            if not arg.select_dtypes(include=["object"]).empty:
+                msg = "DataFrame contains columns with object dtype."
+                raise ValueError(msg)
+            return arg.values.tobytes()
         elif isinstance(arg, Path):
             components.append(arg.name)
             return str(arg).encode()
-        elif isinstance(arg, list):
-            return str(np.array(arg).tolist()).encode()
+        elif isinstance(arg, (list, tuple)):
+            # return str(np.array(arg).tolist()).encode()
+            return "".join(map(str, arg)).encode()
         components.append(str(arg))
         return str(arg).encode()
 
-    hasher = hashlib.blake2b(digest_size=16)
     for arg in args:
         hasher.update(_encode_arg(arg))
     if extra_hash:
         hasher.update(",".join(map(str, extra_hash)).encode())
     arg_hash = hasher.hexdigest()
     suffix = "-".join(components)[:suffix_limit]
-    return f"{suffix}-{arg_hash}" if suffix else arg_hash
+    filename = f"{suffix}-{arg_hash}" if suffix else arg_hash
+    return re.sub(r"[^a-zA-Z0-9_-]", "", filename)
