@@ -1641,7 +1641,7 @@ class MethylAnalysis:
         side_navigation = get_side_navigation(
             self.ids,
             self.ids_to_highlight,
-            self.idat_handler.properties,
+            self.idat_handler.columns,
             self.analysis_dir,
             self.idat_handler.annotation_file,
             self.reference_dir,
@@ -1825,7 +1825,7 @@ class MethylAnalysis:
                     )
                 if path.exists():
                     self.annotation = path
-                    return True, "", self.idat_handler.properties, selection
+                    return True, "", self.idat_handler.columns, selection
             except Exception:
                 return False, "Invalid path format", no_update, selection
             else:

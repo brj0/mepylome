@@ -131,12 +131,12 @@ def guess_annotation_file(directory, verbose=False):
 
 
 def extract_sentrix_id(text):
-    """Extracts the sentrix ID if found."""
+    """Extracts the Sentrix ID from a given text if found."""
     matches = re.findall(r"\d+_R\d{2}C\d{2}", str(text))
     return matches[-1] if matches else text
 
 
-def convert_ids_to_sentrix(data):
+def convert_to_sentrix_ids(data):
     """Tries to convert every ID in 'data' to a Sentrix ID."""
     if data is None:
         return None
@@ -207,46 +207,47 @@ class IdatHandler:
             if annotation_file
             else guess_annotation_file(self.idat_dir, verbose=True)
         )
-        self.test_dir = (
-            Path(test_dir) if test_dir and Path(test_dir).exists() else None
-        )
+        self.test_dir = Path(test_dir) if test_dir else None
         self.overlap = overlap
         self.sample_ids = sample_ids
 
-        # Load sample data and annotations
-        self.analysis_id_to_path = self._get_ids_to_paths(self.idat_dir)
-        self.test_id_to_path = self._get_ids_to_paths(self.test_dir)
-        self.annotation_df = self._get_annotation()
+        # Load IDAT paths and annotation data
+        self.analysis_id_to_path = self._get_id_to_path(self.idat_dir)
+        self.test_id_to_path = self._get_id_to_path(self.test_dir)
+        self.annotation_df = self._read_annotation_file()
 
-        # Match and filter annotation index
+        # Find ID column in annotation, set as index and filter cases
         id_mismatch, matched_column = self._identify_annotation_index()
-        self._filter_sample_ids(id_mismatch)
-        self._filter_overlap()
-        self.test_ids = list(self.test_id_to_path.keys())
-        self.id_to_path = {**self.analysis_id_to_path, **self.test_id_to_path}
-        self.samples_annotated = self._get_samples_annotated(matched_column)
+        self._set_annotation_index_and_convert_ids(id_mismatch, matched_column)
+        self._restrict_sample_ids(id_mismatch)
+        self._apply_overlap_filter()
 
         # Derived attributes
-        self.selected_columns = [self.samples_annotated.columns[0]]
+        self.test_ids = list(self.test_id_to_path.keys())
+        self.id_to_path = {**self.analysis_id_to_path, **self.test_id_to_path}
         self.idat_basename_to_id = {
             v.name: k for k, v in self.id_to_path.items()
         }
         self.id_to_basename = {k: v.name for k, v in self.id_to_path.items()}
 
-        # Validation
-        self._check_overlapping_samples()
+        # Set available annotation for all IDAT files
+        self.samples_annotated = self._get_samples_annotated(matched_column)
+        self.selected_columns = [self.samples_annotated.columns[0]]
 
-    def _get_ids_to_paths(self, directory):
+        # Validation
+        self._warn_on_sample_overlap()
+
+    def _get_id_to_path(self, directory):
         """Retrieve valid IDAT sample IDs and paths from a directory."""
         if not directory or not Path(directory).exists():
             return {}
         return {
-            x.name: x
-            for x in idat_basepaths(directory)
-            if is_valid_idat_basepath(x)
+            path.name: path
+            for path in idat_basepaths(directory)
+            if is_valid_idat_basepath(path)
         }
 
-    def _get_annotation(self):
+    def _read_annotation_file(self):
         try:
             return read_dataframe(self.annotation_file)
         except (FileNotFoundError, ValueError):
@@ -259,39 +260,87 @@ class IdatHandler:
     def _identify_annotation_index(self):
         """Identify and set the appropriate annotation column."""
         analysis_samples = set(self.analysis_id_to_path.keys())
-        sentrix_analysis_samples = convert_ids_to_sentrix(analysis_samples)
+        sentrix_analysis_samples = convert_to_sentrix_ids(analysis_samples)
+
         for col in self.annotation_df.columns:
             column_samples = set(self.annotation_df[col])
+
             if analysis_samples & column_samples:
-                log(f"[IdatHandler] Setting '{col}' as annotation index.")
-                self.annotation_df = self.annotation_df.set_index(col)
                 return False, col
-            sentrix_column_samples = convert_ids_to_sentrix(column_samples)
+
+            sentrix_column_samples = convert_to_sentrix_ids(column_samples)
+
             if (
                 len(analysis_samples) == len(sentrix_analysis_samples)
                 and len(column_samples) == len(sentrix_column_samples)
                 and sentrix_analysis_samples & sentrix_column_samples
             ):
-                log(
-                    f"[IdatHandler] Extracted Sentrix IDs from column '{col}'."
-                )
-                self.analysis_id_to_path = convert_ids_to_sentrix(
-                    self.analysis_id_to_path
-                )
-                self.test_id_to_path = convert_ids_to_sentrix(
-                    self.test_id_to_path
-                )
-                self.annotation_df.index = convert_ids_to_sentrix(
-                    self.annotation_df[col]
-                )
-                self.sample_ids = convert_ids_to_sentrix(self.sample_ids)
                 return True, col
+
         return False, None
 
-    def _filter_overlap(self):
+    def _set_annotation_index_and_convert_ids(self, id_missmatch, col_name):
+        """Set annotation index and convert IDs to Sentrix format if needed."""
+        if col_name is None:
+            log(
+                "[IdatHandler] No IDAT files found that are both on disk and "
+                "in the annotation file."
+            )
+            return
+        if not id_missmatch:
+            log(f"[IdatHandler] Setting '{col_name}' as annotation index.")
+            self.annotation_df = self.annotation_df.set_index(col_name)
+            return
+
+        log(f"[IdatHandler] Extracted Sentrix IDs from column '{col_name}'.")
+        self.analysis_id_to_path = convert_to_sentrix_ids(
+            self.analysis_id_to_path
+        )
+        self.test_id_to_path = convert_to_sentrix_ids(self.test_id_to_path)
+        self.annotation_df.index = convert_to_sentrix_ids(
+            self.annotation_df[col_name]
+        )
+        self.sample_ids = convert_to_sentrix_ids(self.sample_ids)
+
+    def _get_samples_annotated(self, column):
+        result_df = pd.DataFrame(index=self.id_to_path.keys())
+
+        if column:
+            # Remove duplicate rows
+            unique_annotation_df = self.annotation_df.loc[
+                ~self.annotation_df.index.duplicated(keep="first")
+            ]
+            result_df = result_df.join(unique_annotation_df).fillna("")
+
+        if result_df.empty:
+            result_df["Methylation_Class"] = ""
+
+        result_df[TEST_CASE] = False
+        result_df.loc[self.test_ids, TEST_CASE] = True
+
+        return result_df
+
+    def _restrict_sample_ids(self, id_mismatch):
+        """Restricts samples to the ones in 'sample_ids'."""
+        if not self.sample_ids:
+            return
+
+        restricted_ids = (
+            convert_to_sentrix_ids(self.sample_ids)
+            if id_mismatch
+            else self.sample_ids
+        )
+        self.analysis_id_to_path = {
+            id_: path
+            for id_, path in self.analysis_id_to_path.items()
+            if id_ in restricted_ids
+        }
+
+    def _apply_overlap_filter(self):
         """Filter samples to include only those IDATs present in annotation."""
         if not self.overlap:
             return
+
         valid_ids = set(self.annotation_df.index).intersection(
             self.analysis_id_to_path.keys()
         )
@@ -299,23 +348,7 @@ class IdatHandler:
             x: self.analysis_id_to_path[x] for x in valid_ids
         }
 
-    def _filter_sample_ids(self, id_mismatch):
-        """Filters samples by IDs."""
-        _sample_ids = (
-            convert_ids_to_sentrix(self.sample_ids)
-            if id_mismatch and self.sample_ids
-            else self.sample_ids
-        )
-
-        if not _sample_ids:
-            return
-        self.analysis_id_to_path = {
-            k: v
-            for k, v in self.analysis_id_to_path.items()
-            if k in _sample_ids
-        }
-
-    def _check_overlapping_samples(self):
+    def _warn_on_sample_overlap(self):
         """Warn about overlapping samples between analysis and test samples."""
         n_inters = len(
             set(self.analysis_id_to_path.keys()).intersection(self.test_ids)
@@ -327,27 +360,6 @@ class IdatHandler:
                 "Verify inputs.",
                 stacklevel=2,
             )
-
-    def _get_samples_annotated(self, column):
-        if column:
-            result_df = pd.DataFrame(index=self.id_to_path.keys())
-            # Remove duplicate rows
-            unique_annotation_df = self.annotation_df.loc[
-                ~self.annotation_df.index.duplicated(keep="first")
-            ]
-            result_df = result_df.join(unique_annotation_df).fillna("")
-        else:
-            result_df = pd.DataFrame(index=self.id_to_path.keys())
-            log(
-                "[IdatHandler] No matching IDAT files on disk found in "
-                "the annotation file."
-            )
-
-        if result_df.empty:
-            result_df["Methylation_Class"] = ""
-        result_df[TEST_CASE] = False
-        result_df.loc[self.test_ids, TEST_CASE] = True
-        return result_df
 
     def __len__(self):
         return len(self.id_to_path)
@@ -365,7 +377,7 @@ class IdatHandler:
         return list(self.id_to_path.values())
 
     @property
-    def properties(self):
+    def columns(self):
         return self.samples_annotated.columns.tolist()
 
     def features(self, columns=None, separator="|"):
