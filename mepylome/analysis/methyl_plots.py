@@ -117,6 +117,8 @@ def umap_plot_from_data(umap_df, use_discrete_colors=True):
     Returns:
         UMAP plot as plotly object.
     """
+    placeholder = "Not_Classified"
+    umap_df["Umap_color"] = umap_df["Umap_color"].replace("", placeholder)
     methyl_classes = sorted(
         umap_df["Umap_color"].unique(), key=_mixed_sort_key
     )

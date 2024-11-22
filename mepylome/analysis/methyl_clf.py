@@ -6,6 +6,7 @@ networks) for predicting the methylation class.
 
 import pickle
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -514,6 +515,14 @@ def train_clf(clf, X, y, directory, n_jobs=1):
     return trained_clf
 
 
+@dataclass
+class ClassifierResult:
+    prediction: any
+    classifier: any
+    metrics: dict
+    reports: list
+
+
 def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, n_jobs=1):
     """Predicts the methylation class by supervised learning classifier.
 
@@ -579,7 +588,7 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, n_jobs=1):
     info = trained_clf.info()
     prediction = pd.DataFrame(probabilities, index=id_test, columns=classes)
     reports = _make_reports(prediction, info)
-    return (
+    return ClassifierResult(
         prediction,
         trained_clf.classifier(),
         trained_clf.metrics(),

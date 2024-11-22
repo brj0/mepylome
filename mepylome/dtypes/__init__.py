@@ -2,6 +2,7 @@
 
 from .arrays import ArrayType
 from .beads import (
+    NEUTRAL_BETA,
     MethylData,
     RawData,
     ReferenceMethylData,
@@ -34,6 +35,7 @@ __all__ = [
     "CHROMOSOME_DATA",
     "CNV",
     "CNVPlot",
+    "NEUTRAL_BETA",
     "input_args_id",
     "Channel",
     "Chromosome",

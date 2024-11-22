@@ -27,7 +27,7 @@ ENDING_RED = "_Red.idat"
 ENDING_GZ = ".gz"
 ENDING_SUFFIXES = ("_Grn.idat", "_Red.idat", "_Grn.idat.gz", "_Red.idat.gz")
 
-NEUTRAL_BETA = 0.49
+NEUTRAL_BETA = 0.5
 
 
 def is_valid_idat_basepath(basepath):

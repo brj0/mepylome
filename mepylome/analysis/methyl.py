@@ -65,23 +65,15 @@ from mepylome.dtypes import (
 )
 from mepylome.utils import (
     MEPYLOME_TMP_DIR,
-    Timer,
     ensure_directory_exists,
     get_free_port,
     log,
 )
 
-timer = Timer()
-
-
 DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "analysis")
-
 DEFAULT_N_CPGS = 25000
-NEUTRAL_BETA = 0.49
-
 ON = "on"
 OFF = "off"
-
 UMAP_METRICS = [
     "euclidean",
     "manhattan",
@@ -1550,12 +1542,14 @@ class MethylAnalysis:
         if (ids is not None) and (values is not None):
             msg = "Provide only one of 'ids' or 'values'."
             raise ValueError(msg)
+
         if (ids is None) and (values is None):
             msg = "Provide either 'ids' or 'values'."
             raise ValueError(msg)
 
         if ids and not isinstance(ids, (list, tuple, np.ndarray)):
             ids = [ids]
+
         if not isinstance(clf_list, (list, tuple)):
             clf_list = [clf_list]
 
@@ -1586,10 +1580,11 @@ class MethylAnalysis:
         def _invalid_class(cls):
             return isinstance(cls, str) and cls.strip("|") == ""
 
+        if ids and len(ids):
+            values = X.loc[ids]
+
         # Remove all test samples and samples with unknown classification.
-        test_indices = set(
-            X.index.get_indexer(self.idat_handler.test_sample_ids)
-        )
+        test_indices = set(X.index.get_indexer(self.idat_handler.test_ids))
         valid_indices = [
             i
             for i, x in enumerate(y)
@@ -1597,12 +1592,6 @@ class MethylAnalysis:
         ]
         X = X.iloc[valid_indices]
         y = [y[i] for i in valid_indices]
-
-        if ids and len(ids):
-            basenames = [self.idat_handler.id_to_basename[x] for x in ids]
-            values = X.loc[basenames]
-        else:
-            basenames = None
 
         def _log(string):
             with self._clf_log.open("a") as f:
@@ -1619,11 +1608,11 @@ class MethylAnalysis:
             if self.verbose:
                 _log(f"Start training classifier {i + 1}/{len(clf_list)}...\n")
             start_time = time.time()
-            prediction, clf_out, metrics, reports = fit_and_evaluate_clf(
+            clf_result = fit_and_evaluate_clf(
                 X=X,
                 y=y,
                 X_test=values,
-                id_test=basenames,
+                id_test=ids,
                 directory=self.clf_dir,
                 clf=clf,
                 n_jobs=self.n_jobs,
@@ -1631,11 +1620,9 @@ class MethylAnalysis:
             elapsed_time = time.time() - start_time
             if self.verbose:
                 _log(f"Time used for classification: {elapsed_time:.2f} s\n\n")
-            if self.verbose and len(reports) == 1:
-                _log(reports[0] + "\n\n\n")
-            results.append(
-                [ prediction, clf_out, metrics, reports]
-            )
+            if self.verbose and len(clf_result.reports) == 1:
+                _log(clf_result.reports[0] + "\n\n\n")
+            results.append(clf_result)
 
         return results[0] if len(results) == 1 else results
 
@@ -2163,7 +2150,7 @@ class MethylAnalysis:
                 display_value = str(value)[:80] + (
                     "..." if len(str(value)) > 80 else ""
                 )
-                if len(value) > 80:
+                if len(str(value)) > 80:
                     length_info = f"\n\n[{len(value)} items]"
             elif isinstance(value, (plotly.graph_objs.Figure)):
                 data_str = (

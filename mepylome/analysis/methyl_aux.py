@@ -3,6 +3,7 @@
 import pickle
 import re
 import threading
+import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from tqdm import tqdm
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.beads import (
+    NEUTRAL_BETA,
     MethylData,
     _overlap_indices,
     idat_basepaths,
@@ -24,7 +26,6 @@ from mepylome.utils.varia import log
 
 DTYPE = np.float32
 INVALID_PATH = Path("None")
-NEUTRAL_BETA = 0.49
 UPLOADED = "Uploaded"
 TEST_CASE = "Test_Case"
 
@@ -135,6 +136,17 @@ def extract_sentrix_id(text):
     return matches[-1] if matches else text
 
 
+def convert_ids_to_sentrix(data):
+    """Tries to convert every ID in 'data' to a Sentrix ID."""
+    if data is None:
+        return None
+    if isinstance(data, dict):
+        return {extract_sentrix_id(key): value for key, value in data.items()}
+    if isinstance(data, set):
+        return set(extract_sentrix_id(item) for item in data)
+    return [extract_sentrix_id(item) for item in data]
+
+
 class IdatHandler:
     """A class for handling IDAT files with annotation.
 
@@ -162,7 +174,7 @@ class IdatHandler:
             `None`.
         overlap (bool): A flag indicating whether to restrict sample paths to
             only those present in both the IDAT files and the annotation file.
-        test_sample_ids (list): A sorted list of valid test IDAT sample
+        test_ids (list): A list of valid test IDAT sample
             IDs.
         id_to_path (dict): A dictionary where the keys are sample IDs and the
             values are the file paths of IDAT files (from both `idat_dir` and
@@ -188,66 +200,51 @@ class IdatHandler:
         overlap=False,
         sample_ids=None,
     ):
-        self._annotation_samples_mismatch = False
+        # Initialize paths and attributes
         self.idat_dir = Path(idat_dir)
-        self.sample_ids = sample_ids
-        self.overlap = overlap
-
-        if test_dir is not None and Path(test_dir).exists():
-            self.test_dir = Path(test_dir)
-            test_sample_paths = idat_basepaths(self.test_dir)
-        else:
-            self.test_dir = None
-            test_sample_paths = []
-
-        if annotation_file is None:
-            self.annotation_file = guess_annotation_file(
-                self.idat_dir, verbose=True
-            )
-        else:
-            self.annotation_file = Path(annotation_file)
-
-        # Sort test IDAT's for consistent hash
-        self.test_sample_ids = sorted(
-            x.name for x in test_sample_paths if is_valid_idat_basepath(x)
+        self.annotation_file = (
+            Path(annotation_file)
+            if annotation_file
+            else guess_annotation_file(self.idat_dir, verbose=True)
         )
+        self.test_dir = (
+            Path(test_dir) if test_dir and Path(test_dir).exists() else None
+        )
+        self.overlap = overlap
+        self.sample_ids = sample_ids
 
-        self.id_to_path = {
-            x.name: x
-            for x in idat_basepaths(self.idat_dir) + test_sample_paths
-            if is_valid_idat_basepath(x)
-        }
-
+        # Load sample data and annotations
+        self.analysis_id_to_path = self._get_ids_to_paths(self.idat_dir)
+        self.test_id_to_path = self._get_ids_to_paths(self.test_dir)
         self.annotation_df = self._get_annotation()
-        self.samples_annotated = self._get_samples_annotated()
 
-        if self.overlap:
-            valid_ids = self.annotation_df.index.intersection(
-                self.id_to_path.keys()
-            )
-            self.id_to_path = {x: self.id_to_path[x] for x in valid_ids}
-            self.samples_annotated = self.samples_annotated.loc[valid_ids]
+        # Match and filter annotation index
+        id_mismatch, matched_column = self._identify_annotation_index()
+        self._filter_sample_ids(id_mismatch)
+        self._filter_overlap()
+        self.test_ids = list(self.test_id_to_path.keys())
+        self.id_to_path = {**self.analysis_id_to_path, **self.test_id_to_path}
+        self.samples_annotated = self._get_samples_annotated(matched_column)
 
-        # Need to extract sentrix ID's if necessary
-        if self._annotation_samples_mismatch and self.sample_ids is not None:
-            _sample_ids = [extract_sentrix_id(x) for x in self.sample_ids]
-        else:
-            _sample_ids = self.sample_ids
-
-        if _sample_ids is not None:
-            # Keep  samples
-            selection = _sample_ids + self.test_sample_ids
-            self.id_to_path = {x: self.id_to_path[x] for x in selection}
-            self.samples_annotated = self.samples_annotated.loc[selection]
-
+        # Derived attributes
         self.selected_columns = [self.samples_annotated.columns[0]]
         self.idat_basename_to_id = {
             v.name: k for k, v in self.id_to_path.items()
         }
         self.id_to_basename = {k: v.name for k, v in self.id_to_path.items()}
 
-    def __len__(self):
-        return len(self.id_to_path)
+        # Validation
+        self._check_overlapping_samples()
+
+    def _get_ids_to_paths(self, directory):
+        """Retrieve valid IDAT sample IDs and paths from a directory."""
+        if not directory or not Path(directory).exists():
+            return {}
+        return {
+            x.name: x
+            for x in idat_basepaths(directory)
+            if is_valid_idat_basepath(x)
+        }
 
     def _get_annotation(self):
         try:
@@ -259,12 +256,80 @@ class IdatHandler:
             )
             return pd.DataFrame()
 
-    def _get_samples_annotated(self):
-        # Check if any column in annotation_df contains existing IDAT samples
-        if any(
-            self._extract_sentrix_ids(col)
-            for col in self.annotation_df.columns
-        ):
+    def _identify_annotation_index(self):
+        """Identify and set the appropriate annotation column."""
+        analysis_samples = set(self.analysis_id_to_path.keys())
+        sentrix_analysis_samples = convert_ids_to_sentrix(analysis_samples)
+        for col in self.annotation_df.columns:
+            column_samples = set(self.annotation_df[col])
+            if analysis_samples & column_samples:
+                log(f"[IdatHandler] Setting '{col}' as annotation index.")
+                self.annotation_df = self.annotation_df.set_index(col)
+                return False, col
+            sentrix_column_samples = convert_ids_to_sentrix(column_samples)
+            if (
+                len(analysis_samples) == len(sentrix_analysis_samples)
+                and len(column_samples) == len(sentrix_column_samples)
+                and sentrix_analysis_samples & sentrix_column_samples
+            ):
+                log(
+                    f"[IdatHandler] Extracted Sentrix IDs from column '{col}'."
+                )
+                self.analysis_id_to_path = convert_ids_to_sentrix(
+                    self.analysis_id_to_path
+                )
+                self.test_id_to_path = convert_ids_to_sentrix(
+                    self.test_id_to_path
+                )
+                self.annotation_df.index = convert_ids_to_sentrix(
+                    self.annotation_df[col]
+                )
+                self.sample_ids = convert_ids_to_sentrix(self.sample_ids)
+                return True, col
+        return False, None
+
+    def _filter_overlap(self):
+        """Filter samples to include only those IDATs present in annotation."""
+        if not self.overlap:
+            return
+        valid_ids = set(self.annotation_df.index).intersection(
+            self.analysis_id_to_path.keys()
+        )
+        self.analysis_id_to_path = {
+            x: self.analysis_id_to_path[x] for x in valid_ids
+        }
+
+    def _filter_sample_ids(self, id_mismatch):
+        """Filters samples by IDs."""
+        _sample_ids = (
+            convert_ids_to_sentrix(self.sample_ids)
+            if id_mismatch and self.sample_ids
+            else self.sample_ids
+        )
+
+        if not _sample_ids:
+            return
+        self.analysis_id_to_path = {
+            k: v
+            for k, v in self.analysis_id_to_path.items()
+            if k in _sample_ids
+        }
+
+    def _check_overlapping_samples(self):
+        """Warn about overlapping samples between analysis and test samples."""
+        n_inters = len(
+            set(self.analysis_id_to_path.keys()).intersection(self.test_ids)
+        )
+        if n_inters:
+            warnings.warn(
+                f"WARNING: 'test_dir' and 'analysis_dir' share {n_inters} "
+                f"sample(s). 'idat_handler' may not work as expected. "
+                "Verify inputs.",
+                stacklevel=2,
+            )
+
+    def _get_samples_annotated(self, column):
+        if column:
             result_df = pd.DataFrame(index=self.id_to_path.keys())
             # Remove duplicate rows
             unique_annotation_df = self.annotation_df.loc[
@@ -281,36 +346,11 @@ class IdatHandler:
         if result_df.empty:
             result_df["Methylation_Class"] = ""
         result_df[TEST_CASE] = False
-        result_df.loc[self.test_sample_ids, TEST_CASE] = True
+        result_df.loc[self.test_ids, TEST_CASE] = True
         return result_df
 
-    def _extract_sentrix_ids(self, col):
-        if set(self.id_to_path.keys()).intersection(self.annotation_df[col]):
-            log(f"[IdatHandler] Setting column '{col}' as annotation index.")
-            self.annotation_df = self.annotation_df.set_index(col)
-            return True
-
-        new_paths = {
-            extract_sentrix_id(k): v for k, v in self.id_to_path.items()
-        }
-        new_index = [extract_sentrix_id(x) for x in self.annotation_df[col]]
-        new_test_sample_ids = [
-            extract_sentrix_id(x) for x in self.test_sample_ids
-        ]
-
-        if (
-            len(new_paths) == len(self.id_to_path)
-            and len(set(new_index)) == len(set(self.annotation_df[col]))
-            and set(new_paths.keys()).intersection(new_index)
-        ):
-            log(f"[IdatHandler] Extracted Sentrix IDs from column '{col}'.")
-            self.id_to_path = new_paths
-            self.test_sample_ids = new_test_sample_ids
-            self.annotation_df.index = new_index
-            self._annotation_samples_mismatch = True
-            return True
-
-        return False
+    def __len__(self):
+        return len(self.id_to_path)
 
     @property
     def ids(self):
@@ -366,13 +406,33 @@ class IdatHandler:
         )
 
     def __str__(self):
-        lines = [
-            "IdatHandler():",
-            f"annotation_file: '{self.annotation_file}'",
-            f"samples_annotated:\n{self.samples_annotated}",
-            f"selected_columns:\n{self.selected_columns}",
-        ]
-        return "\n".join(lines)
+        title = f"{self.__class__.__name__}()"
+        header = title + "\n" + "*" * len(title)
+        lines = [header]
+
+        def format_value(value):
+            length_info = ""
+            if isinstance(value, (pd.DataFrame, pd.Series, pd.Index)):
+                display_value = str(value)
+            elif isinstance(value, np.ndarray):
+                display_value = str(value)
+                length_info = f"\n\n[{len(value)} items]"
+            elif hasattr(value, "__len__"):
+                display_value = str(value)[:80] + (
+                    "..." if len(str(value)) > 80 else ""
+                )
+                if len(str(value)) > 80:
+                    length_info = f"\n\n[{len(value)} items]"
+            else:
+                display_value = str(value)[:80] + (
+                    "..." if len(str(value)) > 80 else ""
+                )
+            return display_value, length_info
+
+        for attr, value in sorted(self.__dict__.items()):
+            display_value, length_info = format_value(value)
+            lines.append(f"{attr}:\n{display_value}{length_info}")
+        return "\n\n".join(lines)
 
     def __repr__(self):
         return str(self)
@@ -471,17 +531,26 @@ class BetasHandler:
         with (self.dir["error"] / filename).open("w") as f:
             f.write(str(msg))
 
-    def get(self, filenames, cpgs, fill=NEUTRAL_BETA, parallel=False):
+    def get(self, idat_handler, cpgs, fill=NEUTRAL_BETA, parallel=True):
         """Retrieves beta values for specified IDs and CpGs."""
+        filenames = [
+            filename
+            for filename in idat_handler.idat_basenames
+            if filename not in self.invalid_filenames
+        ]
+        ids = [idat_handler.idat_basename_to_id[x] for x in filenames]
+
         check_memory(len(filenames), len(cpgs), DTYPE)
         beta_matrix = np.full((len(filenames), len(cpgs)), fill, dtype=DTYPE)
+
         left_idx = {}
         right_idx = {}
+
         for key, item in self.array_cpgs.items():
             left_idx[key], right_idx[key] = _overlap_indices(cpgs, item)
 
         def process_beta_value(i, filename):
-            path = self.paths.get(filename, None)
+            path = self.paths.get(filename)
             if path is not None:
                 key = self.array_type_from_dir[path.parent]
                 betas = np.fromfile(path, dtype=DTYPE)
@@ -498,7 +567,7 @@ class BetasHandler:
                     total=len(futures),
                     desc="Reading beta values from disk (parallel)",
                 ):
-                    future.beta_matrix()
+                    future.result()
         else:
             for i, filename in tqdm(
                 enumerate(filenames),
@@ -506,7 +575,7 @@ class BetasHandler:
                 total=len(filenames),
             ):
                 process_beta_value(i, filename)
-        return pd.DataFrame(beta_matrix, columns=cpgs, index=filenames)
+        return pd.DataFrame(beta_matrix, columns=cpgs, index=ids)
 
     def update(self):
         """Updates the paths if beta vales were added after initialization."""
@@ -577,9 +646,4 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
                     if pbar is not None:
                         pbar.increment()
         betas_handler.update()
-    valid_beta_value_files = [
-        filename
-        for filename in idat_handler.idat_basenames
-        if filename not in betas_handler.invalid_filenames
-    ]
-    return betas_handler.get(valid_beta_value_files, cpgs)
+    return betas_handler.get(idat_handler, cpgs)
