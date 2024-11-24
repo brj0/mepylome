@@ -33,6 +33,9 @@ from dash import (
     html,
     no_update,
 )
+from sklearn.model_selection import (
+    StratifiedKFold,
+)
 
 from mepylome.analysis.methyl_aux import (
     INVALID_PATH,
@@ -176,6 +179,7 @@ def get_navbar():
 
 
 def get_side_navigation(
+    *,
     sample_ids,
     ids_to_highlight,
     annotation_columns,
@@ -192,11 +196,24 @@ def get_side_navigation(
     metric,
     min_dist,
     use_discrete_colors,
+    custom_clfs,
 ):
     """Generates a side navigation panel for setting up parameters."""
     n_cpgs_max = np.inf if len(cpgs) == 0 else len(cpgs)
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
     color_scheme = "discrete" if use_discrete_colors else "continuous"
+    clf_options = {
+        **{
+            "none-kbest-et": "ExtraTreesClassifier",
+            "none-kbest-lr": "LinearRegression",
+            "none-kbest-rf": "RandomForestClassifier",
+            "none-kbest-svc_rbf": "SVC(kernel='rbf')",
+            "none-pca-lr": "PCALinearRegression",
+            "none-pca-et": "PCAExtraTreesClassifier",
+            "none-none-knn": "KNeighborsClassifier",
+        },
+        **{str(i): clf["name"] for i, clf in enumerate(custom_clfs)},
+    }
     return dbc.Col(
         [
             dbc.Tabs(
@@ -448,15 +465,7 @@ def get_side_navigation(
                             html.H6("Classifiers to use"),
                             dcc.Dropdown(
                                 id="clf-clf-dropdown",
-                                options={
-                                    "none-kbest-et": "ExtraTreesClassifier",
-                                    "none-kbest-lr": "LinearRegression",
-                                    "none-kbest-rf": "RandomForestClassifier",
-                                    "none-kbest-svc_rbf": "SVC(kernel='rbf')",
-                                    "none-pca-lr": "PCALinearRegression",
-                                    "none-pca-et": "PCAExtraTreesClassifier",
-                                    "none-none-knn": "KNeighborsClassifier",
-                                },
+                                options=clf_options,
                                 value=["none-kbest-lr", "none-kbest-et"],
                                 multi=True,
                             ),
@@ -570,6 +579,18 @@ class MethylAnalysis:
             exclude. Default is None.
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
+
+        classifiers (dict or list of dict): A single dictionary or a list of
+            dictionaries containing configuration for each classifier. Each
+            dictionary contains:
+            - 'name' (str, optional): A human-readable name for the classifier
+              (e.g., 'Random Forest').
+            - 'model' (object): The classifier model.
+            - 'cv' (int or cross-validation generator, optional): Determines
+              the cross-validation splitting strategy (default: cv_default).
+
+        cv_default (int or cross-validation generator, optional): Determines
+            the default cross-validation splitting strategy (default: 5).
 
         n_jobs (int): Number of parallel processes to run for classifying
             (default: 1). Choose -1 for using all available cores.
@@ -761,6 +782,8 @@ class MethylAnalysis:
         cpgs="auto",
         cpg_blacklist=None,
         n_cpgs=DEFAULT_N_CPGS,
+        classifiers=None,
+        cv_default=5,
         n_jobs=1,
         precalculate_cnv=False,
         load_full_betas=True,
@@ -794,6 +817,7 @@ class MethylAnalysis:
         self.cnv_dir = None
         self.umap_dir = None
         self.clf_dir = None
+        self.cv_default = cv_default
         self.prep = prep
         self.precalculate_cnv = precalculate_cnv
         self.load_full_betas = load_full_betas
@@ -816,6 +840,7 @@ class MethylAnalysis:
 
         ensure_directory_exists(self.output_dir)
 
+        self._classifiers = self._get_classifiers(classifiers)
         self._prog_bar = ProgressBar()
         self._use_discrete_colors = True
         self._internal_cpgs_hash = None
@@ -931,6 +956,63 @@ class MethylAnalysis:
     @idat_handler.setter
     def idat_handler(self, value):
         self._idat_handler = value
+
+    @property
+    def classifiers(self):
+        """Retrieves the configuration for classifiers.
+
+        This property returns a list of dictionaries, where each dictionary
+        includes:
+        - 'name' (str): A human-readable name for the classifier
+          (e.g., 'Random Forest').
+        - 'model' (TrainedClassifier): The classifier model instance.
+        - 'cv' (int or cross-validation generator): Determines
+          the cross-validation splitting strategy.
+
+        Returns:
+            list of dict: Classifier configurations.
+        """
+        return self._classifiers
+
+    @classifiers.setter
+    def classifiers(self, classifiers):
+        """Sets the configuration for classifiers.
+
+        This setter accepts either a dictionary or a list of dictionaries for
+        each classifier.
+
+        Args:
+            classifiers (dict or list of dict): Classifier configuration(s),
+                including:
+                - 'name' (str, optional): Name of the classifier.
+                - 'model' (TrainedClassifier): The classifier model.
+                - 'cv' (int or cross-validation generator, optional):
+                  Cross-validation strategy.
+        """
+        self._classifiers = self._get_classifiers(classifiers)
+
+    def _get_classifiers(self, classifiers):
+        if classifiers is None:
+            return []
+
+        if not isinstance(classifiers, list):
+            classifiers = [classifiers]
+
+        result = []
+        for i, clf in enumerate(classifiers):
+            clf_copy = clf.copy() if isinstance(clf, dict) else {"model": clf}
+            clf_copy["name"] = clf_copy.get("name", f"Custom_Classifier_{i}")
+            cv = clf_copy.get("cv", self.cv_default)
+            if isinstance(cv, int):
+                cv = StratifiedKFold(n_splits=cv, shuffle=True)
+            clf_copy["cv"] = cv
+
+            if "model" not in clf_copy:
+                msg = "Each classifier in 'classifiers' must have a 'model'."
+                raise ValueError(msg)
+            result.append(clf_copy)
+
+        return result
 
     @staticmethod
     def _get_umap_parms(umap_parms):
@@ -1550,9 +1632,6 @@ class MethylAnalysis:
         if ids and not isinstance(ids, (list, tuple, np.ndarray)):
             ids = [ids]
 
-        if not isinstance(clf_list, (list, tuple)):
-            clf_list = [clf_list]
-
         self._update_paths()
         self.set_betas()
         ensure_directory_exists(self.clf_dir)
@@ -1577,11 +1656,11 @@ class MethylAnalysis:
             )
             raise ValueError(msg)
 
-        def _invalid_class(cls):
-            return isinstance(cls, str) and cls.strip("|") == ""
-
         if ids and len(ids):
             values = X.loc[ids]
+
+        def _invalid_class(cls):
+            return isinstance(cls, str) and cls.strip("|") == ""
 
         # Remove all test samples and samples with unknown classification.
         test_indices = set(X.index.get_indexer(self.idat_handler.test_ids))
@@ -1604,9 +1683,10 @@ class MethylAnalysis:
             return []
 
         results = []
-        for i, clf in enumerate(clf_list):
+        clfs = self._get_classifiers(clf_list)
+        for i, clf in enumerate(clfs):
             if self.verbose:
-                _log(f"Start training classifier {i + 1}/{len(clf_list)}...\n")
+                _log(f"Start training classifier {i + 1}/{len(clfs)}...\n")
             start_time = time.time()
             clf_result = fit_and_evaluate_clf(
                 X=X,
@@ -1614,7 +1694,8 @@ class MethylAnalysis:
                 X_test=values,
                 id_test=ids,
                 directory=self.clf_dir,
-                clf=clf,
+                clf=clf["model"],
+                cv=clf["cv"],
                 n_jobs=self.n_jobs,
             )
             elapsed_time = time.time() - start_time
@@ -1639,22 +1720,23 @@ class MethylAnalysis:
         app._favicon = "favicon.svg"
         app.title = "mepylome"
         side_navigation = get_side_navigation(
-            self.ids,
-            self.ids_to_highlight,
-            self.idat_handler.columns,
-            self.analysis_dir,
-            self.idat_handler.annotation_file,
-            self.reference_dir,
-            self.output_dir,
-            self.cpgs,
-            self.n_cpgs,
-            self.prep,
-            self.precalculate_cnv,
-            self.cpg_selection,
-            self.umap_parms["n_neighbors"],
-            self.umap_parms["metric"],
-            self.umap_parms["min_dist"],
-            self._use_discrete_colors,
+            sample_ids=self.ids,
+            ids_to_highlight=self.ids_to_highlight,
+            annotation_columns=self.idat_handler.columns,
+            analysis_dir=self.analysis_dir,
+            annotation=self.idat_handler.annotation_file,
+            reference_dir=self.reference_dir,
+            output_dir=self.output_dir,
+            cpgs=self.cpgs,
+            n_cpgs=self.n_cpgs,
+            prep=self.prep,
+            precalculate=self.precalculate_cnv,
+            cpg_selection=self.cpg_selection,
+            n_neighbors=self.umap_parms["n_neighbors"],
+            metric=self.umap_parms["metric"],
+            min_dist=self.umap_parms["min_dist"],
+            use_discrete_colors=self._use_discrete_colors,
+            custom_clfs=self.classifiers,
         )
         dash_plots = dbc.Col(
             [
@@ -1976,8 +2058,7 @@ class MethylAnalysis:
         def toggle_console_out(n_clicks, current_style):
             if n_clicks % 2 == 0:
                 return {**current_style, "display": "flex"}
-            else:
-                return {**current_style, "display": "none"}
+            return {**current_style, "display": "none"}
 
         @app.callback(
             [
@@ -2099,7 +2180,12 @@ class MethylAnalysis:
                 return error_message
 
             try:
-                _ = self.classify(ids=self.cnv_id, clf_list=clf_list)
+                parsed_clf_list = [
+                    self.classifiers[int(x)] if x.isdigit() else x
+                    for x in clf_list
+                ]
+                print("PARSED", parsed_clf_list)
+                _ = self.classify(ids=self.cnv_id, clf_list=parsed_clf_list)
             except Exception as exc:
                 log(f"[MethylAnalysis] An error occured (4): {exc}")
                 return f"{exc}"

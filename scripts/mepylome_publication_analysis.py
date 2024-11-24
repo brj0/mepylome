@@ -1,4 +1,4 @@
-"""Script for Mepylome Publication Analysis
+"""Script for Mepylome Publication Analysis.
 
 This script is performes analysis presented in the Mepylome publication. It
 automates the download of required datasets and performs the corresponding data
@@ -336,6 +336,11 @@ class CustomClassifier(TrainedClassifier):
 
 custom_clf = CustomClassifier(et_clf)
 clf_out = analysis.classify(ids, clf_list=custom_clf)
+
+# 3. Add classifier into MethylAnalysis object
+rf_clf = RandomForestClassifier()
+analysis.classifiers = {"model": rf_clf}
+analysis.run_app(open_tab=True)
 
 
 combinations = itertools.product(scalers, selectors, classifiers)

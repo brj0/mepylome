@@ -28,6 +28,7 @@ DTYPE = np.float32
 INVALID_PATH = Path("None")
 UPLOADED = "Uploaded"
 TEST_CASE = "Test_Case"
+METHYLATION_CLASS = "Methylation_Class"
 
 
 class ProgressBar:
@@ -231,7 +232,7 @@ class IdatHandler:
         self.id_to_basename = {k: v.name for k, v in self.id_to_path.items()}
 
         # Set available annotation for all IDAT files
-        self.samples_annotated = self._get_samples_annotated(matched_column)
+        self.samples_annotated = self._get_samples_annotated()
         self.selected_columns = [self.samples_annotated.columns[0]]
 
         # Validation
@@ -302,18 +303,17 @@ class IdatHandler:
         )
         self.sample_ids = convert_to_sentrix_ids(self.sample_ids)
 
-    def _get_samples_annotated(self, column):
+    def _get_samples_annotated(self):
         result_df = pd.DataFrame(index=self.id_to_path.keys())
 
-        if column:
-            # Remove duplicate rows
-            unique_annotation_df = self.annotation_df.loc[
-                ~self.annotation_df.index.duplicated(keep="first")
-            ]
-            result_df = result_df.join(unique_annotation_df).fillna("")
+        # Remove duplicate rows
+        unique_annotation_df = self.annotation_df.loc[
+            ~self.annotation_df.index.duplicated(keep="first")
+        ]
+        result_df = result_df.join(unique_annotation_df).fillna("")
 
         if result_df.empty:
-            result_df["Methylation_Class"] = ""
+            result_df[METHYLATION_CLASS] = ""
 
         result_df[TEST_CASE] = False
         result_df.loc[self.test_ids, TEST_CASE] = True

@@ -4,6 +4,7 @@ Non supervised classifiers (random forest, k-nearest neighbors, neural
 networks) for predicting the methylation class.
 """
 
+import hashlib
 import pickle
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -49,7 +50,6 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import (
-    StratifiedKFold,
     cross_val_predict,
 )
 from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
@@ -106,13 +106,19 @@ class TrainedClassifier(ABC):
         """
         return ""
 
-    def classifier(self):
-        """Returns the classifier (usually sklearn object)."""
+    def model(self):
+        """Returns the classifier model (usually sklearn object)."""
         return None
 
     def metrics(self):
         """Returns the metric statistics (usually sklearn object)."""
         return {}
+
+    def __str__(self):
+        hash_str = hashlib.blake2b(
+            self.info().encode(), digest_size=16
+        ).hexdigest()
+        return f"TrainedClassifier_{hash_str}"
 
 
 def _get_pipeline_description(clf):
@@ -177,7 +183,7 @@ class TrainedSklearnClassifier(TrainedClassifier):
             result += f"\n- {key:<{max_key_length}} : {value}"
         return result
 
-    def classifier(self):
+    def model(self):
         return self.clf
 
     def metrics(self):
@@ -199,7 +205,7 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         self._metrics = metrics or {}
         self._classes = clf.classes_
 
-    def predict_proba(self, betas, id_):
+    def predict_proba(self, betas, id_=None):
         if id_ is not None:
             id_ = np.ravel(id_)
             probabilities = np.zeros((len(betas), len(self._classes)))
@@ -218,8 +224,8 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
                     unknown_betas
                 )
             return probabilities
-        else:
-            return self.clf.predict_proba(betas)
+
+        return self.clf.predict_proba(betas)
 
     def classes(self):
         return self._classes
@@ -236,7 +242,7 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
     def metrics(self):
         return self._metrics
 
-    def classifier(self):
+    def model(self):
         return self.clf
 
 
@@ -452,7 +458,7 @@ def is_trained(clf):
     return all(hasattr(clf_, attr) for attr in trained_attributes)
 
 
-def train_clf(clf, X, y, directory, n_jobs=1):
+def train_clf(clf, X, y, directory, cv, n_jobs=1):
     """Trains a classifier and stores the trained model to disk.
 
     If the classifier has already been trained (and saved), it loads the
@@ -465,6 +471,8 @@ def train_clf(clf, X, y, directory, n_jobs=1):
         y (array-like): The target labels.
         directory (Path): The directory where the trained model should be
             saved.
+        cv (int or cross-validation generator): Determines the cross-validation
+            splitting strategy.
         n_jobs (int): Number of parallel processes to run.
 
     Returns:
@@ -472,9 +480,6 @@ def train_clf(clf, X, y, directory, n_jobs=1):
             classifier object.
     """
     n_splits = 5
-
-    if is_trained(clf):
-        return TrainedSklearnClassifier(clf, X=X)
 
     if hasattr(clf, "steps"):
         clf_filename = "-".join(str(x[1]) for x in clf.steps) + ".pkl"
@@ -486,6 +491,9 @@ def train_clf(clf, X, y, directory, n_jobs=1):
     if clf_path.exists():
         with clf_path.open("rb") as file:
             return pickle.load(file)
+
+    if is_trained(clf):
+        return TrainedSklearnClassifier(clf, X=X)
 
     log("[train_clf] Start training...")
 
@@ -499,7 +507,6 @@ def train_clf(clf, X, y, directory, n_jobs=1):
         )
         trained_clf = TrainedSklearnClassifier(clf=clf, X=X)
     else:
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True)
         log("[train_clf] Start cross-validation...")
         probabilities_cv = cross_val_predict(
             clf, X, y, cv=cv, method="predict_proba", n_jobs=n_jobs
@@ -518,12 +525,12 @@ def train_clf(clf, X, y, directory, n_jobs=1):
 @dataclass
 class ClassifierResult:
     prediction: any
-    classifier: any
+    model: any
     metrics: dict
     reports: list
 
 
-def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, n_jobs=1):
+def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
     """Predicts the methylation class by supervised learning classifier.
 
     Uses supervised machine learning classifiers (Random Forest, K-Nearest
@@ -562,25 +569,33 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, n_jobs=1):
                     - "svc_linear": Support Vector Classifier (linear kernel).
                     - "svc_rbf": Support Vector Classifier (RBF kernel).
                     - "none": No classifier (passthrough).
+        cv (int or cross-validation generator): Determines the cross-validation
+            splitting strategy.
         n_jobs (int): Number of parallel processes to run.
 
     Returns:
-        tuple:
+        ClassifierResult:
             - prediction (DataFrame): DataFrame containing the predicted
               probabilities for each class.
-            - classifier (ClassifierMixin): The trained classifier object.
+            - model (object): The trained classifier object.
             - metrics (dict): Dict containing a classifier metrics.
             - reports (list): List of evaluation report strings for each
               sample.
     """
     if isinstance(clf, (Pipeline, ClassifierMixin)):
-        trained_clf = train_clf(clf, X, y, directory, n_jobs=n_jobs)
+        trained_clf = train_clf(
+            clf=clf, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
+        )
     elif isinstance(clf, str):
         pipeline = make_clf_pipeline(*clf.split("-"), X.shape)
-        trained_clf = train_clf(pipeline, X, y, directory, n_jobs=n_jobs)
+        trained_clf = train_clf(
+            clf=pipeline, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
+        )
     elif hasattr(clf, "__len__") and len(clf) == 3:
         pipeline = make_clf_pipeline(*clf, X.shape)
-        trained_clf = train_clf(pipeline, X, y, directory, n_jobs=n_jobs)
+        trained_clf = train_clf(
+            clf=pipeline, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
+        )
     else:
         trained_clf = clf
     classes = trained_clf.classes()
@@ -590,7 +605,7 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, n_jobs=1):
     reports = _make_reports(prediction, info)
     return ClassifierResult(
         prediction,
-        trained_clf.classifier(),
+        trained_clf.model(),
         trained_clf.metrics(),
         reports,
     )

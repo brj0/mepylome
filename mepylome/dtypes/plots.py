@@ -341,7 +341,7 @@ def read_cnv_data_from_disk(cnv_dir, sample_id, extract=None):
         cnv_dir / sample_zip,
         extract=extract,
     )
-    results = {key: value for key, value in zip(extract, unzipped)}
+    results = dict(zip(extract, unzipped))
     # Calculate some plot x-values
     if results.get("bins") is not None:
         results["bins"]["X_mid"] = get_x_mid(results["bins"])
@@ -359,8 +359,7 @@ def read_cnv_data_from_disk(cnv_dir, sample_id, extract=None):
         )
     if len(results) == 1:
         return next(iter(results.values()))
-    else:
-        return tuple(results.values())
+    return tuple(results.values())
 
 
 def cnv_plot_from_data(

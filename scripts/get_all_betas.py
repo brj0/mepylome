@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 
-from mepylome import ManifestLoader, MethylData, RawData
+from mepylome import Manifest, MethylData, RawData
 
 INDEX_FILE = "/applications/reference_data/betaEPIC450Kmix_bin/index.csv"
 NEW_IDAT_DIR = "/data/epidip_IDAT"
@@ -130,9 +130,7 @@ logger.info(
 )
 
 # Load manifests before multiprocessing
-ManifestLoader.get_manifest("450k")
-ManifestLoader.get_manifest("epic")
-ManifestLoader.get_manifest("epicv2")
+Manifest.load()
 
 
 with Pool() as pool:

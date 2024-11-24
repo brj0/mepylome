@@ -180,15 +180,15 @@ def input_args_id(*args, extra_hash=None, suffix_limit=40):
     def _encode_arg(arg):
         if isinstance(arg, np.ndarray):
             return arg.tobytes()
-        elif isinstance(arg, pd.DataFrame):
+        if isinstance(arg, pd.DataFrame):
             if not arg.select_dtypes(include=["object"]).empty:
                 msg = "DataFrame contains columns with object dtype."
                 raise ValueError(msg)
             return arg.values.tobytes()
-        elif isinstance(arg, Path):
+        if isinstance(arg, Path):
             components.append(arg.name)
             return str(arg).encode()
-        elif isinstance(arg, (list, tuple)):
+        if isinstance(arg, (list, tuple)):
             # return str(np.array(arg).tolist()).encode()
             return "".join(map(str, arg)).encode()
         components.append(str(arg))
