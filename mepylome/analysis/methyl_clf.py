@@ -36,7 +36,6 @@ from sklearn.feature_selection import (
 )
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.linear_model import (
-    LassoCV,
     LogisticRegression,
     Perceptron,
     RidgeClassifier,
@@ -67,6 +66,7 @@ from sklearn.preprocessing import (
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
+from mepylome.dtypes.cache import input_args_id
 from mepylome.utils import (
     log,
 )
@@ -119,6 +119,9 @@ class TrainedClassifier(ABC):
             self.info().encode(), digest_size=16
         ).hexdigest()
         return f"TrainedClassifier_{hash_str}"
+
+    def __repr__(self):
+        return str(self)
 
 
 def _get_pipeline_description(clf):
@@ -246,9 +249,9 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         return self.clf
 
 
-def make_clf_pipeline(scaler, selector, clf, X_shape):
+def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
     """Sklearn pipeline with scaling, feature selection, and classifier."""
-    n_splits = 5
+    n_splits = cv if isinstance(cv, int) else cv.n_splits
     n_components_pca = min(((n_splits - 1) * X_shape[0] // n_splits), 50)
     scalers = {
         "minmax": MinMaxScaler(),
@@ -260,9 +263,7 @@ def make_clf_pipeline(scaler, selector, clf, X_shape):
         "std": StandardScaler(),
     }
     selectors = {
-        "anova": SelectKBest(f_classif, k=10000),
         "kbest": SelectKBest(k=10000),
-        "lasso": SelectFromModel(LassoCV(cv=5)),
         "lda": LDA(n_components=1),
         "mutual_info": SelectKBest(mutual_info_classif, k=10000),
         "none": "passthrough",
@@ -278,7 +279,7 @@ def make_clf_pipeline(scaler, selector, clf, X_shape):
         "hgb": HistGradientBoostingClassifier(),
         "knn": KNeighborsClassifier(n_neighbors=5, weights="distance"),
         "lda": LDA(),
-        "lr": LogisticRegression(),
+        "lr": LogisticRegression(max_iter=10000),
         "mlp": MLPClassifier(verbose=True),
         "nb": GaussianNB(),
         "none": "passthrough",
@@ -479,12 +480,9 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
         TrainedSklearnClassifier or TrainedSklearnCVClassifier: The trained
             classifier object.
     """
-    n_splits = 5
+    n_splits = cv if isinstance(cv, int) else cv.n_splits
 
-    if hasattr(clf, "steps"):
-        clf_filename = "-".join(str(x[1]) for x in clf.steps) + ".pkl"
-    else:
-        clf_filename = f"{clf}.pkl"
+    clf_filename = input_args_id(clf, cv, X.shape, len(y)) + ".pkl"
 
     clf_path = directory / clf_filename
 
@@ -502,8 +500,8 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
 
     if min(counts_per_class) < n_splits:
         log(
-            "[train_clf] Warning: One of the classes has fewer than 5 "
-            "samples. Stats may not be computable."
+            "[train_clf] Warning: One of the classes has fewer than "
+            "{n_splits} samples (cv splits). Stats may not be computable."
         )
         trained_clf = TrainedSklearnClassifier(clf=clf, X=X)
     else:
@@ -587,12 +585,12 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
             clf=clf, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
         )
     elif isinstance(clf, str):
-        pipeline = make_clf_pipeline(*clf.split("-"), X.shape)
+        pipeline = make_clf_pipeline(*clf.split("-"), X.shape, cv)
         trained_clf = train_clf(
             clf=pipeline, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
         )
     elif hasattr(clf, "__len__") and len(clf) == 3:
-        pipeline = make_clf_pipeline(*clf, X.shape)
+        pipeline = make_clf_pipeline(*clf, X.shape, cv)
         trained_clf = train_clf(
             clf=pipeline, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
         )

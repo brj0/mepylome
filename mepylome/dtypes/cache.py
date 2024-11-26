@@ -189,8 +189,11 @@ def input_args_id(*args, extra_hash=None, suffix_limit=40):
             components.append(arg.name)
             return str(arg).encode()
         if isinstance(arg, (list, tuple)):
-            # return str(np.array(arg).tolist()).encode()
-            return "".join(map(str, arg)).encode()
+            return ",".join(map(str, arg)).encode()
+        if hasattr(arg, "steps"):
+            value = "-".join(str(x[1])[:15] for x in arg.steps)
+            components.append(value)
+            return str(arg).encode()
         components.append(str(arg))
         return str(arg).encode()
 

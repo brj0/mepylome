@@ -63,49 +63,6 @@ file_urls = {
     },
 }
 
-scalers = [
-    "minmax",
-    "none",
-    "power",
-    "quantile",
-    "quantile_normal",
-    "robust",
-    "std",
-]
-
-selectors = [
-    "anova",
-    "kbest",
-    "lasso",
-    "lda",
-    "mutual_info",
-    "none",
-    "pca",
-]
-
-classifiers = [
-    "ada",
-    "bag",
-    "dt",
-    "et",
-    "gb",
-    "gp",
-    "hgb",
-    "knn",
-    "lda",
-    "lr",
-    "mlp",
-    "nb",
-    "none",
-    "perceptron",
-    "qda",
-    "rf",
-    "ridge",
-    "sgd",
-    "stacking",
-    "svc_linear",
-    "svc_rbf",
-]
 
 data_dir = Path("/data/mepylome_projects")
 output_dir = Path("/data/mepylome_projects/out")
@@ -278,73 +235,6 @@ cnv_plot.write_image(
 analysis.precompute_cnvs()
 calculate_cn_summary("Methylation class")
 
-# 0. Internal classifier
-
-# Prediction for ids
-ids = analysis.idat_handler.ids
-analysis.idat_handler.selected_columns = ["Methylation class"]
-clf_out = analysis.classify(ids=ids, clf_list="none-kbest-rf")
-
-print("Accuracy Scores:", clf_out.metrics["accuracy_scores"])
-print("Mean Accuracy Score:", np.mean(clf_out.metrics["accuracy_scores"]))
-print(clf_out.reports[0])
-
-# Prediction for values
-n_cpgs = analysis.betas_all.shape[1]
-random_beta_values = pd.DataFrame(
-    np.random.rand(10, n_cpgs), columns=analysis.betas_all.columns
-)
-clf_out = analysis.classify(
-    values=random_beta_values, clf_list="none-kbest-rf"
-)
-
-
-# 1. Trained sklearn classifiers
-X = analysis.betas_all
-y = analysis.idat_handler.features()
-
-rf_clf = RandomForestClassifier()
-rf_clf.fit(X, y)
-
-ids = analysis.idat_handler.ids
-clf_out = analysis.classify(ids, clf_list=rf_clf)
-
-
-# 1. Untrained sklearn classifiers
-et_clf = ExtraTreesClassifier(n_estimators=300, random_state=0)
-clf_out = analysis.classify(ids, clf_list=et_clf)
-
-
-# 2. API for custom classifier
-class CustomClassifier(TrainedClassifier):
-    def __init__(self, clf):
-        self.clf = clf
-        self._classes = clf.classes_
-
-    def predict_proba(self, betas, id_=None):
-        return self.clf.predict_proba(betas)
-
-    def classes(self):
-        return self._classes
-
-    def info(self):
-        return "This text will be printed in reports."
-
-    def metrics(self):
-        return {"Key0": "Value0", "Key1": "Value1"}
-
-
-custom_clf = CustomClassifier(et_clf)
-clf_out = analysis.classify(ids, clf_list=custom_clf)
-
-# 3. Add classifier into MethylAnalysis object
-rf_clf = RandomForestClassifier()
-analysis.classifiers = {"model": rf_clf}
-analysis.run_app(open_tab=True)
-
-
-combinations = itertools.product(scalers, selectors, classifiers)
-
 
 ############################ SINONASAL TUMORS ############################
 
@@ -404,10 +294,75 @@ cnv_plot.write_image(
 analysis.precompute_cnvs()
 calculate_cn_summary("Methylation class")
 
-# # Validate GUI superviseder lerner
-# analysis.feature_matrix = analysis.betas_top.iloc[:, :10000]
-# result = validate_gui_prediction("Methylation class")
+# Validate GUI superviseder lerner
+ids = analysis.idat_handler.ids
+clf_out = analysis.classify(
+    ids=ids,
+    clf_list=[
+        "none-kbest-et",
+        "none-kbest-lr",
+        "none-kbest-rf",
+        "none-kbest-svc_rbf",
+        "none-pca-lr",
+        "none-pca-et",
+        "none-none-knn",
+    ],
+)
 
+# Prinf reports of all clasifiers
+for clf_result in clf_out:
+    print(clf_result.reports[0])
+
+best_clf = max(
+    clf_out,
+    key=lambda result: np.mean(result.metrics["accuracy_scores"])
+)
+print("Most accurate classifier:")
+print(best_clf.reports[0])
+
+
+clf_out = analysis.classify(ids=ids, clf_list="none-lda-et") 
+print(clf_out.reports[0])
+
+scalers = [
+    "minmax",
+    "power",
+    "quantile",
+    "quantile_normal",
+    "robust",
+    "std",
+]
+
+selectors = [
+    "lasso",
+    "lda",
+    "mutual_info",
+    "none",
+    "pca",
+]
+
+classifiers = [
+    "ada",
+    "bag",
+    "dt",
+    "gb",
+    "gp",
+    "hgb",
+    "knn",
+    "lda",
+    "mlp",
+    "nb",
+    "none",
+    "perceptron",
+    "qda",
+    "rf",
+    "ridge",
+    "sgd",
+    "stacking",
+    "svc_linear",
+    "svc_rbf",
+]
+combinations = itertools.product(scalers, selectors, classifiers)
 
 ############################ SOFT TISSUE TUMORS ############################
 
@@ -469,103 +424,3 @@ calculate_cn_summary("Methylation class")
 
 
 ##############################################################################
-
-
-# def svm_with_rbf():
-# return SVC(kernel="rbf", probability=True)
-
-
-# calibration_model = LogisticRegression(
-# multi_class="multinomial", solver="lbfgs", penalty="l2", C=1.0
-# )
-
-# outer_cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-# inner_cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-
-# param_grid = {
-# "gamma": np.logspace(-5, 5, 11) / 10000,
-# "C": np.logspace(-10, 10, 21),
-# }
-
-# label_encoder = LabelEncoder()
-
-
-# def train_and_calibrate_model(X, y, best_params=None):
-# best_models = []
-# accuracies = []
-# # y_encoded = label_encoder.fit_transform(y)
-# y_encoded = y
-# all_classes = np.unique(y_encoded)
-# for train_index, test_index in outer_cv.split(X, y_encoded):
-# X_train, X_test = X[train_index], X[test_index]
-# y_train, y_test = y_encoded[train_index], y_encoded[test_index]
-# # Feature scaling
-# # scaler = StandardScaler()
-# # X_train = scaler.fit_transform(X_train)
-# # X_test = scaler.transform(X_test)
-# # Inner cross-validation for hyperparameter tuning
-# best_score = np.inf
-# if best_params is None:
-# for gamma in param_grid["gamma"]:
-# for C in param_grid["C"]:
-# svc = SVC(kernel="rbf", gamma=gamma, C=C, probability=True)
-# scorer = make_scorer(
-# log_loss, needs_proba=True, labels=all_classes
-# )
-# svc_score = -cross_val_score(
-# svc,
-# X_train,
-# y_train,
-# cv=inner_cv,
-# n_jobs=-1,
-# scoring=scorer,
-# error_score="raise",
-# ).mean()
-# if svc_score < best_score:
-# best_score = svc_score
-# best_params = {"gamma": gamma, "C": C}
-# print(f"Better score found: {best_params}")
-# print(f"Best score is: {best_params}")
-# # Train SVM with best parameters on full training set
-# best_svm = SVC(kernel="rbf", **best_params, probability=True)
-# best_svm.fit(X_train, y_train)
-# # Calibration of SVM output using logistic regression
-# svm_scores = best_svm.predict_proba(X_train)
-# calibration_model.fit(svm_scores, y_train)
-# calibrated_scores = calibration_model.predict_proba(
-# best_svm.predict_proba(X_test)
-# )
-# best_models.append((best_svm, calibration_model, calibrated_scores))
-# # Calculate accuracy for the test set
-# y_pred = best_svm.predict(X_test)
-# fold_accuracy = accuracy_score(y_test, y_pred)
-# accuracies.append(fold_accuracy)
-# print(f"Fold accuracy: {fold_accuracy:.4f}")
-# # Calculate and print overall statistics
-# mean_accuracy = np.mean(accuracies)
-# std_accuracy = np.std(accuracies)
-# print(f"\nOverall mean accuracy: {mean_accuracy:.4f}")
-# print(f"Overall accuracy standard deviation: {std_accuracy:.4f}")
-# return best_models, mean_accuracy, std_accuracy
-
-
-# # Prepare data
-# X = analysis.feature_matrix.values
-# y = classes.values
-
-# # Train and calibrate model
-# trained_models = train_and_calibrate_model(
-# X, y, best_params={"gamma": 0.001, "C": 1.0}
-# )
-
-# # Model Evaluation (optional): Repeated Cross-validation
-# repeated_cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-# accuracy_scores = []
-# for i in range(10):  # Repeat 10 times
-# for train_index, test_index in repeated_cv.split(X, y):
-# X_train, X_test = X[train_index], X[test_index]
-# y_train, y_test = y[train_index], y[test_index]
-# # Fit and evaluate models as per the procedure
-# models = train_and_calibrate_model(X_train, y_train)
-# # Use the best model from each outer fold for final evaluation on test data
-# # (aggregate results as needed, e.g., calculate balanced accuracy, rejection analysis)

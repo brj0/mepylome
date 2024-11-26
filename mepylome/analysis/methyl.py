@@ -840,7 +840,7 @@ class MethylAnalysis:
 
         ensure_directory_exists(self.output_dir)
 
-        self._classifiers = self._get_classifiers(classifiers)
+        self._classifiers = classifiers
         self._prog_bar = ProgressBar()
         self._use_discrete_colors = True
         self._internal_cpgs_hash = None
@@ -972,7 +972,7 @@ class MethylAnalysis:
         Returns:
             list of dict: Classifier configurations.
         """
-        return self._classifiers
+        return self._get_classifiers(self._classifiers)
 
     @classifiers.setter
     def classifiers(self, classifiers):
@@ -989,7 +989,7 @@ class MethylAnalysis:
                 - 'cv' (int or cross-validation generator, optional):
                   Cross-validation strategy.
         """
-        self._classifiers = self._get_classifiers(classifiers)
+        self._classifiers = classifiers
 
     def _get_classifiers(self, classifiers):
         if classifiers is None:
@@ -1573,7 +1573,7 @@ class MethylAnalysis:
         plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
         return plot, df_cn_summary
 
-    def classify(self, ids=None, values=None, clf_list=None):
+    def classify(self, *, ids=None, values=None, clf_list):
         """Classify samples using specified classifiers.
 
         This method performs classification on given samples, defined either by
@@ -1602,8 +1602,7 @@ class MethylAnalysis:
                 - A string in the format `"scaler-selector-classifier"` where:
                     - scaler: One of ["none", "std", "minmax", "robust",
                       "power", "quantile", "quantile_normal"].
-                    - selector: One of ["none", "kbest", "pca", "anova",
-                      "lasso", "mutual_info"].
+                    - selector: One of ["none", "kbest", "pca", "mutual_info"].
                     - classifier: One of ["rf", "lr", "et", "knn", "mlp",
                       "svc_linear", "svc_rbf", "none"].
 

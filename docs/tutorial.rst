@@ -2,7 +2,6 @@ Tutorial (library)
 ==================
 
 
-
 This tutorial will guide you through the steps to analyze methylation data
 using the ``mepylome`` package. We'll cover setting up the environment,
 parsing IDAT files, working with manifest files, processing raw data,
@@ -14,7 +13,6 @@ https://github.com/brj0/mepylome/blob/main/tests/rtd_tutorial.py.
 
 .. contents:: Contents of Tutorial
    :depth: 3
-
 
 
 Setup
@@ -54,7 +52,6 @@ Download and setup the necessary data files (approximately 653 MB):
     >>> from mepylome.utils import setup_tutorial_files
 
     >>> setup_tutorial_files(ANALYSIS_DIR, REFERENCE_DIR)
-
 
 
 
@@ -118,7 +115,6 @@ example the  Illumina IDs (probes IDs) can be accessed by:
 
 
 
-
 C++ Parser
 ~~~~~~~~~~
 
@@ -137,7 +133,6 @@ string, not a Path object)
 
     >>> except ImportError:
     >>>     print("C++ parser NOT available")
-
 
 
 
@@ -192,7 +187,6 @@ Print overview:
     485576   rs4331560     10654345           -1  ...      0     -1           4
     
     [485577 rows x 12 columns]
-
 
 
 
@@ -310,7 +304,6 @@ search):
 .. code-block:: python
 
     >>> raw_data_all = RawData(REFERENCE_DIR)
-
 
 
 
@@ -476,7 +469,6 @@ sites of the EPICv2 manifest). Missing data will be replaced with `fill`.
 
 
 
-
 Using Alternative Preprocessing Methods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -497,7 +489,6 @@ Preprocess the raw data using the NOOB method.
 
 
 See `api <api.html>`_ for more information about SWAN and NOOB.
-
 
 
 Copy number variation (CNV)
@@ -802,7 +793,7 @@ can provide a custom directory for output:
 
 .. code-block:: python
 
-    >>> OUTPUT_DIR = Path("path/to/your/output_dir")
+    >>> OUTPUT_DIR = DIR / "output_dir"
     >>> OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     >>> methyl_analysis = MethylAnalysis(
     >>>     analysis_dir=ANALYSIS_DIR,
@@ -840,7 +831,8 @@ initialization, but not all.
 
 **2. Set up beta values and generate UMAP**
 
-All calculations that can be performed within the GUI can also be done manually. For example, to extract the beta values:
+All calculations that can be performed within the GUI can also be done
+manually. For example, to extract the beta values:
 
 .. code-block:: python
 
@@ -967,11 +959,300 @@ plots for all diagnosis categories.
     >>>     # the y-axis.
     >>>     cn_plot.update_layout(
     >>>         title=f"CN-summary for {diagnosis}",
-    >>>         yaxis_title="Proportion of CNV gains/losses"
+    >>>         yaxis_title="Proportion of CNV gains/losses",
     >>>     )
     >>>     # Display the CN-summary plot in the browser.
     >>>     cn_plot.show()
 
+
+
+Supervised Classification
+-------------------------
+
+
+**1. Preimplemented Classifier**
+
+Methylome allows the use of preimplemented classifiers to predict methylation
+classes for samples. Below are examples of performing predictions on sample
+IDs and randomly generated values. Do setup as before:
+
+.. code-block:: python
+
+    >>> import numpy as np
+    >>> import pandas as pd
+    >>> from sklearn.ensemble import (
+    >>>     ExtraTreesClassifier,
+    >>>     RandomForestClassifier,
+    >>> )
+    >>> from sklearn.feature_selection import (
+    >>>     SelectKBest,
+    >>> )
+    >>> from sklearn.pipeline import Pipeline
+
+    >>> from mepylome.analysis import MethylAnalysis
+
+    >>> methyl_analysis = MethylAnalysis(
+    >>>     analysis_dir=ANALYSIS_DIR,
+    >>>     reference_dir=REFERENCE_DIR,
+    >>> )
+
+
+Perform prediction on sample IDs:
+
+
+.. code-block:: python
+
+    >>> # Retrieve all sample IDs
+    >>> ids = methyl_analysis.idat_handler.ids
+    >>> # Set the annotation column for classification
+    >>> methyl_analysis.idat_handler.selected_columns = ["Diagnosis"]
+    >>> # Perform classification using a preimplemented classifier (pipeline with no
+    >>> # scaler, SelectKBest as selector and RandomForestClassifier for
+    >>> # classification) and cross-validation
+    >>> clf_out = methyl_analysis.classify(ids=ids, clf_list="none-kbest-rf")
+
+    >>> # Output accuracy scores:
+    >>> print("Accuracy Scores:", clf_out.metrics["accuracy_scores"])
+    Accuracy Scores: [1.0, 1.0, 1.0, 1.0, 1.0]
+
+    >>> # Detailed classifier report of first sample:
+    >>> print(clf_out.reports[0])
+    201530470054_R05C01
+    ===================
+    
+    Pipeline Structure:
+    - Scaler            : passthrough
+    - Feature_selection : SelectKBest
+        k: 10000
+    - Classifier        : RandomForestClassifier
+    
+    Metrics:
+    - Method    : 5-fold cross validation
+    - Samples   : 20
+    - Features  : 865859
+    - Accuracy  : 1.0000 (SD 0.0000)
+    - AUC       : 1.0000 (SD 0.0000)
+    - F1-Score  : 1.0000 (SD 0.0000)
+    - Precision : 1.0000 (SD 0.0000)
+    - Recall    : 1.0000 (SD 0.0000)
+    
+    Classification Probability:
+    --------------------------------------
+    - Osteoblastoma             :  74.00 %
+    - Osteosarcoma (high-grade) :  23.00 %
+    - Control (muscle tissue)   :   2.00 %
+    - Chondrosarcoma            :   1.00 %
+    --------------------------------------
+
+
+
+Perform prediction on beta values:
+
+
+.. code-block:: python
+
+    >>> # Number of CpGs in the dataset
+    >>> n_cpgs = methyl_analysis.betas_all.shape[1]
+    >>> # Generate random beta values for 10 artificial samples
+    >>> random_beta_values = pd.DataFrame(
+    >>>     np.random.rand(10, n_cpgs), columns=methyl_analysis.betas_all.columns
+    >>> )
+    >>> # Perform classification on random values:
+    >>> clf_out = methyl_analysis.classify(
+    >>>     values=random_beta_values, clf_list="none-kbest-rf"
+    >>> )
+
+
+**2. Train Your Own Classifiers**
+
+You can train custom classifiers using the scikit-learn API and incorporate
+them into the analysis. Below is an example using a Random Forest classifier.
+
+
+.. code-block:: python
+
+    >>> # Set the annotation column for classification
+    >>> methyl_analysis.idat_handler.selected_columns = ["Diagnosis"]
+
+    >>> # Extract features (X) and target labels (y)
+    >>> X = methyl_analysis.betas_all
+    >>> y = methyl_analysis.idat_handler.features()
+
+    >>> # Exclude test indices and invalid samples
+    >>> valid_indices = [
+    >>>     i
+    >>>     for i, (idx, label) in enumerate(zip(X.index, y))
+    >>>     if label and idx not in methyl_analysis.idat_handler.test_ids
+    >>> ]
+    >>> X = X.iloc[valid_indices]
+    >>> y = [y[i] for i in valid_indices]
+
+    >>> # Choose classifier (maybe with tuned parameters)
+    >>> rf_clf = RandomForestClassifier(
+    >>>     n_estimators=500,
+    >>>     max_depth=20,
+    >>>     min_samples_split=5,
+    >>>     min_samples_leaf=2,
+    >>>     bootstrap=True,
+    >>>     class_weight="balanced",
+    >>>     random_state=42,
+    >>> )
+
+    >>> # Train the classifier
+    >>> rf_clf.fit(X, y)
+
+    >>> # If the classifier is already trained, mepylome will not repeat the training
+    >>> # (and cross-validation) process
+    >>> ids = methyl_analysis.idat_handler.ids
+    >>> clf_out = methyl_analysis.classify(ids, clf_list=rf_clf)
+
+    >>> print(clf_out.reports[0])
+    201530470054_R05C01
+    ===================
+    
+    Pipeline Structure:
+    - Classifier: RandomForestClassifier
+        class_weight: balanced
+        max_depth: 20
+        min_samples_leaf: 2
+        min_samples_split: 5
+        n_estimators: 500
+        random_state: 42
+    
+    Metrics:
+    - Samples  : 20
+    - Features : 865859
+    
+    Classification Probability:
+    --------------------------------------
+    - Osteoblastoma             :  83.19 %
+    - Osteosarcoma (high-grade) :   9.87 %
+    - Control (muscle tissue)   :   4.49 %
+    - Chondrosarcoma            :   2.45 %
+    --------------------------------------
+
+
+
+**3. Use Untrained Scikit-Learn Classifiers**
+
+Untrained classifiers can also be passed directly for classification.
+Mepylome will then execute the training and cross-validation process. Below
+is an example using an Extra Trees classifier.
+
+
+.. code-block:: python
+
+    >>> # Define an untrained Extra Trees classifier
+    >>> et_clf = ExtraTreesClassifier(n_estimators=300, random_state=0)
+
+    >>> # Perform classification
+    >>> ids = methyl_analysis.idat_handler.ids
+    >>> clf_out = methyl_analysis.classify(ids, clf_list=et_clf)
+
+    >>> print(clf_out.reports[0])
+    201530470054_R05C01
+    ===================
+    
+    Pipeline Structure:
+    - Classifier: ExtraTreesClassifier
+        n_estimators: 300
+        random_state: 0
+    
+    Metrics:
+    - Method    : 5-fold cross validation
+    - Samples   : 20
+    - Features  : 865859
+    - Accuracy  : 1.0000 (SD 0.0000)
+    - AUC       : 1.0000 (SD 0.0000)
+    - F1-Score  : 1.0000 (SD 0.0000)
+    - Precision : 1.0000 (SD 0.0000)
+    - Recall    : 1.0000 (SD 0.0000)
+    
+    Classification Probability:
+    --------------------------------------
+    - Osteoblastoma             :  77.00 %
+    - Osteosarcoma (high-grade) :  13.00 %
+    - Control (muscle tissue)   :   6.00 %
+    - Chondrosarcoma            :   4.00 %
+    --------------------------------------
+
+
+
+
+**4. Create a Custom Classifier**
+
+You can define a custom trained classifier by implementing a class that
+inherits from `TrainedClassifier`. This allows you to use non-standard models
+or apply additional functionality.
+
+
+.. code-block:: python
+
+    >>> # Define a Custom Classifier
+    >>> from mepylome.analysis.methyl_clf import TrainedClassifier
+
+
+    >>> class CustomClassifier(TrainedClassifier):
+    >>>     def __init__(self, clf):
+    >>>         self.clf = clf
+    >>>         self._classes = clf.classes_
+
+    >>>     def predict_proba(self, betas, id_=None):
+    >>>         return self.clf.predict_proba(betas)
+
+    >>>     def classes(self):
+    >>>         return self._classes
+
+    >>>     def info(self):
+    >>>         return "This text will be printed in reports."
+
+    >>>     def metrics(self):
+    >>>         return {"Key0": "Value0", "Key1": "Value1"}
+
+
+    >>> # Initialize the custom classifier
+    >>> custom_clf = CustomClassifier(rf_clf)
+
+    >>> # Perform classification
+    >>> clf_out = methyl_analysis.classify(ids, clf_list=custom_clf)
+
+    >>> print(clf_out.reports[0])
+    201530470054_R05C01
+    ===================
+    
+    This text will be printed in reports.
+    
+    Classification Probability:
+    --------------------------------------
+    - Osteoblastoma             :  83.19 %
+    - Osteosarcoma (high-grade) :   9.87 %
+    - Control (muscle tissue)   :   4.49 %
+    - Chondrosarcoma            :   2.45 %
+    --------------------------------------
+
+
+
+
+**5. Add a Classifier into the MethylAnalysis Object**
+
+Finally, you can integrate a classifier directly into the `MethylAnalysis`
+object for seamless use in workflows and the interactive GUI app.
+
+
+.. code-block:: python
+
+    >>> # Add a custom classifier into the MethylAnalysis object
+    >>> pipeline = Pipeline(
+    >>>     [
+    >>>         ("feature_selection", SelectKBest(k=20000)),
+    >>>         ("classifier", RandomForestClassifier(n_estimators=500)),
+    >>>     ]
+    >>> )
+    >>> methyl_analysis.classifiers = {"model": pipeline, "name": "Custom RF"}
+
+    >>> # Launch the interactive app with the integrated classifier. Now the classifier
+    >>> # is available in the GUI under the name 'Custom RF'.
+    >>> methyl_analysis.run_app(open_tab=True)
 
 
 
