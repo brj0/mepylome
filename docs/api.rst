@@ -42,3 +42,11 @@ mepylome.analysis.methyl_aux
 .. automodule:: mepylome.analysis.methyl_aux
 .. autoclass:: mepylome.analysis.methyl_aux.IdatHandler
    :members:
+
+
+mepylome.analysis.methyl_clf
+----------------------------
+
+.. automodule:: mepylome.analysis.methyl_clf
+.. autoclass:: mepylome.analysis.methyl_clf.fit_and_evaluate_clf
+   :members:

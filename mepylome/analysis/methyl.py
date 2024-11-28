@@ -145,24 +145,17 @@ def get_all_genes():
 
 def get_navbar():
     """Returns a navigation bar with a logo and title."""
+    logo = html.Img(src="/assets/mepylome.svg", height="30px")
+    title = dbc.NavbarBrand("Methylation Analysis", className="ms-2")
+
     return dbc.Navbar(
         dbc.Container(
             [
                 html.A(
                     dbc.Row(
                         [
-                            dbc.Col(
-                                html.Img(
-                                    src="/assets/mepylome.svg",
-                                    height="30px",
-                                )
-                            ),
-                            dbc.Col(
-                                dbc.NavbarBrand(
-                                    "Methylation Analysis",
-                                    className="ms-2",
-                                )
-                            ),
+                            dbc.Col(logo),
+                            dbc.Col(title),
                         ],
                         align="center",
                         className="g-0",
@@ -170,7 +163,7 @@ def get_navbar():
                     style={"textDecoration": "none"},
                 ),
                 dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
-                html.Div(id="dummy-output", style={"display": "none"}),
+                html.Div(id="dummy-output", hidden=True),
             ]
         ),
         color="dark",
@@ -214,294 +207,283 @@ def get_side_navigation(
         },
         **{str(i): clf["name"] for i, clf in enumerate(custom_clfs)},
     }
-    return dbc.Col(
-        [
-            dbc.Tabs(
-                [
-                    dbc.Tab(
-                        label="Setting",
-                        children=[
-                            dcc.Store(id="running-state"),
-                            dcc.Interval(
-                                id="clock",
-                                interval=500,
-                                n_intervals=0,
-                                max_intervals=-1,
-                            ),
-                            html.Div(
-                                dbc.Button(
-                                    "Console",
-                                    id="toggle-button",
-                                    n_clicks=0,
-                                    size="sm",
-                                ),
-                                className="d-grid gap-2",
-                            ),
-                            html.Div(
-                                id="console-out",
-                                style={
-                                    "overflow": "hidden",
-                                    "fontFamily": "monospace",
-                                    "fontSize": "9px",
-                                    "whiteSpace": "pre-wrap",
-                                    "height": "40vh",
-                                    "display": "flex",
-                                    "flexDirection": "column-reverse",
-                                },
-                            ),
-                            html.Br(),
-                            dbc.Progress(value=0, id="umap-progress-bar"),
-                            html.Br(),
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        dbc.Button(
-                                            "Start",
-                                            id="start-button",
-                                            color="primary",
-                                        ),
-                                        width={"size": 6},
-                                    ),
-                                ],
-                            ),
-                            html.Div(id="output-div"),
-                            html.Br(),
-                            html.H6(f"Number of CpG sites{n_cpgs_max_str}"),
-                            dcc.Input(
-                                id="num-cpgs",
-                                type="number",
-                                min=1,
-                                max=n_cpgs_max,
-                                step=1,
-                                value=min(n_cpgs, len(cpgs)),
-                            ),
-                            html.Br(),
-                            html.Br(),
-                            html.H6("Analysis directory"),
-                            dbc.Input(
-                                id="analysis-dir",
-                                valid=True,
-                                value=str(analysis_dir),
-                                type="text",
-                            ),
-                            html.Div(id="analysis-path-validation"),
-                            html.Br(),
-                            html.H6("Annotation file"),
-                            dbc.Input(
-                                id="annotation-file",
-                                valid=True,
-                                value=str(annotation),
-                                type="text",
-                            ),
-                            html.Div(id="annotation-file-validation"),
-                            html.Br(),
-                            html.H6("Reference directory (CNV neutral cases)"),
-                            dbc.Input(
-                                id="reference-dir",
-                                value=str(reference_dir),
-                                type="text",
-                            ),
-                            html.Div(id="reference-path-validation"),
-                            html.Br(),
-                            html.H6("Output directory"),
-                            dbc.Input(
-                                id="output-dir",
-                                valid=True,
-                                value=str(output_dir),
-                                type="text",
-                            ),
-                            html.Div(id="output-path-validation"),
-                            html.Br(),
-                            html.H6("IDAT preprocessing method"),
-                            dcc.Dropdown(
-                                id="preprocessing-method",
-                                options={
-                                    "illumina": "Illumina",
-                                    "swan": "SWAN",
-                                    "noob": "NOOB",
-                                    "raw": "No preprocessing",
-                                },
-                                value=prep,
-                                multi=False,
-                            ),
-                            html.Br(),
-                            html.H6("Calculate CNV"),
-                            dcc.Dropdown(
-                                id="precalculate-cnv",
-                                options={
-                                    ON: "Precalculate all (much longer!)",
-                                    OFF: "When clicking on dots",
-                                },
-                                value=ON if precalculate else OFF,
-                                multi=False,
-                            ),
-                            html.Br(),
-                            html.H6("How should CpG's be selected"),
-                            dcc.Dropdown(
-                                id="cpg-selection",
-                                options={
-                                    "random": "By random",
-                                    "top": (
-                                        "Take most varying CpG's (memory "
-                                        "intensive!)"
-                                    ),
-                                },
-                                value=cpg_selection,
-                                multi=False,
-                            ),
-                        ],
+    tabs = [
+        dbc.Tab(
+            label="Setting",
+            children=[
+                dcc.Store(id="running-state"),
+                dcc.Interval(
+                    id="clock",
+                    interval=500,
+                    n_intervals=0,
+                    max_intervals=-1,
+                ),
+                html.Div(
+                    dbc.Button(
+                        "Console",
+                        id="toggle-button",
+                        n_clicks=0,
+                        size="sm",
                     ),
-                    dbc.Tab(
-                        label="UMAP",
-                        children=[
-                            html.Br(),
-                            html.H5("Determine UMAP settings."),
-                            html.Br(),
-                            html.H6(
-                                "n_neighbors",
-                                style={"font-family": "monospace"},
+                    className="d-grid gap-2",
+                ),
+                html.Div(
+                    id="console-out",
+                    style={
+                        "overflow": "hidden",
+                        "fontFamily": "monospace",
+                        "fontSize": "9px",
+                        "whiteSpace": "pre-wrap",
+                        "height": "40vh",
+                        "display": "flex",
+                        "flexDirection": "column-reverse",
+                    },
+                ),
+                html.Br(),
+                dbc.Progress(value=0, id="umap-progress-bar"),
+                html.Br(),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            dbc.Button(
+                                "Start",
+                                id="start-button",
+                                color="primary",
                             ),
-                            dcc.Input(
-                                id="umap-n_neighbors",
-                                type="number",
-                                min=2,
-                                max=100,
-                                step=1,
-                                value=n_neighbors,
+                            width={"size": 6},
+                        ),
+                    ],
+                ),
+                html.Div(id="output-div"),
+                html.Br(),
+                html.H6(f"Number of CpG sites{n_cpgs_max_str}"),
+                dcc.Input(
+                    id="num-cpgs",
+                    type="number",
+                    min=1,
+                    max=n_cpgs_max,
+                    step=1,
+                    value=min(n_cpgs, len(cpgs) or n_cpgs),
+                ),
+                html.Br(),
+                html.Br(),
+                html.H6("Analysis directory"),
+                dbc.Input(
+                    id="analysis-dir",
+                    valid=True,
+                    value=str(analysis_dir),
+                    type="text",
+                ),
+                html.Div(id="analysis-path-validation"),
+                html.Br(),
+                html.H6("Annotation file"),
+                dbc.Input(
+                    id="annotation-file",
+                    valid=True,
+                    value=str(annotation),
+                    type="text",
+                ),
+                html.Div(id="annotation-file-validation"),
+                html.Br(),
+                html.H6("Reference directory (CNV neutral cases)"),
+                dbc.Input(
+                    id="reference-dir",
+                    value=str(reference_dir),
+                    type="text",
+                ),
+                html.Div(id="reference-path-validation"),
+                html.Br(),
+                html.H6("Output directory"),
+                dbc.Input(
+                    id="output-dir",
+                    valid=True,
+                    value=str(output_dir),
+                    type="text",
+                ),
+                html.Div(id="output-path-validation"),
+                html.Br(),
+                html.H6("IDAT preprocessing method"),
+                dcc.Dropdown(
+                    id="preprocessing-method",
+                    options={
+                        "illumina": "Illumina",
+                        "swan": "SWAN",
+                        "noob": "NOOB",
+                        "raw": "No preprocessing",
+                    },
+                    value=prep,
+                    multi=False,
+                ),
+                html.Br(),
+                html.H6("Calculate CNV"),
+                dcc.Dropdown(
+                    id="precalculate-cnv",
+                    options={
+                        ON: "Precalculate all (much longer!)",
+                        OFF: "When clicking on dots",
+                    },
+                    value=ON if precalculate else OFF,
+                    multi=False,
+                ),
+                html.Br(),
+                html.H6("How should CpG's be selected"),
+                dcc.Dropdown(
+                    id="cpg-selection",
+                    options={
+                        "random": "By random",
+                        "top": (
+                            "Take most varying CpG's (memory " "intensive!)"
+                        ),
+                    },
+                    value=cpg_selection,
+                    multi=False,
+                ),
+            ],
+        ),
+        dbc.Tab(
+            label="UMAP",
+            children=[
+                html.Br(),
+                html.H5("Determine UMAP settings."),
+                html.Br(),
+                html.H6(
+                    "n_neighbors",
+                    style={"font-family": "monospace"},
+                ),
+                dcc.Input(
+                    id="umap-n_neighbors",
+                    type="number",
+                    min=2,
+                    max=100,
+                    step=1,
+                    value=n_neighbors,
+                ),
+                html.Br(),
+                html.Br(),
+                html.H6("metric", style={"font-family": "monospace"}),
+                dcc.Dropdown(
+                    id="umap-metric",
+                    value=metric,
+                    options=UMAP_METRICS,
+                ),
+                html.Br(),
+                html.H6("min_dist", style={"font-family": "monospace"}),
+                dcc.Input(
+                    id="umap-min_dist",
+                    type="number",
+                    min=0,
+                    value=min_dist,
+                ),
+                html.Br(),
+            ],
+        ),
+        dbc.Tab(
+            label="Highlight",
+            children=[
+                html.Br(),
+                html.Br(),
+                html.H6("Sample IDs to highlight in UMAP"),
+                dcc.Dropdown(
+                    id="ids-to-highlight",
+                    options=sample_ids,
+                    value=ids_to_highlight,
+                    multi=True,
+                ),
+                html.Br(),
+                html.H6("Umap coloring"),
+                dcc.Dropdown(
+                    id="umap-annotation-color",
+                    options=annotation_columns,
+                    value=annotation_columns[0],
+                    multi=True,
+                ),
+                html.Br(),
+                html.H6("Color scheme"),
+                dcc.Dropdown(
+                    id="umap-color-scheme",
+                    options={
+                        "discrete": "Discrete Colors",
+                        "continuous": "Continuous Colors",
+                    },
+                    value=color_scheme,
+                    multi=False,
+                ),
+                html.Br(),
+                html.H6("Genes to highlight in CNV"),
+                dcc.Dropdown(
+                    id="selected-genes",
+                    options=get_all_genes(),
+                    multi=True,
+                ),
+            ],
+        ),
+        dbc.Tab(
+            label="Upload",
+            children=[
+                html.Br(),
+                html.Br(),
+                dcc.Upload(
+                    [
+                        "Drag & Drop or ",
+                        html.A("Select IDAT File pairs"),
+                    ],
+                    style={
+                        "width": "100%",
+                        "height": "60px",
+                        "lineHeight": "60px",
+                        "borderWidth": "1px",
+                        "borderStyle": "dashed",
+                        "borderRadius": "5px",
+                        "textAlign": "center",
+                    },
+                    multiple=True,
+                    id="upload-idat",
+                ),
+                html.Br(),
+                html.Div(id="output-idat-upload"),
+            ],
+        ),
+        dbc.Tab(
+            label="Classify",
+            children=[
+                html.Br(),
+                html.H6("Classifiers to use"),
+                dcc.Dropdown(
+                    id="clf-clf-dropdown",
+                    options=clf_options,
+                    value=["none-kbest-lr", "none-kbest-et"],
+                    multi=True,
+                ),
+                html.Br(),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            dbc.Button(
+                                "Start",
+                                id="clf-start-button",
+                                color="primary",
                             ),
-                            html.Br(),
-                            html.Br(),
-                            html.H6(
-                                "metric", style={"font-family": "monospace"}
-                            ),
-                            dcc.Dropdown(
-                                id="umap-metric",
-                                value=metric,
-                                options=UMAP_METRICS,
-                            ),
-                            html.Br(),
-                            html.H6(
-                                "min_dist", style={"font-family": "monospace"}
-                            ),
-                            dcc.Input(
-                                id="umap-min_dist",
-                                type="number",
-                                min=0,
-                                value=min_dist,
-                            ),
-                            html.Br(),
-                        ],
-                    ),
-                    dbc.Tab(
-                        label="Highlight",
-                        children=[
-                            html.Br(),
-                            html.Br(),
-                            html.H6("Sample IDs to highlight in UMAP"),
-                            dcc.Dropdown(
-                                id="ids-to-highlight",
-                                options=sample_ids,
-                                value=ids_to_highlight,
-                                multi=True,
-                            ),
-                            html.Br(),
-                            html.H6("Umap coloring"),
-                            dcc.Dropdown(
-                                id="umap-annotation-color",
-                                options=annotation_columns,
-                                value=annotation_columns[0],
-                                multi=True,
-                            ),
-                            html.Br(),
-                            html.H6("Color scheme"),
-                            dcc.Dropdown(
-                                id="umap-color-scheme",
-                                options={
-                                    "discrete": "Discrete Colors",
-                                    "continuous": "Continuous Colors",
-                                },
-                                value=color_scheme,
-                                multi=False,
-                            ),
-                            html.Br(),
-                            html.H6("Genes to highlight in CNV"),
-                            dcc.Dropdown(
-                                id="selected-genes",
-                                options=get_all_genes(),
-                                multi=True,
-                            ),
-                        ],
-                    ),
-                    dbc.Tab(
-                        label="Upload",
-                        children=[
-                            html.Br(),
-                            html.Br(),
-                            dcc.Upload(
-                                [
-                                    "Drag & Drop or ",
-                                    html.A("Select IDAT File pairs"),
-                                ],
-                                style={
-                                    "width": "100%",
-                                    "height": "60px",
-                                    "lineHeight": "60px",
-                                    "borderWidth": "1px",
-                                    "borderStyle": "dashed",
-                                    "borderRadius": "5px",
-                                    "textAlign": "center",
-                                },
-                                multiple=True,
-                                id="upload-idat",
-                            ),
-                            html.Br(),
-                            html.Div(id="output-idat-upload"),
-                        ],
-                    ),
-                    dbc.Tab(
-                        label="Classify",
-                        children=[
-                            html.Br(),
-                            html.H6("Classifiers to use"),
-                            dcc.Dropdown(
-                                id="clf-clf-dropdown",
-                                options=clf_options,
-                                value=["none-kbest-lr", "none-kbest-et"],
-                                multi=True,
-                            ),
-                            html.Br(),
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        dbc.Button(
-                                            "Start",
-                                            id="clf-start-button",
-                                            color="primary",
-                                        ),
-                                        width={"size": 6},
-                                    ),
-                                ],
-                            ),
-                            html.Div(id="clf-error-out"),
-                            html.Br(),
-                            html.Div(
-                                id="clf-out",
-                                style={
-                                    "overflow": "hidden",
-                                    "fontFamily": "monospace",
-                                    "fontSize": "9px",
-                                    "whiteSpace": "pre-wrap",
-                                    "display": "flex",
-                                    "flexDirection": "column-reverse",
-                                },
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-        ],
-        width={"size": 2},
-    )
+                            width={"size": 6},
+                        ),
+                    ],
+                ),
+                html.Div(id="clf-error-out"),
+                html.Br(),
+                html.Div(
+                    id="clf-out",
+                    style={
+                        "overflow": "hidden",
+                        "fontFamily": "monospace",
+                        "fontSize": "9px",
+                        "whiteSpace": "pre-wrap",
+                        "display": "flex",
+                        "flexDirection": "column-reverse",
+                    },
+                ),
+            ],
+        ),
+    ]
+    return dbc.Col([dbc.Tabs(tabs)], width={"size": 2})
 
 
 def extract_sub_dataframe(data_frame, columns, fill=0.49):
@@ -580,14 +562,29 @@ class MethylAnalysis:
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
 
-        classifiers (dict or list of dict): A single dictionary or a list of
-            dictionaries containing configuration for each classifier. Each
-            dictionary contains:
-            - 'name' (str, optional): A human-readable name for the classifier
-              (e.g., 'Random Forest').
-            - 'model' (object): The classifier model.
-            - 'cv' (int or cross-validation generator, optional): Determines
-              the cross-validation splitting strategy (default: cv_default).
+        classifiers (object or list of objects, optional): Classifier model(s)
+            (default: None).
+            Each classifier can be provided as:
+
+            - A dictionary containing:
+
+                - 'model' (object): The classifier model object as defined
+                  below (required).
+                - 'name' (str, optional): A name for the classifier (default:
+                  "Custom_Classifier_<index>").
+                - 'cv' (int or cross-validation generator, optional):
+                  Cross-validation strategy (default: `self.cv_default`).
+
+            - A classifier model object (e.g., `RandomForestClassifier()`,
+              `none-kbest-rf`), in which case the 'name' and 'cv' are
+              automatically generated (see above). A classifier model can be
+              one of:
+
+                - A scikit-learn classifier object (trained or untrained).
+                - A string in the format `"scaler-selector-classifier"`. See
+                  the documentation of `fit_and_evaluate_clf` in
+                  `mepylome.analysis.methyl_clf` for all valid values.
+                - A custom class, that inherits from `TrainedClassifier`.
 
         cv_default (int or cross-validation generator, optional): Determines
             the default cross-validation splitting strategy (default: 5).
@@ -963,11 +960,12 @@ class MethylAnalysis:
 
         This property returns a list of dictionaries, where each dictionary
         includes:
+
         - 'name' (str): A human-readable name for the classifier
           (e.g., 'Random Forest').
-        - 'model' (TrainedClassifier): The classifier model instance.
-        - 'cv' (int or cross-validation generator): Determines
-          the cross-validation splitting strategy.
+        - 'model' (object): The classifier model instance.
+        - 'cv' (int or cross-validation generator): Determines the
+          cross-validation splitting strategy.
 
         Returns:
             list of dict: Classifier configurations.
@@ -978,16 +976,31 @@ class MethylAnalysis:
     def classifiers(self, classifiers):
         """Sets the configuration for classifiers.
 
-        This setter accepts either a dictionary or a list of dictionaries for
-        each classifier.
+        This setter accepts either a single classifier model or a list of
+        classifier models. If a model is provided without additional
+        configuration, it will be automatically wrapped in a dictionary with
+        default values for 'name' and 'cv'.
 
         Args:
-            classifiers (dict or list of dict): Classifier configuration(s),
-                including:
-                - 'name' (str, optional): Name of the classifier.
-                - 'model' (TrainedClassifier): The classifier model.
-                - 'cv' (int or cross-validation generator, optional):
-                  Cross-validation strategy.
+            classifiers (object or list of objects): A classifier model or a
+                list of classifier models and configurations. This argument is
+                handled the same way as `self.classifiers`. For full details on
+                the format and options, refer to the docstring for
+                `self.classifiers`.
+
+        Examples:
+            >>> clf = {
+            >>>     "model": RandomForestClassifier(),
+            >>>     "name": "Custom RF",
+            >>>     "cv": 10,
+            >>> }
+            >>> analysis.classifiers = ["none-kbest-rf", clf]
+            >>> analysis.classifiers
+            [{'model': 'none-kbest-rf', 'name': 'Custom_Classifier_0', 'cv':
+            StratifiedKFold(n_splits=5, random_state=None, shuffle=True)},
+            {'model': RandomForestClassifier(), 'name': 'Custom RF', 'cv':
+            StratifiedKFold(n_splits=10, random_state=None, shuffle=True)}]
+
         """
         self._classifiers = classifiers
 
@@ -1595,16 +1608,11 @@ class MethylAnalysis:
             values (pd.DataFrame, np.ndarray, or None): Feature matrix for
                 prediction/classification. If `ids` is provided, `values` must
                 be `None`.
-            clf_list (list): List of classifiers to use. Can include:
-                - A scikit-learn classifier object (trained or untrained).
-                - A tuple of 3 strings (`scaler`, `selector`, `classifier`) to
-                  create a pipeline (see below).
-                - A string in the format `"scaler-selector-classifier"` where:
-                    - scaler: One of ["none", "std", "minmax", "robust",
-                      "power", "quantile", "quantile_normal"].
-                    - selector: One of ["none", "kbest", "pca", "mutual_info"].
-                    - classifier: One of ["rf", "lr", "et", "knn", "mlp",
-                      "svc_linear", "svc_rbf", "none"].
+            clf_list (object or list of objects): A classifier model or a
+                list of classifier models and configurations. This argument is
+                handled the same way as `self.classifiers`. For full details on
+                the format and options, refer to the docstring for
+                `self.classifiers`.
 
         Returns:
             list: A list containing:
@@ -1866,6 +1874,7 @@ class MethylAnalysis:
             [
                 Output("analysis-dir", "valid"),
                 Output("analysis-path-validation", "children"),
+                Output("annotation-file", "value"),
             ],
             [Input("analysis-dir", "value")],
             prevent_initial_call=False,
@@ -1874,14 +1883,14 @@ class MethylAnalysis:
             try:
                 path = Path(input_path).expanduser()
                 if path.is_dir() and not os.access(path, os.W_OK):
-                    return False, f"Protected directory: {path}"
+                    return False, f"Protected directory: {path}", no_update
                 if path.is_dir():
                     self.analysis_dir = path
-                    return True, ""
+                    return True, "", str(self.idat_handler.annotation_file)
             except Exception:
-                return False, "Invalid path format"
+                return False, "Invalid path format", no_update
             else:
-                return False, f"Not a directory: {path}"
+                return False, f"Not a directory: {path}", no_update
 
         @app.callback(
             [

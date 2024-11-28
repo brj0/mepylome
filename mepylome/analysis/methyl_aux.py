@@ -205,7 +205,7 @@ class IdatHandler:
         self.idat_dir = Path(idat_dir)
         self.annotation_file = (
             Path(annotation_file)
-            if annotation_file
+            if annotation_file and Path(annotation_file).exists()
             else guess_annotation_file(self.idat_dir, verbose=True)
         )
         self.test_dir = Path(test_dir) if test_dir else None
@@ -315,8 +315,9 @@ class IdatHandler:
         if result_df.empty:
             result_df[METHYLATION_CLASS] = ""
 
-        result_df[TEST_CASE] = False
-        result_df.loc[self.test_ids, TEST_CASE] = True
+        if self.test_ids:
+            result_df[TEST_CASE] = False
+            result_df.loc[self.test_ids, TEST_CASE] = True
 
         return result_df
 

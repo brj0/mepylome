@@ -37,43 +37,12 @@ MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
 def get_resource_path(package, resource_name=""):
     """Returns the full path to the resource within the specified package."""
     package_path = files(package)
-    resource_path = package_path.joinpath(resource_name)
-    return resource_path
+    return package_path.joinpath(resource_name)
 
 
-def make_path_like(path_like):
-    """Attempts to convert a string to a Path instance."""
-    if isinstance(path_like, Path):
-        return path_like
-
-    try:
-        return Path(path_like)
-    except TypeError as exc:
-        msg = f"could not convert to Path: {path_like}"
-        raise TypeError(msg) from exc
-
-
-def require_path(inner):
-    """Decorator that ensures the provided argument is a path."""
-
-    def wrapped(orig_path, *args, **kwargs):
-        path_like = make_path_like(orig_path)
-        return inner(path_like, *args, **kwargs)
-
-    return wrapped
-
-
-@require_path
 def ensure_directory_exists(path_like):
     """Ensures the ancestor directories of the provided path exist."""
-    if path_like.exists():
-        return
-
-    parent_dir = path_like
-    if path_like.suffix:
-        parent_dir = path_like.parent
-
-    parent_dir.mkdir(parents=True, exist_ok=True)
+    Path(path_like).mkdir(parents=True, exist_ok=True)
 
 
 def download_file(src_url, dest, overwrite=False):
@@ -85,22 +54,25 @@ def download_file(src_url, dest, overwrite=False):
         overwrite (bool, optional): If True, overwrite the file if it already
             exists. Defaults to False.
     """
-    dest_path = make_path_like(dest)
+    dest_path = Path(dest)
     dest_dir = dest_path.parent
-    # Check if file already exists, and return if it is there.
-    if not dest_path.exists():
-        ensure_directory_exists(dest_dir)
-    elif not overwrite:
+
+    if dest_path.exists() and not overwrite:
+        log(f"File already exists at {dest_path}. Skipping download.")
         return
+
+    ensure_directory_exists(dest_dir)
+
+    log(
+        f"Downloading from {src_url} to {dest_dir}.\n"
+        "Can take several minutes..."
+    )
     try:
-        log(
-            f"Downloading from {src_url} to {dest_dir}.\n"
-            "Can take several minutes..."
-        )
         import requests
 
         response = requests.get(src_url, stream=True)
         response.raise_for_status()
+
         total_size = int(response.headers.get("content-length", 0))
         block_size = 1024
         progress_bar = tqdm(
@@ -113,7 +85,7 @@ def download_file(src_url, dest, overwrite=False):
                     progress_bar.update(len(chunk))
         progress_bar.close()
     except URLError as error:
-        msg = f"Failed to download manifest from {src_url}"
+        msg = f"Failed to download file from {src_url}"
         raise URLError(msg) from error
 
 
@@ -169,9 +141,11 @@ def get_csv_file(file_or_archive, filename):
         >>> get_csv_file('archive.zip', 'example.csv')
         >>> get_csv_file('/path/to/example.csv', 'example.csv')
     """
-    file_or_archive = make_path_like(file_or_archive)
+    file_or_archive = Path(file_or_archive)
+
     if file_or_archive.suffix == ".csv":
         return open(file_or_archive, "rb")
+
     if file_or_archive.suffix == ".zip":
         with zipfile.ZipFile(file_or_archive, "r") as archive:
             file_list = archive.namelist()
@@ -189,7 +163,5 @@ def get_csv_file(file_or_archive, filename):
 
 def reset_file(filepath_or_buffer):
     """Attempts to return the open file to the beginning if it is seekable."""
-    if not hasattr(filepath_or_buffer, "seek"):
-        return
-
-    filepath_or_buffer.seek(0)
+    if hasattr(filepath_or_buffer, "seek"):
+        filepath_or_buffer.seek(0)

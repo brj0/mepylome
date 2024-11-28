@@ -26,13 +26,9 @@ import numpy as np
 import pandas as pd
 import requests
 from PIL import Image
-from sklearn.ensemble import (
-    ExtraTreesClassifier,
-    RandomForestClassifier,
-)
 
 from mepylome import ArrayType, Manifest
-from mepylome.analysis import MethylAnalysis, TrainedClassifier
+from mepylome.analysis import MethylAnalysis
 from mepylome.dtypes.manifests import (
     DOWNLOAD_DIR,
     MANIFEST_URL,
@@ -60,6 +56,12 @@ file_urls = {
         "xlsx_name": "41467_2022_34815_MOESM6_ESM.xlsx",
         "idat": "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE196228&format=file",
         "idat_name": "GSE196228",
+    },
+    "head_and_neck_scc": {
+        "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
+        "xlsx_name": "aaw8513_data_file_s1.xlsx",
+        "idat": "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE124633&format=file",
+        "idat_name": "GSE124633",
     },
 }
 
@@ -314,14 +316,13 @@ for clf_result in clf_out:
     print(clf_result.reports[0])
 
 best_clf = max(
-    clf_out,
-    key=lambda result: np.mean(result.metrics["accuracy_scores"])
+    clf_out, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
 print(best_clf.reports[0])
 
 
-clf_out = analysis.classify(ids=ids, clf_list="none-lda-et") 
+clf_out = analysis.classify(ids=ids, clf_list="none-lda-et")
 print(clf_out.reports[0])
 
 scalers = [
@@ -423,4 +424,37 @@ analysis.precompute_cnvs()
 calculate_cn_summary("Methylation class")
 
 
-##############################################################################
+########################### SQUAMOUS CELL CARCINOMA ###########################
+
+tumor_site = "head_and_neck_scc"
+analysis_dir = data_dir / tumor_site
+test_dir = tests_dir / tumor_site
+ensure_directory_exists(test_dir)
+idat_dir = analysis_dir / file_urls[tumor_site]["idat_name"]
+if not idat_dir.exists():
+    idat_tar_path = analysis_dir / "tmp_idats.tar"
+    download_file(file_urls[tumor_site]["idat"], idat_tar_path)
+    extract_tar(idat_tar_path, idat_dir)
+    idat_tar_path.unlink()
+
+
+analysis = MethylAnalysis(
+    analysis_dir=analysis_dir,
+    reference_dir=reference_dir,
+    output_dir=output_dir,
+    test_dir=test_dir,
+    n_cpgs=25000,
+    load_full_betas=True,
+    overlap=False,
+    cpg_blacklist=blacklist,
+    debug=True,
+    do_seg=True,
+    umap_parms={
+        "n_neighbors": 8,
+        "metric": "manhattan",
+        "min_dist": 0.3,
+    },
+)
+
+analysis.set_betas()
+analysis.idat_handler.selected_columns = ["Methylation class"]

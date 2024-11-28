@@ -44,20 +44,20 @@ class TestIdatParser(unittest.TestCase):
                 "n_beads": np.arange(3, 3 + 20, dtype="<u1"),
                 "mid_block": np.arange(400000, 400000 + 20, dtype="<i4"),
                 "run_info": [
-                    (
+                    [
                         "time_0",
                         "type_0",
                         "pars_0",
                         "code_0",
                         "vers_0",
-                    ),
-                    (
+                    ],
+                    [
                         "time_1",
                         "type_1",
                         "pars_1",
                         "code_1",
                         "vers_1",
-                    ),
+                    ],
                 ],
                 "red_green": 1,
                 "mostly_null": "asdf",

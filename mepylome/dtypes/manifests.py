@@ -183,10 +183,10 @@ class Manifest:
                 return
 
         if self.array_type == ArrayType.UNKNOWN:
-            self.__data_frame = pd.DataFrame()
-            self.__control_data_frame = pd.DataFrame()
-            self.__snp_data_frame = pd.DataFrame()
-            self.__methyl_probes = None
+            self._data_frame = pd.DataFrame()
+            self._control_data_frame = pd.DataFrame()
+            self._snp_data_frame = pd.DataFrame()
+            self._methyl_probes = None
             return
 
         # Set processed manifest path
@@ -227,10 +227,10 @@ class Manifest:
                 msg = "Provide either array_type or proc_path or raw_path"
                 raise ValueError(msg)
 
-        self.__data_frame = self._read_probes(self.proc_path)
-        self.__control_data_frame = self._read_control_probes(self.ctrl_path)
-        self.__snp_data_frame = self._read_snp_probes()
-        self.__methyl_probes = None
+        self._data_frame = self._read_probes(self.proc_path)
+        self._control_data_frame = self._read_control_probes(self.ctrl_path)
+        self._snp_data_frame = self._read_snp_probes()
+        self._methyl_probes = None
 
         # Save to disk
         with self._pickle_path.open("wb") as file:
@@ -239,22 +239,22 @@ class Manifest:
     @property
     def data_frame(self):
         """Pandas data frame of all manifest probes."""
-        return self.__data_frame
+        return self._data_frame
 
     @property
     def control_data_frame(self):
         """Pandas data frame of all manifest control probes."""
-        return self.__control_data_frame
+        return self._control_data_frame
 
     @property
     def snp_data_frame(self):
         """SNP probes from the manifest data frame."""
-        return self.__snp_data_frame
+        return self._snp_data_frame
 
     @property
     def methylation_probes(self):
         """All type I and II probes."""
-        if self.__methyl_probes is None:
+        if self._methyl_probes is None:
             type_1 = self.probe_info(ProbeType.ONE)
             type_2 = self.probe_info(ProbeType.TWO)
             idx = np.sort(
@@ -265,19 +265,19 @@ class Manifest:
                     ]
                 )
             )
-            self.__methyl_probes = self.__data_frame.iloc[idx]["IlmnID"].values
-        return self.__methyl_probes
+            self._methyl_probes = self._data_frame.iloc[idx]["IlmnID"].values
+        return self._methyl_probes
 
     def control_address(self, control_type=None):
         """Returns address IDs of all control probes of the specified type."""
         if control_type is None:
-            return self.__control_data_frame.Address_ID
+            return self._control_data_frame.Address_ID
         # Ensure control_type is a list-like object
         if not isinstance(control_type, (list, tuple)):
             control_type = [control_type]
         # Use isin() with the list-like object
-        return self.__control_data_frame[
-            self.__control_data_frame.Control_Type.isin(control_type)
+        return self._control_data_frame[
+            self._control_data_frame.Control_Type.isin(control_type)
         ].Address_ID
 
     @staticmethod
@@ -334,7 +334,7 @@ class Manifest:
         log(f"[Manifest] Downloading processed {self.array_type} manifest")
         try:
             for path in [self.proc_path, self.ctrl_path]:
-                ensure_directory_exists(path)
+                ensure_directory_exists(path.parent)
                 url = PROCESSED_MANIFEST_URL + path.name
                 download_file(url, path)
             return True
@@ -363,8 +363,8 @@ class Manifest:
         log(f"[Manifest] Process raw manifest {self.raw_path}")
         if csv_filename is None:
             csv_filename = self.raw_path.name
-        ensure_directory_exists(self.proc_path)
-        ensure_directory_exists(self.ctrl_path)
+        ensure_directory_exists(self.proc_path.parent)
+        ensure_directory_exists(self.ctrl_path.parent)
         with get_csv_file(self.raw_path, csv_filename) as manifest_file:
             # Process probes
             Manifest._seek_to_start(manifest_file)

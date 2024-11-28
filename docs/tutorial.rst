@@ -1104,7 +1104,7 @@ them into the analysis. Below is an example using a Random Forest classifier.
     >>> # If the classifier is already trained, mepylome will not repeat the training
     >>> # (and cross-validation) process
     >>> ids = methyl_analysis.idat_handler.ids
-    >>> clf_out = methyl_analysis.classify(ids, clf_list=rf_clf)
+    >>> clf_out = methyl_analysis.classify(ids=ids, clf_list=rf_clf)
 
     >>> print(clf_out.reports[0])
     201530470054_R05C01
@@ -1147,7 +1147,7 @@ is an example using an Extra Trees classifier.
 
     >>> # Perform classification
     >>> ids = methyl_analysis.idat_handler.ids
-    >>> clf_out = methyl_analysis.classify(ids, clf_list=et_clf)
+    >>> clf_out = methyl_analysis.classify(ids=ids, clf_list=et_clf)
 
     >>> print(clf_out.reports[0])
     201530470054_R05C01
@@ -1214,7 +1214,7 @@ or apply additional functionality.
     >>> custom_clf = CustomClassifier(rf_clf)
 
     >>> # Perform classification
-    >>> clf_out = methyl_analysis.classify(ids, clf_list=custom_clf)
+    >>> clf_out = methyl_analysis.classify(ids=ids, clf_list=custom_clf)
 
     >>> print(clf_out.reports[0])
     201530470054_R05C01

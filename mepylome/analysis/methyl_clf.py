@@ -29,9 +29,7 @@ from sklearn.ensemble import (
     StackingClassifier,
 )
 from sklearn.feature_selection import (
-    SelectFromModel,
     SelectKBest,
-    f_classif,
     mutual_info_classif,
 )
 from sklearn.gaussian_process import GaussianProcessClassifier
@@ -522,6 +520,7 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
 
 @dataclass
 class ClassifierResult:
+    """Data container for evaluation of classifier."""
     prediction: any
     model: any
     metrics: dict
@@ -532,32 +531,43 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
     """Predicts the methylation class by supervised learning classifier.
 
     Uses supervised machine learning classifiers (Random Forest, K-Nearest
-    Neighbors, Neural Networks, SVM) to predict the methylation class of the
-    sample. Output will be written to disk.
-
+    Neighbors, Neural Networks, SVM, ...) to predict the methylation class of
+    the sample. Output will be written to disk.
 
     Args:
-        X (pd.DataFrame): Feature matrix (rows as samples,
-            columns as features).
+        X (pd.DataFrame): Feature matrix (rows as samples, columns as
+            features).
         y (array-like): Class labels.
         X_test (array-like): Value of the sample to be evaluated.
-        id_test (str): Unique identifier for the test sample to be evaluated.
+        id_test (str): Unique identifiers for the test samples to be evaluated.
         directory (str or Path): Directory where the classifiers and results
-            will be saved.
+            will be saved/cached.
         clf (list): Classifier to use. Can be:
+
             - A scikit-learn classifier object or pipeline (trained or
               untrained).
-            - A tuple of 3 strings (scaler, selector, classifier) to create a
-              pipeline.
             - A string in the format "scaler-selector-classifier". Possible
               values are:
+
                 scaler:
                     - "none": No scaling (passthrough).
                     - "std": Standard scaling (StandardScaler).
+                    - "minmax": Min-max scaling (MinMaxScaler).
+                    - "robust": Robust scaling (RobustScaler).
+                    - "power": Power transformation (PowerTransformer).
+                    - "quantile": Quantile transformation (QuantileTransformer,
+                      uniform distribution).
+                    - "quantile_normal": Quantile transformation
+                      (QuantileTransformer, normal distribution).
+
                 selector:
                     - "none": No feature selection (passthrough).
                     - "kbest": Select the best features (SelectKBest).
                     - "pca": Principal component analysis (PCA).
+                    - "lda": Linear Discriminant Analysis (LDA).
+                    - "mutual_info": Select features based on mutual
+                      information (SelectKBest with mutual_info_classif).
+
                 clf:
                     - "rf": RandomForestClassifier.
                     - "lr": LogisticRegression.
@@ -566,7 +576,22 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
                     - "mlp": MLPClassifier.
                     - "svc_linear": Support Vector Classifier (linear kernel).
                     - "svc_rbf": Support Vector Classifier (RBF kernel).
+                    - "ada": AdaBoostClassifier.
+                    - "bag": BaggingClassifier.
+                    - "dt": DecisionTreeClassifier.
+                    - "gp": GaussianProcessClassifier.
+                    - "hgb": HistGradientBoostingClassifier.
+                    - "nb": GaussianNB.
+                    - "perceptron": Perceptron.
+                    - "qda": Quadratic Discriminant Analysis (QDA).
+                    - "ridge": RidgeClassifier.
+                    - "sgd": SGDClassifier.
+                    - "stacking": StackingClassifier (combines multiple
+                      classifiers).
                     - "none": No classifier (passthrough).
+
+            - A custom class, that inherits from `TrainedClassifier`.
+
         cv (int or cross-validation generator): Determines the cross-validation
             splitting strategy.
         n_jobs (int): Number of parallel processes to run.
@@ -576,7 +601,7 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
             - prediction (DataFrame): DataFrame containing the predicted
               probabilities for each class.
             - model (object): The trained classifier object.
-            - metrics (dict): Dict containing a classifier metrics.
+            - metrics (dict): Dict containing classifier metrics.
             - reports (list): List of evaluation report strings for each
               sample.
     """
@@ -586,11 +611,6 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
         )
     elif isinstance(clf, str):
         pipeline = make_clf_pipeline(*clf.split("-"), X.shape, cv)
-        trained_clf = train_clf(
-            clf=pipeline, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
-        )
-    elif hasattr(clf, "__len__") and len(clf) == 3:
-        pipeline = make_clf_pipeline(*clf, X.shape, cv)
         trained_clf = train_clf(
             clf=pipeline, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
         )

@@ -11,6 +11,9 @@ from mepylome.utils.files import get_file_object
 
 __all__ = ["IdatParser"]
 
+DEFAULT_IDAT_VERSION = 3
+DEFAULT_IDAT_FILE_ID = "IDAT"
+
 
 def read_byte(infile):
     return int.from_bytes(infile.read(1), byteorder="little", signed=False)
@@ -54,10 +57,6 @@ def read_array(infile, dtype, n):
         raise EOFError(msg)
 
     return np.frombuffer(alldata, dtype)
-
-
-DEFAULT_IDAT_VERSION = 3
-DEFAULT_IDAT_FILE_ID = "IDAT"
 
 
 @unique
@@ -131,9 +130,9 @@ class IdatParser:
         self.intensity_only = intensity_only
         self.array_type_only = array_type_only
         self._file = file
+
         with get_file_object(file) as idat_file:
             self.file_size = _get_file_size(idat_file)
-
             self._parse_header(idat_file)
             self._parse_body(idat_file)
 
@@ -159,10 +158,10 @@ class IdatParser:
 
         self.num_fields = read_int(idat_file)
 
-        self.offsets = {}
-        for _idx in range(self.num_fields):
-            key = read_short(idat_file)
-            self.offsets[key] = read_long(idat_file)
+        self.offsets = {
+            read_short(idat_file): read_long(idat_file)
+            for _ in range(self.num_fields)
+        }
 
     def _parse_body(self, idat_file):
         def seek_to_section(section_code):
@@ -196,22 +195,15 @@ class IdatParser:
         seek_to_section(IdatSectionCode.RUN_INFO)
         runinfo_entry_count = read_int(idat_file)
 
-        self.run_info = []
-        for _ in range(runinfo_entry_count):
-            run_time = read_string(idat_file)
-            block_type = read_string(idat_file)
-            block_pars = read_string(idat_file)
-            block_code = read_string(idat_file)
-            code_version = read_string(idat_file)
-            self.run_info.append(
-                (
-                    run_time,
-                    block_type,
-                    block_pars,
-                    block_code,
-                    code_version,
-                )
-            )
+        self.run_info = [None] * runinfo_entry_count
+        for i in range(runinfo_entry_count):
+            self.run_info[i] = [
+                read_string(idat_file),  # run_time
+                read_string(idat_file),  # block_type
+                read_string(idat_file),  # block_pars
+                read_string(idat_file),  # block_code
+                read_string(idat_file),  # code_version
+            ]
 
         seek_to_section(IdatSectionCode.RED_GREEN)
         self.red_green = read_int(idat_file)

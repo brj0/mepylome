@@ -86,20 +86,20 @@ class IdatWriter:
             "n_beads": np.arange(30, 30 + n_snps_read, dtype="<u1"),
             "mid_block": np.arange(40, 40 + n_snps_read, dtype="<i4"),
             "run_info": [
-                (
+                [
                     "run_time_0",
                     "block_type_0",
                     "block_pars_0",
                     "block_code_0",
                     "code_version_0",
-                ),
-                (
+                ],
+                [
                     "run_time_1",
                     "block_type_1",
                     "block_pars_1",
                     "block_code_1",
                     "code_version_1",
-                ),
+                ],
             ],
             "red_green": 0,
             "mostly_null": "mostly_null",
