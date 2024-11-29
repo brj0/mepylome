@@ -153,9 +153,12 @@ def cnv_bins_plot(data_frame, title, labels):
         x=data_frame["x"],
         y=data_frame["y"],
         mode="markers",
-        marker=dict(
-            color=data_frame["y"], colorscale="RdBu_r", cmin=-0.4, cmax=0.4
-        ),
+        marker={
+            "color": data_frame["y"],
+            "colorscale": "RdBu_r",
+            "cmin": -0.4,
+            "cmax": 0.4,
+        },
         text=data_frame["hover_data"],
         hovertemplate=(
             "<b>Value:</b> %{y}<br><b>Genes:</b> %{text}<extra></extra>"
@@ -497,14 +500,12 @@ class CNVPlot:
                 dcc.Graph(
                     id="graph",
                     figure=fig,
-                    config=dict(
-                        {
-                            "scrollZoom": False,
-                            "doubleClick": "reset",
-                            "modeBarButtonsToRemove": ["lasso2d", "select"],
-                        },
-                        displaylogo=False,
-                    ),
+                    config={
+                        "scrollZoom": False,
+                        "doubleClick": "reset",
+                        "modeBarButtonsToRemove": ["lasso2d", "select"],
+                        "displaylogo": False,
+                    },
                     style={"width": "80hh", "height": "90vh"},
                 ),
             ]

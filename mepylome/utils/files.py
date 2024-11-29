@@ -144,7 +144,7 @@ def get_csv_file(file_or_archive, filename):
     file_or_archive = Path(file_or_archive)
 
     if file_or_archive.suffix == ".csv":
-        return open(file_or_archive, "rb")
+        return file_or_archive.open("rb")
 
     if file_or_archive.suffix == ".zip":
         with zipfile.ZipFile(file_or_archive, "r") as archive:

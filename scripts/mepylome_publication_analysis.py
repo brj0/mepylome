@@ -220,8 +220,8 @@ analysis.make_cnv_plot("206842050057_R06C01")
 cnv_plot = analysis.cnv_plot
 cnv_plot.update_layout(
     yaxis_range=[-1.1, 1.1],
-    font=dict(size=FONTSIZE),
-    margin=dict(t=50),
+    font={"size": FONTSIZE},
+    margin={"t": 50},
 )
 cnv_plot.write_image(
     output_dir / f"{analysis_dir.name}-cnv_plot.jpg",
@@ -281,8 +281,8 @@ analysis.make_cnv_plot("9406921039_R01C02")
 cnv_plot = analysis.cnv_plot
 cnv_plot.update_layout(
     yaxis_range=[-1.1, 1.1],
-    font=dict(size=FONTSIZE),
-    margin=dict(t=50),
+    font={"size": FONTSIZE},
+    margin={"t": 50},
 )
 cnv_plot.write_image(
     output_dir / f"{analysis_dir.name}-cnv_plot.jpg",
@@ -408,8 +408,8 @@ analysis.make_cnv_plot("3999112131_R05C01")
 cnv_plot = analysis.cnv_plot
 cnv_plot.update_layout(
     yaxis_range=[-1.1, 1.1],
-    font=dict(size=FONTSIZE),
-    margin=dict(t=50),
+    font={"size": FONTSIZE},
+    margin={"t": 50},
 )
 cnv_plot.write_image(
     output_dir / f"{analysis_dir.name}-cnv_plot.jpg",

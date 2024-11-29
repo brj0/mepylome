@@ -111,9 +111,8 @@ def read_dataframe(path, **kwargs):
         return pd.read_excel(path, engine="odf", **kwargs)
     if path.suffix in [".csv", ".tsv"]:
         return pd.read_csv(path, sep=None, **kwargs, engine="python")
-    raise ValueError(
-        "Unsupported file format. Supported: ods, xlsx, xls, csv, tsv."
-    )
+    msg = "Unsupported file format. Supported: ods, xlsx, xls, csv, tsv."
+    raise ValueError(msg)
 
 
 def guess_annotation_file(directory, verbose=False):
@@ -144,7 +143,7 @@ def convert_to_sentrix_ids(data):
     if isinstance(data, dict):
         return {extract_sentrix_id(key): value for key, value in data.items()}
     if isinstance(data, set):
-        return set(extract_sentrix_id(item) for item in data)
+        return {extract_sentrix_id(item) for item in data}
     return [extract_sentrix_id(item) for item in data]
 
 

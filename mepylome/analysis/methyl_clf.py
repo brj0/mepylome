@@ -14,10 +14,8 @@ import pandas as pd
 from sklearn.base import ClassifierMixin
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import (
-    LinearDiscriminantAnalysis as LDA,
-)
-from sklearn.discriminant_analysis import (
-    QuadraticDiscriminantAnalysis as QDA,
+    LinearDiscriminantAnalysis,
+    QuadraticDiscriminantAnalysis,
 )
 from sklearn.ensemble import (
     AdaBoostClassifier,
@@ -106,7 +104,7 @@ class TrainedClassifier(ABC):
 
     def model(self):
         """Returns the classifier model (usually sklearn object)."""
-        return None
+        return
 
     def metrics(self):
         """Returns the metric statistics (usually sklearn object)."""
@@ -212,7 +210,8 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
             probabilities = np.zeros((len(betas), len(self._classes)))
 
             if len(betas) != len(id_):
-                raise ValueError("Length of 'betas' and 'id_' must match.")
+                msg = "Length of 'betas' and 'id_' must match."
+                raise ValueError(msg)
 
             mask_known_ids = np.isin(id_, self.ids)
             if any(mask_known_ids):
@@ -262,7 +261,7 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
     }
     selectors = {
         "kbest": SelectKBest(k=10000),
-        "lda": LDA(n_components=1),
+        "lda": LinearDiscriminantAnalysis(n_components=1),
         "mutual_info": SelectKBest(mutual_info_classif, k=10000),
         "none": "passthrough",
         "pca": PCA(n_components=n_components_pca),
@@ -276,13 +275,13 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
         "gp": GaussianProcessClassifier(),
         "hgb": HistGradientBoostingClassifier(),
         "knn": KNeighborsClassifier(n_neighbors=5, weights="distance"),
-        "lda": LDA(),
+        "lda": LinearDiscriminantAnalysis(),
         "lr": LogisticRegression(max_iter=10000),
         "mlp": MLPClassifier(verbose=True),
         "nb": GaussianNB(),
         "none": "passthrough",
         "perceptron": Perceptron(max_iter=1000, tol=1e-3),
-        "qda": QDA(),
+        "qda": QuadraticDiscriminantAnalysis(),
         "rf": RandomForestClassifier(),
         "ridge": RidgeClassifier(),
         "sgd": SGDClassifier(max_iter=1000, tol=1e-3),
@@ -521,6 +520,7 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
 @dataclass
 class ClassifierResult:
     """Data container for evaluation of classifier."""
+
     prediction: any
     model: any
     metrics: dict

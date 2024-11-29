@@ -29,14 +29,12 @@ class TestIdatPreprocessing(unittest.TestCase):
 
     def _test_raw_data(self, n_cpgs, manifest, n_probes):
         id_list = sorted(
-            list(
-                (
-                    set(manifest.data_frame.AddressA_ID)
-                    | set(manifest.data_frame.AddressB_ID)
-                    | set(manifest.control_data_frame.Address_ID)
-                )
-                - {-1}
+            (
+                set(manifest.data_frame.AddressA_ID)
+                | set(manifest.data_frame.AddressB_ID)
+                | set(manifest.control_data_frame.Address_ID)
             )
+            - {-1}
         )
         id_list = id_list[:n_cpgs]
         ids = np.full(n_cpgs, -1, dtype="<i4")

@@ -926,14 +926,18 @@ class MethylData:
     def _get_beta(
         methylated, unmethylated, offset=0, beta_threshold=0, *, min_zero=True
     ):
-        assert offset >= 0, "offset must be non-negative"
-        assert (
-            0 <= beta_threshold <= 0.5
-        ), "beta_threshold must be between 0 and 0.5"
+        if offset < 0:
+            msg = "'offset' must be non-negative"
+            raise ValueError(msg)
+
+        if not (0 <= beta_threshold <= 0.5):
+            msg = "'beta_threshold' must be between 0 and 0.5"
+            raise ValueError(msg)
 
         if min_zero:
             methylated = np.maximum(methylated, 0)
             unmethylated = np.maximum(unmethylated, 0)
+
         # Ignore division by zero
         with np.errstate(divide="ignore", invalid="ignore"):
             betas = methylated / (methylated + unmethylated + offset)

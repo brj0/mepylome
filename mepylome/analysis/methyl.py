@@ -196,15 +196,13 @@ def get_side_navigation(
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
     color_scheme = "discrete" if use_discrete_colors else "continuous"
     clf_options = {
-        **{
-            "none-kbest-et": "ExtraTreesClassifier",
-            "none-kbest-lr": "LinearRegression",
-            "none-kbest-rf": "RandomForestClassifier",
-            "none-kbest-svc_rbf": "SVC(kernel='rbf')",
-            "none-pca-lr": "PCALinearRegression",
-            "none-pca-et": "PCAExtraTreesClassifier",
-            "none-none-knn": "KNeighborsClassifier",
-        },
+        "none-kbest-et": "ExtraTreesClassifier",
+        "none-kbest-lr": "LinearRegression",
+        "none-kbest-rf": "RandomForestClassifier",
+        "none-kbest-svc_rbf": "SVC(kernel='rbf')",
+        "none-pca-lr": "PCALinearRegression",
+        "none-pca-et": "PCAExtraTreesClassifier",
+        "none-none-knn": "KNeighborsClassifier",
         **{str(i): clf["name"] for i, clf in enumerate(custom_clfs)},
     }
     tabs = [
@@ -331,9 +329,7 @@ def get_side_navigation(
                     id="cpg-selection",
                     options={
                         "random": "By random",
-                        "top": (
-                            "Take most varying CpG's (memory " "intensive!)"
-                        ),
+                        "top": "Take most varying CpG's (memory intensive!)",
                     },
                     value=cpg_selection,
                     multi=False,
@@ -508,8 +504,7 @@ def reordered_cpgs_by_variance(data_frame):
     """Reorders CpGs by descending column variance."""
     variances = np.var(data_frame.values, axis=0)
     sorted_columns = np.argsort(-variances, kind="stable")
-    sorted_column_names = data_frame.columns[sorted_columns]
-    return sorted_column_names
+    return data_frame.columns[sorted_columns]
 
 
 def get_cpgs_from_file(input_path):
@@ -1815,10 +1810,9 @@ class MethylAnalysis:
                     self.make_umap_plot()
                     self._umap_plot_highlight(cnv_id=self.cnv_id)
                     self._retrieve_zoom(curr_umap_plot)
+                    return self.umap_plot, no_update, ""
                 except AttributeError:
                     return no_update, no_update, no_update
-                else:
-                    return self.umap_plot, no_update, ""
 
             genes_sel = tuple(genes_sel) if genes_sel else ()
             trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
@@ -1851,23 +1845,21 @@ class MethylAnalysis:
                     self._retrieve_zoom(curr_umap_plot)
                     try:
                         self.make_cnv_plot(sample_id, genes_sel)
+                        return self.umap_plot, self.cnv_plot, ""
                     except Exception as exc:
                         log("[MethylAnalysis] umap failed:", exc)
                         log("[MethylAnalysis] sample_id:", sample_id)
                         log("[MethylAnalysis] MethylAnalysis:", self)
                         return self.umap_plot, EMPTY_FIGURE, str(exc)
-                    else:
-                        return self.umap_plot, self.cnv_plot, ""
             if trigger == "selected-genes" and genes_sel is not None:
                 try:
                     self.make_cnv_plot(self.cnv_id, genes_sel)
+                    return no_update, self.cnv_plot, ""
                 except Exception as exc:
                     log("[MethylAnalysis] selected-genes failed:", exc)
                     log("[MethylAnalysis] self.cnv_id:", self.cnv_id)
                     log("[MethylAnalysis] genes_sel:", genes_sel)
                     return no_update, no_update, str(exc)
-                else:
-                    return no_update, self.cnv_plot, ""
             return self.umap_plot, self.cnv_plot, ""
 
         @app.callback(
@@ -1887,10 +1879,10 @@ class MethylAnalysis:
                 if path.is_dir():
                     self.analysis_dir = path
                     return True, "", str(self.idat_handler.annotation_file)
+                return False, f"Not a directory: {path}", no_update
+
             except Exception:
                 return False, "Invalid path format", no_update
-            else:
-                return False, f"Not a directory: {path}", no_update
 
         @app.callback(
             [
@@ -1916,10 +1908,9 @@ class MethylAnalysis:
                 if path.exists():
                     self.annotation = path
                     return True, "", self.idat_handler.columns, selection
+                return False, f"Not a file: {path}", no_update, selection
             except Exception:
                 return False, "Invalid path format", no_update, selection
-            else:
-                return False, f"Not a file: {path}", no_update, selection
 
         @app.callback(
             [
@@ -1937,14 +1928,13 @@ class MethylAnalysis:
                 if path.is_dir():
                     self.reference_dir = path
                     return True, ""
+                return False, f"Not a directory: {path}"
             except Exception as exc:
                 log(
                     f"[MethylAnalysis] An error occured (1) "
                     f"(validate_reference_path): {exc}"
                 )
                 return False, "Invalid path format"
-            else:
-                return False, f"Not a directory: {path}"
 
         @app.callback(
             [
@@ -1965,14 +1955,13 @@ class MethylAnalysis:
                 if path.is_dir():
                     self.output_dir = path
                     return True, ""
+                return False, f"Not a directory: {path}"
             except Exception as exc:
                 log(
                     f"[MethylAnalysis] An error occured (2) "
                     f"(validate_output_path): {exc}"
                 )
                 return False, "Invalid path format"
-            else:
-                return False, f"Not a directory: {path}"
 
         @app.callback(
             [
@@ -2120,8 +2109,8 @@ class MethylAnalysis:
             with LOG_FILE.open("r") as file:
                 log_str = ""
                 lines = file.readlines()
-                N_TOP = 50
-                last_lines = lines if len(lines) <= N_TOP else lines[-N_TOP:]
+                n_top = 50
+                last_lines = lines if len(lines) <= n_top else lines[-n_top:]
                 for line in last_lines:
                     log_str = log_str + line
             with self._clf_log.open("r") as file:
@@ -2139,7 +2128,7 @@ class MethylAnalysis:
                 file_path = self.test_dir / filename
                 content_string = contents.split(",")[1]
                 decoded = base64.b64decode(content_string)
-                with open(file_path, "wb") as f:
+                with file_path.open("wb") as f:
                     f.write(decoded)
                 log(f"[MethylAnalysis] Upload of {filename} completed.")
                 return html.Div(
