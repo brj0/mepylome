@@ -11,11 +11,21 @@ Usage:
 """
 
 import argparse
+from importlib.metadata import PackageNotFoundError, version
+
+
+def get_app_version():
+    """Retrieve the app version from the package metadata."""
+    try:
+        return version("mepylome")
+    except PackageNotFoundError:
+        return "unknown"
 
 
 def print_welcome_message():
     """Prints ASCII art welcome message."""
-    welcome_message = r"""
+    app_version = get_app_version()
+    welcome_message = rf"""
                              _
                             | |
   _ __ ___   ___ _ __  _   _| | ___  _ __ ___   ___
@@ -26,6 +36,7 @@ def print_welcome_message():
                 |_|    |___/
 
 
+Version: {app_version}
 Starting Methylation Analysis...
 """
     print(welcome_message)
@@ -41,6 +52,15 @@ def parse_args():
         "--analysis_dir",
         type=str,
         help="Directory that contains the IDAT files to be analyzed.",
+    )
+    parser.add_argument(
+        "-t",
+        "--test_dir",
+        type=str,
+        help=(
+            "Directory for test files, including new cases for analysis or "
+            "validation."
+        ),
     )
     parser.add_argument(
         "-A", "--annotation", type=str, help="Path to the annotation file."

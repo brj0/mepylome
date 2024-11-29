@@ -653,10 +653,13 @@ methyl_analysis = MethylAnalysis(
 )
 
 # Here is a more comprehensive example with multiple custom parameters:
+TEST_DIR = DIR / "test_dir"
 methyl_analysis = MethylAnalysis(
     analysis_dir=ANALYSIS_DIR,
     reference_dir=REFERENCE_DIR,
     output_dir=OUTPUT_DIR,
+    ## New cases for validation, excluded from classifier training.
+    test_dir=TEST_DIR,
     ## Load beta values for all CpG sites into memory
     load_full_betas=True,
     ## Use SWAN preprocessing method

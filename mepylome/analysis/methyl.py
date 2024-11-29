@@ -872,10 +872,6 @@ class MethylAnalysis:
 
         self.read_umap_plot_from_disk()
 
-        if not self.test_dir.exists():
-            msg = f"'test_dir' {self.test_dir} does not exist."
-            raise ValueError(msg)
-
         if self.verbose:
             log("[MethylAnalysis] Initialization completed.")
 
@@ -1131,6 +1127,7 @@ class MethylAnalysis:
 
     def _set_test_dir(self):
         if self._testdir_provided:
+            ensure_directory_exists(self.test_dir)
             return
         test_hash_key = input_args_id(
             self.analysis_dir,
