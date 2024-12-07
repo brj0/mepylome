@@ -1,8 +1,24 @@
 """Contains the ArrayType used to represent different Illumina array types."""
 
 from enum import Enum, unique
+from pathlib import Path
 
 from mepylome.dtypes.idat import IdatParser
+
+
+def _find_valid_path(path):
+    """Tries to find a valid IDAT file associated with the given path."""
+    base_path = Path(path)
+    if base_path.exists():
+        return base_path
+    grn_path = Path(str(base_path) + "_Grn.idat")
+    if grn_path.exists():
+        return grn_path
+    grn_gz_path = Path(str(base_path) + "_Grn.idat.gz")
+    if grn_gz_path.exists():
+        return grn_gz_path
+    msg = f"No valid file found for path: {path}"
+    raise ValueError(msg)
 
 
 @unique
@@ -49,5 +65,6 @@ class ArrayType(Enum):
     @classmethod
     def from_idat(cls, path):
         """Infers array type from idat_file."""
-        probe_count = IdatParser(path, array_type_only=True).n_snps_read
+        valid_path = _find_valid_path(path)
+        probe_count = IdatParser(valid_path, array_type_only=True).n_snps_read
         return ArrayType.from_probe_count(probe_count)

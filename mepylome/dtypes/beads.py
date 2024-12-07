@@ -1041,8 +1041,7 @@ class ReferenceMethylData:
         for idat_file in tqdm(
             idat_files, desc="Categorizing reference IDAT files"
         ):
-            raw_data = RawData(idat_file)
-            array_type = raw_data.array_type
+            array_type = ArrayType.from_idat(idat_file)
             reference_files[array_type].append(idat_file)
         for array_type, file_list in tqdm(
             reference_files.items(), desc="Processing reference IDAT files"

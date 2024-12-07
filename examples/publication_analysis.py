@@ -1,21 +1,28 @@
-"""Script for Mepylome Publication Analysis.
+# %% [markdown]
+"""# Script for Mepylome Publication Analysis.
 
-This script is performes analysis presented in the Mepylome publication. It
-automates the download of required datasets and performs the corresponding data
-analysis.
+This notebook/script performs the analysis presented in the Mepylome
+publication. It automates the download of required datasets and performs the
+corresponding data analysis.
 
-Usage:
-- Ensure the existence of a `/data` directory in the working directory.
+### Usage
+- All downloaded datasets and outputs will be saved in the
+  `~/Documents/mepylome` directory.
 - Run the script step-by-step for a clear understanding of the workflow and
   outputs.
 
-Publication Title:
-Mepylome: A User-Friendly Open-Source Toolkit for DNA-Methylation Analysis in
-Tumor Diagnostics
+### Recommended Environment
+- **Operating System**: Ubuntu 20.04.6
+- **Python Version**: 3.12
 
-Script Author: Jon Brugger
+### Publication Title
+**Mepylome: A User-Friendly Open-Source Toolkit for DNA-Methylation Analysis in
+Tumor Diagnostics**
+
+**Script Author**: Jon Brugger
 """
 
+# %%
 import io
 import itertools
 import tarfile
@@ -35,7 +42,7 @@ from mepylome.dtypes.manifests import (
     REMOTE_FILENAME,
 )
 from mepylome.utils import ensure_directory_exists
-from mepylome.utils.files import download_file
+from mepylome.utils.files import download_file, download_geo_probes
 
 FONTSIZE = 23
 
@@ -43,6 +50,7 @@ file_urls = {
     "salivary_gland_tumors": {
         "xlsx": "https://ars.els-cdn.com/content/image/1-s2.0-S0893395224002059-mmc4.xlsx",
         "xlsx_name": "mmc4.xlsx",
+        "idat": "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE243075&format=file",
         "idat_name": "GSE243075",
     },
     "soft_tissue_tumors": {
@@ -65,15 +73,47 @@ file_urls = {
     },
 }
 
+cn_neutral_probes = [
+    "GSM4180453_201904410008_R06C01",
+    "GSM4180454_201904410008_R05C01",
+    "GSM4180455_201904410008_R04C01",
+    "GSM4180456_201904410008_R03C01",
+    "GSM4180457_201904410008_R02C01",
+    "GSM4180458_201904410008_R01C01",
+    "GSM4180459_201904410007_R08C01",
+    "GSM4180460_201904410007_R07C01",
+    "GSM4180741_201247480004_R05C01",
+    "GSM4180742_201247480004_R04C01",
+    "GSM4180743_201247480004_R03C01",
+    "GSM4180751_201194010006_R01C01",
+    "GSM4180909_200394870074_R04C02",
+    "GSM4180910_200394870074_R03C02",
+    "GSM4180911_200394870074_R02C02",
+    "GSM4180912_200394870074_R01C02",
+    "GSM4180913_200394870074_R05C01",
+    "GSM4180914_200394870074_R04C01",
+    "GSM4181456_203049640041_R03C01",
+    "GSM4181509_203049640040_R07C01",
+    "GSM4181510_203049640040_R08C01",
+    "GSM4181511_203049640041_R01C01",
+    "GSM4181512_203049640041_R02C01",
+    "GSM4181513_203049640041_R04C01",
+    "GSM4181514_203049640041_R05C01",
+    "GSM4181515_203049640041_R06C01",
+    "GSM4181516_203049640041_R07C01",
+    "GSM4181517_203049640041_R08C01",
+]
 
-data_dir = Path("/data/mepylome_projects")
-output_dir = Path("/data/mepylome_projects/out")
-tests_dir = Path("/data/mepylome_projects/tests")
+mepylome_dir = Path("~/Documents/mepylome").expanduser()
+data_dir = mepylome_dir / "data"
+output_dir = mepylome_dir / "out"
+tests_dir = mepylome_dir / "tests"
+reference_dir = mepylome_dir / "cn_neutral_idats"
+
 ensure_directory_exists(data_dir)
 ensure_directory_exists(tests_dir)
 ensure_directory_exists(output_dir)
-
-reference_dir = "/data/ref_IDAT"
+ensure_directory_exists(reference_dir)
 
 
 def generate_blacklist_cpgs():
@@ -120,7 +160,7 @@ def extract_tar(tar_path, output_directory):
     """Extracts tar file under 'tar_path' to 'output_directory'."""
     output_directory.mkdir(exist_ok=True)
     with tarfile.open(tar_path, "r") as tar:
-        tar.extractall(path=output_directory)
+        tar.extractall(path=output_directory, filter=None)
         print(f"Extracted {tar_path} to {output_directory}")
 
 
@@ -170,8 +210,21 @@ def calculate_cn_summary(class_):
 blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
 
 
-############################ SALIVARY GLAND TUMORS ############################
+# %% [markdown]
+# We use the control probes of Koelsche (2021;
+# https://doi.org/10.1038/s41467-020-20603-4) as copy neutral reference set.
+# This should contain both fresh-frozen tissue as well as FFPE samples.
 
+
+# %%
+download_geo_probes(reference_dir, cn_neutral_probes)
+
+
+# %% [markdown]
+# Salavary Gland Tumors
+# =====================
+
+# %%
 tumor_site = "salivary_gland_tumors"
 analysis_dir = data_dir / tumor_site
 test_dir = tests_dir / tumor_site
@@ -208,7 +261,6 @@ analysis = MethylAnalysis(
 
 analysis.set_betas()
 analysis.idat_handler.selected_columns = ["Methylation class"]
-quit()
 
 
 # Start GUI
@@ -238,8 +290,11 @@ analysis.precompute_cnvs()
 calculate_cn_summary("Methylation class")
 
 
-############################ SINONASAL TUMORS ############################
+# %% [markdown]
+# Sinonasal Tumors
+# ================
 
+# %%
 tumor_site = "sinonasal_tumors"
 analysis_dir = data_dir / tumor_site
 test_dir = tests_dir / tumor_site
@@ -365,8 +420,12 @@ classifiers = [
 ]
 combinations = itertools.product(scalers, selectors, classifiers)
 
-############################ SOFT TISSUE TUMORS ############################
 
+# %% [markdown]
+# Soft Tissue Tumors
+# ==================
+
+# %%
 tumor_site = "soft_tissue_tumors"
 analysis_dir = data_dir / tumor_site
 test_dir = tests_dir / tumor_site
@@ -424,8 +483,12 @@ analysis.precompute_cnvs()
 calculate_cn_summary("Methylation class")
 
 
-########################### SQUAMOUS CELL CARCINOMA ###########################
+# %% [markdown]
+# Squamous Cell Carcinoma
+# =======================
 
+
+# %%
 tumor_site = "head_and_neck_scc"
 analysis_dir = data_dir / tumor_site
 test_dir = tests_dir / tumor_site

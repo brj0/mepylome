@@ -48,7 +48,7 @@ def convert_py_to_rst(py_path, rst_path):
         rst_file.writelines(rst_lines)
 
 
-input_file = PACKAGE_DIR.parent / "tests" / "rtd_tutorial.py"
+input_file = PACKAGE_DIR.parent / "examples" / "rtd_tutorial.py"
 output_file = PACKAGE_DIR.parent / "docs" / "tutorial.rst"
 
 convert_py_to_rst(input_file, output_file)

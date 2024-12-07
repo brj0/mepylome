@@ -8,7 +8,7 @@ parsing IDAT files, working with manifest files, processing raw data,
 performing copy number variation (CNV) analysis, and conducting methylation
 analysis using UMAP plots with a GUI. You can find the code of this tutorial
 as a script in
-https://github.com/brj0/mepylome/blob/main/tests/rtd_tutorial.py.
+https://github.com/brj0/mepylome/blob/main/examples/rtd_tutorial.py.
 
 
 .. contents:: Contents of Tutorial
@@ -806,10 +806,13 @@ Here is a more comprehensive example with multiple custom parameters:
 
 .. code-block:: python
 
+    >>> TEST_DIR = DIR / "test_dir"
     >>> methyl_analysis = MethylAnalysis(
     >>>     analysis_dir=ANALYSIS_DIR,
     >>>     reference_dir=REFERENCE_DIR,
     >>>     output_dir=OUTPUT_DIR,
+    >>>     # New cases for validation, excluded from classifier training.
+    >>>     test_dir=TEST_DIR,
     >>>     # Load beta values for all CpG sites into memory
     >>>     load_full_betas=True,
     >>>     # Use SWAN preprocessing method

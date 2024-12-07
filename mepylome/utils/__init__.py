@@ -12,9 +12,14 @@ from .files import (
     get_file_object,
     get_resource_path,
     reset_file,
+    setup_tutorial_files,
 )
-from .tutorial_setup import setup_tutorial_files
-from .varia import Timer, get_free_port, log, normexp_get_xs
+from .varia import (
+    Timer,
+    get_free_port,
+    log,
+    normexp_get_xs,
+)
 
 __all__ = [
     "download_file",

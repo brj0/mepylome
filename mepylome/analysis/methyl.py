@@ -1079,15 +1079,8 @@ class MethylAnalysis:
             input_var = input_var.split("+")
 
         if "auto" in input_var:
-
-            def get_grn_idat_path(base_path):
-                idat_path = Path(str(base_path) + "_Grn.idat")
-                if not idat_path.exists():
-                    idat_path = Path(str(base_path) + "_Grn.idat.gz")
-                return idat_path
-
             input_var = {
-                str(ArrayType.from_idat(get_grn_idat_path(path)))
+                str(ArrayType.from_idat(path))
                 for path in self.idat_handler.paths
             }
             if self.verbose:

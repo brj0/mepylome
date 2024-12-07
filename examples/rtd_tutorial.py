@@ -8,7 +8,7 @@
 # performing copy number variation (CNV) analysis, and conducting methylation
 # analysis using UMAP plots with a GUI. You can find the code of this tutorial
 # as a script in
-# https://github.com/brj0/mepylome/blob/main/tests/rtd_tutorial.py.
+# https://github.com/brj0/mepylome/blob/main/examples/rtd_tutorial.py.
 
 
 # .. contents:: Contents of Tutorial

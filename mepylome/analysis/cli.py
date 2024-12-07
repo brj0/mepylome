@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 
 def get_app_version():
@@ -42,6 +43,11 @@ Starting Methylation Analysis...
     print(welcome_message)
 
 
+def absolute_path(path):
+    """Converts a relative path to an absolute path."""
+    return Path(path).absolute()
+
+
 def parse_args():
     """Parses command line arguments."""
     parser = argparse.ArgumentParser(
@@ -50,13 +56,13 @@ def parse_args():
     parser.add_argument(
         "-a",
         "--analysis_dir",
-        type=str,
+        type=absolute_path,
         help="Directory that contains the IDAT files to be analyzed.",
     )
     parser.add_argument(
         "-t",
         "--test_dir",
-        type=str,
+        type=absolute_path,
         help=(
             "Directory for test files, including new cases for analysis or "
             "validation."
@@ -68,11 +74,14 @@ def parse_args():
     parser.add_argument(
         "-r",
         "--reference_dir",
-        type=str,
+        type=absolute_path,
         help="Directory that contains CNV neutral reference cases.",
     )
     parser.add_argument(
-        "-o", "--output_dir", type=str, help="Directory for output data."
+        "-o",
+        "--output_dir",
+        type=absolute_path,
+        help="Directory for output data.",
     )
     parser.add_argument(
         "-p",
@@ -190,7 +199,7 @@ def start_mepylome():
     if cli_args["tutorial"]:
         from pathlib import Path
 
-        from mepylome.utils.tutorial_setup import setup_tutorial_files
+        from mepylome.utils import setup_tutorial_files
 
         DIR = Path.home() / "Documents" / "mepylome" / "tutorial"
         cli_args["analysis_dir"] = DIR / "tutorial_analysis"
