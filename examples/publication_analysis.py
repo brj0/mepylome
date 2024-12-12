@@ -1,4 +1,7 @@
 # %% [markdown]
+#
+# <img alt="Mepylome Logo" src="https://raw.githubusercontent.com/brj0/mepylome/main/mepylome/data/assets/mepylome.svg" width="300">
+#
 # Mepylome: A Toolkit for DNA-Methylation Analysis in Tumor Diagnostics
 # =====================================================================
 #
@@ -28,24 +31,34 @@
 #
 #
 # ### Run This Notebook in Google Colab
-# 
+#
 # You can quickly open and run this notebook in Google Colab without any setup
-# by clicking the link below. 
-# 
+# by clicking the link below.
+#
 # **Note**: The graphical user interface (GUI) features won't run in Colab, but
 # the rest of the analysis will work as expected.
-# 
+#
 # [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/publication_analysis.ipynb)
-# 
-# 
+#
+#
 # This notebook was automatically generated from the corresponding py-file
 # with:
-# 
+#
 # ```bash
 # jupytext --to ipynb publication_analysis.py
 # ```
+#
+#
+# -----------------------------------------------------------------------------
 
-
+# %% [markdown]
+# ## Contents
+# 0. **[Initialization](#0.-Initialization)**
+# 1. **[Salivary Gland Tumors](#1.-Salivary-Gland-Tumors)**
+# 2. **[Soft Tissue Tumors](#2.-Soft-Tissue-Tumors)**
+# 3. **[Squamous Cell Carcinoma](#3.-Squamous-Cell-Carcinoma)**
+#
+#
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
@@ -71,6 +84,7 @@ import io
 import tarfile
 import zipfile
 from pathlib import Path
+from mepylome.utils.files import get_resource_path
 
 import numpy as np
 import pandas as pd
@@ -89,31 +103,32 @@ from mepylome.utils.files import download_file, download_geo_probes
 
 # Define output font size for plots
 FONTSIZE = 23
+GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
 
 # Define dataset URLs and filenames
 file_urls = {
     "salivary_gland_tumors": {
         "xlsx": "https://ars.els-cdn.com/content/image/1-s2.0-S0893395224002059-mmc4.xlsx",
         "xlsx_name": "mmc4.xlsx",
-        "idat": "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE243075&format=file",
+        "idat": GEO_URL.format(acc="GSE243075"),
         "idat_name": "GSE243075",
     },
     "soft_tissue_tumors": {
         "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-020-20603-4/MediaObjects/41467_2020_20603_MOESM4_ESM.xlsx",
         "xlsx_name": "41467_2020_20603_MOESM4_ESM.xlsx",
-        "idat": "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE140686&format=file",
+        "idat": GEO_URL.format(acc="GSE140686"),
         "idat_name": "GSE140686",
     },
     "sinonasal_tumors": {
         "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-022-34815-3/MediaObjects/41467_2022_34815_MOESM6_ESM.xlsx",
         "xlsx_name": "41467_2022_34815_MOESM6_ESM.xlsx",
-        "idat": "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE196228&format=file",
+        "idat": GEO_URL.format(acc="GSE196228"),
         "idat_name": "GSE196228",
     },
     "head_and_neck_scc": {
         "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
         "xlsx_name": "aaw8513_data_file_s1.xlsx",
-        "idat": "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE124633&format=file",
+        "idat": GEO_URL.format(acc="GSE124633"),
         "idat_name": "GSE124633",
     },
 }
@@ -401,12 +416,12 @@ cnv_plot.write_image(
 # ### Generate CNV Summary Plots
 #
 # In addition to individual CNV plots, this step computes summary plots to
-# highlight genomic alterations across multiple samples. 
+# highlight genomic alterations across multiple samples.
 #
 # **Note**:
 # Generating all copy number variation (CNV) plots can be resource-intensive.
 # The process may take up to 30 minutes, depending on the computational
-# resources available.  
+# resources available.
 
 # %%
 analysis.precompute_cnvs()
@@ -418,10 +433,10 @@ calculate_cn_summary("Methylation class")
 # The next step involves validating various supervised classification
 # algorithms to evaluate their performance on the dataset. This process helps
 # identify the most accurate model for methylation-based classification.
-
+#
 # **Note**:
 # Training can be resource-intensive. The process may take up to 10 minutes,
-# depending on the computational resources available.  
+# depending on the computational resources available.
 
 # %%
 # Validate supervised classifiers
@@ -569,12 +584,12 @@ cnv_plot.write_image(
 # ### Generate CNV Summary Plots
 #
 # In addition to individual CNV plots, this step computes summary plots to
-# highlight genomic alterations across multiple samples. 
+# highlight genomic alterations across multiple samples.
 #
 # **Note**:
 # Generating all copy number variation (CNV) plots can be resource-intensive.
 # The process may take up to 30 minutes, depending on the computational
-# resources available.  
+# resources available.
 
 # %%
 analysis.precompute_cnvs()
@@ -586,10 +601,10 @@ calculate_cn_summary("Methylation class")
 # The next step involves validating various supervised classification
 # algorithms to evaluate their performance on the dataset. This process helps
 # identify the most accurate model for methylation-based classification.
-
+#
 # **Note**:
 # Training can be resource-intensive. The process may take up to 10 minutes,
-# depending on the computational resources available.  
+# depending on the computational resources available.
 
 # %%
 # Validate supervised classifiers
@@ -632,7 +647,7 @@ print(best_clf.reports[0])
 # GDC_CLIENT_URL="https://gdc.cancer.gov/system/files/public/file/gdc-client_2.3_Ubuntu_x64-py3.8-ubuntu-20.04.zip"
 # GDC_CLIENT_DIR="$HOME/Documents/mepylome"
 # GDC_CLIENT_BIN="$GDC_CLIENT_DIR/gdc-client"
-
+#
 # # Download and set up the GDC client
 # if [ ! -f "$GDC_CLIENT_BIN" ]; then
 #     mkdir -p "$GDC_CLIENT_DIR"
@@ -647,12 +662,66 @@ print(best_clf.reports[0])
 #     echo "GDC client already exists at $GDC_CLIENT_BIN"
 # fi
 
+# %% language="bash"
+# # Define the variables
+# TCGA_SCC_DIR="$HOME/Documents/mepylome/data/tcga_scc"
+# DOWNLOAD_COMPLETE="$TCGA_SCC_DIR/.download_complete"
+# GDC_CLIENT_BIN="$HOME/Documents/mepylome/gdc-client"
+# TAR_FILE_PATH="$HOME/Documents/mepylome/data/tcga_scc_anno.tar.gz"
+#
+# # Check if the data directory exists
+# mkdir -p "$TCGA_SCC_DIR"
+# if [ -f "$TAR_FILE_PATH" ]; then
+#     echo "Setting up TCGA SCC directory..."
+#     cd "$TCGA_SCC_DIR" || exit 1
+#     cp -f "$TAR_FILE_PATH" .
+#     TAR_FILE_NAME=$(basename "$TAR_FILE_PATH")
+#     tar xvzf "$TAR_FILE_NAME"
+#     echo "Setting up TCGA SCC directory done."
+# else
+#     echo "Error: TAR file not found at $TAR_FILE_PATH"
+#     exit 1
+# fi
+#
+# if [ ! -f "$DOWNLOAD_COMPLETE" ]; then
+#     echo "Download has not been completed yet."
+#     if [ -x "$GDC_CLIENT_BIN" ]; then
+#         echo "Downloading TCGA files. This may take some time!"
+#         "$GDC_CLIENT_BIN" download -m gdc_manifest* -d "$TCGA_SCC_DIR" \
+#             || { echo "Download failed"; exit 1; }
+#         echo "Download finished."
+#         touch "$DOWNLOAD_COMPLETE"
+#     else
+#         echo "Error: GDC client not found at $GDC_CLIENT_BIN"
+#         exit 1
+#     fi
+# else
+#     echo "Data directory already exists. Skipping download and setup."
+# fi
+#
+# https://doi.org/10.1126/scitranslmed.aaw8513
+# GSE85566 # Normal_Lung
+# GSE56044 # No IDAT
+# GSE79556 # Oral_Tongue_SCC
+# GSE95036
+# anno = get_resource_path("mepylome").parent / "examples" / "data" / "GSE95036-annotation.tsv"
+# anno_df = pd.read_csv(anno, sep="\t")
+# GSE66836
+# GSE39279
+# GSE87053
+# GSE39279
+# GSE124052
+#
+# https://doi.org/10.1002/ijc.32890
+# GSE124633
+
 # %%
 tumor_site = "head_and_neck_scc"
 analysis_dir = data_dir / tumor_site
 test_dir = tests_dir / tumor_site
 ensure_directory_exists(test_dir)
 idat_dir = analysis_dir / file_urls[tumor_site]["idat_name"]
+
 if not idat_dir.exists():
     idat_tar_path = analysis_dir / "tmp_idats.tar"
     download_file(file_urls[tumor_site]["idat"], idat_tar_path)
