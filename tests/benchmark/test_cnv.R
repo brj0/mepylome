@@ -1,7 +1,7 @@
 # Performs CNV analysis for performance tests.
 #
 # This script reads IDAT files from a specified subdirectory of
-# ~/Documents/mepylome/tests/, preprocesses them using a specified method
+# ~/mepylome/tests/, preprocesses them using a specified method
 # (illumina, noob, raw, swan), and performs CNV analysis on one of them. All the
 # files must have the same array type.
 #
@@ -25,7 +25,7 @@ if (!prep %in% preps) {
 }
 
 HOME_DIR <- Sys.getenv("HOME")
-TEST_DIR <- file.path(HOME_DIR, "Documents", "mepylome", "tests")
+TEST_DIR <- file.path(HOME_DIR, "mepylome", "tests")
 GENES <- "../../mepylome/data/hg19_genes.tsv.gz"
 ARRAY_TYPE_MAP <- c("IlluminaHumanMethylation450k"   = "450k",
                     "IlluminaHumanMethylationEPIC"   = "EPIC",

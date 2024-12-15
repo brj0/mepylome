@@ -1,7 +1,7 @@
 """Used to tests the performance of the mepylome package.
 
 This script performs extraction of methylation information from all IDAT files
-located in ~/Documents/mepylome/tests. It requires a preprocessing method as a
+located in ~/mepylome/tests. It requires a preprocessing method as a
 command-line argument (e.g., "illumina", "noob", "raw", "swan").
 
 If '--save' is added it saves the extracted methylated and unmethylated
@@ -39,8 +39,8 @@ if prep not in preps:
 print(f"Time for importing mepylome: {time1 - time0} s")
 
 HOME_DIR = Path.home()
-TEST_DIR = Path(HOME_DIR, "Documents", "mepylome", "tests")
-TEST_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output_tests")
+TEST_DIR = Path(HOME_DIR, "mepylome", "tests")
+TEST_OUTPUT_DIR = Path(HOME_DIR, "mepylome", "output_tests")
 
 ensure_directory_exists(TEST_DIR)
 ensure_directory_exists(TEST_OUTPUT_DIR)

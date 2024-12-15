@@ -4,7 +4,7 @@
 preps=("illumina" "noob" "raw" "swan")
 
 # Define the base directory
-BASE_DIR="$HOME/Documents/mepylome/tests"
+BASE_DIR="$HOME/mepylome/tests"
 
 # Get the list of subdirectories
 subdirs=($(find "$BASE_DIR" -maxdepth 1 -mindepth 1 -type d))

@@ -3,7 +3,7 @@
 This script compares the methylation data extracted by the minfi (R) and
 mepylome (Python) packages. It assumes that the test_idat_extraction.py and
 test_idat_extraction.R scripts have been run first to generate output files in
-~/Documents/mepylome/output_tests.
+~/mepylome/output_tests.
 
 Usage:
     python correctness.py
@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 
 HOME_DIR = Path.home()
-TEST_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output_tests")
+TEST_OUTPUT_DIR = Path(HOME_DIR, "mepylome", "output_tests")
 
 
 def difference(path_py, path_r):

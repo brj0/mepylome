@@ -40,7 +40,7 @@ Setup directories for the tutorial:
 
 .. code-block:: python
 
-    >>> DIR = Path.home() / "Documents" / "mepylome" / "tutorial"
+    >>> DIR = Path.home() / "mepylome" / "tutorial"
     >>> ANALYSIS_DIR = DIR / "tutorial_analysis"
     >>> REFERENCE_DIR = DIR / "tutorial_reference"
 
@@ -634,10 +634,10 @@ You can print an overview of the parameters of the object:
     *****************
     
     analysis_dir:
-    /home/username/Documents/mepylome/tutorial/tutorial_analysis
+    /home/username/mepylome/tutorial/tutorial_analysis
     
     annotation:
-    /home/username/Documents/mepylome/tutorial/tutorial_analysis/annotation.csv
+    /home/username/mepylome/tutorial/tutorial_analysis/annotation.csv
     
     app:
     None
@@ -719,7 +719,7 @@ You can print an overview of the parameters of the object:
         'data': [{'customdata': array([['Chondrosarcoma', 'methylation clas...
     
     reference_dir:
-    /home/username/Documents/mepylome/tutorial/tutorial_reference
+    /home/username/mepylome/tutorial/tutorial_reference
     
     selected_columns:
     ['Diagnosis']

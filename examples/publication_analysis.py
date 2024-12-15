@@ -12,7 +12,7 @@
 #
 # ### Usage
 #
-# - All datasets and outputs are saved in `~/Documents/mepylome`.
+# - All datasets and outputs are saved in `~/mepylome`.
 # - Follow the notebook/script step-by-step for an in-depth understanding of
 #   the workflow and results.
 #
@@ -47,8 +47,8 @@
 # ```bash
 # jupytext --to ipynb publication_analysis.py
 # ```
-#
-#
+
+
 # -----------------------------------------------------------------------------
 
 # %% [markdown]
@@ -57,11 +57,11 @@
 # 1. **[Salivary Gland Tumors](#1.-Salivary-Gland-Tumors)**
 # 2. **[Soft Tissue Tumors](#2.-Soft-Tissue-Tumors)**
 # 3. **[Squamous Cell Carcinoma](#3.-Squamous-Cell-Carcinoma)**
-#
-#
+
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
+# <a name="0.-Initialization"></a>
 # ## 0. Initialization
 #
 # ### Install Required Packages
@@ -69,22 +69,24 @@
 # To run the analysis, install the following Python packages:
 # - `mepylome` – the main toolkit for DNA-methylation analysis.
 # - `linear_segment` – used for segmentation calculations in CNV plots.
+# - `kaleido` for saving plots.
 #
 # Install these packages using the commands below:
 
 # %% language="bash"
 # pip install mepylome
 # pip install linear_segment
+# pip install -U kaleido
 
 # %% [markdown]
 # ### Core Imports, Configuration and main Functions
 
 # %%
 import io
+import os
 import tarfile
 import zipfile
 from pathlib import Path
-from mepylome.utils.files import get_resource_path
 
 import numpy as np
 import pandas as pd
@@ -99,54 +101,71 @@ from mepylome.dtypes.manifests import (
     REMOTE_FILENAME,
 )
 from mepylome.utils import ensure_directory_exists
-from mepylome.utils.files import download_file, download_geo_probes
+from mepylome.utils.files import (
+    download_file,
+    download_geo_probes,
+    get_resource_path,
+)
 
 # Define output font size for plots
 FONTSIZE = 23
 GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
 
 # Define dataset URLs and filenames
-file_urls = {
+datasets = {
     "salivary_gland_tumors": {
         "xlsx": "https://ars.els-cdn.com/content/image/1-s2.0-S0893395224002059-mmc4.xlsx",
-        "xlsx_name": "mmc4.xlsx",
-        "idat": GEO_URL.format(acc="GSE243075"),
-        "idat_name": "GSE243075",
+        "geo_id": ["GSE243075"],
     },
     "soft_tissue_tumors": {
         "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-020-20603-4/MediaObjects/41467_2020_20603_MOESM4_ESM.xlsx",
-        "xlsx_name": "41467_2020_20603_MOESM4_ESM.xlsx",
-        "idat": GEO_URL.format(acc="GSE140686"),
-        "idat_name": "GSE140686",
+        "geo_id": ["GSE140686"],
     },
     "sinonasal_tumors": {
         "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-022-34815-3/MediaObjects/41467_2022_34815_MOESM6_ESM.xlsx",
-        "xlsx_name": "41467_2022_34815_MOESM6_ESM.xlsx",
-        "idat": GEO_URL.format(acc="GSE196228"),
-        "idat_name": "GSE196228",
+        "geo_id": ["GSE196228"],
     },
-    "head_and_neck_scc": {
+    "scc": {
         "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
-        "xlsx_name": "aaw8513_data_file_s1.xlsx",
-        "idat": GEO_URL.format(acc="GSE124633"),
-        "idat_name": "GSE124633",
+        "geo_id": [
+            "GSE124052",
+            "GSE66836",
+            "GSE79556",
+            "GSE85566",
+            "GSE87053",
+            "GSE95036",
+        ],
     },
 }
 
-# Define directories
-mepylome_dir = Path("~/Documents/mepylome").expanduser()
+# Determine basic storage directory depending on platform
+if "COLAB_GPU" in os.environ:
+    # Google Colab
+    mepylome_dir = Path("/content/mepylome")
+elif os.path.exists("/mnt/bender"):
+    # Bender-specific path
+    mepylome_dir = Path("/mnt/bender/mepylome")
+else:
+    # Default for local Linux or other environments
+    mepylome_dir = Path.home() / "mepylome"
+
+# Ensure the directory exists
+os.makedirs(mepylome_dir, exist_ok=True)
+os.environ["MEPYLOME_DIR"] = str(mepylome_dir)
+print(f"Data will be stored in: {mepylome_dir}")
+
 data_dir = mepylome_dir / "data"
 output_dir = mepylome_dir / "out"
-tests_dir = mepylome_dir / "tests"
 reference_dir = mepylome_dir / "cn_neutral_idats"
+validation_dir = mepylome_dir / "validation_data"
 
 ensure_directory_exists(data_dir)
-ensure_directory_exists(tests_dir)
 ensure_directory_exists(output_dir)
 ensure_directory_exists(reference_dir)
-
+ensure_directory_exists(validation_dir)
 
 # Main Funktions
+
 
 def extract_tar(tar_path, output_directory):
     """Extracts tar file under 'tar_path' to 'output_directory'."""
@@ -154,6 +173,23 @@ def extract_tar(tar_path, output_directory):
     with tarfile.open(tar_path, "r") as tar:
         tar.extractall(path=output_directory, filter=None)
         print(f"Extracted {tar_path} to {output_directory}")
+
+
+def download_from_geo_and_untar(analysis_dir, geo_ids):
+    """Downloads all missing GEO files and untars them."""
+    for geo_id in geo_ids:
+        idat_dir = analysis_dir / geo_id
+        if idat_dir.exists():
+            print(f"Data for GEO ID {geo_id} already exists, skipping.")
+            continue
+        try:
+            tar_path = analysis_dir / f"{geo_id}.tar"
+            geo_url = GEO_URL.format(acc=geo_id)
+            download_file(geo_url, tar_path)
+            extract_tar(tar_path, idat_dir)
+            tar_path.unlink()
+        except Exception as e:
+            print(f"Error processing GEO ID {geo_id}: {e}")
 
 
 def calculate_cn_summary(class_):
@@ -298,6 +334,7 @@ download_geo_probes(reference_dir, cn_neutral_probes)
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
+# <a name="1.-Salivary-Gland-Tumors"></a>
 # ## 1. Salivary Gland Tumors
 #
 # This section replicates the methylation analysis performed in the study by
@@ -308,20 +345,20 @@ download_geo_probes(reference_dir, cn_neutral_probes)
 # Initialize directories.
 tumor_site = "salivary_gland_tumors"
 analysis_dir = data_dir / tumor_site
-test_dir = tests_dir / tumor_site
-ensure_directory_exists(test_dir)
-idat_dir = analysis_dir / file_urls[tumor_site]["idat_name"]
+test_dir = validation_dir / tumor_site
 
-# Download the IDAT files and the annotation spreadsheet if not already done.
-if not idat_dir.exists():
-    excel_path = analysis_dir / file_urls[tumor_site]["xlsx_name"]
-    download_file(file_urls[tumor_site]["xlsx"], excel_path)
-    # Deletes the first 2 (useless description) rows from the excel file.
+ensure_directory_exists(test_dir)
+ensure_directory_exists(analysis_dir)
+
+# Download the the annotation spreadsheet.
+if not (excel_path := analysis_dir / f"{tumor_site}-annotation.xlsx").exists():
+    download_file(datasets[tumor_site]["xlsx"], excel_path)
+    # Deletes the first 2 rows (useless description).
     pd.read_excel(excel_path, skiprows=2).to_excel(excel_path, index=False)
-    idat_tar_path = analysis_dir / "tmp_idats.tar"
-    download_file(file_urls[tumor_site]["idat"], idat_tar_path)
-    extract_tar(idat_tar_path, idat_dir)
-    idat_tar_path.unlink()
+
+# Download the IDAT files.
+download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
+
 
 # %% [markdown]
 # ### Create the Methylation Analysis Object
@@ -468,6 +505,7 @@ print(best_clf.reports[0])
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
+# <a name="2.-Soft-Tissue-Tumors"></a>
 # ## 2. Soft Tissue Tumors
 #
 # This section replicates the methylation analysis performed in the study by
@@ -479,18 +517,17 @@ print(best_clf.reports[0])
 # Initialize directories.
 tumor_site = "soft_tissue_tumors"
 analysis_dir = data_dir / tumor_site
-test_dir = tests_dir / tumor_site
-ensure_directory_exists(test_dir)
-idat_dir = analysis_dir / file_urls[tumor_site]["idat_name"]
+test_dir = validation_dir / tumor_site
 
-# Download the IDAT files and the annotation spreadsheet if not already done.
-if not idat_dir.exists():
-    excel_path = analysis_dir / file_urls[tumor_site]["xlsx_name"]
-    download_file(file_urls[tumor_site]["xlsx"], excel_path)
-    idat_tar_path = analysis_dir / "tmp_idats.tar"
-    download_file(file_urls[tumor_site]["idat"], idat_tar_path)
-    extract_tar(idat_tar_path, idat_dir)
-    idat_tar_path.unlink()
+ensure_directory_exists(test_dir)
+ensure_directory_exists(analysis_dir)
+
+# Download the the annotation spreadsheet.
+if not (excel_path := analysis_dir / f"{tumor_site}-annotation.xlsx").exists():
+    download_file(datasets[tumor_site]["xlsx"], excel_path)
+
+# Download the IDAT files.
+download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
 
 
 # %% [markdown]
@@ -634,9 +671,9 @@ print("Most accurate classifier:")
 print(best_clf.reports[0])
 
 
-
 # %% [markdown]
 # -----------------------------------------------------------------------------
+# <a name="3.-Squamous-Cell-Carcinoma"></a>
 # ## 3. Squamous Cell Carcinoma
 
 # %% [markdown]
@@ -645,7 +682,7 @@ print(best_clf.reports[0])
 # %% language="bash"
 # # Define the variables
 # GDC_CLIENT_URL="https://gdc.cancer.gov/system/files/public/file/gdc-client_2.3_Ubuntu_x64-py3.8-ubuntu-20.04.zip"
-# GDC_CLIENT_DIR="$HOME/Documents/mepylome"
+# GDC_CLIENT_DIR="$HOME/mepylome"
 # GDC_CLIENT_BIN="$GDC_CLIENT_DIR/gdc-client"
 #
 # # Download and set up the GDC client
@@ -664,10 +701,10 @@ print(best_clf.reports[0])
 
 # %% language="bash"
 # # Define the variables
-# TCGA_SCC_DIR="$HOME/Documents/mepylome/data/tcga_scc"
+# TCGA_SCC_DIR="$HOME/mepylome/data/tcga_scc"
 # DOWNLOAD_COMPLETE="$TCGA_SCC_DIR/.download_complete"
-# GDC_CLIENT_BIN="$HOME/Documents/mepylome/gdc-client"
-# TAR_FILE_PATH="$HOME/Documents/mepylome/data/tcga_scc_anno.tar.gz"
+# GDC_CLIENT_BIN="$HOME/mepylome/gdc-client"
+# TAR_FILE_PATH="$HOME/mepylome/data/tcga_scc_anno.tar.gz"
 #
 # # Check if the data directory exists
 # mkdir -p "$TCGA_SCC_DIR"
@@ -699,34 +736,45 @@ print(best_clf.reports[0])
 #     echo "Data directory already exists. Skipping download and setup."
 # fi
 #
-# https://doi.org/10.1126/scitranslmed.aaw8513
-# GSE85566 # Normal_Lung
-# GSE56044 # No IDAT
-# GSE79556 # Oral_Tongue_SCC
-# GSE95036
-# anno = get_resource_path("mepylome").parent / "examples" / "data" / "GSE95036-annotation.tsv"
-# anno_df = pd.read_csv(anno, sep="\t")
-# GSE66836
-# GSE39279
-# GSE87053
-# GSE39279
-# GSE124052
-#
-# https://doi.org/10.1002/ijc.32890
-# GSE124633
+
+# %% [markdown]
+# Next we are going to download all the IDAT files mentioned in
+# [Jurmeister2019](https://doi.org/10.1126/scitranslmed.aaw8513).
 
 # %%
-tumor_site = "head_and_neck_scc"
+# Initialize directories.
+tumor_site = "scc"
 analysis_dir = data_dir / tumor_site
-test_dir = tests_dir / tumor_site
-ensure_directory_exists(test_dir)
-idat_dir = analysis_dir / file_urls[tumor_site]["idat_name"]
+test_dir = validation_dir / tumor_site
 
-if not idat_dir.exists():
-    idat_tar_path = analysis_dir / "tmp_idats.tar"
-    download_file(file_urls[tumor_site]["idat"], idat_tar_path)
-    extract_tar(idat_tar_path, idat_dir)
-    idat_tar_path.unlink()
+ensure_directory_exists(test_dir)
+ensure_directory_exists(analysis_dir)
+
+# Download the the annotation spreadsheet.
+def merge_csv_from_tar(tar_path):
+    """Reads all CSV files from a tar.gz archive and merges them."""
+    merged_df = pd.DataFrame()
+    with tarfile.open(tar_path, "r:gz") as tar:
+        for member in tar.getmembers():
+            if member.name.endswith(".csv"):
+                print(f"Reading {member.name}")
+                file = tar.extractfile(member)
+                if file is not None:
+                    df = pd.read_csv(file)
+                    merged_df = pd.concat([merged_df, df], ignore_index=True)
+    return merged_df
+
+if not (excel_path := analysis_dir / f"{tumor_site}-annotation.xlsx").exists():
+    pass
+# download_file(datasets[tumor_site]["xlsx"], excel_path)
+
+tar_path = "geo_annotations.tar.gz"
+tar_path = Path("~/mepylome/data/scc/geo_annotations.tar.gz").expanduser()
+merged_df = merge_csv_from_tar(tar_path)
+
+
+# Download the IDAT files.
+download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
 
 
 # %% [markdown]

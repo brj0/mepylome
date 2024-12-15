@@ -6,7 +6,7 @@ preprocessing multiple times and then average the results. This process
 leverages the central limit theorem to obtain more stable and reliable
 methylation estimates.
 
-This script processes IDAT files located in ~/Documents/mepylome/tests using
+This script processes IDAT files located in ~/mepylome/tests using
 the mepylome package. It performs SWAN preprocessing on the data and averages
 the methylation and unmethylation levels obtained over multiple iterations. The
 averaged data is then saved to disk for further comparison tests.
@@ -23,8 +23,8 @@ from mepylome import MethylData, RawData, idat_basepaths
 from mepylome.utils import ensure_directory_exists
 
 HOME_DIR = Path.home()
-TEST_DIR = Path(HOME_DIR, "Documents", "mepylome", "tests")
-TEST_OUTPUT_DIR = Path(HOME_DIR, "Documents", "mepylome", "output_tests")
+TEST_DIR = Path(HOME_DIR, "mepylome", "tests")
+TEST_OUTPUT_DIR = Path(HOME_DIR, "mepylome", "output_tests")
 N_LOOPS = 1000
 
 ensure_directory_exists(TEST_DIR)

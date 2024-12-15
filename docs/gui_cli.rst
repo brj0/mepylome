@@ -14,7 +14,7 @@ Graphical user interface: Quick demonstration
 To perform a test methylation analysis, run the following command in the
 terminal after installing mepylome (and optionally activating the corresponding
 virtual environment). This command will download example IDAT files (to
-`~/Documents/mepylome/` and launch the GUI. Note that the initial launch may
+`~/mepylome/` and launch the GUI. Note that the initial launch may
 take some time:
 
 .. code-block:: sh
@@ -100,7 +100,7 @@ IDAT                    Diagnosis        Site
 
 
 After completing the quick demonstration, you will have a valid setup in
-`~/Documents/mepylome/tutorial/`.
+`~/mepylome/tutorial/`.
 
 
 Comand line interface
@@ -116,7 +116,7 @@ To start mepylome with specific analysis and reference directories:
 
 .. code-block:: sh
 
-    mepylome -a ~/Documents/mepylome/tutorial/tutorial_analysis/ -r ~/Documents/mepylome/tutorial/tutorial_reference/
+    mepylome -a ~/mepylome/tutorial/tutorial_analysis/ -r ~/mepylome/tutorial/tutorial_reference/
 
 
 To see all available command-line parameters and options for mepylome, use the

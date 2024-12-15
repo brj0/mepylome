@@ -197,11 +197,9 @@ def start_mepylome():
     from .methyl import MethylAnalysis
 
     if cli_args["tutorial"]:
-        from pathlib import Path
-
         from mepylome.utils import setup_tutorial_files
 
-        DIR = Path.home() / "Documents" / "mepylome" / "tutorial"
+        DIR = Path.home() / "mepylome" / "tutorial"
         cli_args["analysis_dir"] = DIR / "tutorial_analysis"
         cli_args["reference_dir"] = DIR / "tutorial_reference"
         if (

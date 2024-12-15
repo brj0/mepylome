@@ -345,7 +345,7 @@ def read_cnv_data_from_disk(cnv_dir, sample_id, extract=None):
 
     sample_zip = sample_id + ZIP_ENDING
     unzipped = get_df_from_zip(
-        cnv_dir / sample_zip,
+        Path(cnv_dir) / sample_zip,
         extract=extract,
     )
 
@@ -596,7 +596,8 @@ def get_cn_summary(cnv_dir, sample_ids):
     plot of gain/loss ratios across chromosomes.
 
     Args:
-        cnv_dir (str): The directory path where CNV data files are stored.
+        cnv_dir (str or Path): The directory path where CNV data files are
+            stored.
         sample_ids (list of str): A list of sample IDs to process.
 
     Returns:

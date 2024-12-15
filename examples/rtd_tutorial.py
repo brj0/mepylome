@@ -33,7 +33,7 @@ from mepylome import (
 )
 
 # Setup directories for the tutorial:
-DIR = Path.home() / "Documents" / "mepylome" / "tutorial"
+DIR = Path.home() / "mepylome" / "tutorial"
 ANALYSIS_DIR = DIR / "tutorial_analysis"
 REFERENCE_DIR = DIR / "tutorial_reference"
 
@@ -497,10 +497,10 @@ MethylAnalysis():
 *****************
 
 analysis_dir:
-/home/username/Documents/mepylome/tutorial/tutorial_analysis
+/home/username/mepylome/tutorial/tutorial_analysis
 
 annotation:
-/home/username/Documents/mepylome/tutorial/tutorial_analysis/annotation.csv
+/home/username/mepylome/tutorial/tutorial_analysis/annotation.csv
 
 app:
 None
@@ -582,7 +582,7 @@ Figure({
     'data': [{'customdata': array([['Chondrosarcoma', 'methylation clas...
 
 reference_dir:
-/home/username/Documents/mepylome/tutorial/tutorial_reference
+/home/username/mepylome/tutorial/tutorial_reference
 
 selected_columns:
 ['Diagnosis']

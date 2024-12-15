@@ -1,7 +1,7 @@
 """Performs CNV analysis for performance tests.
 
 This script reads IDAT files from a specified subdirectory of
-~/Documents/mepylome/tests/, preprocesses them using a specified method
+~/mepylome/tests/, preprocesses them using a specified method
 (illumina, noob, raw, swan), and performs CNV analysis on one of them. All the
 files must have the same array type.
 
@@ -24,7 +24,7 @@ from mepylome import CNV, MethylData, idat_basepaths
 time1 = time.time()
 
 HOME_DIR = Path.home()
-TEST_DIR = Path(HOME_DIR, "Documents", "mepylome", "tests")
+TEST_DIR = Path(HOME_DIR, "mepylome", "tests")
 
 prep = None if len(sys.argv) < 2 else sys.argv[1]
 preps = ["illumina", "noob", "raw", "swan"]

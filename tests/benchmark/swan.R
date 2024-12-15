@@ -6,7 +6,7 @@
 # leverages the central limit theorem to obtain more stable and reliable
 # methylation estimates.
 #
-# This script processes IDAT files located in ~/Documents/mepylome/tests using
+# This script processes IDAT files located in ~/mepylome/tests using
 # the mepylome package. It performs SWAN preprocessing on the data and averages
 # the methylation and unmethylation levels obtained over multiple iterations.
 # The averaged data is then saved to disk for further comparison tests.
@@ -18,8 +18,8 @@
 library(minfi)
 
 HOME_DIR <- Sys.getenv("HOME")
-TEST_DIR <- file.path(HOME_DIR, "Documents", "mepylome", "tests")
-TEST_OUTPUT_DIR <- file.path(HOME_DIR, "Documents", "mepylome", "output_tests")
+TEST_DIR <- file.path(HOME_DIR, "mepylome", "tests")
+TEST_OUTPUT_DIR <- file.path(HOME_DIR, "mepylome", "output_tests")
 N_LOOPS <- 1000
 
 if (!dir.exists(TEST_DIR)) {
