@@ -83,7 +83,10 @@
 
 # %%
 import io
+import json
 import os
+import shutil
+import subprocess
 import tarfile
 import zipfile
 from pathlib import Path
@@ -104,7 +107,6 @@ from mepylome.utils import ensure_directory_exists
 from mepylome.utils.files import (
     download_file,
     download_geo_probes,
-    get_resource_path,
 )
 
 # Define output font size for plots
@@ -169,9 +171,9 @@ ensure_directory_exists(validation_dir)
 
 def extract_tar(tar_path, output_directory):
     """Extracts tar file under 'tar_path' to 'output_directory'."""
-    output_directory.mkdir(exist_ok=True)
+    ensure_directory_exists(output_directory)
     with tarfile.open(tar_path, "r") as tar:
-        tar.extractall(path=output_directory, filter=None)
+        tar.extractall(path=output_directory, filter="data")
         print(f"Extracted {tar_path} to {output_directory}")
 
 
@@ -677,104 +679,296 @@ print(best_clf.reports[0])
 # ## 3. Squamous Cell Carcinoma
 
 # %% [markdown]
-# Step 1: Download and setup GDC client
-
-# %% language="bash"
-# # Define the variables
-# GDC_CLIENT_URL="https://gdc.cancer.gov/system/files/public/file/gdc-client_2.3_Ubuntu_x64-py3.8-ubuntu-20.04.zip"
-# GDC_CLIENT_DIR="$HOME/mepylome"
-# GDC_CLIENT_BIN="$GDC_CLIENT_DIR/gdc-client"
-#
-# # Download and set up the GDC client
-# if [ ! -f "$GDC_CLIENT_BIN" ]; then
-#     mkdir -p "$GDC_CLIENT_DIR"
-#     cd "$GDC_CLIENT_DIR"
-#     echo "Downloading GDC client..."
-#     wget -q "$GDC_CLIENT_URL" -P "$GDC_CLIENT_DIR"
-#     unzip -qo "$GDC_CLIENT_DIR/*.zip" -d "$GDC_CLIENT_DIR"
-#     unzip -qo "$GDC_CLIENT_DIR/*.zip" -d "$GDC_CLIENT_DIR" > /dev/null 2>&1
-#     rm -f "$GDC_CLIENT_DIR"/gdc-client*.zip
-#     echo "GDC client binary downloaded and set up at $GDC_CLIENT_BIN"
-# else
-#     echo "GDC client already exists at $GDC_CLIENT_BIN"
-# fi
-
-# %% language="bash"
-# # Define the variables
-# TCGA_SCC_DIR="$HOME/mepylome/data/tcga_scc"
-# DOWNLOAD_COMPLETE="$TCGA_SCC_DIR/.download_complete"
-# GDC_CLIENT_BIN="$HOME/mepylome/gdc-client"
-# TAR_FILE_PATH="$HOME/mepylome/data/tcga_scc_anno.tar.gz"
-#
-# # Check if the data directory exists
-# mkdir -p "$TCGA_SCC_DIR"
-# if [ -f "$TAR_FILE_PATH" ]; then
-#     echo "Setting up TCGA SCC directory..."
-#     cd "$TCGA_SCC_DIR" || exit 1
-#     cp -f "$TAR_FILE_PATH" .
-#     TAR_FILE_NAME=$(basename "$TAR_FILE_PATH")
-#     tar xvzf "$TAR_FILE_NAME"
-#     echo "Setting up TCGA SCC directory done."
-# else
-#     echo "Error: TAR file not found at $TAR_FILE_PATH"
-#     exit 1
-# fi
-#
-# if [ ! -f "$DOWNLOAD_COMPLETE" ]; then
-#     echo "Download has not been completed yet."
-#     if [ -x "$GDC_CLIENT_BIN" ]; then
-#         echo "Downloading TCGA files. This may take some time!"
-#         "$GDC_CLIENT_BIN" download -m gdc_manifest* -d "$TCGA_SCC_DIR" \
-#             || { echo "Download failed"; exit 1; }
-#         echo "Download finished."
-#         touch "$DOWNLOAD_COMPLETE"
-#     else
-#         echo "Error: GDC client not found at $GDC_CLIENT_BIN"
-#         exit 1
-#     fi
-# else
-#     echo "Data directory already exists. Skipping download and setup."
-# fi
-#
-
-# %% [markdown]
-# Next we are going to download all the IDAT files mentioned in
-# [Jurmeister2019](https://doi.org/10.1126/scitranslmed.aaw8513).
+# In this example, we aim to reproduce the pan-SCC classifier presented in the
+# study by [Jurmeister et al.
+# (2019)](https://doi.org/10.1126/scitranslmed.aaw8513). Our goal is to gather
+# data for Squamous Cell Carcinoma (SCC) from multiple sources, as outlined in
+# the publication, including datasets from The Cancer Genome Atlas (TCGA).
+# Datasets without IDAT files are omitted from the collection process.
 
 # %%
 # Initialize directories.
 tumor_site = "scc"
-analysis_dir = data_dir / tumor_site
+scc_analysis_dir = data_dir / tumor_site
 test_dir = validation_dir / tumor_site
 
 ensure_directory_exists(test_dir)
-ensure_directory_exists(analysis_dir)
+ensure_directory_exists(scc_analysis_dir)
 
-# Download the the annotation spreadsheet.
-def merge_csv_from_tar(tar_path):
-    """Reads all CSV files from a tar.gz archive and merges them."""
-    merged_df = pd.DataFrame()
-    with tarfile.open(tar_path, "r:gz") as tar:
-        for member in tar.getmembers():
-            if member.name.endswith(".csv"):
-                print(f"Reading {member.name}")
-                file = tar.extractfile(member)
-                if file is not None:
-                    df = pd.read_csv(file)
-                    merged_df = pd.concat([merged_df, df], ignore_index=True)
-    return merged_df
+# %% [markdown]
+# ### Step 1: Download TCGA Data
+# First we download the GDC client that is used for downloading data from TCGA.
 
-if not (excel_path := analysis_dir / f"{tumor_site}-annotation.xlsx").exists():
-    pass
-# download_file(datasets[tumor_site]["xlsx"], excel_path)
+# %%
+gdc_client_url = "https://gdc.cancer.gov/system/files/public/file/gdc-client_2.3_Ubuntu_x64-py3.8-ubuntu-20.04.zip"
+gdc_client_bin = scc_analysis_dir / "gdc-client"
 
-tar_path = "geo_annotations.tar.gz"
-tar_path = Path("~/mepylome/data/scc/geo_annotations.tar.gz").expanduser()
-merged_df = merge_csv_from_tar(tar_path)
+# Download and set up the GDC client
+if not gdc_client_bin.exists():
+    zip_path_0 = scc_analysis_dir / "gdc-client.zip"
+    zip_path_1 = scc_analysis_dir / "gdc-client_2.3_Ubuntu_x64.zip"
+    download_file(gdc_client_url, zip_path_0)
+    with zipfile.ZipFile(zip_path_0, "r") as zip_file:
+        zip_file.extractall(scc_analysis_dir)
+    with zipfile.ZipFile(zip_path_1, "r") as zip_file:
+        zip_file.extractall(scc_analysis_dir)
+    zip_path_0.unlink()
+    zip_path_1.unlink()
+    gdc_client_bin.chmod(0o755)
+    print(f"GDC client binary downloaded and set up at {gdc_client_bin}")
+else:
+    print(f"GDC client already exists at {gdc_client_bin}")
 
+
+# %% [markdown]
+# Now we download the complete TCGA data. **This may take several hours** due
+# to slow server connection speeds. It is recommended to run this process
+# overnight and not to abort the process to ensure it completes successfully.
+
+# %%
+tcga_dir = scc_analysis_dir / "tcga_scc"
+tcga_downloaded_tag = tcga_dir / ".download_complete"
+tcga_anno_dir_tar = scc_analysis_dir / "tcga_annotations.tar.gz"
+tcga_anno_dir = tcga_anno_dir_tar.with_suffix("").with_suffix("")
+
+ensure_directory_exists(tcga_dir)
+
+# Check if the TCGA annotation tar file exists and extract
+if not tcga_anno_dir.exists():
+    print("Setting up TCGA annotation directory...")
+    # TODO download annotation to tcga_anno_dir_tar
+    extract_tar(tcga_anno_dir_tar, scc_analysis_dir)
+    print("Setting up TCGA annotation directory done.")
+
+# Check if the download is complete
+if not tcga_downloaded_tag.exists():
+    print("Download has not been completed yet.")
+    if not gdc_client_bin.exists():
+        msg = f"Error: GDC client not found at {gdc_client_bin}"
+        raise FileNotFoundError(msg)
+    print("Downloading TCGA files. This may take some time!")
+    manifest_file = tcga_anno_dir / "gdc_manifest.txt"
+    if not manifest_file.exists():
+        msg = "No TCGA manifest file found."
+        raise FileNotFoundError(msg)
+    print(f"Downloading TCGA data from manifest file: {manifest_file}")
+    subprocess.run(
+        [
+            str(gdc_client_bin),
+            "download",
+            "--latest",
+            "--manifest",
+            manifest_file,
+            "--dir",
+            str(tcga_dir),
+        ],
+        check=True,
+    )
+    print("Download finished.")
+    tcga_downloaded_tag.touch()
+else:
+    print("TCGA data already completely downloaded.")
+
+
+# %% [markdown]
+# Clean up by moving all IDAT files into one directory.
+
+
+# %%
+def move_idat_files_and_cleanup(root_dir):
+    """Move all idat files one dir up and delete empty subdirectories."""
+    root_dir = Path(root_dir)
+    for sub_dir in root_dir.iterdir():
+        if sub_dir.is_dir():
+            idat_files = list(sub_dir.glob("*.idat"))
+            for file in idat_files:
+                destination = root_dir / file.name
+                shutil.move(str(file), str(destination))
+            shutil.rmtree(sub_dir)
+
+
+move_idat_files_and_cleanup(tcga_dir)
+
+# %% [markdown]
+# Next we extract the TCGA annotation.
+
+
+# %%
+def extract_tcga_case_id_dict(json_path):
+    """Extracts a dictionary mapping from IDAT IDs to case IDs."""
+    with open(json_path) as f:
+        data = json.load(f)
+    case_id_mapping = {}
+    n_suffix = len("_Grn.idat")
+    for item in data:
+        file_name = item.get("file_name", "")[:-n_suffix]
+        case_id = item.get("associated_entities", [{}])[0].get("case_id", "")
+        if case_id and file_name:
+            case_id_mapping[case_id] = file_name
+    return case_id_mapping
+
+
+json_metadata = tcga_anno_dir / "metadata.cart.json"
+case_id_to_sample_id = extract_tcga_case_id_dict(json_metadata)
+
+# Load the clinical data and map the case_id to the IDAT
+tcga_annotation = pd.read_csv(tcga_anno_dir / "clinical.tsv", delimiter="\t")
+tcga_annotation["Sample_ID"] = tcga_annotation["case_id"].map(
+    case_id_to_sample_id
+)
+tcga_annotation = tcga_annotation.drop(columns="case_id")
+
+# Rename columns
+rename_dict = {
+    "gender": "Sex",
+    "age_at_index": "Age",
+    "tissue_or_organ_of_origin": "Tumor_site",
+    "site_of_resection_or_biopsy": "Site_of_resection_or_biopsy",
+    "tumor_grade": "Tumor_grade",
+    "morphology": "Morphology",
+    "primary_diagnosis": "Primary_diagnosis",
+}
+tcga_annotation = tcga_annotation.rename(columns=rename_dict)
+
+# Standardize the 'Sex' column and convert 'Age' to numeric
+tcga_annotation["Sex"] = tcga_annotation["Sex"].replace(
+    {"female": "Female", "male": "Male"}
+)
+tcga_annotation["Age"] = pd.to_numeric(tcga_annotation["Age"], errors="coerce")
+
+# Mark the samples that to be censored
+diag_to_censor_stat = {
+    "Warty carcinoma": 1,
+    "Adenosquamous carcinoma": 1,
+    "Squamous cell carcinoma, keratinizing, NOS": 0,
+    "Papillary squamous cell carcinoma": 1,
+    "Squamous cell carcinoma, spindle cell": 1,
+    "Basaloid squamous cell carcinoma": 1,
+    "Squamous cell carcinoma, small cell, nonkeratinizing": 1,
+    "Squamous cell carcinoma, nonkeratinizing, NOS": 0,
+    "Lymphoepithelial carcinoma": 1,
+    "Squamous cell carcinoma, large cell, nonkeratinizing, NOS": 1,
+    "Papillary carcinoma, NOS": 1,
+    "Squamous cell carcinoma, NOS": 0,
+}
+tcga_annotation["Censor"] = tcga_annotation["Primary_diagnosis"].map(
+    diag_to_censor_stat
+)
+
+# Condense the primary tumor site.
+nsclc_sites = {
+    "Lower lobe, lung",
+    "Lung, NOS",
+    "Main bronchus",
+    "Middle lobe, lung",
+    "Overlapping lesion of lung",
+    "Upper lobe, lung",
+}
+hnsq_sites = {
+    "Anterior floor of mouth",
+    "Base of tongue, NOS",
+    "Border of tongue",
+    "Cheek mucosa",
+    "Floor of mouth, NOS",
+    "Gum, NOS",
+    "Hard palate",
+    "Head, face or neck, NOS",
+    "Hypopharynx, NOS",
+    "Larynx, NOS",
+    "Lip, NOS",
+    "Lower gum",
+    "Mandible",
+    "Mouth, NOS",
+    "Nasal cavity",
+    "Oropharynx, NOS",
+    "Overlapping lesion of lip, oral cavity and pharynx",
+    "Palate, NOS",
+    "Pharynx, NOS",
+    "Posterior wall of oropharynx",
+    "Retromolar area",
+    "Supraglottis",
+    "Tongue, NOS",
+    "Tonsil, NOS",
+    "Upper Gum",
+    "Ventral surface of tongue, NOS",
+}
+cervix_sites = {"Cervix uteri"}
+eso_sites = {
+    "Cardia, NOS",
+    "Esophagus, NOS",
+    "Lower third of esophagus",
+    "Middle third of esophagus",
+    "Thoracic esophagus",
+    "Upper third of esophagus",
+}
+censor_sites = {
+    "Breast, NOS",
+    "Bladder, NOS",
+}
+
+tcga_annotation["Diagnosis"] = None
+
+# Classify each row based on the tumor site
+for index, row in tcga_annotation.iterrows():
+    site = str(row["Tumor_site"]).strip()
+    if site in cervix_sites:
+        tcga_annotation.loc[index, "Diagnosis"] = "CERSQ_CA"
+    elif site in nsclc_sites:
+        tcga_annotation.loc[index, "Diagnosis"] = "NSCLC_SC"
+    elif site in hnsq_sites:
+        tcga_annotation.loc[index, "Diagnosis"] = "HNSQ_CA"
+    elif site in eso_sites:
+        tcga_annotation.loc[index, "Diagnosis"] = "ESO_CA_SQ"
+    else:
+        tcga_annotation.loc[index, "Censor"] = 1
+        print(f"Unmatched Tumor_site loc index {index}: {site}")
+
+# Removed censored samples
+tcga_annotation = tcga_annotation[tcga_annotation["Censor"] == 0]
+
+
+# %% [markdown]
+# ### Step 2: Download and unzip the GEO data
+
+# %%
+geo_anno_dir_tar = scc_analysis_dir / "geo_annotations.tar.gz"
+geo_anno_dir = geo_anno_dir_tar.with_suffix("").with_suffix("")
+
+# Check if the GEO annotation tar file exists and extract
+if not geo_anno_dir.exists():
+    print("Setting up GEO annotation directory...")
+    # TODO download annotation
+    extract_tar(geo_anno_dir_tar, scc_analysis_dir)
+    print("Setting up GEO annotation directory done.")
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
+download_from_geo_and_untar(scc_analysis_dir, datasets[tumor_site]["geo_id"])
+
+
+# Download the annotation spreadsheet.
+def merge_csv(dir_path):
+    """Reads all CSV files merges them."""
+    dir_path = Path(dir_path)
+    merged_df = pd.DataFrame()
+    for csv_file in dir_path.glob("*.csv"):
+        print(f"Reading {csv_file}")
+        data_frame = pd.read_csv(csv_file)
+        merged_df = pd.concat([merged_df, data_frame], ignore_index=True)
+    return merged_df
+
+
+geo_annotation = merge_csv(geo_anno_dir)
+
+# %% [markdown]
+# ### Step 3: Construct the annotation file of all data.
+# Join the TCGA and GEO annotation files
+
+# %%
+if not (
+    csv_path := scc_analysis_dir / f"{tumor_site}-annotation.csv"
+).exists():
+    anno_df = pd.concat([geo_annotation, tcga_annotation], ignore_index=True)
+    anno_df.to_csv(csv_path, index=False)
 
 
 # %% [markdown]
@@ -786,7 +980,7 @@ download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
 
 # %%
 analysis = MethylAnalysis(
-    analysis_dir=analysis_dir,
+    analysis_dir=scc_analysis_dir,
     reference_dir=reference_dir,
     output_dir=output_dir,
     test_dir=test_dir,

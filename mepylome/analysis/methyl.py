@@ -197,10 +197,10 @@ def get_side_navigation(
     color_scheme = "discrete" if use_discrete_colors else "continuous"
     clf_options = {
         "none-kbest-et": "ExtraTreesClassifier",
-        "none-kbest-lr": "LinearRegression",
+        "none-kbest-lr": "LogisticRegression",
         "none-kbest-rf": "RandomForestClassifier",
         "none-kbest-svc_rbf": "SVC(kernel='rbf')",
-        "none-pca-lr": "PCALinearRegression",
+        "none-pca-lr": "PCALogisticRegression",
         "none-pca-et": "PCAExtraTreesClassifier",
         "none-none-knn": "KNeighborsClassifier",
         **{str(i): clf["name"] for i, clf in enumerate(custom_clfs)},
