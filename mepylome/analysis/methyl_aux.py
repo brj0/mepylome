@@ -1,5 +1,6 @@
 """Auxiliary methods for the methylation analysis."""
 
+import logging
 import pickle
 import re
 import threading
@@ -21,8 +22,10 @@ from mepylome.dtypes.beads import (
     is_valid_idat_basepath,
 )
 from mepylome.dtypes.manifests import Manifest
-from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
-from mepylome.utils.varia import log
+from mepylome.utils.files import ensure_directory_exists
+from mepylome.utils.varia import MEPYLOME_TMP_DIR
+
+logger = logging.getLogger(__name__)
 
 DTYPE = np.float32
 INVALID_PATH = Path("None")
@@ -118,15 +121,15 @@ def read_dataframe(path, **kwargs):
 def guess_annotation_file(directory, verbose=False):
     """Returns the first spreadsheat file recursively found."""
     if verbose:
-        log("[guess_annotation_file] Searching for annotation file...")
+        logger.info("Searching for annotation file...")
     supported_extensions = [".csv", ".tsv", ".ods", ".xls", ".xlsx"]
     for file in directory.rglob("*"):
         if file.suffix.lower() in supported_extensions:
             if verbose:
-                log(f"[guess_annotation_file] Found annotation file: {file}")
+                logger.info(f"Found annotation file: {file}")
             return file
     if verbose:
-        log("[guess_annotation_file] No annotation file found.")
+        logger.info("No annotation file found.")
     return INVALID_PATH
 
 
@@ -251,9 +254,8 @@ class IdatHandler:
         try:
             return read_dataframe(self.annotation_file)
         except (FileNotFoundError, ValueError):
-            log(
-                "[IdatHandler] Annotation file is missing, invalid or could "
-                "not be read."
+            logger.info(
+                "Annotation file is missing, invalid or could " "not be read."
             )
             return pd.DataFrame()
 
@@ -282,17 +284,17 @@ class IdatHandler:
     def _set_annotation_index_and_convert_ids(self, id_missmatch, col_name):
         """Set annotation index and convert IDs to Sentrix format if needed."""
         if col_name is None:
-            log(
-                "[IdatHandler] No IDAT files found that are both on disk and "
+            logger.info(
+                "No IDAT files found that are both on disk and "
                 "in the annotation file."
             )
             return
         if not id_missmatch:
-            log(f"[IdatHandler] Setting '{col_name}' as annotation index.")
+            logger.info(f"Setting '{col_name}' as annotation index.")
             self.annotation_df = self.annotation_df.set_index(col_name)
             return
 
-        log(f"[IdatHandler] Extracted Sentrix IDs from column '{col_name}'.")
+        logger.info(f"Extracted Sentrix IDs from column '{col_name}'.")
         self.analysis_id_to_path = convert_to_sentrix_ids(
             self.analysis_id_to_path
         )

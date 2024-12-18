@@ -14,9 +14,7 @@ import sys
 import threading
 import time
 import webbrowser
-from datetime import datetime
 from pathlib import Path
-from uuid import uuid4
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -37,6 +35,7 @@ from sklearn.model_selection import (
     StratifiedKFold,
 )
 
+from mepylome import LOG_FILE
 from mepylome.analysis.methyl_aux import (
     INVALID_PATH,
     IdatHandler,
@@ -70,8 +69,10 @@ from mepylome.utils import (
     MEPYLOME_TMP_DIR,
     ensure_directory_exists,
     get_free_port,
-    log,
+    make_log_file,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "analysis")
 DEFAULT_N_CPGS = 25000
@@ -103,9 +104,6 @@ class DualOutput:
 
     def __init__(self, filename):
         self.terminal = sys.stdout
-        # Clean the file
-        with open(filename, "w"):
-            pass
         self.log = open(filename, "a")
 
     def write(self, message):
@@ -120,22 +118,23 @@ class DualOutput:
     def close(self):
         self.log.close()
 
+    def __enter__(self):
+        self.original_stdout = sys.stdout
+        sys.stdout = self
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout = self.original_stdout
+        self.close()
+
 
 LOG_DIR = MEPYLOME_TMP_DIR / "log"
 ensure_directory_exists(MEPYLOME_TMP_DIR)
 ensure_directory_exists(LOG_DIR)
 
 
-def _log_file(suffix):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    unique_id = uuid4().hex[:8]
-    return LOG_DIR / f"{suffix}-{timestamp}-{unique_id}.log"
-
-
 # Save console output to file
-LOG_FILE = _log_file("stdout")
-LOG_FILE.touch(exist_ok=True)
-sys.stdout = DualOutput(LOG_FILE)
+# sys.stdout = DualOutput(LOG_FILE)
 
 
 def get_all_genes():
@@ -838,8 +837,7 @@ class MethylAnalysis:
         self._internal_cpgs_hash = None
         self._old_selected_columns = None
         self._sorted_cpgs = None
-        self._clf_log = _log_file(f"{self.analysis_dir.name}-clf")
-        self._clf_log.touch(exist_ok=True)
+        self._clf_log = make_log_file(f"{self.analysis_dir.name}-clf")
         self._testdir_provided = self.test_dir != INVALID_PATH
 
         if self.cpg_selection not in ["top", "random"]:
@@ -858,9 +856,9 @@ class MethylAnalysis:
                 self.analysis_dir, self.verbose
             )
         if not self.annotation.exists() and self.verbose:
-            log("[MethylAnalysis] No annotation file found")
+            logger.info("No annotation file found")
         if self.verbose:
-            log("[MethylAnalysis] Try to import cbseg or linear_segment...")
+            logger.info("Try to import cbseg or linear_segment...")
         self.do_seg = False if _get_cgsegment(verbose=True) is None else do_seg
 
         # Set test dir, as it is needed by _get_cpgs
@@ -873,7 +871,7 @@ class MethylAnalysis:
         self.read_umap_plot_from_disk()
 
         if self.verbose:
-            log("[MethylAnalysis] Initialization completed.")
+            logger.info("Initialization completed.")
 
     @property
     def cpgs(self):
@@ -1064,7 +1062,7 @@ class MethylAnalysis:
             return np.sort(np.array(list(set(cpgs) - self.cpg_blacklist)))
 
         if self.verbose:
-            log("[MethylAnalysis] Determine CpG sites...")
+            logger.info("Determine CpG sites...")
 
         if isinstance(input_var, (np.ndarray, set, list, pd.Index)):
             return exclude_blacklist(input_var)
@@ -1084,9 +1082,8 @@ class MethylAnalysis:
                 for path in self.idat_handler.paths
             }
             if self.verbose:
-                log(
-                    f"[MethylAnalysis] The following array types were "
-                    f"detected: {input_var}"
+                logger.info(
+                    f"The following array types were " f"detected: {input_var}"
                 )
             input_var = list(input_var - {str(ArrayType.UNKNOWN)})
 
@@ -1098,10 +1095,7 @@ class MethylAnalysis:
                 input_var = valid_str_parms
 
             if self.verbose:
-                log(
-                    "[MethylAnalysis] Load manifests and "
-                    "calculate CpG overlap..."
-                )
+                logger.info("Load manifests and " "calculate CpG overlap...")
 
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
@@ -1140,7 +1134,7 @@ class MethylAnalysis:
         plots.
         """
         if self.verbose:
-            log("[MethylAnalysis] Update filepaths...")
+            logger.info("Update filepaths...")
         if not self.output_dir.exists():
             return
         if self._prev_vars["analysis_dir"] != self.analysis_dir:
@@ -1257,7 +1251,7 @@ class MethylAnalysis:
             msg = "'betas_top' is not set. First run 'set_betas'"
             raise AttributeError(msg)
         if self.verbose:
-            log("[MethylAnalysis] Importing umap library...")
+            logger.info("Importing umap library...")
         import umap
 
         matrix_to_use = (
@@ -1280,11 +1274,9 @@ class MethylAnalysis:
             raise AttributeError(msg)
         if self.verbose:
             shape = matrix_to_use.shape
-            log(
-                "[MethylAnalysis] Starting UMAP for matrix with shape "
-                f"{shape}..."
-            )
-        umap_2d = umap.UMAP(**self.umap_parms).fit_transform(matrix_to_use)
+            logger.info(f"Starting UMAP for matrix with shape {shape}...")
+        with DualOutput(LOG_FILE):
+            umap_2d = umap.UMAP(**self.umap_parms).fit_transform(matrix_to_use)
         umap_df = pd.DataFrame(
             umap_2d,
             columns=["Umap_x", "Umap_y"],
@@ -1311,7 +1303,7 @@ class MethylAnalysis:
                 not set.
         """
         if self.verbose:
-            log("[MethylAnalysis] Make UMAP plot...")
+            logger.info("Make UMAP plot...")
         if self.umap_df is None:
             msg = "'umap_df' not set. Run 'make_umap' instead."
             raise AttributeError(msg)
@@ -1338,7 +1330,7 @@ class MethylAnalysis:
         """Reads UMAP plot from disk if available from previous analysis."""
         if self.umap_plot_path is not None and self.umap_plot_path.exists():
             if self.verbose:
-                log("[MethylAnalysis] Read umap plot from disk...")
+                logger.info("Read umap plot from disk...")
             self.umap_df = pd.read_csv(
                 self.umap_plot_path, sep="\t", index_col=0
             )
@@ -1346,7 +1338,7 @@ class MethylAnalysis:
             try:
                 self.make_umap_plot()
             except AttributeError:
-                log("[MethylAnalysis] Probable dimension mismatch.")
+                logger.info("Probable dimension mismatch.")
 
     def set_betas(self):
         """Sets the beta values DataFrame ('betas_top') for further analysis.
@@ -1368,7 +1360,7 @@ class MethylAnalysis:
 
         def get_random_cpgs():
             if self.verbose:
-                log("[MethylAnalysis] Get random CpG's...")
+                logger.info("Get random CpG's...")
             rng = np.random.default_rng()
             random_idx = np.sort(
                 rng.choice(len(self.cpgs), self.n_cpgs, replace=False)
@@ -1377,7 +1369,7 @@ class MethylAnalysis:
 
         def _get_betas(cpgs):
             if self.verbose:
-                log("[MethylAnalysis] Get beta values...")
+                logger.info("Get beta values...")
             return get_betas(
                 idat_handler=self.idat_handler,
                 cpgs=cpgs,
@@ -1388,7 +1380,7 @@ class MethylAnalysis:
 
         def _extract_sub_dataframe():
             if self.verbose:
-                log("[MethylAnalysis] Extract beta values...")
+                logger.info("Extract beta values...")
             if self.cpg_selection == "random":
                 return extract_sub_dataframe(self.betas_all, self.umap_cpgs)
             return self.betas_all[self._sorted_cpgs[: self.n_cpgs]]
@@ -1472,7 +1464,7 @@ class MethylAnalysis:
             raise FileNotFoundError(msg)
         genes_sel = () if genes_sel is None else tuple(genes_sel)
         if self.verbose:
-            log(f"[MethylAnalysis] Make CNV for {sample_id}...")
+            logger.info(f"Make CNV for {sample_id}...")
         self.cnv_plot = get_cnv_plot(
             sample_path=idat_basepath,
             reference_dir=self.reference_dir,
@@ -1500,7 +1492,7 @@ class MethylAnalysis:
             memory space in the output directory.
         """
         if self.verbose:
-            log("[MethylAnalysis] Precalculate CNV's...")
+            logger.info("Precalculate CNV's...")
         self._update_paths()
         if sample_ids is None:
             sample_ids = self.idat_handler.ids
@@ -1634,7 +1626,7 @@ class MethylAnalysis:
 
         y = self.idat_handler.features()
         if self.verbose:
-            log("[MethylAnalysis] Start classifying...")
+            logger.info("Start classifying...")
 
         if self.feature_matrix is not None:
             X = pd.DataFrame(self.feature_matrix, index=self.betas_all.index)
@@ -1837,18 +1829,18 @@ class MethylAnalysis:
                         self.make_cnv_plot(sample_id, genes_sel)
                         return self.umap_plot, self.cnv_plot, ""
                     except Exception as exc:
-                        log("[MethylAnalysis] umap failed:", exc)
-                        log("[MethylAnalysis] sample_id:", sample_id)
-                        log("[MethylAnalysis] MethylAnalysis:", self)
+                        logger.info(f"umap failed: {exc}")
+                        logger.info(f"sample_id: {sample_id}")
+                        logger.info(f"MethylAnalysis: {self}")
                         return self.umap_plot, EMPTY_FIGURE, str(exc)
             if trigger == "selected-genes" and genes_sel is not None:
                 try:
                     self.make_cnv_plot(self.cnv_id, genes_sel)
                     return no_update, self.cnv_plot, ""
                 except Exception as exc:
-                    log("[MethylAnalysis] selected-genes failed:", exc)
-                    log("[MethylAnalysis] self.cnv_id:", self.cnv_id)
-                    log("[MethylAnalysis] genes_sel:", genes_sel)
+                    logger.info(f"selected-genes failed: {exc}")
+                    logger.info(f"self.cnv_id: {self.cnv_id}")
+                    logger.info(f"genes_sel: {genes_sel}")
                     return no_update, no_update, str(exc)
             return self.umap_plot, self.cnv_plot, ""
 
@@ -1920,8 +1912,8 @@ class MethylAnalysis:
                     return True, ""
                 return False, f"Not a directory: {path}"
             except Exception as exc:
-                log(
-                    f"[MethylAnalysis] An error occured (1) "
+                logger.info(
+                    f"An error occured (1) "
                     f"(validate_reference_path): {exc}"
                 )
                 return False, "Invalid path format"
@@ -1947,9 +1939,8 @@ class MethylAnalysis:
                     return True, ""
                 return False, f"Not a directory: {path}"
             except Exception as exc:
-                log(
-                    f"[MethylAnalysis] An error occured (2) "
-                    f"(validate_output_path): {exc}"
+                logger.info(
+                    f"An error occured (2) " f"(validate_output_path): {exc}"
                 )
                 return False, "Invalid path format"
 
@@ -2027,7 +2018,7 @@ class MethylAnalysis:
                 ensure_directory_exists(self.output_dir)
                 self.make_umap()
             except Exception as exc:
-                log(f"[MethylAnalysis] An error occured (3): {exc}")
+                logger.info(f"An error occured (3): {exc}")
             else:
                 return (
                     self.umap_plot,
@@ -2120,7 +2111,7 @@ class MethylAnalysis:
                 decoded = base64.b64decode(content_string)
                 with file_path.open("wb") as f:
                     f.write(decoded)
-                log(f"[MethylAnalysis] Upload of {filename} completed.")
+                logger.info(f"Upload of {filename} completed.")
                 return html.Div(
                     [
                         html.H6(filename),
@@ -2171,10 +2162,9 @@ class MethylAnalysis:
                     self.classifiers[int(x)] if x.isdigit() else x
                     for x in clf_list
                 ]
-                print("PARSED", parsed_clf_list)
                 _ = self.classify(ids=self.cnv_id, clf_list=parsed_clf_list)
             except Exception as exc:
-                log(f"[MethylAnalysis] An error occured (4): {exc}")
+                logger.info(f"An error occured (4): {exc}")
                 return f"{exc}"
             return ""
 
@@ -2195,10 +2185,6 @@ class MethylAnalysis:
                 webbrowser.open_new_tab(f"http://{self.host}:{free_port}")
 
             threading.Timer(1, open_browser_tab).start()
-
-        # Don't show all the flask logging statements.
-        flask_logger = logging.getLogger("werkzeug")
-        flask_logger.setLevel(logging.ERROR)
 
         self.app.run(
             debug=self.debug,

@@ -5,9 +5,9 @@ import uuid
 
 from mepylome.tests.write_idat import IdatWriter
 from mepylome.utils.files import (
-    MEPYLOME_TMP_DIR,
     ensure_directory_exists,
 )
+from mepylome.utils.varia import MEPYLOME_TMP_DIR
 
 # Create a temporary test directory
 TEST_DIR = MEPYLOME_TMP_DIR / "tests"

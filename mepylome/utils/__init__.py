@@ -5,7 +5,6 @@ miscellaneous operations.
 """
 
 from .files import (
-    MEPYLOME_TMP_DIR,
     download_file,
     ensure_directory_exists,
     get_csv_file,
@@ -15,9 +14,10 @@ from .files import (
     setup_tutorial_files,
 )
 from .varia import (
+    MEPYLOME_TMP_DIR,
     Timer,
     get_free_port,
-    log,
+    make_log_file,
     normexp_get_xs,
 )
 
@@ -26,7 +26,7 @@ __all__ = [
     "ensure_directory_exists",
     "get_file_object",
     "get_csv_file",
-    "log",
+    "make_log_file",
     "reset_file",
     "get_resource_path",
     "setup_tutorial_files",

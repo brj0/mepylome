@@ -6,6 +6,7 @@ analysis.
 
 import heapq
 import io
+import logging
 import zipfile
 from functools import lru_cache
 from pathlib import Path
@@ -21,16 +22,18 @@ from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.genetic_data import GAPS, GENES
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.plots import CNVPlot
-from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
-from mepylome.utils.varia import log
+from mepylome.utils.files import ensure_directory_exists
+from mepylome.utils.varia import MEPYLOME_TMP_DIR
+
+logger = logging.getLogger(__name__)
 
 UNSET = object()
 ZIP_ENDING = "_cnv.zip"
 
 
 def _missing_cbseg_msg():
-    log(
-        "[CNV] **Warning**: Segmentation won't be calculated due to missing "
+    logger.warning(
+        "**Warning**: Segmentation won't be calculated due to missing "
         "'linear_segment' resp. 'cbseg' package. See documentation."
     )
 
@@ -325,10 +328,7 @@ class Annotation:
                         .tolist()
                     )
                     row_str = "-".join(row)
-                    log(
-                        f"[Annotation] Could not merge {row_str}. "
-                        "Removed instead."
-                    )
+                    logger.info(f"Could not merge {row_str}. Removed instead.")
                 continue
             if n_probes_right == INVALID or n_probes_left <= n_probes_right:
                 i_merge = i_left
@@ -454,7 +454,7 @@ class CNV:
         self.verbose = verbose
         self.annotation = annotation
         if self.verbose:
-            log(f"[CNV] {self.probe} Construct annotation...")
+            logger.info(f"{self.probe} Construct annotation...")
         if annotation is None:
             self.annotation = Annotation(
                 array_type=sample.array_type,
@@ -532,7 +532,7 @@ class CNV:
         if hasattr(methyl_data, "intensity"):
             return
         if self.verbose:
-            log(f"[CNV] {self.probe} Setting intensity...")
+            logger.info(f"{self.probe} Setting intensity...")
         intensity = methyl_data.methyl + methyl_data.unmethyl
         prefix = (
             f"{self.probe}"
@@ -545,21 +545,23 @@ class CNV:
         if np.any(nan_indices):
             intensity[nan_indices] = 1
             if self.verbose:
-                log(f"[CNV] {prefix}: Intensities that are NA set to 1.")
+                logger.info(f"{prefix}: Intensities that are NA set to 1.")
 
         # Replace values less than 1 with 1
         lt_one_indices = intensity < 1
         if np.any(lt_one_indices):
             intensity[lt_one_indices] = 1
             if self.verbose:
-                log(f"[CNV] {prefix}: Intensities < 0 set to 1.")
+                logger.info(f"{prefix}: Intensities < 0 set to 1.")
 
         # Check abnormal low and high intensities
         mean_intensity = np.mean(intensity, axis=1)
         if np.min(mean_intensity) < 5000 and self.verbose:
-            log(f"[CNV] {prefix}: Intensities are abnormally low (< 5000).")
+            logger.info(f"{prefix}: Intensities are abnormally low (< 5000).")
         if np.max(mean_intensity) > 50000 and self.verbose:
-            log(f"[CNV] {prefix}: Intensities are abnormally high (> 50000).")
+            logger.info(
+                f"{prefix}: Intensities are abnormally high (> 50000)."
+            )
         methyl_data.intensity = pd.DataFrame(
             intensity.T,
             columns=methyl_data.probes,
@@ -573,7 +575,7 @@ class CNV:
         sample and reference and calculates the CNV at every CpG site.
         """
         if self.verbose:
-            log(f"[CNV] {self.probe} Performing fit...")
+            logger.info(f"{self.probe} Performing fit...")
         from sklearn.linear_model import LinearRegression
 
         smp_intensity = _pd_loc(
@@ -586,8 +588,8 @@ class CNV:
         )
         if any(correlation >= 0.99):
             if self.verbose:
-                log(
-                    f"[CNV] {self.probe} Sample found in reference set. "
+                logger.info(
+                    f"{self.probe} Sample found in reference set. "
                     "Excluded from fitting."
                 )
             ref_intensity = ref_intensity[:, correlation < 0.99]
@@ -611,7 +613,7 @@ class CNV:
         model fit in the 'fit' method.
         """
         if self.verbose:
-            log(f"[CNV] {self.probe} Setting bins...")
+            logger.info(f"{self.probe} Setting bins...")
         cpg_bins = self.annotation._cpg_bins.copy()
         cpg_bins["ratio"] = _pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
@@ -633,7 +635,7 @@ class CNV:
         variance, and count of probes within each region.
         """
         if self.verbose:
-            log(f"[CNV] {self.probe} Setting detail...")
+            logger.info(f"{self.probe} Setting detail...")
         cpg_detail = self.annotation._cpg_detail.copy()
         cpg_detail["ratio"] = _pd_loc(
             self.ratio, cpg_detail.IlmnID
@@ -695,7 +697,7 @@ class CNV:
         if _get_cgsegment(verbose=True) is None:
             return
         if self.verbose:
-            log(f"[CNV] {self.probe} Setting segments...")
+            logger.info(f"{self.probe} Setting segments...")
         segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
@@ -734,7 +736,7 @@ class CNV:
             ValueError: If an invalid data option is specified.
         """
         if self.verbose:
-            log(f"[CNV] {self.probe} Write data to disk...")
+            logger.info(f"{self.probe} Write data to disk...")
         default = {"all", "bins", "detail", "segments", "metadata"}
         if not isinstance(data, list):
             data = [data]
@@ -779,7 +781,7 @@ class CNV:
     def plot(self):
         """Generates and displays a plot of the CNV data."""
         if self.verbose:
-            log(f"[CNV] {self.probe} Plotting...")
+            logger.info(f"{self.probe} Plotting...")
         cnv_dir = Path(MEPYLOME_TMP_DIR, "cnv_zips")
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING

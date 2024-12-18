@@ -1,6 +1,7 @@
 """Contains utilities to generate CNV plots."""
 
 import io
+import logging
 import threading
 import webbrowser
 import zipfile
@@ -13,9 +14,10 @@ import plotly.graph_objects as go
 
 from mepylome.dtypes.cache import memoize
 from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
-from mepylome.utils import log
-from mepylome.utils.files import MEPYLOME_TMP_DIR, ensure_directory_exists
-from mepylome.utils.varia import get_free_port
+from mepylome.utils.files import ensure_directory_exists
+from mepylome.utils.varia import MEPYLOME_TMP_DIR, get_free_port
+
+logger = logging.getLogger(__name__)
 
 PLOTLY_RENDER_MODE = "webgl"
 ZIP_ENDING = "_cnv.zip"
@@ -389,7 +391,7 @@ def cnv_plot_from_data(
         Plotly Figure: A Plotly figure representing the CNV plot.
     """
     if verbose:
-        log("[CNV-Plot] Make CNV plot: prepare data...")
+        logger.info("Make CNV plot: prepare data...")
     bins_Genes, detail_Range = find_genes_within_bins(
         bins[["Chromosome", "Start", "End"]],
         detail[["Chromosome", "Start", "End", "Name"]],
@@ -401,7 +403,7 @@ def cnv_plot_from_data(
 
     # Base scatterplot
     if verbose:
-        log("[CNV-Plot] Make CNV plot: bins...")
+        logger.info("Make CNV plot: bins...")
     plot = cnv_bins_plot(
         data_frame=scatter_df,
         title=f"Sample ID: {sample_id}",
@@ -410,7 +412,7 @@ def cnv_plot_from_data(
 
     # Highlight bins adjacent to the added genes
     if verbose:
-        log("[CNV-Plot] Make CNV plot: genes...")
+        logger.info("Make CNV plot: genes...")
     genes_sel = genes_sel if genes_sel else []
     genes_x_range = (
         detail[detail["Name"].isin(genes_sel)]["Range"].explode().tolist()
@@ -425,7 +427,7 @@ def cnv_plot_from_data(
 
     # Draw the segments
     if verbose:
-        log("[CNV-Plot] Make CNV plot: segments...")
+        logger.info("Make CNV plot: segments...")
     plot = add_segments(plot, segments)
     return plot
 

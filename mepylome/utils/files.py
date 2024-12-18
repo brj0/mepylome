@@ -6,8 +6,8 @@ file-like objects and archives.
 """
 
 import gzip
+import logging
 import shutil
-import tempfile
 import zipfile
 from itertools import repeat
 from multiprocessing import Pool
@@ -16,7 +16,7 @@ from pathlib import Path, PurePath
 import pandas as pd
 from tqdm import tqdm
 
-from mepylome.utils.varia import log
+logger = logging.getLogger(__name__)
 
 try:
     from importlib.resources import files
@@ -25,7 +25,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 __all__ = [
-    "MEPYLOME_TMP_DIR",
     "download_file",
     "ensure_directory_exists",
     "get_file_object",
@@ -34,7 +33,6 @@ __all__ = [
     "reset_file",
 ]
 
-MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
 GEO_BASE_URL = (
     "https://www.ncbi.nlm.nih.gov/geo/download/"
     + "?acc={acc}&format=file&file={filename}"
@@ -68,11 +66,13 @@ def download_file(url, save_path, overwrite=False, show_progress=True):
 
     if save_path.exists() and not overwrite:
         if show_progress:
-            log(f"File already exists at {save_path}. Skipping download.")
+            logger.info(
+                f"File already exists at {save_path}. Skipping download."
+            )
         return
 
     if show_progress:
-        log(f"Downloading from {url} to {save_path}...")
+        logger.info(f"Downloading from {url} to {save_path}...")
 
     try:
         import requests
@@ -103,7 +103,7 @@ def download_file(url, save_path, overwrite=False, show_progress=True):
             progress_bar.close()
 
         if show_progress:
-            log(f"Download completed: {save_path}")
+            logger.info(f"Download completed: {save_path}")
 
     except requests.RequestException as error:
         msg = f"Failed to download file from {url}. Error: {error}"
@@ -151,9 +151,10 @@ def unzip_and_remove_gz_files(directory, use_sentrix_id=False):
         if use_sentrix_id:
             sentrix_name = output_path.name.split("_", 1)[1]
             output_path = output_path.with_name(sentrix_name)
-        with gzip.open(file_path, "rb") as f_in, open(
-            output_path, "wb"
-        ) as f_out:
+        with (
+            gzip.open(file_path, "rb") as f_in,
+            open(output_path, "wb") as f_out,
+        ):
             shutil.copyfileobj(f_in, f_out)
         file_path.unlink()
 

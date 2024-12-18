@@ -5,6 +5,7 @@ networks) for predicting the methylation class.
 """
 
 import hashlib
+import logging
 import pickle
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -63,9 +64,8 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
 from mepylome.dtypes.cache import input_args_id
-from mepylome.utils import (
-    log,
-)
+
+logger = logging.getLogger(__name__)
 
 
 class TrainedClassifier(ABC):
@@ -490,19 +490,19 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
     if is_trained(clf):
         return TrainedSklearnClassifier(clf, X=X)
 
-    log("[train_clf] Start training...")
+    logger.info("Start training...")
 
     clf.fit(X, y)
     counts_per_class = np.unique(y, return_counts=True)[1]
 
     if min(counts_per_class) < n_splits:
-        log(
-            "[train_clf] Warning: One of the classes has fewer than "
+        logger.info(
+            "Warning: One of the classes has fewer than "
             "{n_splits} samples (cv splits). Stats may not be computable."
         )
         trained_clf = TrainedSklearnClassifier(clf=clf, X=X)
     else:
-        log("[train_clf] Start cross-validation...")
+        logger.info("Start cross-validation...")
         probabilities_cv = cross_val_predict(
             clf, X, y, cv=cv, method="predict_proba", n_jobs=n_jobs
         )

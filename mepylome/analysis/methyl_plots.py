@@ -2,6 +2,7 @@
 
 import colorsys
 import hashlib
+import logging
 from functools import lru_cache, partial
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
@@ -21,9 +22,6 @@ from mepylome.dtypes import (
     cnv_plot_from_data,
     read_cnv_data_from_disk,
 )
-from mepylome.utils import (
-    log,
-)
 
 PLOTLY_RENDER_MODE = "webgl"
 ERROR_ENDING = "_error.txt"
@@ -38,6 +36,8 @@ EMPTY_FIGURE.update_layout(
     margin={"l": 0, "r": 0, "t": 0, "b": 0},
 )
 EMPTY_FIGURE = go.Figure(layout=go.Layout(yaxis={"range": [-2, 2]}))
+
+logger = logging.getLogger(__name__)
 
 
 def hash_from_str(string):
@@ -199,7 +199,7 @@ def write_single_cnv_to_disk(
             + "\n".join(files_on_disk)
             + "\n\n\nTo recalculate, delete this file."
         )
-        log(error_message)
+        logger.error(error_message)
         with Path(cnv_dir, cnv_filename).open("w") as f:
             f.write(error_message)
 
@@ -232,7 +232,7 @@ def write_cnv_to_disk(
     if len(new_idat_paths) == 0:
         return
     if verbose:
-        log("[CNV-Plot] Write CNV to disk...")
+        logger.info("Write CNV to disk...")
     # Load the reference into memory before parallelization to prevent loading
     # it for each core.
     Manifest.load()
@@ -251,9 +251,12 @@ def write_cnv_to_disk(
     else:
         # If we use all cores pooling will freeze.
         num_cores = max(1, cpu_count() - 1)
-        with Pool(num_cores) as pool, tqdm(
-            total=len(new_idat_paths), desc="Generating CNV files"
-        ) as tqdm_bar:
+        with (
+            Pool(num_cores) as pool,
+            tqdm(
+                total=len(new_idat_paths), desc="Generating CNV files"
+            ) as tqdm_bar,
+        ):
             for _ in pool.imap(_write_single_cnv_to_disk, new_idat_paths):
                 if pbar is not None:
                     pbar.increment()
@@ -288,7 +291,7 @@ def get_cnv_plot(
         verbose=verbose,
     )
     if verbose:
-        log("[CNV-Plot] Read CNV from disk....")
+        logger.info("Read CNV from disk....")
     bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
     plot = cnv_plot_from_data(
         sample_id,

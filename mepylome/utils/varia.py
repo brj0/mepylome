@@ -7,20 +7,32 @@ Usage:
     timer.stop("process_name")
 """
 
+import logging
 import socket
+import tempfile
 import time
 from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
 
 import numpy as np
 
-__all__ = ["Timer", "normexp_get_xs"]
+__all__ = ["Timer", "normexp_get_xs", "MEPYLOME_TMP_DIR"]
+
+logger = logging.getLogger(__name__)
+
+MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
+LOG_DIR = MEPYLOME_TMP_DIR / "log"
+
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def log(*args, sep=" ", end="\n"):
-    """Print message with time stamp."""
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    message = sep.join(map(str, args))
-    print(f"{timestamp} {message}", end=end)
+def make_log_file(suffix):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_id = uuid4().hex[:8]
+    log_file = LOG_DIR / f"{suffix}-{timestamp}-{unique_id}.log"
+    log_file.touch(exist_ok=True)
+    return log_file
 
 
 class Timer:
@@ -142,7 +154,7 @@ def normexp_signal(par, x):
     signal = mu_sf + sigma2 * np.exp(log_dnorm - log_pnorm)
     z = ~np.isnan(signal)
     if np.any(signal[z] < 0):
-        log(
+        logger.warning(
             "Limit of numerical accuracy reached with very low intensity or "
             "very high background:\nsetting adjusted intensities to small "
             "value"

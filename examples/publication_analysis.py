@@ -47,8 +47,8 @@
 # ```bash
 # jupytext --to ipynb publication_analysis.py
 # ```
-
-
+#
+#
 # -----------------------------------------------------------------------------
 
 # %% [markdown]
@@ -74,9 +74,15 @@
 # Install these packages using the commands below:
 
 # %% language="bash"
+# echo "Install necessary packages. This may take 1 to 2 minutes..."
+#
 # pip install mepylome
 # pip install linear_segment
 # pip install -U kaleido
+#
+# echo
+# echo "Installation complete."
+
 
 # %% [markdown]
 # ### Core Imports, Configuration and main Functions
@@ -94,6 +100,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import requests
+from IPython.display import Image as IPImage
 from PIL import Image
 
 from mepylome import ArrayType, Manifest
@@ -194,10 +201,11 @@ def download_from_geo_and_untar(analysis_dir, geo_ids):
             print(f"Error processing GEO ID {geo_id}: {e}")
 
 
-def calculate_cn_summary(class_):
+def calculate_cn_summary(analysis, class_):
     """Calculates and saves CN summary plots."""
     df_class = analysis.idat_handler.samples_annotated[class_]
     plot_list = []
+    analysis_dir = analysis.analysis_dir
     all_classes = sorted(df_class.unique())
     for methyl_class in all_classes:
         df_index = df_class == methyl_class
@@ -233,7 +241,9 @@ def calculate_cn_summary(class_):
         x = col * width
         y = row * height
         new_image.paste(img, (x, y))
-    new_image.save(output_dir / f"{analysis_dir.name}-cn_summary.png")
+    output_path = output_dir / f"{analysis_dir.name}-cn_summary.png"
+    new_image.save(output_path)
+    return output_path
 
 
 # %% [markdown]
@@ -247,7 +257,7 @@ def calculate_cn_summary(class_):
 # %%
 def generate_blacklist_cpgs():
     """Returns and caches CpG sites that should be blacklisted."""
-    print("Generate blacklist. Can take some time...")
+    print("Generating blacklist. Can take some time...")
     blacklist_path = data_dir / "cpg_blacklist.csv"
     if not blacklist_path.exists():
         manifest_url = MANIFEST_URL[ArrayType.ILLUMINA_EPIC]
@@ -269,6 +279,7 @@ def generate_blacklist_cpgs():
         flagged_cpgs.to_csv(blacklist_path, index=False, header=False)
         csv_path.unlink()
     blacklist = pd.read_csv(blacklist_path, header=None)
+    print("Generating blacklist done.")
     return set(blacklist.iloc[:, 0])
 
 
@@ -346,20 +357,22 @@ download_geo_probes(reference_dir, cn_neutral_probes)
 # %%
 # Initialize directories.
 tumor_site = "salivary_gland_tumors"
-analysis_dir = data_dir / tumor_site
-test_dir = validation_dir / tumor_site
+analysis_dir_sg = data_dir / tumor_site
+test_dir_sg = validation_dir / tumor_site
 
-ensure_directory_exists(test_dir)
-ensure_directory_exists(analysis_dir)
+ensure_directory_exists(test_dir_sg)
+ensure_directory_exists(analysis_dir_sg)
 
 # Download the the annotation spreadsheet.
-if not (excel_path := analysis_dir / f"{tumor_site}-annotation.xlsx").exists():
+if not (
+    excel_path := analysis_dir_sg / f"{tumor_site}-annotation.xlsx"
+).exists():
     download_file(datasets[tumor_site]["xlsx"], excel_path)
     # Deletes the first 2 rows (useless description).
     pd.read_excel(excel_path, skiprows=2).to_excel(excel_path, index=False)
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
+download_from_geo_and_untar(analysis_dir_sg, datasets[tumor_site]["geo_id"])
 
 
 # %% [markdown]
@@ -370,11 +383,11 @@ download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
 # of CpG sites, and UMAP settings are configured here.
 
 # %%
-analysis = MethylAnalysis(
-    analysis_dir=analysis_dir,
+analysis_sg = MethylAnalysis(
+    analysis_dir=analysis_dir_sg,
     reference_dir=reference_dir,
     output_dir=output_dir,
-    test_dir=test_dir,
+    test_dir=test_dir_sg,
     n_cpgs=25000,
     load_full_betas=True,
     overlap=False,
@@ -396,7 +409,7 @@ analysis = MethylAnalysis(
 # be performed interactively within the GUI.
 
 # %%
-analysis.set_betas()
+analysis_sg.set_betas()
 
 
 # %% [markdown]
@@ -405,15 +418,25 @@ analysis.set_betas()
 # Set the columns used for coloring the UMAP plot before initiating the
 # dimensionality reduction process. The UMAP algorithm produces a visual
 # representation of the sample clusters, which is stored as a Plotly object in
-# `analysis.umap_plot`.
+# `analysis_sg.umap_plot`.
 
 # %%
-analysis.idat_handler.selected_columns = ["Methylation class"]
-analysis.make_umap()
+# Calculate UMAP
+analysis_sg.idat_handler.selected_columns = ["Methylation class"]
+analysis_sg.make_umap()
 
+# %%
 # Show the results
-print(analysis.umap_df)
-analysis.umap_plot.show()
+print(analysis_sg.umap_df)
+output_path = output_dir / f"{analysis_dir_sg.name}-umap_plot.jpg"
+analysis_sg.umap_plot.write_image(
+    output_path,
+    format="jpg",
+    width=2000,
+    height=1000,
+    scale=2,
+)
+IPImage(filename=output_path)
 
 # %% [markdown]
 # ### Launch the Analysis GUI
@@ -425,7 +448,7 @@ analysis.umap_plot.show()
 # cloud-based platforms like Google Colab or Binder).
 
 # %%
-analysis.run_app(open_tab=True)
+analysis_sg.run_app(open_tab=True)
 
 
 # %% [markdown]
@@ -436,20 +459,22 @@ analysis.run_app(open_tab=True)
 
 # %%
 # Save CNV example
-analysis.make_cnv_plot("206842050057_R06C01")
-cnv_plot = analysis.cnv_plot
+analysis_sg.make_cnv_plot("206842050057_R06C01")
+cnv_plot = analysis_sg.cnv_plot
 cnv_plot.update_layout(
     yaxis_range=[-1.1, 1.1],
     font={"size": FONTSIZE},
     margin={"t": 50},
 )
+output_path = output_dir / f"{analysis_dir_sg.name}-cnv_plot.jpg"
 cnv_plot.write_image(
-    output_dir / f"{analysis_dir.name}-cnv_plot.jpg",
+    output_path,
     format="jpg",
     width=2000,
     height=1000,
     scale=2,
 )
+IPImage(filename=output_path)
 
 # %% [markdown]
 # ### Generate CNV Summary Plots
@@ -463,8 +488,11 @@ cnv_plot.write_image(
 # resources available.
 
 # %%
-analysis.precompute_cnvs()
-calculate_cn_summary("Methylation class")
+analysis_sg.precompute_cnvs()
+cn_summary_path_sg = calculate_cn_summary(analysis_sg, "Methylation class")
+
+# %%
+IPImage(filename=cn_summary_path_sg)
 
 # %% [markdown]
 # ### Supervised Classifier Validation
@@ -478,9 +506,9 @@ calculate_cn_summary("Methylation class")
 # depending on the computational resources available.
 
 # %%
-# Validate supervised classifiers
-ids = analysis.idat_handler.ids
-clf_out = analysis.classify(
+# Train supervised classifiers
+ids = analysis_sg.idat_handler.ids
+clf_out_sg = analysis_sg.classify(
     ids=ids,
     clf_list=[
         "none-kbest-et",
@@ -493,13 +521,15 @@ clf_out = analysis.classify(
     ],
 )
 
+# %%
 # Print reports for all classifier for the first sample
-for clf_result in clf_out:
+for clf_result in clf_out_sg:
     print(clf_result.reports[0])
 
+# %%
 # Identify and display the best classifier
 best_clf = max(
-    clf_out, key=lambda result: np.mean(result.metrics["accuracy_scores"])
+    clf_out_sg, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
 print(best_clf.reports[0])
@@ -518,18 +548,20 @@ print(best_clf.reports[0])
 # %%
 # Initialize directories.
 tumor_site = "soft_tissue_tumors"
-analysis_dir = data_dir / tumor_site
-test_dir = validation_dir / tumor_site
+analysis_dir_sf = data_dir / tumor_site
+test_dir_sf = validation_dir / tumor_site
 
-ensure_directory_exists(test_dir)
-ensure_directory_exists(analysis_dir)
+ensure_directory_exists(test_dir_sf)
+ensure_directory_exists(analysis_dir_sf)
 
 # Download the the annotation spreadsheet.
-if not (excel_path := analysis_dir / f"{tumor_site}-annotation.xlsx").exists():
+if not (
+    excel_path := analysis_dir_sf / f"{tumor_site}-annotation.xlsx"
+).exists():
     download_file(datasets[tumor_site]["xlsx"], excel_path)
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
+download_from_geo_and_untar(analysis_dir_sf, datasets[tumor_site]["geo_id"])
 
 
 # %% [markdown]
@@ -540,8 +572,8 @@ download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_id"])
 # of CpG sites, and UMAP settings are configured here.
 
 # %%
-analysis = MethylAnalysis(
-    analysis_dir=analysis_dir,
+analysis_sf = MethylAnalysis(
+    analysis_dir=analysis_dir_sf,
     reference_dir=reference_dir,
     output_dir=output_dir,
     n_cpgs=25000,
@@ -564,7 +596,7 @@ analysis = MethylAnalysis(
 # be performed interactively within the GUI.
 
 # %%
-analysis.set_betas()
+analysis_sf.set_betas()
 
 
 # %% [markdown]
@@ -573,15 +605,26 @@ analysis.set_betas()
 # Set the columns used for coloring the UMAP plot before initiating the
 # dimensionality reduction process. The UMAP algorithm produces a visual
 # representation of the sample clusters, which is stored as a Plotly object in
-# `analysis.umap_plot`.
+# `analysis_sf.umap_plot`.
 
 # %%
-analysis.idat_handler.selected_columns = ["Methylation Class Name"]
-analysis.make_umap()
+# Calculate UMAP
+analysis_sf.idat_handler.selected_columns = ["Methylation Class Name"]
+analysis_sf.make_umap()
 
+# %%
 # Show the results
-print(analysis.umap_df)
-analysis.umap_plot.show()
+print(analysis_sf.umap_df)
+output_path = output_dir / f"{analysis_dir_sf.name}-umap_plot.jpg"
+analysis_sf.umap_plot.write_image(
+    output_path,
+    format="jpg",
+    width=2000,
+    height=1000,
+    scale=2,
+)
+IPImage(filename=output_path)
+
 
 # %% [markdown]
 # ### Launch the Analysis GUI
@@ -593,7 +636,7 @@ analysis.umap_plot.show()
 # cloud-based platforms like Google Colab or Binder).
 
 # %%
-analysis.run_app(open_tab=True)
+analysis_sf.run_app(open_tab=True)
 
 
 # %% [markdown]
@@ -604,20 +647,22 @@ analysis.run_app(open_tab=True)
 
 # %%
 # Save CNV example
-analysis.make_cnv_plot("3999112131_R05C01")
-cnv_plot = analysis.cnv_plot
+analysis_sf.make_cnv_plot("3999112131_R05C01")
+cnv_plot = analysis_sf.cnv_plot
 cnv_plot.update_layout(
     yaxis_range=[-1.1, 1.1],
     font={"size": FONTSIZE},
     margin={"t": 50},
 )
+output_path = output_dir / f"{analysis_dir_sf.name}-cnv_plot.jpg"
 cnv_plot.write_image(
-    output_dir / f"{analysis_dir.name}-cnv_plot.jpg",
+    output_path,
     format="jpg",
     width=2000,
     height=1000,
     scale=2,
 )
+IPImage(filename=output_path)
 
 # %% [markdown]
 # ### Generate CNV Summary Plots
@@ -631,8 +676,11 @@ cnv_plot.write_image(
 # resources available.
 
 # %%
-analysis.precompute_cnvs()
-calculate_cn_summary("Methylation class")
+analysis_sf.precompute_cnvs()
+cn_summary_path_sf = calculate_cn_summary(analysis_sg, "Methylation class")
+
+# %%
+IPImage(filename=cn_summary_path_sf)
 
 # %% [markdown]
 # ### Supervised Classifier Validation
@@ -646,9 +694,9 @@ calculate_cn_summary("Methylation class")
 # depending on the computational resources available.
 
 # %%
-# Validate supervised classifiers
-ids = analysis.idat_handler.ids
-clf_out = analysis.classify(
+# Train supervised classifiers
+ids = analysis_sf.idat_handler.ids
+clf_out_sf = analysis_sf.classify(
     ids=ids,
     clf_list=[
         "none-kbest-et",
@@ -661,13 +709,14 @@ clf_out = analysis.classify(
     ],
 )
 
+# %%
 # Print reports for all classifier for the first sample
-for clf_result in clf_out:
+for clf_result in clf_out_sf:
     print(clf_result.reports[0])
 
 # Identify and display the best classifier
 best_clf = max(
-    clf_out, key=lambda result: np.mean(result.metrics["accuracy_scores"])
+    clf_out_sf, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
 print(best_clf.reports[0])
@@ -689,11 +738,11 @@ print(best_clf.reports[0])
 # %%
 # Initialize directories.
 tumor_site = "scc"
-scc_analysis_dir = data_dir / tumor_site
-test_dir = validation_dir / tumor_site
+analysis_dir_scc = data_dir / tumor_site
+test_dir_scc = validation_dir / tumor_site
 
-ensure_directory_exists(test_dir)
-ensure_directory_exists(scc_analysis_dir)
+ensure_directory_exists(test_dir_scc)
+ensure_directory_exists(analysis_dir_scc)
 
 # %% [markdown]
 # ### Step 1: Download TCGA Data
@@ -701,17 +750,17 @@ ensure_directory_exists(scc_analysis_dir)
 
 # %%
 gdc_client_url = "https://gdc.cancer.gov/system/files/public/file/gdc-client_2.3_Ubuntu_x64-py3.8-ubuntu-20.04.zip"
-gdc_client_bin = scc_analysis_dir / "gdc-client"
+gdc_client_bin = analysis_dir_scc / "gdc-client"
 
 # Download and set up the GDC client
 if not gdc_client_bin.exists():
-    zip_path_0 = scc_analysis_dir / "gdc-client.zip"
-    zip_path_1 = scc_analysis_dir / "gdc-client_2.3_Ubuntu_x64.zip"
+    zip_path_0 = analysis_dir_scc / "gdc-client.zip"
+    zip_path_1 = analysis_dir_scc / "gdc-client_2.3_Ubuntu_x64.zip"
     download_file(gdc_client_url, zip_path_0)
     with zipfile.ZipFile(zip_path_0, "r") as zip_file:
-        zip_file.extractall(scc_analysis_dir)
+        zip_file.extractall(analysis_dir_scc)
     with zipfile.ZipFile(zip_path_1, "r") as zip_file:
-        zip_file.extractall(scc_analysis_dir)
+        zip_file.extractall(analysis_dir_scc)
     zip_path_0.unlink()
     zip_path_1.unlink()
     gdc_client_bin.chmod(0o755)
@@ -726,9 +775,9 @@ else:
 # overnight and not to abort the process to ensure it completes successfully.
 
 # %%
-tcga_dir = scc_analysis_dir / "tcga_scc"
+tcga_dir = analysis_dir_scc / "tcga_scc"
 tcga_downloaded_tag = tcga_dir / ".download_complete"
-tcga_anno_dir_tar = scc_analysis_dir / "tcga_annotations.tar.gz"
+tcga_anno_dir_tar = analysis_dir_scc / "tcga_annotations.tar.gz"
 tcga_anno_dir = tcga_anno_dir_tar.with_suffix("").with_suffix("")
 
 ensure_directory_exists(tcga_dir)
@@ -737,7 +786,7 @@ ensure_directory_exists(tcga_dir)
 if not tcga_anno_dir.exists():
     print("Setting up TCGA annotation directory...")
     # TODO download annotation to tcga_anno_dir_tar
-    extract_tar(tcga_anno_dir_tar, scc_analysis_dir)
+    extract_tar(tcga_anno_dir_tar, analysis_dir_scc)
     print("Setting up TCGA annotation directory done.")
 
 # Check if the download is complete
@@ -921,7 +970,7 @@ for index, row in tcga_annotation.iterrows():
         tcga_annotation.loc[index, "Diagnosis"] = "ESO_CA_SQ"
     else:
         tcga_annotation.loc[index, "Censor"] = 1
-        print(f"Unmatched Tumor_site loc index {index}: {site}")
+        print(f"Unmatched tumor site: {site} (index {index} - censored)")
 
 # Removed censored samples
 tcga_annotation = tcga_annotation[tcga_annotation["Censor"] == 0]
@@ -931,18 +980,18 @@ tcga_annotation = tcga_annotation[tcga_annotation["Censor"] == 0]
 # ### Step 2: Download and unzip the GEO data
 
 # %%
-geo_anno_dir_tar = scc_analysis_dir / "geo_annotations.tar.gz"
+geo_anno_dir_tar = analysis_dir_scc / "geo_annotations.tar.gz"
 geo_anno_dir = geo_anno_dir_tar.with_suffix("").with_suffix("")
 
 # Check if the GEO annotation tar file exists and extract
 if not geo_anno_dir.exists():
     print("Setting up GEO annotation directory...")
     # TODO download annotation
-    extract_tar(geo_anno_dir_tar, scc_analysis_dir)
+    extract_tar(geo_anno_dir_tar, analysis_dir_scc)
     print("Setting up GEO annotation directory done.")
 
 # Download the IDAT files.
-download_from_geo_and_untar(scc_analysis_dir, datasets[tumor_site]["geo_id"])
+download_from_geo_and_untar(analysis_dir_scc, datasets[tumor_site]["geo_id"])
 
 
 # Download the annotation spreadsheet.
@@ -964,11 +1013,12 @@ geo_annotation = merge_csv(geo_anno_dir)
 # Join the TCGA and GEO annotation files
 
 # %%
-if not (
-    csv_path := scc_analysis_dir / f"{tumor_site}-annotation.csv"
-).exists():
+if (csv_path := analysis_dir_scc / f"{tumor_site}-annotation.csv").exists():
+    print("Merged annotation file allready exists.")
+else:
     anno_df = pd.concat([geo_annotation, tcga_annotation], ignore_index=True)
     anno_df.to_csv(csv_path, index=False)
+    print("Merged annotation file created.")
 
 
 # %% [markdown]
@@ -979,11 +1029,11 @@ if not (
 # of CpG sites, and UMAP settings are configured here.
 
 # %%
-analysis = MethylAnalysis(
-    analysis_dir=scc_analysis_dir,
+analysis_scc = MethylAnalysis(
+    analysis_dir=analysis_dir_scc,
     reference_dir=reference_dir,
     output_dir=output_dir,
-    test_dir=test_dir,
+    test_dir=test_dir_scc,
     n_cpgs=25000,
     load_full_betas=True,
     overlap=False,
@@ -997,5 +1047,5 @@ analysis = MethylAnalysis(
     },
 )
 
-analysis.set_betas()
-analysis.idat_handler.selected_columns = ["Methylation class"]
+analysis_scc.set_betas()
+analysis_scc.idat_handler.selected_columns = ["Methylation class"]

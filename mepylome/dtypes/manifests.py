@@ -5,6 +5,7 @@ Illumina array manifest files, which contain information about probes and their
 characteristics.
 """
 
+import logging
 import pickle
 from pathlib import Path
 
@@ -17,13 +18,14 @@ from mepylome.dtypes.cache import cache_key, input_args_id
 from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.probes import Channel, InfiniumDesignType, ProbeType
 from mepylome.utils.files import (
-    MEPYLOME_TMP_DIR,
     download_file,
     ensure_directory_exists,
     get_csv_file,
     reset_file,
 )
-from mepylome.utils.varia import log
+from mepylome.utils.varia import MEPYLOME_TMP_DIR
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["Manifest"]
 
@@ -324,14 +326,14 @@ class Manifest:
         source_url = MANIFEST_URL[self.array_type]
         source_filename = Path(source_url).name
 
-        log(f"[Manifest] Downloading manifest: {source_filename}")
+        logger.info(f"Downloading manifest: {source_filename}")
 
         self.raw_path = DOWNLOAD_DIR / source_filename
         download_file(source_url, self.raw_path)
 
     def _download_processed_manifest(self):
         """Download processed manifest file and return true if successful."""
-        log(f"[Manifest] Downloading processed {self.array_type} manifest")
+        logger.info(f"Downloading processed {self.array_type} manifest")
         try:
             for path in [self.proc_path, self.ctrl_path]:
                 ensure_directory_exists(path.parent)
@@ -360,7 +362,7 @@ class Manifest:
                 archive. If not provided, it defaults to the name of the
                 raw_path file.
         """
-        log(f"[Manifest] Process raw manifest {self.raw_path}")
+        logger.info(f"Process raw manifest {self.raw_path}")
         if csv_filename is None:
             csv_filename = self.raw_path.name
         ensure_directory_exists(self.proc_path.parent)
