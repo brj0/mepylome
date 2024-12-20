@@ -1,3 +1,16 @@
+# ---
+# jupyter:
+#   jupytext:
+#     formats: ipynb,py:percent
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
+# ---
+
 # %% [markdown]
 #
 # <img alt="Mepylome Logo" src="https://raw.githubusercontent.com/brj0/mepylome/main/mepylome/data/assets/mepylome.svg" width="300">
@@ -57,6 +70,7 @@
 # 1. **[Salivary Gland Tumors](#1.-Salivary-Gland-Tumors)**
 # 2. **[Soft Tissue Tumors](#2.-Soft-Tissue-Tumors)**
 # 3. **[Squamous Cell Carcinoma](#3.-Squamous-Cell-Carcinoma)**
+# 4. **[Appendix](#4.-Appendix)**
 
 
 # %% [markdown]
@@ -77,6 +91,8 @@
 # echo "Install necessary packages. This may take 1 to 2 minutes..."
 #
 # pip install mepylome
+# pip install ipython
+# pip install pillow
 # pip install linear_segment
 # pip install -U kaleido
 #
@@ -124,25 +140,28 @@ GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
 datasets = {
     "salivary_gland_tumors": {
         "xlsx": "https://ars.els-cdn.com/content/image/1-s2.0-S0893395224002059-mmc4.xlsx",
-        "geo_id": ["GSE243075"],
+        "geo_ids": ["GSE243075"],
     },
     "soft_tissue_tumors": {
         "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-020-20603-4/MediaObjects/41467_2020_20603_MOESM4_ESM.xlsx",
-        "geo_id": ["GSE140686"],
+        "geo_ids": ["GSE140686"],
     },
     "sinonasal_tumors": {
         "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-022-34815-3/MediaObjects/41467_2022_34815_MOESM6_ESM.xlsx",
-        "geo_id": ["GSE196228"],
+        "geo_ids": ["GSE196228"],
     },
     "scc": {
         "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
-        "geo_id": [
+        "geo_ids": ["GSE85566"],
+    },
+    "scc_test": {
+        "geo_ids": [
             "GSE124052",
             "GSE66836",
             "GSE79556",
-            "GSE85566",
             "GSE87053",
             "GSE95036",
+            "GSE124052",
         ],
     },
 }
@@ -302,9 +321,9 @@ blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
 # %% [markdown]
 # ### Copy-Neutral Reference Probes
 #
-# To ensure accurate analysis, we utilize control probes from the [Koelsche2021
-# study](https://doi.org/10.1038/s41467-020-20603-4). These probes are stored
-# in the designated reference directory `reference_dir`.
+# To ensure accurate analysis, we utilize control probes from the [Koelsche et
+# al. (2021) study](https://doi.org/10.1038/s41467-020-20603-4). These probes
+# are stored in the designated reference directory `reference_dir`.
 #
 # **Best Practices**:
 # - Include both fresh-frozen and FFPE (formalin-fixed paraffin-embedded)
@@ -351,8 +370,9 @@ download_geo_probes(reference_dir, cn_neutral_probes)
 # ## 1. Salivary Gland Tumors
 #
 # This section replicates the methylation analysis performed in the study by
-# [Jurmeister2024](https://doi.org/10.1016/j.modpat.2024.100625). To begin, we
-# download the required data and organize it within the designated directories.
+# [Jurmeister et al. (2024)](https://doi.org/10.1016/j.modpat.2024.100625). To
+# begin, we download the required data and organize it within the designated
+# directories.
 
 # %%
 # Initialize directories.
@@ -372,7 +392,7 @@ if not (
     pd.read_excel(excel_path, skiprows=2).to_excel(excel_path, index=False)
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir_sg, datasets[tumor_site]["geo_id"])
+download_from_geo_and_untar(analysis_dir_sg, datasets[tumor_site]["geo_ids"])
 
 
 # %% [markdown]
@@ -528,11 +548,11 @@ for clf_result in clf_out_sg:
 
 # %%
 # Identify and display the best classifier
-best_clf = max(
+best_clf_sg = max(
     clf_out_sg, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
-print(best_clf.reports[0])
+print(best_clf_sg.reports[0])
 
 
 # %% [markdown]
@@ -561,7 +581,7 @@ if not (
     download_file(datasets[tumor_site]["xlsx"], excel_path)
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir_sf, datasets[tumor_site]["geo_id"])
+download_from_geo_and_untar(analysis_dir_sf, datasets[tumor_site]["geo_ids"])
 
 
 # %% [markdown]
@@ -715,11 +735,11 @@ for clf_result in clf_out_sf:
     print(clf_result.reports[0])
 
 # Identify and display the best classifier
-best_clf = max(
+best_clf_sf = max(
     clf_out_sf, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
-print(best_clf.reports[0])
+print(best_clf_sf.reports[0])
 
 
 # %% [markdown]
@@ -777,16 +797,19 @@ else:
 # %%
 tcga_dir = analysis_dir_scc / "tcga_scc"
 tcga_downloaded_tag = tcga_dir / ".download_complete"
-tcga_anno_dir_tar = analysis_dir_scc / "tcga_annotations.tar.gz"
-tcga_anno_dir = tcga_anno_dir_tar.with_suffix("").with_suffix("")
+tcga_metadata_dir_tar = analysis_dir_scc / "tcga_metadata.tar.gz"
+tcga_metadata_dir = tcga_metadata_dir_tar.with_suffix("").with_suffix("")
 
 ensure_directory_exists(tcga_dir)
 
+geo_metadata_url = f"https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/geo_metadata.tar.gz"
+tcga_metadata_url = f"https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/tcga_metadata.tar.gz"
+
 # Check if the TCGA annotation tar file exists and extract
-if not tcga_anno_dir.exists():
+if not tcga_metadata_dir.exists():
     print("Setting up TCGA annotation directory...")
-    # TODO download annotation to tcga_anno_dir_tar
-    extract_tar(tcga_anno_dir_tar, analysis_dir_scc)
+    download_file(tcga_metadata_url, tcga_metadata_dir_tar)
+    extract_tar(tcga_metadata_dir_tar, analysis_dir_scc)
     print("Setting up TCGA annotation directory done.")
 
 # Check if the download is complete
@@ -796,7 +819,7 @@ if not tcga_downloaded_tag.exists():
         msg = f"Error: GDC client not found at {gdc_client_bin}"
         raise FileNotFoundError(msg)
     print("Downloading TCGA files. This may take some time!")
-    manifest_file = tcga_anno_dir / "gdc_manifest.txt"
+    manifest_file = next(tcga_metadata_dir.glob("gdc_manifest.*txt"))
     if not manifest_file.exists():
         msg = "No TCGA manifest file found."
         raise FileNotFoundError(msg)
@@ -820,7 +843,8 @@ else:
 
 
 # %% [markdown]
-# Clean up by moving all IDAT files into one directory.
+# Clean up by moving all IDAT files into one directory and removing array types
+# other than `450k` and `epic`.
 
 
 # %%
@@ -836,7 +860,19 @@ def move_idat_files_and_cleanup(root_dir):
             shutil.rmtree(sub_dir)
 
 
+def remove_invalid_array_types(root_dir):
+    idat_files = root_dir.glob("*idat")
+    valid_array_types = {ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC}
+    for idat_file in idat_files:
+        array_type = ArrayType.from_idat(idat_file)
+        if not array_type in valid_array_types:
+            print(f"Removing {idat_file.name} (Type: {array_type})")
+            idat_file.unlink()
+
+
 move_idat_files_and_cleanup(tcga_dir)
+remove_invalid_array_types(tcga_dir)
+
 
 # %% [markdown]
 # Next we extract the TCGA annotation.
@@ -857,18 +893,20 @@ def extract_tcga_case_id_dict(json_path):
     return case_id_mapping
 
 
-json_metadata = tcga_anno_dir / "metadata.cart.json"
+json_metadata = next(tcga_metadata_dir.glob("metadata.cart.*json"))
 case_id_to_sample_id = extract_tcga_case_id_dict(json_metadata)
 
 # Load the clinical data and map the case_id to the IDAT
-tcga_annotation = pd.read_csv(tcga_anno_dir / "clinical.tsv", delimiter="\t")
+tcga_annotation = pd.read_csv(
+    tcga_metadata_dir / "clinical.tsv", delimiter="\t"
+)
 tcga_annotation["Sample_ID"] = tcga_annotation["case_id"].map(
     case_id_to_sample_id
 )
 tcga_annotation = tcga_annotation.drop(columns="case_id")
 
 # Rename columns
-rename_dict = {
+columns_dict = {
     "gender": "Sex",
     "age_at_index": "Age",
     "tissue_or_organ_of_origin": "Tumor_site",
@@ -876,8 +914,9 @@ rename_dict = {
     "tumor_grade": "Tumor_grade",
     "morphology": "Morphology",
     "primary_diagnosis": "Primary_diagnosis",
+    "Sample_ID": "Sample_ID",
 }
-tcga_annotation = tcga_annotation.rename(columns=rename_dict)
+tcga_annotation = tcga_annotation.rename(columns=columns_dict)
 
 # Standardize the 'Sex' column and convert 'Age' to numeric
 tcga_annotation["Sex"] = tcga_annotation["Sex"].replace(
@@ -975,23 +1014,28 @@ for index, row in tcga_annotation.iterrows():
 # Removed censored samples
 tcga_annotation = tcga_annotation[tcga_annotation["Censor"] == 0]
 
+# Extract useful columns
+tcga_annotation = tcga_annotation[columns_dict.values()]
 
 # %% [markdown]
 # ### Step 2: Download and unzip the GEO data
 
 # %%
-geo_anno_dir_tar = analysis_dir_scc / "geo_annotations.tar.gz"
-geo_anno_dir = geo_anno_dir_tar.with_suffix("").with_suffix("")
+geo_metadata_dir_tar = analysis_dir_scc / "geo_metadata.tar.gz"
+geo_metadata_dir = geo_metadata_dir_tar.with_suffix("").with_suffix("")
 
 # Check if the GEO annotation tar file exists and extract
-if not geo_anno_dir.exists():
+if not geo_metadata_dir.exists():
     print("Setting up GEO annotation directory...")
-    # TODO download annotation
-    extract_tar(geo_anno_dir_tar, analysis_dir_scc)
+    download_file(geo_metadata_url, geo_metadata_dir_tar)
+    extract_tar(geo_metadata_dir_tar, analysis_dir_scc)
     print("Setting up GEO annotation directory done.")
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir_scc, datasets[tumor_site]["geo_id"])
+download_from_geo_and_untar(analysis_dir_scc, datasets[tumor_site]["geo_ids"])
+download_from_geo_and_untar(
+    test_dir_scc, datasets[tumor_site + "_test"]["geo_ids"]
+)
 
 
 # Download the annotation spreadsheet.
@@ -1006,7 +1050,7 @@ def merge_csv(dir_path):
     return merged_df
 
 
-geo_annotation = merge_csv(geo_anno_dir)
+geo_annotation = merge_csv(geo_metadata_dir)
 
 # %% [markdown]
 # ### Step 3: Construct the annotation file of all data.
@@ -1047,5 +1091,176 @@ analysis_scc = MethylAnalysis(
     },
 )
 
+# %% [markdown]
+# ### Load Beta Values
+#
+# Reads and processes beta values from the provided dataset. This step can also
+# be performed interactively within the GUI.
+
+# %%
 analysis_scc.set_betas()
-analysis_scc.idat_handler.selected_columns = ["Methylation class"]
+
+
+# %% [markdown]
+# ### Generate UMAP Plot
+#
+# Set the columns used for coloring the UMAP plot before initiating the
+# dimensionality reduction process. The UMAP algorithm produces a visual
+# representation of the sample clusters, which is stored as a Plotly object in
+# `analysis_scc.umap_plot`.
+
+# %%
+# Calculate UMAP
+analysis_scc.idat_handler.selected_columns = ["Diagnosis"]
+analysis_scc.make_umap()
+
+# %%
+# Show the results
+print(analysis_scc.umap_df)
+output_path = output_dir / f"{analysis_dir_scc.name}-umap_plot.jpg"
+analysis_scc.umap_plot.write_image(
+    output_path,
+    format="jpg",
+    width=2000,
+    height=1000,
+    scale=2,
+)
+IPImage(filename=output_path)
+
+
+# %% [markdown]
+# ### Launch the Analysis GUI
+#
+# Initializes an interactive GUI for further exploration of the methylation
+# data.
+#
+# **Note**: This step is only supported in local environments (not in
+# cloud-based platforms like Google Colab or Binder).
+
+# %%
+analysis_scc.run_app(open_tab=True)
+
+
+# %% [markdown]
+# ### Generate and Save CNV Plot
+#
+# Creates a copy number variation (CNV) plot for a specified sample and saves
+# the output as a high-resolution image.
+
+# %%
+# Save CNV example
+analysis_scc.make_cnv_plot("364f7953-d0af-4929-8491-7b5e94d488aa_noid")
+cnv_plot = analysis_scc.cnv_plot
+cnv_plot.update_layout(
+    yaxis_range=[-1.1, 1.1],
+    font={"size": FONTSIZE},
+    margin={"t": 50},
+)
+output_path = output_dir / f"{analysis_dir_scc.name}-cnv_plot.jpg"
+cnv_plot.write_image(
+    output_path,
+    format="jpg",
+    width=2000,
+    height=1000,
+    scale=2,
+)
+IPImage(filename=output_path)
+
+# %% [markdown]
+# ### Generate CNV Summary Plots
+#
+# In addition to individual CNV plots, this step computes summary plots to
+# highlight genomic alterations across multiple samples.
+#
+# **Note**:
+# Generating all copy number variation (CNV) plots can be resource-intensive.
+# The process may take up to 30 minutes, depending on the computational
+# resources available.
+
+# %%
+analysis_scc.precompute_cnvs()
+cn_summary_path_scc = calculate_cn_summary(analysis_scc, "Diagnosis")
+
+# %%
+IPImage(filename=cn_summary_path_scc)
+
+# %% [markdown]
+# ### Supervised Classifier Validation
+#
+# The next step involves validating various supervised classification
+# algorithms to evaluate their performance on the dataset. This process helps
+# identify the most accurate model for methylation-based classification.
+#
+# **Note**:
+# Training can be resource-intensive. The process may take up to 10 minutes,
+# depending on the computational resources available.
+
+# %%
+# Train supervised classifiers
+ids = analysis_scc.idat_handler.ids
+clf_out_scc = analysis_scc.classify(
+    ids=ids,
+    clf_list=[
+        "none-kbest-et",
+        "none-kbest-lr",
+        "none-kbest-rf",
+        "none-kbest-svc_rbf",
+        "none-pca-lr",
+        "none-pca-et",
+        "none-none-knn",
+    ],
+)
+
+# %%
+# Print reports for all classifier for the first sample
+for clf_result in clf_out_scc:
+    print(clf_result.reports[0])
+
+# Identify and display the best classifier
+best_clf_scc = max(
+    clf_out_scc, key=lambda result: np.mean(result.metrics["accuracy_scores"])
+)
+print("Most accurate classifier:")
+print(best_clf_scc.reports[0])
+
+# %% [markdown]
+# Now we apply the best classifier on the independent validation samples:
+
+# %% TODO
+test_ids = analysis_scc.idat_handler.test_ids
+clf_out_pred = analysis_scc.classify(ids=test_ids, clf_list=best_clf_scc.model)
+pred = clf_out_pred.prediction
+true_values = analysis_scc.idat_handler.samples_annotated.loc[test_ids][
+    "Diagnosis"
+]
+
+
+# %% [markdown]
+## 4. Appendix
+
+# %% [markdown]
+# The GEO annotation files were downloaded and manually curated. Below is the
+# code used to download the GEO datasets and save their associated metadata:
+
+# %% language="bash"
+# pip install geoparse
+
+
+# %%
+import GEOparse
+import pandas as pd
+
+geo_numbers = datasets["scc"]["geo_ids"] + datasets["scc_test"]["geo_ids"]
+
+# Download and save metadata for each GEO series
+for geo_nr in geo_numbers:
+    gse = GEOparse.get_GEO(geo=geo_nr, destdir=geo_metadata_dir)
+    metadata = gse.phenotype_data
+    print(metadata.head())
+    metadata.to_csv(
+        geo_metadata_dir / f"{geo_nr}_raw_metadata.csv", index=True
+    )
+
+for file in geo_metadata_dir.glob("*.soft.gz"):
+    print(f"Removing file: {file}")
+    file.unlink()

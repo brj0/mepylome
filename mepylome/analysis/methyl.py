@@ -1071,10 +1071,10 @@ class MethylAnalysis:
         if cpgs_from_file is not None:
             return exclude_blacklist(cpgs_from_file)
 
-        valid_str_parms = ["auto", "450k", "epic", "epicv2"]
+        valid_str_params = {"auto", "450k", "epic", "epicv2"}
 
         if isinstance(input_var, str):
-            input_var = input_var.split("+")
+            input_var = set(input_var.split("+"))
 
         if "auto" in input_var:
             input_var = {
@@ -1085,30 +1085,32 @@ class MethylAnalysis:
                 logger.info(
                     f"The following array types were " f"detected: {input_var}"
                 )
-            input_var = list(input_var - {str(ArrayType.UNKNOWN)})
+            input_var = input_var - {str(ArrayType.UNKNOWN)}
 
-        if all(x in valid_str_parms for x in input_var):
+        if input_var.issubset(valid_str_params):
             if not input_var:
                 return np.array([])
 
             if "all" in input_var:
-                input_var = valid_str_parms
+                input_var = valid_str_params
 
             if self.verbose:
                 logger.info("Load manifests and " "calculate CpG overlap...")
 
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
-                for array_type in valid_str_parms[1:]
+                for array_type in valid_str_params - {"auto"}
                 if array_type in input_var
             ]
             cpgs = set.intersection(*cpg_sets)
             return exclude_blacklist(cpgs)
 
+        mismatches = input_var - valid_str_params
         msg = (
             "'cpgs' must be one of the following:\n"
             "- a list, set, or array of CpG sites\n"
-            "- a '+' joined string of valid parameters: {valid_str_parms}"
+            f"- a '+' joined string of valid parameters: {valid_str_params}\n"
+            f"Received invalid input: {mismatches}"
         )
         raise ValueError(msg)
 
