@@ -170,7 +170,7 @@ datasets = {
 if "COLAB_GPU" in os.environ:
     # Google Colab
     mepylome_dir = Path("/content/mepylome")
-elif os.path.exists("/mnt/bender"):
+elif Path("/mnt/bender").exists():
     # Bender-specific path
     mepylome_dir = Path("/mnt/bender/mepylome")
 else:
@@ -178,7 +178,7 @@ else:
     mepylome_dir = Path.home() / "mepylome"
 
 # Ensure the directory exists
-os.makedirs(mepylome_dir, exist_ok=True)
+ensure_directory_exists(mepylome_dir)
 os.environ["MEPYLOME_DIR"] = str(mepylome_dir)
 print(f"Data will be stored in: {mepylome_dir}")
 
@@ -287,9 +287,8 @@ def generate_blacklist_cpgs():
             with zipfile.ZipFile(io.BytesIO(response.content)) as thezip:
                 thezip.extractall(DOWNLOAD_DIR)
         else:
-            raise Exception(
-                f"Failed to download the file: {response.status_code}"
-            )
+            msg = f"Failed to download the file: {response.status_code}"
+            raise RuntimeError(msg)
         csv_path = DOWNLOAD_DIR / REMOTE_FILENAME[ArrayType.ILLUMINA_EPIC]
         manifest_df = pd.read_csv(csv_path, skiprows=7)
         flagged_cpgs = manifest_df[
@@ -463,9 +462,6 @@ IPImage(filename=output_path)
 #
 # Initializes an interactive GUI for further exploration of the methylation
 # data.
-#
-# **Note**: This step is only supported in local environments (not in
-# cloud-based platforms like Google Colab or Binder).
 
 # %%
 analysis_sg.run_app(open_tab=True)
@@ -651,9 +647,6 @@ IPImage(filename=output_path)
 #
 # Initializes an interactive GUI for further exploration of the methylation
 # data.
-#
-# **Note**: This step is only supported in local environments (not in
-# cloud-based platforms like Google Colab or Binder).
 
 # %%
 analysis_sf.run_app(open_tab=True)
@@ -802,8 +795,8 @@ tcga_metadata_dir = tcga_metadata_dir_tar.with_suffix("").with_suffix("")
 
 ensure_directory_exists(tcga_dir)
 
-geo_metadata_url = f"https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/geo_metadata.tar.gz"
-tcga_metadata_url = f"https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/tcga_metadata.tar.gz"
+geo_metadata_url = "https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/geo_metadata.tar.gz"
+tcga_metadata_url = "https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/tcga_metadata.tar.gz"
 
 # Check if the TCGA annotation tar file exists and extract
 if not tcga_metadata_dir.exists():
@@ -861,11 +854,12 @@ def move_idat_files_and_cleanup(root_dir):
 
 
 def remove_invalid_array_types(root_dir):
+    """Removes all IDAT files that are not of type 450k or epicv1."""
     idat_files = root_dir.glob("*idat")
     valid_array_types = {ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC}
     for idat_file in idat_files:
         array_type = ArrayType.from_idat(idat_file)
-        if not array_type in valid_array_types:
+        if array_type not in valid_array_types:
             print(f"Removing {idat_file.name} (Type: {array_type})")
             idat_file.unlink()
 
@@ -881,7 +875,7 @@ remove_invalid_array_types(tcga_dir)
 # %%
 def extract_tcga_case_id_dict(json_path):
     """Extracts a dictionary mapping from IDAT IDs to case IDs."""
-    with open(json_path) as f:
+    with json_path.open() as f:
         data = json.load(f)
     case_id_mapping = {}
     n_suffix = len("_Grn.idat")
@@ -1133,9 +1127,6 @@ IPImage(filename=output_path)
 #
 # Initializes an interactive GUI for further exploration of the methylation
 # data.
-#
-# **Note**: This step is only supported in local environments (not in
-# cloud-based platforms like Google Colab or Binder).
 
 # %%
 analysis_scc.run_app(open_tab=True)
@@ -1248,7 +1239,6 @@ true_values = analysis_scc.idat_handler.samples_annotated.loc[test_ids][
 
 # %%
 import GEOparse
-import pandas as pd
 
 geo_numbers = datasets["scc"]["geo_ids"] + datasets["scc_test"]["geo_ids"]
 

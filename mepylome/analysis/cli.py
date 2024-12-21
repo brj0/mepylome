@@ -199,9 +199,9 @@ def start_mepylome():
     if cli_args["tutorial"]:
         from mepylome.utils import setup_tutorial_files
 
-        DIR = Path.home() / "mepylome" / "tutorial"
-        cli_args["analysis_dir"] = DIR / "tutorial_analysis"
-        cli_args["reference_dir"] = DIR / "tutorial_reference"
+        tutorial_dir = Path.home() / "mepylome" / "tutorial"
+        cli_args["analysis_dir"] = tutorial_dir / "tutorial_analysis"
+        cli_args["reference_dir"] = tutorial_dir / "tutorial_reference"
         if (
             not cli_args["analysis_dir"].exists()
             and not cli_args["reference_dir"].exists()

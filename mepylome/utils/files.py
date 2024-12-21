@@ -35,7 +35,7 @@ __all__ = [
 
 GEO_BASE_URL = (
     "https://www.ncbi.nlm.nih.gov/geo/download/"
-    + "?acc={acc}&format=file&file={filename}"
+    "?acc={acc}&format=file&file={filename}"
 )
 
 
@@ -172,19 +172,19 @@ def setup_tutorial_files(analysis_dir, reference_dir):
         reference_dir (str or Path): Path to the directory for storing
             reference files.
     """
-    CONTROL = "Control (muscle tissue)"
-    TUTORIAL_CSV_PATH = get_resource_path("mepylome", "data/tutorial.csv.gz")
+    control = "Control (muscle tissue)"
+    tutorial_csv_path = get_resource_path("mepylome", "data/tutorial.csv.gz")
 
     analysis_dir = Path(analysis_dir)
     reference_dir = Path(reference_dir)
     analysis_dir.mkdir(parents=True, exist_ok=True)
     reference_dir.mkdir(parents=True, exist_ok=True)
 
-    tutorial_df = pd.read_csv(TUTORIAL_CSV_PATH)
+    tutorial_df = pd.read_csv(tutorial_csv_path)
     tutorial_df.drop(columns=["Geo_File_ID"]).to_csv(
         analysis_dir / "annotation.csv", index=False
     )
-    is_control = tutorial_df["Diagnosis"] == CONTROL
+    is_control = tutorial_df["Diagnosis"] == control
     download_geo_probes(analysis_dir, tutorial_df["Geo_File_ID"])
     download_geo_probes(reference_dir, tutorial_df[is_control]["Geo_File_ID"])
     unzip_and_remove_gz_files(analysis_dir, use_sentrix_id=True)

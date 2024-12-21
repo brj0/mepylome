@@ -100,7 +100,11 @@ UMAP_METRICS = [
 
 
 class DualOutput:
-    """Enables to simultaneously write output to the terminal and file."""
+    """Enables to simultaneously write output to the terminal and file.
+
+    Should only be used with `while` as it leads to print problems with
+    jupyter notebooks.
+    """
 
     def __init__(self, filename):
         self.terminal = sys.stdout
@@ -131,10 +135,6 @@ class DualOutput:
 LOG_DIR = MEPYLOME_TMP_DIR / "log"
 ensure_directory_exists(MEPYLOME_TMP_DIR)
 ensure_directory_exists(LOG_DIR)
-
-
-# Save console output to file
-# sys.stdout = DualOutput(LOG_FILE)
 
 
 def get_all_genes():
@@ -1083,7 +1083,7 @@ class MethylAnalysis:
             }
             if self.verbose:
                 logger.info(
-                    f"The following array types were " f"detected: {input_var}"
+                    f"The following array types were detected: {input_var}"
                 )
             input_var = input_var - {str(ArrayType.UNKNOWN)}
 
@@ -1095,7 +1095,7 @@ class MethylAnalysis:
                 input_var = valid_str_params
 
             if self.verbose:
-                logger.info("Load manifests and " "calculate CpG overlap...")
+                logger.info("Load manifests and calculate CpG overlap...")
 
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
@@ -1942,7 +1942,7 @@ class MethylAnalysis:
                 return False, f"Not a directory: {path}"
             except Exception as exc:
                 logger.info(
-                    f"An error occured (2) " f"(validate_output_path): {exc}"
+                    f"An error occured (2) (validate_output_path): {exc}"
                 )
                 return False, "Invalid path format"
 

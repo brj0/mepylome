@@ -255,7 +255,7 @@ class IdatHandler:
             return read_dataframe(self.annotation_file)
         except (FileNotFoundError, ValueError):
             logger.info(
-                "Annotation file is missing, invalid or could " "not be read."
+                "Annotation file is missing, invalid or could not be read."
             )
             return pd.DataFrame()
 
