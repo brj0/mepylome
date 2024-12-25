@@ -326,14 +326,14 @@ class Manifest:
         source_url = MANIFEST_URL[self.array_type]
         source_filename = Path(source_url).name
 
-        logger.info(f"Downloading manifest: {source_filename}")
+        logger.info("Downloading manifest: %s", source_filename)
 
         self.raw_path = DOWNLOAD_DIR / source_filename
         download_file(source_url, self.raw_path)
 
     def _download_processed_manifest(self):
         """Download processed manifest file and return true if successful."""
-        logger.info(f"Downloading processed {self.array_type} manifest")
+        logger.info("Downloading processed %s manifest", self.array_type)
         try:
             for path in [self.proc_path, self.ctrl_path]:
                 ensure_directory_exists(path.parent)
@@ -362,7 +362,7 @@ class Manifest:
                 archive. If not provided, it defaults to the name of the
                 raw_path file.
         """
-        logger.info(f"Process raw manifest {self.raw_path}")
+        logger.info("Process raw manifest %s", self.raw_path)
         if csv_filename is None:
             csv_filename = self.raw_path.name
         ensure_directory_exists(self.proc_path.parent)

@@ -623,9 +623,6 @@ umap_plot_path:
 
 upload_dir:
 /tmp/mepylome/analysis/upload-tutorial_analysis-c8e2f8ac691e9c3deba2e880aa7c5251
-
-verbose:
-True
 """
 
 # To enable interactive analysis, you can launch a GUI. This will open a new

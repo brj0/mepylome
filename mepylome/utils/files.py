@@ -67,12 +67,12 @@ def download_file(url, save_path, overwrite=False, show_progress=True):
     if save_path.exists() and not overwrite:
         if show_progress:
             logger.info(
-                f"File already exists at {save_path}. Skipping download."
+                "File already exists at %s. Skipping download.", save_path
             )
         return
 
     if show_progress:
-        logger.info(f"Downloading from {url} to {save_path}...")
+        logger.info("Downloading from %s to {save_path}...", url)
 
     try:
         import requests
@@ -103,7 +103,7 @@ def download_file(url, save_path, overwrite=False, show_progress=True):
             progress_bar.close()
 
         if show_progress:
-            logger.info(f"Download completed: {save_path}")
+            logger.info("Download completed: %s", save_path)
 
     except requests.RequestException as error:
         msg = f"Failed to download file from {url}. Error: {error}"

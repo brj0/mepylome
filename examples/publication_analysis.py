@@ -462,6 +462,9 @@ IPImage(filename=output_path)
 #
 # Initializes an interactive GUI for further exploration of the methylation
 # data.
+#
+# **Note:** This step works best in local environments and may have limitations
+# on platforms like Google Colab or Binder.
 
 # %%
 analysis_sg.run_app(open_tab=True)
@@ -647,6 +650,9 @@ IPImage(filename=output_path)
 #
 # Initializes an interactive GUI for further exploration of the methylation
 # data.
+#
+# **Note:** This step works best in local environments and may have limitations
+# on platforms like Google Colab or Binder.
 
 # %%
 analysis_sf.run_app(open_tab=True)
@@ -1127,6 +1133,9 @@ IPImage(filename=output_path)
 #
 # Initializes an interactive GUI for further exploration of the methylation
 # data.
+#
+# **Note:** This step works best in local environments and may have limitations
+# on platforms like Google Colab or Binder.
 
 # %%
 analysis_scc.run_app(open_tab=True)

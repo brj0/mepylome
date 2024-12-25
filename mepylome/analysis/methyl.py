@@ -97,6 +97,11 @@ UMAP_METRICS = [
     "sokalsneath",
     "yule",
 ]
+VERBOSITY_LEVELS = {
+    0: logging.WARNING,
+    1: logging.INFO,
+    2: logging.DEBUG,
+}
 
 
 class DualOutput:
@@ -624,7 +629,10 @@ class MethylAnalysis:
         umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
             'euclidean', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
-        verbose (bool): Flag to enable verbose logging (default: True).
+        verbose (int): Sets the (global) logging verbosity level:
+            - 0: Errors and warnings only.
+            - 1: Info, warnings, and errors (default).
+            - 2: Debug, info, warnings, and errors.
 
     Note:
         Many parameters can be modified within the GUI application after
@@ -678,8 +686,6 @@ class MethylAnalysis:
 
         debug (bool): Flag to enable debug mode for the Dash application
             (default: False).
-
-        verbose (bool): Flag to enable verbose logging (default: True).
 
         cnv_dir (Path): Directory for CNV (Copy Number Variation) data,
             initially set to None.
@@ -787,7 +793,7 @@ class MethylAnalysis:
         port=8050,
         debug=False,
         umap_parms=None,
-        verbose=True,
+        verbose=1,
     ):
         self.umap_cpgs = None
         self.analysis_dir = Path(analysis_dir).expanduser()
@@ -820,7 +826,6 @@ class MethylAnalysis:
         self.betas_path = None
         self.umap_df = None
         self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
-        self.verbose = verbose
         self.cnv_plot = EMPTY_FIGURE
         self.raw_umap_plot = None
         self.cnv_id = None
@@ -830,6 +835,12 @@ class MethylAnalysis:
         self.app = None
 
         ensure_directory_exists(self.output_dir)
+
+        # Set logging level dynamically
+        main_logger = logging.getLogger("mepylome")
+        main_logger.setLevel(VERBOSITY_LEVELS.get(verbose, logging.INFO))
+        for handler in main_logger.handlers:
+            handler.setLevel(VERBOSITY_LEVELS.get(verbose, logging.INFO))
 
         self._classifiers = classifiers
         self._prog_bar = ProgressBar()
@@ -852,14 +863,11 @@ class MethylAnalysis:
             raise ValueError(msg)
 
         if self.annotation == INVALID_PATH:
-            self.annotation = guess_annotation_file(
-                self.analysis_dir, self.verbose
-            )
-        if not self.annotation.exists() and self.verbose:
+            self.annotation = guess_annotation_file(self.analysis_dir)
+        if not self.annotation.exists():
             logger.info("No annotation file found")
-        if self.verbose:
-            logger.info("Try to import cbseg or linear_segment...")
-        self.do_seg = False if _get_cgsegment(verbose=True) is None else do_seg
+        logger.info("Try to import cbseg or linear_segment...")
+        self.do_seg = False if _get_cgsegment() is None else do_seg
 
         # Set test dir, as it is needed by _get_cpgs
         self._set_test_dir()
@@ -870,8 +878,7 @@ class MethylAnalysis:
 
         self.read_umap_plot_from_disk()
 
-        if self.verbose:
-            logger.info("Initialization completed.")
+        logger.info("Initialization completed.")
 
     @property
     def cpgs(self):
@@ -1061,8 +1068,7 @@ class MethylAnalysis:
         def exclude_blacklist(cpgs):
             return np.sort(np.array(list(set(cpgs) - self.cpg_blacklist)))
 
-        if self.verbose:
-            logger.info("Determine CpG sites...")
+        logger.info("Determine CpG sites...")
 
         if isinstance(input_var, (np.ndarray, set, list, pd.Index)):
             return exclude_blacklist(input_var)
@@ -1081,10 +1087,9 @@ class MethylAnalysis:
                 str(ArrayType.from_idat(path))
                 for path in self.idat_handler.paths
             }
-            if self.verbose:
-                logger.info(
-                    f"The following array types were detected: {input_var}"
-                )
+            logger.info(
+                "The following array types were detected: %s", input_var
+            )
             input_var = input_var - {str(ArrayType.UNKNOWN)}
 
         if input_var.issubset(valid_str_params):
@@ -1094,8 +1099,7 @@ class MethylAnalysis:
             if "all" in input_var:
                 input_var = valid_str_params
 
-            if self.verbose:
-                logger.info("Load manifests and calculate CpG overlap...")
+            logger.info("Load manifests and calculate CpG overlap...")
 
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
@@ -1135,8 +1139,7 @@ class MethylAnalysis:
         beta values, copy number variation data, uploaded files, and UMAP
         plots.
         """
-        if self.verbose:
-            logger.info("Update filepaths...")
+        logger.info("Update filepaths...")
         if not self.output_dir.exists():
             return
         if self._prev_vars["analysis_dir"] != self.analysis_dir:
@@ -1252,8 +1255,7 @@ class MethylAnalysis:
         if self.betas_top is None and self.feature_matrix is None:
             msg = "'betas_top' is not set. First run 'set_betas'"
             raise AttributeError(msg)
-        if self.verbose:
-            logger.info("Importing umap library...")
+        logger.info("Importing umap library...")
         import umap
 
         matrix_to_use = (
@@ -1274,9 +1276,9 @@ class MethylAnalysis:
                     f"Try to delete cached files in {self.output_dir}."
                 )
             raise AttributeError(msg)
-        if self.verbose:
-            shape = matrix_to_use.shape
-            logger.info(f"Starting UMAP for matrix with shape {shape}...")
+        logger.info(
+            "Starting UMAP for matrix with shape %s...", matrix_to_use.shape
+        )
         with DualOutput(LOG_FILE):
             umap_2d = umap.UMAP(**self.umap_parms).fit_transform(matrix_to_use)
         umap_df = pd.DataFrame(
@@ -1304,8 +1306,7 @@ class MethylAnalysis:
             AttributeError: If a dimension mismatch occurs, or if 'umap_df' is
                 not set.
         """
-        if self.verbose:
-            logger.info("Make UMAP plot...")
+        logger.info("Make UMAP plot...")
         if self.umap_df is None:
             msg = "'umap_df' not set. Run 'make_umap' instead."
             raise AttributeError(msg)
@@ -1331,8 +1332,7 @@ class MethylAnalysis:
     def read_umap_plot_from_disk(self):
         """Reads UMAP plot from disk if available from previous analysis."""
         if self.umap_plot_path is not None and self.umap_plot_path.exists():
-            if self.verbose:
-                logger.info("Read umap plot from disk...")
+            logger.info("Read umap plot from disk...")
             self.umap_df = pd.read_csv(
                 self.umap_plot_path, sep="\t", index_col=0
             )
@@ -1361,8 +1361,7 @@ class MethylAnalysis:
         self._update_paths()
 
         def get_random_cpgs():
-            if self.verbose:
-                logger.info("Get random CpG's...")
+            logger.info("Get random CpG's...")
             rng = np.random.default_rng()
             random_idx = np.sort(
                 rng.choice(len(self.cpgs), self.n_cpgs, replace=False)
@@ -1370,8 +1369,7 @@ class MethylAnalysis:
             return self.cpgs[random_idx]
 
         def _get_betas(cpgs):
-            if self.verbose:
-                logger.info("Get beta values...")
+            logger.info("Get beta values...")
             return get_betas(
                 idat_handler=self.idat_handler,
                 cpgs=cpgs,
@@ -1381,8 +1379,7 @@ class MethylAnalysis:
             )
 
         def _extract_sub_dataframe():
-            if self.verbose:
-                logger.info("Extract beta values...")
+            logger.info("Extract beta values...")
             if self.cpg_selection == "random":
                 return extract_sub_dataframe(self.betas_all, self.umap_cpgs)
             return self.betas_all[self._sorted_cpgs[: self.n_cpgs]]
@@ -1465,8 +1462,7 @@ class MethylAnalysis:
             msg = f"Reference dir {self.reference_dir} does not exist"
             raise FileNotFoundError(msg)
         genes_sel = () if genes_sel is None else tuple(genes_sel)
-        if self.verbose:
-            logger.info(f"Make CNV for {sample_id}...")
+        logger.info("Make CNV for %s...", sample_id)
         self.cnv_plot = get_cnv_plot(
             sample_path=idat_basepath,
             reference_dir=self.reference_dir,
@@ -1474,7 +1470,6 @@ class MethylAnalysis:
             cnv_dir=self.cnv_dir,
             genes_sel=genes_sel,
             do_seg=self.do_seg,
-            verbose=self.verbose,
         )
 
     def precompute_cnvs(self, sample_ids=None):
@@ -1493,8 +1488,7 @@ class MethylAnalysis:
             Precalculating CNVs improves performance but requires additional
             memory space in the output directory.
         """
-        if self.verbose:
-            logger.info("Precalculate CNV's...")
+        logger.info("Precalculate CNV's...")
         self._update_paths()
         if sample_ids is None:
             sample_ids = self.idat_handler.ids
@@ -1506,7 +1500,6 @@ class MethylAnalysis:
             prep=self.prep,
             do_seg=self.do_seg,
             pbar=self._prog_bar,
-            verbose=self.verbose,
         )
         self._prog_bar.reset(1, 1)
 
@@ -1545,7 +1538,6 @@ class MethylAnalysis:
             prep=self.prep,
             do_seg=self.do_seg,
             pbar=self._prog_bar,
-            verbose=self.verbose,
         )
         basename = self.idat_handler.id_to_basename[sample_id]
         if (self.cnv_dir / (basename + ZIP_ENDING)).exists():
@@ -1627,8 +1619,7 @@ class MethylAnalysis:
             pass
 
         y = self.idat_handler.features()
-        if self.verbose:
-            logger.info("Start classifying...")
+        logger.info("Start classifying...")
 
         if self.feature_matrix is not None:
             X = pd.DataFrame(self.feature_matrix, index=self.betas_all.index)
@@ -1671,7 +1662,7 @@ class MethylAnalysis:
         results = []
         clfs = self._get_classifiers(clf_list)
         for i, clf in enumerate(clfs):
-            if self.verbose:
+            if logger.isEnabledFor(logging.INFO):
                 _log(f"Start training classifier {i + 1}/{len(clfs)}...\n")
             start_time = time.time()
             clf_result = fit_and_evaluate_clf(
@@ -1685,9 +1676,12 @@ class MethylAnalysis:
                 n_jobs=self.n_jobs,
             )
             elapsed_time = time.time() - start_time
-            if self.verbose:
+            if logger.isEnabledFor(logging.INFO):
                 _log(f"Time used for classification: {elapsed_time:.2f} s\n\n")
-            if self.verbose and len(clf_result.reports) == 1:
+            if (
+                logger.isEnabledFor(logging.INFO)
+                and len(clf_result.reports) == 1
+            ):
                 _log(clf_result.reports[0] + "\n\n\n")
             results.append(clf_result)
 
@@ -1831,18 +1825,18 @@ class MethylAnalysis:
                         self.make_cnv_plot(sample_id, genes_sel)
                         return self.umap_plot, self.cnv_plot, ""
                     except Exception as exc:
-                        logger.info(f"umap failed: {exc}")
-                        logger.info(f"sample_id: {sample_id}")
-                        logger.info(f"MethylAnalysis: {self}")
+                        logger.info("umap failed: %s", exc)
+                        logger.info("sample_id: %s", sample_id)
+                        logger.info("MethylAnalysis: %s", self)
                         return self.umap_plot, EMPTY_FIGURE, str(exc)
             if trigger == "selected-genes" and genes_sel is not None:
                 try:
                     self.make_cnv_plot(self.cnv_id, genes_sel)
                     return no_update, self.cnv_plot, ""
                 except Exception as exc:
-                    logger.info(f"selected-genes failed: {exc}")
-                    logger.info(f"self.cnv_id: {self.cnv_id}")
-                    logger.info(f"genes_sel: {genes_sel}")
+                    logger.info("selected-genes failed: %s", exc)
+                    logger.info("self.cnv_id: %s", self.cnv_id)
+                    logger.info("genes_sel: %s", genes_sel)
                     return no_update, no_update, str(exc)
             return self.umap_plot, self.cnv_plot, ""
 
@@ -1915,8 +1909,7 @@ class MethylAnalysis:
                 return False, f"Not a directory: {path}"
             except Exception as exc:
                 logger.info(
-                    f"An error occured (1) "
-                    f"(validate_reference_path): {exc}"
+                    "An error occured (1) (validate_reference_path): %s", exc
                 )
                 return False, "Invalid path format"
 
@@ -1942,7 +1935,7 @@ class MethylAnalysis:
                 return False, f"Not a directory: {path}"
             except Exception as exc:
                 logger.info(
-                    f"An error occured (2) (validate_output_path): {exc}"
+                    "An error occured (2) (validate_output_path): %s", exc
                 )
                 return False, "Invalid path format"
 
@@ -2020,7 +2013,7 @@ class MethylAnalysis:
                 ensure_directory_exists(self.output_dir)
                 self.make_umap()
             except Exception as exc:
-                logger.info(f"An error occured (3): {exc}")
+                logger.info("An error occured (3): %s", exc)
             else:
                 return (
                     self.umap_plot,
@@ -2113,7 +2106,7 @@ class MethylAnalysis:
                 decoded = base64.b64decode(content_string)
                 with file_path.open("wb") as f:
                     f.write(decoded)
-                logger.info(f"Upload of {filename} completed.")
+                logger.info("Upload of %s completed.", filename)
                 return html.Div(
                     [
                         html.H6(filename),
@@ -2166,7 +2159,7 @@ class MethylAnalysis:
                 ]
                 _ = self.classify(ids=self.cnv_id, clf_list=parsed_clf_list)
             except Exception as exc:
-                logger.info(f"An error occured (4): {exc}")
+                logger.info("An error occured (4): %s", exc)
                 return f"{exc}"
             return ""
 

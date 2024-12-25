@@ -374,7 +374,7 @@ def read_cnv_data_from_disk(cnv_dir, sample_id, extract=None):
 
 
 def cnv_plot_from_data(
-    sample_id, bins, detail, segments, genes_fix, genes_sel, *, verbose=False
+    sample_id, bins, detail, segments, genes_fix, genes_sel
 ):
     """Generate a CNV plot from data calculated by the class CNV.
 
@@ -390,8 +390,7 @@ def cnv_plot_from_data(
     Returns:
         Plotly Figure: A Plotly figure representing the CNV plot.
     """
-    if verbose:
-        logger.info("Make CNV plot: prepare data...")
+    logger.info("Make CNV plot: prepare data...")
     bins_Genes, detail_Range = find_genes_within_bins(
         bins[["Chromosome", "Start", "End"]],
         detail[["Chromosome", "Start", "End", "Name"]],
@@ -402,8 +401,7 @@ def cnv_plot_from_data(
     scatter_df.columns = ["x", "y", "hover_data"]
 
     # Base scatterplot
-    if verbose:
-        logger.info("Make CNV plot: bins...")
+    logger.info("Make CNV plot: bins...")
     plot = cnv_bins_plot(
         data_frame=scatter_df,
         title=f"Sample ID: {sample_id}",
@@ -411,8 +409,7 @@ def cnv_plot_from_data(
     )
 
     # Highlight bins adjacent to the added genes
-    if verbose:
-        logger.info("Make CNV plot: genes...")
+    logger.info("Make CNV plot: genes...")
     genes_sel = genes_sel if genes_sel else []
     genes_x_range = (
         detail[detail["Name"].isin(genes_sel)]["Range"].explode().tolist()
@@ -426,8 +423,7 @@ def cnv_plot_from_data(
     plot = add_genes(plot, gene_detail)
 
     # Draw the segments
-    if verbose:
-        logger.info("Make CNV plot: segments...")
+    logger.info("Make CNV plot: segments...")
     plot = add_segments(plot, segments)
     return plot
 

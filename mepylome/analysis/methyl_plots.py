@@ -172,16 +172,14 @@ def get_reference_methyl_data(reference_dir, prep):
 
 
 def write_single_cnv_to_disk(
-    idat_basepath, reference_dir, cnv_dir, prep, do_seg, verbose
+    idat_basepath, reference_dir, cnv_dir, prep, do_seg
 ):
     """Performs CNV analysis on a single sample and writes results to disk."""
     sample_id = idat_basepath.name
     try:
         sample_methyl = MethylData(file=idat_basepath)
         reference = get_reference_methyl_data(reference_dir, prep)
-        cnv = CNV.set_all(
-            sample_methyl, reference, do_seg=do_seg, verbose=verbose
-        )
+        cnv = CNV.set_all(sample_methyl, reference, do_seg=do_seg)
         cnv_filename = sample_id + ZIP_ENDING
         cnv.write(Path(cnv_dir, cnv_filename))
     except Exception as exc:
@@ -205,7 +203,7 @@ def write_single_cnv_to_disk(
 
 
 def write_cnv_to_disk(
-    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None, verbose=False
+    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None
 ):
     """Generate and save CNV-analysis output files for given samples.
 
@@ -221,7 +219,6 @@ def write_cnv_to_disk(
         prep (str): Prepreparation method for MethylData.
         do_seg (bool): If segments should be calculated as well (slow)
         pbar (optional): Progress bar for tracking progress.
-        verbose (bool, optional): Whether to display verbose output.
     """
     new_idat_paths = [
         x
@@ -231,8 +228,7 @@ def write_cnv_to_disk(
     ]
     if len(new_idat_paths) == 0:
         return
-    if verbose:
-        logger.info("Write CNV to disk...")
+    logger.info("Write CNV to disk...")
     # Load the reference into memory before parallelization to prevent loading
     # it for each core.
     Manifest.load()
@@ -243,7 +239,6 @@ def write_cnv_to_disk(
         cnv_dir=cnv_dir,
         prep=prep,
         do_seg=do_seg,
-        verbose=verbose,
     )
     # Pooling is slower if there is only 1 sample
     if len(new_idat_paths) == 1:
@@ -264,9 +259,7 @@ def write_cnv_to_disk(
 
 
 @lru_cache
-def get_cnv_plot(
-    sample_path, reference_dir, prep, cnv_dir, genes_sel, do_seg, verbose=False
-):
+def get_cnv_plot(sample_path, reference_dir, prep, cnv_dir, genes_sel, do_seg):
     """Generate and return a CNV plot for a given sample.
 
     Args:
@@ -276,7 +269,6 @@ def get_cnv_plot(
         cnv_dir (str): Directory to save CNV data.
         genes_sel (list): List of genes to highlight in the plot.
         do_seg (bool): If segments should be calculated as well (slow)
-        verbose (bool, optional): Whether to display verbose output.
 
     Returns:
         plotly.graph_objs.Figure: CNV plotly figure.
@@ -288,10 +280,8 @@ def get_cnv_plot(
         cnv_dir=cnv_dir,
         prep=prep,
         do_seg=do_seg,
-        verbose=verbose,
     )
-    if verbose:
-        logger.info("Read CNV from disk....")
+    logger.info("Read CNV from disk....")
     bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
     plot = cnv_plot_from_data(
         sample_id,
@@ -300,7 +290,6 @@ def get_cnv_plot(
         segments,
         IMPORTANT_GENES,
         list(genes_sel),
-        verbose=verbose,
     )
     return plot.update_layout(
         margin={"l": 0, "r": 0, "t": 30, "b": 0},

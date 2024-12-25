@@ -31,14 +31,7 @@ UNSET = object()
 ZIP_ENDING = "_cnv.zip"
 
 
-def _missing_cbseg_msg():
-    logger.warning(
-        "**Warning**: Segmentation won't be calculated due to missing "
-        "'linear_segment' resp. 'cbseg' package. See documentation."
-    )
-
-
-def _get_cgsegment(verbose=False):
+def _get_cgsegment():
     try:
         import linear_segment
 
@@ -58,8 +51,10 @@ def _get_cgsegment(verbose=False):
 
         return function
     except Exception:
-        if verbose:
-            _missing_cbseg_msg()
+        logger.warning(
+            "**Warning**: Segmentation won't be calculated due to missing "
+            "'linear_segment' resp. 'cbseg' package. See documentation."
+        )
         return None
 
 
@@ -79,8 +74,6 @@ class Annotation:
             Defaults to 50000.
         min_probes_per_bin (int, optional): The minimum number of probes
             per bin. Defaults to 15.
-        verbose (bool, optional): Whether to display verbose output during
-            annotation processing. Defaults to False.
 
     Attributes:
         manifest (Manifest): The manifest to use.
@@ -92,8 +85,6 @@ class Annotation:
             genes).
         bin_size (int): The base-pair size of the bins.
         min_probes_per_bin (int): The minimum number of probes per bin.
-        verbose (bool): Whether to display verbose output during annotation
-            processing.
         chromsizes (dict): Dictionary containing chromosome sizes.
     """
 
@@ -107,7 +98,6 @@ class Annotation:
         detail=UNSET,
         bin_size=50000,
         min_probes_per_bin=15,
-        verbose=False,
     ):
         key = cache_key(
             manifest,
@@ -134,13 +124,13 @@ class Annotation:
         detail=UNSET,
         bin_size=50000,
         min_probes_per_bin=15,
-        verbose=False,
     ):
         # Don't need to initialize if instance is cached.
         if hasattr(self, "_cached"):
             return
         self._cached = True
 
+        logger.info("Constructing annotation...")
         if manifest is None and array_type is None:
             msg = "'manifest' or 'array_type' must be given"
             raise ValueError(msg)
@@ -159,7 +149,6 @@ class Annotation:
             self.detail.Start -= 1
             self.detail = self.detail.sort()
 
-        self.verbose = verbose
         self.chromsizes = pr.data.chromsizes()
 
         if array_type is None:
@@ -199,6 +188,7 @@ class Annotation:
             self._cpg_detail = self.detail.join(
                 self.adjusted_manifest[["IlmnID"]]
             ).df[["Name", "IlmnID"]]
+        logger.info("Constructing annotation done.")
 
     @staticmethod
     @lru_cache
@@ -241,13 +231,13 @@ class Annotation:
         )
         return bins.apply(
             lambda df: self.merge_bins_in_chromosome(
-                df, self.min_probes_per_bin, verbose=self.verbose
+                df, self.min_probes_per_bin
             ),
             as_pyranges=True,
         )
 
     @staticmethod
-    def merge_bins_in_chromosome(bin_df, min_probes_per_bin, verbose=False):
+    def merge_bins_in_chromosome(bin_df, min_probes_per_bin):
         """Merges adjacent bins until all contain a minimum of probes.
 
         Args:
@@ -255,8 +245,6 @@ class Annotation:
                 single chromosome.
             min_probes_per_bin (int): Minimum number of probes per bin required
                 for merging.
-            verbose (bool, optional): Whether to print verbose output. Defaults
-                to False.
 
         Returns:
             DataFrame: Merged bins in the chromosome.
@@ -321,14 +309,16 @@ class Annotation:
             # Invalid
             if n_probes_left == INVALID and n_probes_right == INVALID:
                 update_neighbors(i_left, i_min, i_right)
-                if verbose:
+                if logger.isEnabledFor(logging.DEBUG):
                     row = (
                         bin_df.loc[i_min, ["Chromosome", "Start", "End"]]
                         .astype(str)
                         .tolist()
                     )
                     row_str = "-".join(row)
-                    logger.info(f"Could not merge {row_str}. Removed instead.")
+                    logger.debug(
+                        "Could not merge %s. Removed instead.", row_str
+                    )
                 continue
             if n_probes_right == INVALID or n_probes_left <= n_probes_right:
                 i_merge = i_left
@@ -390,7 +380,6 @@ class CNV:
             neutral references.
         annotation (Annotation): Annotation object containing genomic
             annotation information.
-        verbose (bool): Whether to print verbose output.
         bins (PyRanges): PyRanges object representing genomic bins.
         probes (Index): Index of probe IDs.
         coef: Coefficient of linear regression.
@@ -410,8 +399,6 @@ class CNV:
         annotation (Annotation, optional): Annotation object containing
             genomic annotation information. Defaults to annotation
             associated with the sample array type.
-        verbose (bool, optional): Whether to print verbose output. Defaults
-            to False.
 
     Examples:
         >>> sample = MethylData(file="path/to/idat/file")
@@ -435,7 +422,7 @@ class CNV:
         https://doi.org/10.1093/bioinformatics/btae029
     """
 
-    def __init__(self, sample, reference, annotation=None, *, verbose=False):
+    def __init__(self, sample, reference, annotation=None):
         if len(sample.probes) != 1:
             msg = "sample must contain exactly 1 probe."
             raise ValueError(msg)
@@ -451,10 +438,7 @@ class CNV:
                 "or 'ReferenceMethylData'"
             )
             raise TypeError(msg)
-        self.verbose = verbose
         self.annotation = annotation
-        if self.verbose:
-            logger.info(f"{self.probe} Construct annotation...")
         if annotation is None:
             self.annotation = Annotation(
                 array_type=sample.array_type,
@@ -485,9 +469,7 @@ class CNV:
         self.fit()
 
     @classmethod
-    def set_all(
-        cls, sample, reference, annotation=None, *, do_seg=True, verbose=False
-    ):
+    def set_all(cls, sample, reference, annotation=None, *, do_seg=True):
         """Create a CNV object and perform CNV analysis.
 
         Args:
@@ -519,7 +501,6 @@ class CNV:
             sample=sample,
             reference=reference,
             annotation=annotation,
-            verbose=verbose,
         )
         cnv.set_bins()
         cnv.set_detail()
@@ -531,8 +512,7 @@ class CNV:
         """Calculates intensity values from methylation data."""
         if hasattr(methyl_data, "intensity"):
             return
-        if self.verbose:
-            logger.info(f"{self.probe} Setting intensity...")
+        logger.debug("%s Setting intensity...", self.probe)
         intensity = methyl_data.methyl + methyl_data.unmethyl
         prefix = (
             f"{self.probe}"
@@ -544,23 +524,21 @@ class CNV:
         nan_indices = np.isnan(intensity)
         if np.any(nan_indices):
             intensity[nan_indices] = 1
-            if self.verbose:
-                logger.info(f"{prefix}: Intensities that are NA set to 1.")
+            logger.debug("%s: Intensities that are NA set to 1.", prefix)
 
         # Replace values less than 1 with 1
         lt_one_indices = intensity < 1
         if np.any(lt_one_indices):
             intensity[lt_one_indices] = 1
-            if self.verbose:
-                logger.info(f"{prefix}: Intensities < 0 set to 1.")
+            logger.debug("%s: Intensities < 0 set to 1.", prefix)
 
         # Check abnormal low and high intensities
         mean_intensity = np.mean(intensity, axis=1)
-        if np.min(mean_intensity) < 5000 and self.verbose:
-            logger.info(f"{prefix}: Intensities are abnormally low (< 5000).")
-        if np.max(mean_intensity) > 50000 and self.verbose:
+        if np.min(mean_intensity) < 5000:
+            logger.info("%s: Intensities are abnormally low (< 5000).", prefix)
+        if np.max(mean_intensity) > 50000:
             logger.info(
-                f"{prefix}: Intensities are abnormally high (> 50000)."
+                "%s: Intensities are abnormally high (> 50000).", prefix
             )
         methyl_data.intensity = pd.DataFrame(
             intensity.T,
@@ -574,8 +552,7 @@ class CNV:
         This method fits a linear regression model to the intensity data of the
         sample and reference and calculates the CNV at every CpG site.
         """
-        if self.verbose:
-            logger.info(f"{self.probe} Performing fit...")
+        logger.info("%s Performing fit...", self.probe)
         from sklearn.linear_model import LinearRegression
 
         smp_intensity = _pd_loc(
@@ -587,11 +564,10 @@ class CNV:
             [np.corrcoef(smp_intensity, z)[0, 1] for z in ref_intensity.T]
         )
         if any(correlation >= 0.99):
-            if self.verbose:
-                logger.info(
-                    f"{self.probe} Sample found in reference set. "
-                    "Excluded from fitting."
-                )
+            logger.info(
+                "%s Sample found in reference set. Excluded from fitting.",
+                self.probe,
+            )
             ref_intensity = ref_intensity[:, correlation < 0.99]
         X = np.log2(ref_intensity)
         y = np.log2(smp_intensity)
@@ -612,8 +588,7 @@ class CNV:
         by taking the median of the ratios obtained from the linear regression
         model fit in the 'fit' method.
         """
-        if self.verbose:
-            logger.info(f"{self.probe} Setting bins...")
+        logger.info("%s Setting bins...", self.probe)
         cpg_bins = self.annotation._cpg_bins.copy()
         cpg_bins["ratio"] = _pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
@@ -634,8 +609,7 @@ class CNV:
         specified in the detail object. The result includes the median ratio,
         variance, and count of probes within each region.
         """
-        if self.verbose:
-            logger.info(f"{self.probe} Setting detail...")
+        logger.info("%s Setting detail...", self.probe)
         cpg_detail = self.annotation._cpg_detail.copy()
         cpg_detail["ratio"] = _pd_loc(
             self.ratio, cpg_detail.IlmnID
@@ -694,10 +668,9 @@ class CNV:
         It calculates the CNV segments for each chromosome and stores them
         in the 'segments' attribute of the object.
         """
-        if _get_cgsegment(verbose=True) is None:
+        if _get_cgsegment() is None:
             return
-        if self.verbose:
-            logger.info(f"{self.probe} Setting segments...")
+        logger.info("%s Setting segments...", self.probe)
         segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
@@ -735,8 +708,7 @@ class CNV:
         Raises:
             ValueError: If an invalid data option is specified.
         """
-        if self.verbose:
-            logger.info(f"{self.probe} Write data to disk...")
+        logger.info("%s Write data to disk...", self.probe)
         default = {"all", "bins", "detail", "segments", "metadata"}
         if not isinstance(data, list):
             data = [data]
@@ -780,8 +752,7 @@ class CNV:
 
     def plot(self):
         """Generates and displays a plot of the CNV data."""
-        if self.verbose:
-            logger.info(f"{self.probe} Plotting...")
+        logger.info("%s Plotting...", self.probe)
         cnv_dir = Path(MEPYLOME_TMP_DIR, "cnv_zips")
         ensure_directory_exists(cnv_dir)
         cnv_file = self.probe + ZIP_ENDING

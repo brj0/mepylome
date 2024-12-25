@@ -125,8 +125,9 @@ if len(new_basepaths + faulty_basepaths) == 0:
     sys.exit()
 
 logger.info(
-    "Processing {len(new_basepaths)} new and "
-    f"{len(faulty_basepaths)} incorrectly processed IDAT files."
+    "Processing %s new and %s incorrectly processed IDAT files.",
+    len(new_basepaths),
+    len(faulty_basepaths),
 )
 
 # Load manifests before multiprocessing

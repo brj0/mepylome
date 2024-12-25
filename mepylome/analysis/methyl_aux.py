@@ -118,18 +118,15 @@ def read_dataframe(path, **kwargs):
     raise ValueError(msg)
 
 
-def guess_annotation_file(directory, verbose=False):
+def guess_annotation_file(directory):
     """Returns the first spreadsheat file recursively found."""
-    if verbose:
-        logger.info("Searching for annotation file...")
+    logger.info("Searching for annotation file...")
     supported_extensions = [".csv", ".tsv", ".ods", ".xls", ".xlsx"]
     for file in directory.rglob("*"):
         if file.suffix.lower() in supported_extensions:
-            if verbose:
-                logger.info(f"Found annotation file: {file}")
+            logger.info("Found annotation file: %s", file)
             return file
-    if verbose:
-        logger.info("No annotation file found.")
+    logger.info("No annotation file found.")
     return INVALID_PATH
 
 
@@ -208,7 +205,7 @@ class IdatHandler:
         self.annotation_file = (
             Path(annotation_file)
             if annotation_file and Path(annotation_file).exists()
-            else guess_annotation_file(self.idat_dir, verbose=True)
+            else guess_annotation_file(self.idat_dir)
         )
         self.test_dir = Path(test_dir) if test_dir else None
         self.overlap = overlap
@@ -290,11 +287,11 @@ class IdatHandler:
             )
             return
         if not id_missmatch:
-            logger.info(f"Setting '{col_name}' as annotation index.")
+            logger.info("Setting '%s' as annotation index.", col_name)
             self.annotation_df = self.annotation_df.set_index(col_name)
             return
 
-        logger.info(f"Extracted Sentrix IDs from column '{col_name}'.")
+        logger.info("Extracted Sentrix IDs from column '%s'.", col_name)
         self.analysis_id_to_path = convert_to_sentrix_ids(
             self.analysis_id_to_path
         )

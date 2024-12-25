@@ -32,12 +32,12 @@ LOG_FILE = make_log_file("stdout")
 
 
 def setup_logging():
-    logger = logging.getLogger()
+    logger = logging.getLogger("mepylome")
 
     if logger.hasHandlers():
         return
 
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     # Console handler
     console_handler = logging.StreamHandler()
@@ -45,7 +45,7 @@ def setup_logging():
 
     # File handler
     file_handler = logging.FileHandler(LOG_FILE, mode="a")
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.INFO)
 
     # Formatter with no milliseconds
     log_format = "%(asctime)s [%(module)s] %(message)s"
@@ -58,10 +58,9 @@ def setup_logging():
     logger.addHandler(file_handler)
 
     # Don't show logging statements of other libraries.
-    flask_logger = logging.getLogger("werkzeug")
-    flask_logger.setLevel(logging.ERROR)
-    numba_logger = logging.getLogger("numba")
-    numba_logger.setLevel(logging.ERROR)
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
+    logger.debug("Logging is set up")
 
 
 setup_logging()
