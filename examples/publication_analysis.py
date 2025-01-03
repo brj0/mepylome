@@ -5,8 +5,10 @@
 #     text_representation:
 #       extension: .py
 #       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.16.4
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -25,12 +27,11 @@
 #
 # ### Usage
 #
+# - Follow the notebook/script step-by-step.
 # - All datasets and outputs are saved in `~/mepylome`.
-# - Follow the notebook/script step-by-step for an in-depth understanding of
-#   the workflow and results.
 #
 #
-# ### System Requirements
+# ### System Tested
 #
 # - *Operating System*: Ubuntu 20.04.6
 # - *Python Version*: 3.12
@@ -48,8 +49,10 @@
 # You can quickly open and run this notebook in Google Colab without any setup
 # by clicking the link below.
 #
-# **Note**: The graphical user interface (GUI) features won't run in Colab, but
-# the rest of the analysis will work as expected.
+# **Note**: The graphical user interface (GUI) features may not function fully
+# in Colabl. Additionally, long download operations (such as the squamous cell
+# carcinoma part) may encounter timeouts or interruptions, so it is recommended
+# to run these operations locally.
 #
 # [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/publication_analysis.ipynb)
 #
@@ -60,8 +63,6 @@
 # ```bash
 # jupytext --to ipynb publication_analysis.py
 # ```
-#
-#
 # -----------------------------------------------------------------------------
 
 # %% [markdown]
@@ -81,23 +82,18 @@
 # ### Install Required Packages
 #
 # To run the analysis, install the following Python packages:
-# - `mepylome` – the main toolkit for DNA-methylation analysis.
-# - `linear_segment` – used for segmentation calculations in CNV plots.
+# - `mepylome` - the main toolkit for DNA-methylation analysis.
+# - `linear_segment` - used for segmentation calculations in CNV plots.
 # - `kaleido` for saving plots.
+# - `ipython` and `pillow` - supporting libraries for interactive and graphical
+#   functionality.
 #
-# Install these packages using the commands below:
+#
+# Install these packages (may take 1 to 2 minutes) using the command below:
 
 # %% language="bash"
-# echo "Install necessary packages. This may take 1 to 2 minutes..."
 #
-# pip install mepylome
-# pip install ipython
-# pip install pillow
-# pip install linear_segment
-# pip install -U kaleido
-#
-# echo
-# echo "Installation complete."
+# pip install -q mepylome ipython pillow linear_segment -U kaleido
 
 
 # %% [markdown]
@@ -126,7 +122,6 @@ from mepylome.dtypes.manifests import (
     MANIFEST_URL,
     REMOTE_FILENAME,
 )
-from mepylome.utils import ensure_directory_exists
 from mepylome.utils.files import (
     download_file,
     download_geo_probes,
@@ -134,6 +129,8 @@ from mepylome.utils.files import (
 
 # Define output font size for plots
 FONTSIZE = 23
+IMG_HEIGHT = 2000
+IMG_WIDTH = 1000
 GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
 
 # Define dataset URLs and filenames
@@ -152,16 +149,16 @@ datasets = {
     },
     "scc": {
         "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
-        "geo_ids": ["GSE85566"],
+        "geo_ids": [],
     },
     "scc_test": {
         "geo_ids": [
-            "GSE124052",
-            "GSE66836",
-            "GSE79556",
-            "GSE87053",
-            "GSE95036",
-            "GSE124052",
+            "GSE124052",  # HNSQ_CA, NSCLC_SC
+            "GSE66836",  # NSCLC_AD, CONTR_LUNG
+            "GSE79556",  # HNSQ_CA (oral tongue)
+            "GSE87053",  # HNSQ_CA, CONTR_OC
+            "GSE95036",  # HNSQ_CA
+            "GSE124052",  # HNSQ_CA, NSCLC_SC
         ],
     },
 }
@@ -178,8 +175,8 @@ else:
     mepylome_dir = Path.home() / "mepylome"
 
 # Ensure the directory exists
-ensure_directory_exists(mepylome_dir)
-os.environ["MEPYLOME_DIR"] = str(mepylome_dir)
+mepylome_dir.mkdir(parents=True, exist_ok=True)
+
 print(f"Data will be stored in: {mepylome_dir}")
 
 data_dir = mepylome_dir / "data"
@@ -187,17 +184,18 @@ output_dir = mepylome_dir / "out"
 reference_dir = mepylome_dir / "cn_neutral_idats"
 validation_dir = mepylome_dir / "validation_data"
 
-ensure_directory_exists(data_dir)
-ensure_directory_exists(output_dir)
-ensure_directory_exists(reference_dir)
-ensure_directory_exists(validation_dir)
+data_dir.mkdir(parents=True, exist_ok=True)
+output_dir.mkdir(parents=True, exist_ok=True)
+reference_dir.mkdir(parents=True, exist_ok=True)
+validation_dir.mkdir(parents=True, exist_ok=True)
+
 
 # Main Funktions
 
 
 def extract_tar(tar_path, output_directory):
     """Extracts tar file under 'tar_path' to 'output_directory'."""
-    ensure_directory_exists(output_directory)
+    output_directory.mkdir(parents=True, exist_ok=True)
     with tarfile.open(tar_path, "r") as tar:
         tar.extractall(path=output_directory, filter="data")
         print(f"Extracted {tar_path} to {output_directory}")
@@ -229,7 +227,7 @@ def calculate_cn_summary(analysis, class_):
     for methyl_class in all_classes:
         df_index = df_class == methyl_class
         sample_ids = df_class.index[df_index]
-        plot, df_cn_summary = analysis.cn_summary(sample_ids)
+        plot, _ = analysis.cn_summary(sample_ids)
         plot.update_layout(
             title=f"{methyl_class}",
             title_x=0.5,
@@ -280,7 +278,7 @@ def generate_blacklist_cpgs():
     blacklist_path = data_dir / "cpg_blacklist.csv"
     if not blacklist_path.exists():
         manifest_url = MANIFEST_URL[ArrayType.ILLUMINA_EPIC]
-        ensure_directory_exists(DOWNLOAD_DIR)
+        DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
         response = requests.get(manifest_url)
         html_sucess_ok_code = 200
         if response.status_code == html_sucess_ok_code:
@@ -296,9 +294,9 @@ def generate_blacklist_cpgs():
         ]["IlmnID"]
         flagged_cpgs.to_csv(blacklist_path, index=False, header=False)
         csv_path.unlink()
-    blacklist = pd.read_csv(blacklist_path, header=None)
+    blacklist_df = pd.read_csv(blacklist_path, header=None)
     print("Generating blacklist done.")
-    return set(blacklist.iloc[:, 0])
+    return set(blacklist_df.iloc[:, 0])
 
 
 def sex_chromosome_cpgs():
@@ -320,8 +318,8 @@ blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
 # %% [markdown]
 # ### Copy-Neutral Reference Probes
 #
-# To ensure accurate analysis, we utilize control probes from the [Koelsche et
-# al. (2021) study](https://doi.org/10.1038/s41467-020-20603-4). These probes
+# To ensure accurate analysis, we utilize control probes from [Koelsche et
+# al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). These probes
 # are stored in the designated reference directory `reference_dir`.
 #
 # **Best Practices**:
@@ -379,8 +377,8 @@ tumor_site = "salivary_gland_tumors"
 analysis_dir_sg = data_dir / tumor_site
 test_dir_sg = validation_dir / tumor_site
 
-ensure_directory_exists(test_dir_sg)
-ensure_directory_exists(analysis_dir_sg)
+test_dir_sg.mkdir(parents=True, exist_ok=True)
+analysis_dir_sg.mkdir(parents=True, exist_ok=True)
 
 # Download the the annotation spreadsheet.
 if not (
@@ -411,7 +409,7 @@ analysis_sg = MethylAnalysis(
     load_full_betas=True,
     overlap=False,
     cpg_blacklist=blacklist,
-    debug=True,
+    debug=False,
     do_seg=True,
     umap_parms={
         "n_neighbors": 8,
@@ -447,13 +445,16 @@ analysis_sg.make_umap()
 # %%
 # Show the results
 print(analysis_sg.umap_df)
+
+# %%
+# Generate and show image
 output_path = output_dir / f"{analysis_dir_sg.name}-umap_plot.jpg"
 analysis_sg.umap_plot.write_image(
     output_path,
     format="jpg",
-    width=2000,
-    height=1000,
-    scale=2,
+    width=IMG_HEIGHT,
+    height=IMG_WIDTH,
+    scale=1,
 )
 IPImage(filename=output_path)
 
@@ -474,7 +475,7 @@ analysis_sg.run_app(open_tab=True)
 # ### Generate and Save CNV Plot
 #
 # Creates a copy number variation (CNV) plot for a specified sample and saves
-# the output as a high-resolution image.
+# the output as an image.
 
 # %%
 # Save CNV example
@@ -489,9 +490,9 @@ output_path = output_dir / f"{analysis_dir_sg.name}-cnv_plot.jpg"
 cnv_plot.write_image(
     output_path,
     format="jpg",
-    width=2000,
-    height=1000,
-    scale=2,
+    width=IMG_HEIGHT,
+    height=IMG_WIDTH,
+    scale=1,
 )
 IPImage(filename=output_path)
 
@@ -559,10 +560,9 @@ print(best_clf_sg.reports[0])
 # <a name="2.-Soft-Tissue-Tumors"></a>
 # ## 2. Soft Tissue Tumors
 #
-# This section replicates the methylation analysis performed in the study by
-# [Koelsche2021 study](https://doi.org/10.1038/s41467-020-20603-4). To begin,
-# we download the required data and organize it within the designated
-# directories.
+# This section replicates the methylation analysis performed in
+# [Koelsche2021](https://doi.org/10.1038/s41467-020-20603-4). To begin, we
+# download the required data and organize it within the designated directories.
 
 # %%
 # Initialize directories.
@@ -570,8 +570,8 @@ tumor_site = "soft_tissue_tumors"
 analysis_dir_sf = data_dir / tumor_site
 test_dir_sf = validation_dir / tumor_site
 
-ensure_directory_exists(test_dir_sf)
-ensure_directory_exists(analysis_dir_sf)
+test_dir_sf.mkdir(parents=True, exist_ok=True)
+analysis_dir_sf.mkdir(parents=True, exist_ok=True)
 
 # Download the the annotation spreadsheet.
 if not (
@@ -599,12 +599,10 @@ analysis_sf = MethylAnalysis(
     load_full_betas=True,
     overlap=False,
     cpg_blacklist=blacklist,
-    debug=True,
+    debug=False,
     do_seg=True,
     umap_parms={
-        "n_neighbors": 8,
         "metric": "manhattan",
-        "min_dist": 0.3,
     },
 )
 
@@ -634,13 +632,16 @@ analysis_sf.make_umap()
 # %%
 # Show the results
 print(analysis_sf.umap_df)
+
+# %%
+# Generate and show image
 output_path = output_dir / f"{analysis_dir_sf.name}-umap_plot.jpg"
 analysis_sf.umap_plot.write_image(
     output_path,
     format="jpg",
-    width=2000,
-    height=1000,
-    scale=2,
+    width=IMG_HEIGHT,
+    height=IMG_WIDTH,
+    scale=1,
 )
 IPImage(filename=output_path)
 
@@ -662,7 +663,7 @@ analysis_sf.run_app(open_tab=True)
 # ### Generate and Save CNV Plot
 #
 # Creates a copy number variation (CNV) plot for a specified sample and saves
-# the output as a high-resolution image.
+# the output as an image.
 
 # %%
 # Save CNV example
@@ -677,9 +678,9 @@ output_path = output_dir / f"{analysis_dir_sf.name}-cnv_plot.jpg"
 cnv_plot.write_image(
     output_path,
     format="jpg",
-    width=2000,
-    height=1000,
-    scale=2,
+    width=IMG_HEIGHT,
+    height=IMG_WIDTH,
+    scale=1,
 )
 IPImage(filename=output_path)
 
@@ -746,13 +747,13 @@ print(best_clf_sf.reports[0])
 # <a name="3.-Squamous-Cell-Carcinoma"></a>
 # ## 3. Squamous Cell Carcinoma
 
-# %% [markdown]
-# In this example, we aim to reproduce the pan-SCC classifier presented in the
-# study by [Jurmeister et al.
+# %% In this example, we aim to reproduce the pan-SCC classifier [markdown]
+# presented in the study by [Jurmeister et al.
 # (2019)](https://doi.org/10.1126/scitranslmed.aaw8513). Our goal is to gather
 # data for Squamous Cell Carcinoma (SCC) from multiple sources, as outlined in
-# the publication, including datasets from The Cancer Genome Atlas (TCGA).
-# Datasets without IDAT files are omitted from the collection process.
+# the publication, including datasets from The Cancer Genome Atlas (TCGA) and
+# from the Gene Expression Omnibus (GEO) repository. Datasets without IDAT
+# files are omitted from the collection process.
 
 # %%
 # Initialize directories.
@@ -760,8 +761,8 @@ tumor_site = "scc"
 analysis_dir_scc = data_dir / tumor_site
 test_dir_scc = validation_dir / tumor_site
 
-ensure_directory_exists(test_dir_scc)
-ensure_directory_exists(analysis_dir_scc)
+test_dir_scc.mkdir(parents=True, exist_ok=True)
+analysis_dir_scc.mkdir(parents=True, exist_ok=True)
 
 # %% [markdown]
 # ### Step 1: Download TCGA Data
@@ -799,7 +800,7 @@ tcga_downloaded_tag = tcga_dir / ".download_complete"
 tcga_metadata_dir_tar = analysis_dir_scc / "tcga_metadata.tar.gz"
 tcga_metadata_dir = tcga_metadata_dir_tar.with_suffix("").with_suffix("")
 
-ensure_directory_exists(tcga_dir)
+tcga_dir.mkdir(parents=True, exist_ok=True)
 
 geo_metadata_url = "https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/geo_metadata.tar.gz"
 tcga_metadata_url = "https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/tcga_metadata.tar.gz"
@@ -905,7 +906,7 @@ tcga_annotation["Sample_ID"] = tcga_annotation["case_id"].map(
 )
 tcga_annotation = tcga_annotation.drop(columns="case_id")
 
-# Rename columns
+# Rename columns restrict to the useful ones
 columns_dict = {
     "gender": "Sex",
     "age_at_index": "Age",
@@ -917,6 +918,7 @@ columns_dict = {
     "Sample_ID": "Sample_ID",
 }
 tcga_annotation = tcga_annotation.rename(columns=columns_dict)
+tcga_annotation = tcga_annotation[columns_dict.values()]
 
 # Standardize the 'Sex' column and convert 'Age' to numeric
 tcga_annotation["Sex"] = tcga_annotation["Sex"].replace(
@@ -926,19 +928,22 @@ tcga_annotation["Age"] = pd.to_numeric(tcga_annotation["Age"], errors="coerce")
 
 # Mark the samples that to be censored
 diag_to_censor_stat = {
-    "Warty carcinoma": 1,
+    "Adenocarcinoma with mixed subtypes": 0,
+    "Adenocarcinoma, NOS": 0,
     "Adenosquamous carcinoma": 1,
-    "Squamous cell carcinoma, keratinizing, NOS": 0,
-    "Papillary squamous cell carcinoma": 1,
-    "Squamous cell carcinoma, spindle cell": 1,
     "Basaloid squamous cell carcinoma": 1,
-    "Squamous cell carcinoma, small cell, nonkeratinizing": 1,
-    "Squamous cell carcinoma, nonkeratinizing, NOS": 0,
     "Lymphoepithelial carcinoma": 1,
-    "Squamous cell carcinoma, large cell, nonkeratinizing, NOS": 1,
     "Papillary carcinoma, NOS": 1,
+    "Papillary squamous cell carcinoma": 1,
     "Squamous cell carcinoma, NOS": 0,
+    "Squamous cell carcinoma, keratinizing, NOS": 0,
+    "Squamous cell carcinoma, large cell, nonkeratinizing, NOS": 1,
+    "Squamous cell carcinoma, nonkeratinizing, NOS": 0,
+    "Squamous cell carcinoma, small cell, nonkeratinizing": 1,
+    "Squamous cell carcinoma, spindle cell": 1,
+    "Warty carcinoma": 1,
 }
+
 tcga_annotation["Censor"] = tcga_annotation["Primary_diagnosis"].map(
     diag_to_censor_stat
 )
@@ -999,7 +1004,10 @@ tcga_annotation["Diagnosis"] = None
 # Classify each row based on the tumor site
 for index, row in tcga_annotation.iterrows():
     site = str(row["Tumor_site"]).strip()
-    if site in cervix_sites:
+    diagnosis = row["Primary_diagnosis"]
+    if diagnosis.startswith("Adenocarcinoma") and site in nsclc_sites:
+        tcga_annotation.loc[index, "Diagnosis"] = "NSCLC_AD"
+    elif site in cervix_sites:
         tcga_annotation.loc[index, "Diagnosis"] = "CERSQ_CA"
     elif site in nsclc_sites:
         tcga_annotation.loc[index, "Diagnosis"] = "NSCLC_SC"
@@ -1013,9 +1021,6 @@ for index, row in tcga_annotation.iterrows():
 
 # Removed censored samples
 tcga_annotation = tcga_annotation[tcga_annotation["Censor"] == 0]
-
-# Extract useful columns
-tcga_annotation = tcga_annotation[columns_dict.values()]
 
 # %% [markdown]
 # ### Step 2: Download and unzip the GEO data
@@ -1061,6 +1066,9 @@ if (csv_path := analysis_dir_scc / f"{tumor_site}-annotation.csv").exists():
     print("Merged annotation file allready exists.")
 else:
     anno_df = pd.concat([geo_annotation, tcga_annotation], ignore_index=True)
+    # Remove Adenocarcinoma and normal oral cavity samples
+    scc_types = {"HNSQ_CA", "NSCLC_SC", "ESO_CA_SQ", "CERSQ_CA"}
+    anno_df = anno_df[anno_df["Diagnosis"].isin(scc_types)]
     anno_df.to_csv(csv_path, index=False)
     print("Merged annotation file created.")
 
@@ -1080,14 +1088,14 @@ analysis_scc = MethylAnalysis(
     test_dir=test_dir_scc,
     n_cpgs=25000,
     load_full_betas=True,
-    overlap=False,
+    overlap=True,
     cpg_blacklist=blacklist,
-    debug=True,
+    debug=False,
     do_seg=True,
     umap_parms={
-        "n_neighbors": 8,
+        "n_neighbors": 5,
         "metric": "manhattan",
-        "min_dist": 0.3,
+        "min_dist": 0.1,
     },
 )
 
@@ -1117,13 +1125,16 @@ analysis_scc.make_umap()
 # %%
 # Show the results
 print(analysis_scc.umap_df)
+
+# %%
+# Generate and show image
 output_path = output_dir / f"{analysis_dir_scc.name}-umap_plot.jpg"
 analysis_scc.umap_plot.write_image(
     output_path,
     format="jpg",
-    width=2000,
-    height=1000,
-    scale=2,
+    width=IMG_HEIGHT,
+    height=IMG_WIDTH,
+    scale=1,
 )
 IPImage(filename=output_path)
 
@@ -1145,7 +1156,7 @@ analysis_scc.run_app(open_tab=True)
 # ### Generate and Save CNV Plot
 #
 # Creates a copy number variation (CNV) plot for a specified sample and saves
-# the output as a high-resolution image.
+# the output as an image.
 
 # %%
 # Save CNV example
@@ -1160,9 +1171,9 @@ output_path = output_dir / f"{analysis_dir_scc.name}-cnv_plot.jpg"
 cnv_plot.write_image(
     output_path,
     format="jpg",
-    width=2000,
-    height=1000,
-    scale=2,
+    width=IMG_HEIGHT,
+    height=IMG_WIDTH,
+    scale=1,
 )
 IPImage(filename=output_path)
 
@@ -1226,17 +1237,32 @@ print(best_clf_scc.reports[0])
 # %% [markdown]
 # Now we apply the best classifier on the independent validation samples:
 
-# %% TODO
+# %%
 test_ids = analysis_scc.idat_handler.test_ids
+# Ignore all files that are not in annotation file
+test_ids = list(
+    set(test_ids).intersection(analysis_scc.idat_handler.annotation_df.index)
+)
 clf_out_pred = analysis_scc.classify(ids=test_ids, clf_list=best_clf_scc.model)
-pred = clf_out_pred.prediction
+pred = clf_out_pred.prediction.idxmax(axis=1)
 true_values = analysis_scc.idat_handler.samples_annotated.loc[test_ids][
     "Diagnosis"
 ]
+correct = np.sum(pred == true_values)
+total = len(pred)
+accuracy_scc = correct / total
+print(f"Classifier Accuracy: {100*accuracy_scc:.2f} % ({correct}/{total})")
+
+# Analyze misclassified samples
+misclassified = pred != true_values
+misclassified_samples = clf_out_pred.prediction[misclassified].copy()
+misclassified_samples["Pred"] = pred[misclassified]
+misclassified_samples["True"] = true_values[misclassified]
+print("Missclassified samples:\n", misclassified_samples)
 
 
 # %% [markdown]
-## 4. Appendix
+# # 4. Appendix
 
 # %% [markdown]
 # The GEO annotation files were downloaded and manually curated. Below is the
