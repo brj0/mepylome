@@ -35,7 +35,9 @@ command:
 
 .. code-block:: sh
 
-    pip install cython ailist==1.0.4 cbseg
+    pip install cython
+    pip install ailist==1.0.4
+    pip install cbseg
 
 If you encounter any compatibility issues, you may need to downgrade numpy to
 version 1.26.4.

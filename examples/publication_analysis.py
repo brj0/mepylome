@@ -35,6 +35,8 @@
 #
 # - *Operating System*: Ubuntu 20.04.6
 # - *Python Version*: 3.12
+# - If you only intend to run a specific section (e.g., 1, 2, or 3), ensure
+#   that you first execute the setup section (0).
 #
 #
 # ### Reference Publication (will follow)
@@ -49,10 +51,14 @@
 # You can quickly open and run this notebook in Google Colab without any setup
 # by clicking the link below.
 #
-# **Note**: The graphical user interface (GUI) features may not function fully
-# in Colabl. Additionally, long download operations (such as the squamous cell
-# carcinoma part) may encounter timeouts or interruptions, so it is recommended
-# to run these operations locally.
+# **Note**: The graphical user interface (GUI) features have limited support in
+# Google Colab. While the salivary gland section is fully functional in Colab,
+# the supervised classifiers for other tumors exceed the memory limits of the
+# free Colab environment. Additionally, lengthy download operations - such as
+# those required for the squamous cell carcinoma section - may encounter
+# timeouts or interruptions. For optimal performance and to avoid these
+# limitations, it is recommended to run these operations locally on a machine
+# with sufficient resources.
 #
 # [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/publication_analysis.ipynb)
 #
@@ -106,6 +112,7 @@ import json
 import multiprocessing
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -248,8 +255,13 @@ def calculate_cn_summary(analysis, class_):
             yaxis_title_font_size=FONTSIZE - 2,
         )
         plot_list.append(plot)
+
+    def clean_filename(name):
+        # Replace invalid characters with a single underscore
+        return re.sub(r"[^\w\-]+", "_", name)
+
     png_paths = [
-        output_dir / f"{analysis_dir.name}-cn_summary-{x}.png"
+        output_dir / f"{analysis_dir.name}-cn_summary-{clean_filename(x)}.png"
         for x in all_classes
     ]
     for path, fig in zip(png_paths, plot_list):
@@ -513,7 +525,7 @@ IPImage(filename=output_path)
 # highlight genomic alterations across multiple samples.
 #
 # **Note**:
-# Generating all copy number variation (CNV) plots can be resource-intensive.
+# Generating all copy number variation (CNV) plots is resource- and time-intensive.
 # The process may take up to 30 minutes, depending on the computational
 # resources available.
 
@@ -532,8 +544,8 @@ IPImage(filename=cn_summary_path_sg)
 # identify the most accurate model for methylation-based classification.
 #
 # **Note**:
-# Training can be resource-intensive. The process may take up to 10 minutes,
-# depending on the computational resources available.
+# Training is resource- and time-intensive. The process may take up to 10
+# minutes, depending on the computational resources available.
 
 # %%
 # Train supervised classifiers
@@ -563,12 +575,6 @@ best_clf_sg = max(
 print("Most accurate classifier:")
 print(best_clf_sg.reports[0])
 
-
-# %% [markdown]
-# ### Release memory for next part
-
-# %%
-del analysis_sg
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
@@ -706,13 +712,15 @@ IPImage(filename=output_path)
 # highlight genomic alterations across multiple samples.
 #
 # **Note**:
-# Generating all copy number variation (CNV) plots can be resource-intensive.
+# Generating all copy number variation (CNV) plots is resource- and time-intensive.
 # The process may take up to 30 minutes, depending on the computational
 # resources available.
 
 # %%
 analysis_sf.precompute_cnvs()
-cn_summary_path_sf = calculate_cn_summary(analysis_sf, "Methylation class")
+cn_summary_path_sf = calculate_cn_summary(
+    analysis_sf, "Methylation Class Name"
+)
 
 # %%
 IPImage(filename=cn_summary_path_sf)
@@ -725,8 +733,8 @@ IPImage(filename=cn_summary_path_sf)
 # identify the most accurate model for methylation-based classification.
 #
 # **Note**:
-# Training can be resource-intensive. The process may take up to 10 minutes,
-# depending on the computational resources available.
+# Training is resource- and time-intensive. The process may take up to 10
+# minutes, depending on the computational resources available.
 
 # %%
 # Train supervised classifiers
@@ -754,13 +762,6 @@ best_clf_sf = max(
 )
 print("Most accurate classifier:")
 print(best_clf_sf.reports[0])
-
-
-# %% [markdown]
-# ### Release memory for next part
-
-# %%
-del analysis_sf
 
 
 # %% [markdown]
@@ -1205,7 +1206,7 @@ IPImage(filename=output_path)
 # highlight genomic alterations across multiple samples.
 #
 # **Note**:
-# Generating all copy number variation (CNV) plots can be resource-intensive.
+# Generating all copy number variation (CNV) plots is resource- and time-intensive.
 # The process may take up to 30 minutes, depending on the computational
 # resources available.
 
@@ -1224,8 +1225,8 @@ IPImage(filename=cn_summary_path_scc)
 # identify the most accurate model for methylation-based classification.
 #
 # **Note**:
-# Training can be resource-intensive. The process may take up to 10 minutes,
-# depending on the computational resources available.
+# Training is resource- and time-intensive. The process may take up to 10
+# minutes, depending on the computational resources available.
 
 # %%
 # Train supervised classifiers
@@ -1279,13 +1280,6 @@ misclassified_samples = clf_out_pred.prediction[misclassified].copy()
 misclassified_samples["Pred"] = pred[misclassified]
 misclassified_samples["True"] = true_values[misclassified]
 print("Missclassified samples:\n", misclassified_samples)
-
-
-# %% [markdown]
-# ### Release memory for next part
-
-# %%
-del analysis_scc
 
 
 # %% [markdown]
