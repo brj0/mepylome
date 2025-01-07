@@ -93,7 +93,8 @@
 
 # %% language="bash"
 #
-# pip install -q mepylome ipython pillow linear_segment -U kaleido
+# pip install mepylome ipython pillow linear_segment
+# pip install -U kaleido
 
 
 # %% [markdown]
@@ -102,9 +103,12 @@
 # %%
 import io
 import json
+import multiprocessing
 import os
+import platform
 import shutil
 import subprocess
+import sys
 import tarfile
 import zipfile
 from pathlib import Path
@@ -174,23 +178,29 @@ else:
     # Default for local Linux or other environments
     mepylome_dir = Path.home() / "mepylome"
 
-# Ensure the directory exists
-mepylome_dir.mkdir(parents=True, exist_ok=True)
-
-print(f"Data will be stored in: {mepylome_dir}")
 
 data_dir = mepylome_dir / "data"
 output_dir = mepylome_dir / "out"
 reference_dir = mepylome_dir / "cn_neutral_idats"
 validation_dir = mepylome_dir / "validation_data"
 
+# Ensure the directory exists
+mepylome_dir.mkdir(parents=True, exist_ok=True)
 data_dir.mkdir(parents=True, exist_ok=True)
 output_dir.mkdir(parents=True, exist_ok=True)
 reference_dir.mkdir(parents=True, exist_ok=True)
 validation_dir.mkdir(parents=True, exist_ok=True)
 
 
-# Main Funktions
+print("=== System Information ===")
+print(f"Python Version: {sys.version.split()[0]}")
+print(f"Platform: {platform.system()} {platform.release()}")
+print(f"Processor: {platform.processor()}")
+print(f"Number of CPUs: {multiprocessing.cpu_count()}")
+print(f"Data will be stored in: {mepylome_dir}")
+
+
+# Main Functions
 
 
 def extract_tar(tar_path, output_directory):
@@ -288,7 +298,7 @@ def generate_blacklist_cpgs():
             msg = f"Failed to download the file: {response.status_code}"
             raise RuntimeError(msg)
         csv_path = DOWNLOAD_DIR / REMOTE_FILENAME[ArrayType.ILLUMINA_EPIC]
-        manifest_df = pd.read_csv(csv_path, skiprows=7)
+        manifest_df = pd.read_csv(csv_path, skiprows=7, low_memory=False)
         flagged_cpgs = manifest_df[
             manifest_df["MFG_Change_Flagged"].fillna(False)
         ]["IlmnID"]
@@ -380,7 +390,7 @@ test_dir_sg = validation_dir / tumor_site
 test_dir_sg.mkdir(parents=True, exist_ok=True)
 analysis_dir_sg.mkdir(parents=True, exist_ok=True)
 
-# Download the the annotation spreadsheet.
+# Download the annotation spreadsheet.
 if not (
     excel_path := analysis_dir_sg / f"{tumor_site}-annotation.xlsx"
 ).exists():
@@ -537,7 +547,6 @@ clf_out_sg = analysis_sg.classify(
         "none-kbest-svc_rbf",
         "none-pca-lr",
         "none-pca-et",
-        "none-none-knn",
     ],
 )
 
@@ -554,6 +563,12 @@ best_clf_sg = max(
 print("Most accurate classifier:")
 print(best_clf_sg.reports[0])
 
+
+# %% [markdown]
+# ### Release memory for next part
+
+# %%
+del analysis_sg
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
@@ -573,7 +588,7 @@ test_dir_sf = validation_dir / tumor_site
 test_dir_sf.mkdir(parents=True, exist_ok=True)
 analysis_dir_sf.mkdir(parents=True, exist_ok=True)
 
-# Download the the annotation spreadsheet.
+# Download the annotation spreadsheet.
 if not (
     excel_path := analysis_dir_sf / f"{tumor_site}-annotation.xlsx"
 ).exists():
@@ -697,7 +712,7 @@ IPImage(filename=output_path)
 
 # %%
 analysis_sf.precompute_cnvs()
-cn_summary_path_sf = calculate_cn_summary(analysis_sg, "Methylation class")
+cn_summary_path_sf = calculate_cn_summary(analysis_sf, "Methylation class")
 
 # %%
 IPImage(filename=cn_summary_path_sf)
@@ -725,7 +740,6 @@ clf_out_sf = analysis_sf.classify(
         "none-kbest-svc_rbf",
         "none-pca-lr",
         "none-pca-et",
-        "none-none-knn",
     ],
 )
 
@@ -740,6 +754,13 @@ best_clf_sf = max(
 )
 print("Most accurate classifier:")
 print(best_clf_sf.reports[0])
+
+
+# %% [markdown]
+# ### Release memory for next part
+
+# %%
+del analysis_sf
 
 
 # %% [markdown]
@@ -1218,7 +1239,6 @@ clf_out_scc = analysis_scc.classify(
         "none-kbest-svc_rbf",
         "none-pca-lr",
         "none-pca-et",
-        "none-none-knn",
     ],
 )
 
@@ -1259,6 +1279,13 @@ misclassified_samples = clf_out_pred.prediction[misclassified].copy()
 misclassified_samples["Pred"] = pred[misclassified]
 misclassified_samples["True"] = true_values[misclassified]
 print("Missclassified samples:\n", misclassified_samples)
+
+
+# %% [markdown]
+# ### Release memory for next part
+
+# %%
+del analysis_scc
 
 
 # %% [markdown]

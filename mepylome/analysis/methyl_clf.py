@@ -498,7 +498,7 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
     if min(counts_per_class) < n_splits:
         logger.info(
             "Warning: One of the classes has fewer than "
-            "{n_splits} samples (cv splits). Stats may not be computable."
+            f"{n_splits} samples (cv splits). Stats may not be computable."
         )
         trained_clf = TrainedSklearnClassifier(clf=clf, X=X)
     else:
