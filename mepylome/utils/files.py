@@ -151,11 +151,8 @@ def unzip_and_remove_gz_files(directory, use_sentrix_id=False):
         if use_sentrix_id:
             sentrix_name = output_path.name.split("_", 1)[1]
             output_path = output_path.with_name(sentrix_name)
-        with (
-            gzip.open(file_path, "rb") as f_in,
-            open(output_path, "wb") as f_out,
-        ):
-            shutil.copyfileobj(f_in, f_out)
+        with gzip.open(file_path, "rb") as fi, open(output_path, "wb") as fo:
+            shutil.copyfileobj(fi, fo)
         file_path.unlink()
 
 
