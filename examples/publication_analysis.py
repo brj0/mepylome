@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.6
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -29,14 +29,15 @@
 #
 # - Follow the notebook/script step-by-step.
 # - All datasets and outputs are saved in `~/mepylome`.
+# - If you only intend to run a specific section (e.g., 1, 2, or 3), ensure
+#   that you first execute the setup section (0). This approach is essential if
+#   memory is limited.
 #
 #
 # ### System Tested
 #
 # - *Operating System*: Ubuntu 20.04.6
 # - *Python Version*: 3.12
-# - If you only intend to run a specific section (e.g., 1, 2, or 3), ensure
-#   that you first execute the setup section (0).
 #
 #
 # ### Reference Publication (will follow)
@@ -51,14 +52,11 @@
 # You can quickly open and run this notebook in Google Colab without any setup
 # by clicking the link below.
 #
-# **Note**: The graphical user interface (GUI) features have limited support in
-# Google Colab. While the salivary gland section is fully functional in Colab,
-# the supervised classifiers for other tumors exceed the memory limits of the
-# free Colab environment. Additionally, lengthy download operations - such as
-# those required for the squamous cell carcinoma section - may encounter
-# timeouts or interruptions. For optimal performance and to avoid these
-# limitations, it is recommended to run these operations locally on a machine
-# with sufficient resources.
+# **Note**: The graphical user interface (GUI) features are limited in Google
+# Colab. If using the free version, memory constraints may arise, so it is
+# recommended to run sections 1, 2, and 3 separately with a kernel restart
+# between each part. Additionally, long download operations (e.g., for the
+# squamous cell carcinoma section) may face timeouts or interruptions.
 #
 # [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/publication_analysis.ipynb)
 #
@@ -525,9 +523,9 @@ IPImage(filename=output_path)
 # highlight genomic alterations across multiple samples.
 #
 # **Note**:
-# Generating all copy number variation (CNV) plots is resource- and time-intensive.
-# The process may take up to 30 minutes, depending on the computational
-# resources available.
+# Generating all copy number variation (CNV) plots is resource- and
+# time-intensive. The process can take a significant amount of time, depending
+# on the computational resources available.
 
 # %%
 analysis_sg.precompute_cnvs()
@@ -712,9 +710,9 @@ IPImage(filename=output_path)
 # highlight genomic alterations across multiple samples.
 #
 # **Note**:
-# Generating all copy number variation (CNV) plots is resource- and time-intensive.
-# The process may take up to 30 minutes, depending on the computational
-# resources available.
+# Generating all copy number variation (CNV) plots is resource- and
+# time-intensive. The process can take a significant amount of time, depending
+# on the computational resources available.
 
 # %%
 analysis_sf.precompute_cnvs()
@@ -1206,9 +1204,9 @@ IPImage(filename=output_path)
 # highlight genomic alterations across multiple samples.
 #
 # **Note**:
-# Generating all copy number variation (CNV) plots is resource- and time-intensive.
-# The process may take up to 30 minutes, depending on the computational
-# resources available.
+# Generating all copy number variation (CNV) plots is resource- and
+# time-intensive. The process can take a significant amount of time, depending
+# on the computational resources available.
 
 # %%
 analysis_scc.precompute_cnvs()

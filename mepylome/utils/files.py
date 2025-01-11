@@ -72,7 +72,7 @@ def download_file(url, save_path, overwrite=False, show_progress=True):
         return
 
     if show_progress:
-        logger.info("Downloading from %s to {save_path}...", url)
+        logger.info("Downloading from %s to %s...", url, save_path)
 
     try:
         import requests
