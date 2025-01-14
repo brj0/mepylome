@@ -96,6 +96,11 @@ mepylome --tutorial
 This command downloads sample IDAT files and provides a demonstration of the
 package's functionality.
 
+
+If you don't want to download or install anything, you can run the tutorial
+directly in **Google Colab** with no setup required:
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/tutorial.ipynb)
+
 See <https://mepylome.readthedocs.io/> for details.
 
 

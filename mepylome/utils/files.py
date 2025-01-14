@@ -182,10 +182,30 @@ def setup_tutorial_files(analysis_dir, reference_dir):
         analysis_dir / "annotation.csv", index=False
     )
     is_control = tutorial_df["Diagnosis"] == control
-    download_geo_probes(analysis_dir, tutorial_df["Geo_File_ID"])
-    download_geo_probes(reference_dir, tutorial_df[is_control]["Geo_File_ID"])
-    unzip_and_remove_gz_files(analysis_dir, use_sentrix_id=True)
-    unzip_and_remove_gz_files(reference_dir, use_sentrix_id=True)
+
+    def _missing_files(dir_path, geo_ids):
+        missing_files = []
+        for geo_id in geo_ids:
+            sentrix_id = geo_id.split("_", 1)[1]
+            grn_idat_file = dir_path / f"{sentrix_id}_Grn.idat"
+            red_idat_file = dir_path / f"{sentrix_id}_Red.idat"
+            if not grn_idat_file.exists() or not red_idat_file.exists():
+                missing_files.append(geo_id)
+        return missing_files
+
+    missing_analysis_files = _missing_files(
+        analysis_dir, tutorial_df["Geo_File_ID"]
+    )
+    if missing_analysis_files:
+        download_geo_probes(analysis_dir, missing_analysis_files)
+        unzip_and_remove_gz_files(analysis_dir, use_sentrix_id=True)
+
+    missing_reference_files = _missing_files(
+        reference_dir, tutorial_df[is_control]["Geo_File_ID"]
+    )
+    if missing_reference_files:
+        download_geo_probes(reference_dir, missing_reference_files)
+        unzip_and_remove_gz_files(reference_dir, use_sentrix_id=True)
 
 
 def is_file_like(obj):
