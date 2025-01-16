@@ -75,7 +75,7 @@ analysis = MethylAnalysis(
     do_seg=True,
     precalculate_cnv=True,
 )
-analysis_dir.make_umap()
+analysis.make_umap()
 
 # %% [markdown]
 # ### Graphical User Interface
