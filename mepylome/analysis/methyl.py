@@ -251,6 +251,7 @@ def get_side_navigation(
                                 "Start",
                                 id="start-button",
                                 color="primary",
+                                disabled=False,
                             ),
                             width={"size": 6},
                         ),

@@ -73,10 +73,13 @@ analysis = MethylAnalysis(
     analysis_dir=ANALYSIS_DIR,
     reference_dir=REFERENCE_DIR,
     do_seg=True,
+    precompute_cnvs=True,
 )
+analysis_dir.make_umap()
 
 # %% [markdown]
 # ### Graphical User Interface
+# Note that the start button wont work if you run this notebook in Google Colab
 
 # %%
 analysis.run_app(open_tab=True)
