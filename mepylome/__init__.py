@@ -57,6 +57,9 @@ def setup_logging():
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
 
+    # Prevent root logger propagation to avoid Colab conflicts
+    logger.propagate = False
+
     # Don't show logging statements of other libraries.
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
