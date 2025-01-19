@@ -35,7 +35,8 @@ def setup_logging():
     logger = logging.getLogger("mepylome")
 
     if logger.hasHandlers():
-        return
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
 
     logger.setLevel(logging.INFO)
 
