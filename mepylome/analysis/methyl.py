@@ -2057,6 +2057,7 @@ class MethylAnalysis:
                 Output("dummy-output", "children")
             ],
             [Input("running-state", "data")],
+            prevent_initial_call=True,
             running=[
                 (Output("start-button", "disabled"), True, False),
             ],
