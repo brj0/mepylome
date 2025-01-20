@@ -2053,8 +2053,8 @@ class MethylAnalysis:
 
         @app.callback(
             [
-                # Add a dummy output component
-                Output("dummy-output", "children")
+                # This ensures button is enabled in Colab
+                Output("start-button", "disabled")
             ],
             [Input("running-state", "data")],
             prevent_initial_call=True,
@@ -2069,8 +2069,7 @@ class MethylAnalysis:
                 and self.precalculate_cnv
             ):
                 self.precompute_cnvs()
-            # Dummy update
-            return no_update
+            return [False]
 
         @app.callback(
             [
