@@ -98,7 +98,7 @@ package's functionality.
 
 You can try the tutorial directly in **Google Colab**-without downloading or
 installing anything-by clicking the link below. Please note that GUI support is
-limited in Colab, including issues with the start button and logging:
+limited in Colab.
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/tutorial.ipynb)
 

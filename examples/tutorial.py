@@ -79,7 +79,6 @@ analysis.make_umap()
 
 # %% [markdown]
 # ### Graphical User Interface
-# Note that the start button wont work if you run this notebook in Google Colab
 
 # %%
 analysis.run_app(open_tab=True)
