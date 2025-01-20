@@ -73,7 +73,6 @@ analysis = MethylAnalysis(
     analysis_dir=ANALYSIS_DIR,
     reference_dir=REFERENCE_DIR,
     do_seg=True,
-    precalculate_cnv=True,
 )
 analysis.make_umap()
 
