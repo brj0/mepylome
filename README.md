@@ -5,6 +5,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://opensource.org/licenses/GPL-3.0)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mepylome.svg)
 [![Documentation Status](https://readthedocs.org/projects/mepylome/badge/?version=latest)](https://mepylome.readthedocs.io/en/latest/?badge=latest)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/tutorial.ipynb)
 
 -----------------
 

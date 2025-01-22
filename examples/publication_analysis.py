@@ -28,7 +28,6 @@
 # ### Usage
 #
 # - Follow the notebook/script step-by-step.
-# - All datasets and outputs are saved in `~/mepylome`.
 # - If you only intend to run a specific section (e.g., 1, 2, or 3), ensure
 #   that you first execute the setup section (0). This approach is essential if
 #   memory is limited.
@@ -579,8 +578,8 @@ print(best_clf_sg.reports[0])
 # <a name="2.-Soft-Tissue-Tumors"></a>
 # ## 2. Soft Tissue Tumors
 #
-# This section replicates the methylation analysis performed in
-# [Koelsche2021](https://doi.org/10.1038/s41467-020-20603-4). To begin, we
+# This section replicates the methylation analysis performed in [Koelsche et
+# al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). To begin, we
 # download the required data and organize it within the designated directories.
 
 # %%
