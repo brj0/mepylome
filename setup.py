@@ -79,7 +79,7 @@ setup(
     ],
     ext_modules=ext_modules,
     keywords="Illumina, Methylation, Infinum, Microarray, BeadChip",
-    license="GPL-3.0 license",
+    license="MIT license",
     author="Jon Brugger",
     url="https://github.com/brj0/mepylome",
     # Include package data such as csv-Files, images, ...
@@ -88,7 +88,7 @@ setup(
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: POSIX",
         "Programming Language :: C++",
         "Programming Language :: Python :: 3",
