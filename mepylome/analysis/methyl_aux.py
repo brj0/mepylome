@@ -179,7 +179,9 @@ class IdatHandler:
         id_to_path (dict): A dictionary where the keys are sample IDs and the
             values are the file paths of IDAT files (from both `idat_dir` and
             `test_dir`).
-        annotation_file (Path): The path to the annotation file.
+        annotation_file (Path): The path to the annotation file. Defaults to
+            None. If not provided, the first spreadsheet file found in
+            `self.idat_dir` will be used as the annotation.
         annotation_df (pandas.DataFrame or None): A DataFrame containing the
             annotation data, if loaded.
         samples_annotated (pandas.DataFrame or None): A DataFrame containing
@@ -257,14 +259,27 @@ class IdatHandler:
             return pd.DataFrame()
 
     def _identify_annotation_index(self):
-        """Identify and set the appropriate annotation column."""
+        """Identify the appropriate annotation column.
+
+        This method checks the columns of `self.annotation_df` to determine
+        which column contains the annotation indices matching the analysis IDAT
+        files. It first tries the original format, else it tries to extract
+        the Sentrix ID.
+
+        Returns:
+            tuple: A tuple (is_sentrix, column_name), where:
+                - is_sentrix (bool): True if a matching column is found and
+                  matches only when Sentrix IDs are extracted from both.
+                - column_name (str or None): The name of the matching column,
+                  or None if no match is found.
+        """
         analysis_samples = set(self.analysis_id_to_path.keys())
         sentrix_analysis_samples = convert_to_sentrix_ids(analysis_samples)
 
         for col in self.annotation_df.columns:
             column_samples = set(self.annotation_df[col])
 
-            if analysis_samples & column_samples:
+            if analysis_samples == column_samples:
                 return False, col
 
             sentrix_column_samples = convert_to_sentrix_ids(column_samples)
@@ -287,11 +302,10 @@ class IdatHandler:
             )
             return
         if not id_missmatch:
-            logger.info("Setting '%s' as annotation index.", col_name)
             self.annotation_df = self.annotation_df.set_index(col_name)
+            logger.info("Setting '%s' as annotation index.", col_name)
             return
 
-        logger.info("Extracted Sentrix IDs from column '%s'.", col_name)
         self.analysis_id_to_path = convert_to_sentrix_ids(
             self.analysis_id_to_path
         )
@@ -299,7 +313,9 @@ class IdatHandler:
         self.annotation_df.index = convert_to_sentrix_ids(
             self.annotation_df[col_name]
         )
+        self.annotation_df.drop(columns=[col_name], inplace=True)
         self.sample_ids = convert_to_sentrix_ids(self.sample_ids)
+        logger.info("Extracted Sentrix IDs from column '%s'.", col_name)
 
     def _get_samples_annotated(self):
         result_df = pd.DataFrame(index=self.id_to_path.keys())

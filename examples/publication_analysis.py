@@ -232,6 +232,11 @@ def download_from_geo_and_untar(analysis_dir, geo_ids):
             print(f"Error processing GEO ID {geo_id}: {e}")
 
 
+def clean_filename(name):
+    # Replace invalid characters with a single underscore
+    return re.sub(r"[^\w\-]+", "_", name)
+
+
 def calculate_cn_summary(analysis, class_):
     """Calculates and saves CN summary plots."""
     df_class = analysis.idat_handler.samples_annotated[class_]
@@ -252,11 +257,6 @@ def calculate_cn_summary(analysis, class_):
             yaxis_title_font_size=FONTSIZE - 2,
         )
         plot_list.append(plot)
-
-    def clean_filename(name):
-        # Replace invalid characters with a single underscore
-        return re.sub(r"[^\w\-]+", "_", name)
-
     png_paths = [
         output_dir / f"{analysis_dir.name}-cn_summary-{clean_filename(x)}.png"
         for x in all_classes

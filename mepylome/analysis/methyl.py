@@ -315,6 +315,7 @@ def get_side_navigation(
                         "raw": "No preprocessing",
                     },
                     value=prep,
+                    clearable=False,
                     multi=False,
                 ),
                 html.Br(),
@@ -326,6 +327,7 @@ def get_side_navigation(
                         OFF: "When clicking on dots",
                     },
                     value=ON if precalculate else OFF,
+                    clearable=False,
                     multi=False,
                 ),
                 html.Br(),
@@ -337,6 +339,7 @@ def get_side_navigation(
                         "top": "Take most varying CpG's (memory intensive!)",
                     },
                     value=cpg_selection,
+                    clearable=False,
                     multi=False,
                 ),
             ],
@@ -540,7 +543,8 @@ class MethylAnalysis:
             automatically, and if an annotation file is missing, it will try to
             detect a spreadsheet in the `analysis_dir` if available.
 
-        reference_dir (str or Path): Directory containing reference IDAT files.
+        reference_dir (str or Path): Directory containing CNV neutral reference
+            IDAT files. Must be provided if you wanna generate CNV plots.
 
         output_dir (str or Path): Directory where output files will be saved
             (default: "/tmp/mepylome/analysis").
@@ -550,12 +554,32 @@ class MethylAnalysis:
             placed here. If set to `None`, the application will automatically
             use a temporary directory.
 
-        prep (str): Prepreparation method used for data preparation (default:
-            "illumina").
+        prep (str): Prepreparation method used for methylation microarrays:
+            'illumina', 'swan', or 'noob (default: 'illumina').
 
-        cpgs (str or np.ndarray): Array of CpG sites to analyze, or one of
-            '450k', 'epic', 'epicv2', or 'auto' for automatic detection. It can
-            also be a path to a CSV file containing the CpG sites.
+        cpgs (str, np.ndarray, list, set, or Path, optional): Specifies the CpG
+            sites to analyze. Possible values:
+
+            1. A list, set, or NumPy array of official Illumina CpG site names.
+            2. A path to a CSV file containing the CpG sites.
+            3. A string specifying a predefined array type:
+
+                - `'450k'`   : The CpG sites from the Illumina 450k array.
+                - `'epic'`   : The CpG sites from the Illumina EPIC array.
+                - `'epicv2'` : The CpG sites from the Illumina EPIC v2 array.
+            4. A `'+'`-joined string of the options above combining multiple
+              array types, returning the intersection of their CpG sites. For
+              example:
+
+                - `'450k+epic'`  : CpG sites both in the 450k and EPIC arrays.
+                - `'epic+epicv2'`: CpG sites both in the EPIC and EPICv2 arrays.
+
+            5. `'all'`: Equivalent to `'450k+epic+epicv2'`, returning CpG sites
+              present in all three arrays.
+            6. `'auto'` (default): Automatically detects all array types from
+              IDAT files in `analysis_dir` and returns the intersection of CpG
+              sites. This process may take longer as all files need to be read
+              and, if necessary, decompressed.
 
         cpg_blacklist (set or list, optional): A list or set of CpG sites to
             exclude. Default is None.
@@ -592,8 +616,11 @@ class MethylAnalysis:
         n_jobs (int): Number of parallel processes to run for classifying
             (default: 1). Choose -1 for using all available cores.
 
-        precalculate_cnv (bool): Flag to precalculate CNV information by
-            invoking 'precompute_cnvs' (default: False).
+        precalculate_cnv (bool): If set to `True`, CNV data will be
+            precalculated before the main analysis. This process takes
+            approximately 2-5 seconds per case initially, but it will improve
+            performance during runtime by reducing computation time. (default:
+            False)
 
         load_full_betas (bool): Flag to load beta values for all CpG sites
             into memory (default: True).
@@ -616,8 +643,9 @@ class MethylAnalysis:
             variation, taking the most varying ones. For 'random', CpG sites
             are randomly selected.
 
-        do_seg (bool): Flag to enable segmentation analysis on CNV data
-            (default: False).
+        do_seg (bool): If set, enables segmentation analysis on CNV data and
+            adds horizontal segmentation lines to the CNV plot. This will take
+            an additional 2-5 seconds per sample. (default: False)
 
         host (str): Host address for the Dash application (default:
             'localhost').
@@ -661,8 +689,8 @@ class MethylAnalysis:
         n_jobs (int): Number of parallel processes to run for classifying
             (default: 1). Choose -1 for using all available cores.
 
-        reference_dir (Path): Path to the reference directory containing
-            reference IDAT files.
+        reference_dir (str or Path): Directory containing CNV neutral reference
+            IDAT files. Must be provided if you wanna generate CNV plots.
 
         output_dir (Path): Path to the directory where output files will be
             saved (default: "/tmp/mepylome/analysis").
@@ -672,8 +700,8 @@ class MethylAnalysis:
             placed here. If set to `None`, the application will automatically
             use a temporary directory.
 
-        prep (str): Prepreparation method used for data preparation (default:
-            "illumina").
+        prep (str): Prepreparation method used for methylation microarrays:
+            'illumina', 'swan', or 'noob (default: 'illumina').
 
         cpg_selection (str): Method to select CpG sites ('top' or 'random')
             (default: 'top'). For 'top', CpG sites are selected based on their
@@ -883,7 +911,7 @@ class MethylAnalysis:
 
     @property
     def cpgs(self):
-        """Get the CpG sites to analyze."""
+        """Array of CpG sites to analyze in sorted order."""
         return self._cpgs
 
     @cpgs.setter
@@ -1082,8 +1110,12 @@ class MethylAnalysis:
 
         if isinstance(input_var, str):
             input_var = set(input_var.split("+"))
+            logger.info(
+                "The following array types were provided: %s", input_var
+            )
 
         if "auto" in input_var:
+            logger.info("Determine array types...")
             input_var = {
                 str(ArrayType.from_idat(path))
                 for path in self.idat_handler.paths
@@ -1393,6 +1425,8 @@ class MethylAnalysis:
 
         elif self.load_full_betas or self.cpg_selection == "top":
             self.betas_all = _get_betas(self.cpgs)
+            # TODO Add: Option to calculate cpg variance for a balanced
+            # selection of all tumor entities (in unbalanced data set)
             self._sorted_cpgs = reordered_cpgs_by_variance(self.betas_all)
             self.betas_top = _extract_sub_dataframe()
 
@@ -1988,6 +2022,7 @@ class MethylAnalysis:
             if n_cpgs is None:
                 error_message = "Invalid no. of CpGs."
             elif not analysis_dir_valid:
+                # TODO Add user only uploads all files and without analysis_dir
                 error_message = "Invalid analysis path."
             elif not output_dir_valid:
                 error_message = "Invalid Output path."
@@ -2014,6 +2049,10 @@ class MethylAnalysis:
                 ensure_directory_exists(self.output_dir)
                 self.make_umap()
             except Exception as exc:
+                # TODO BUG Error 'no module named tqdm.auto' if mepylome is new
+                # installed. This error disapears after running tutorial
+                # Error was produced via cli with -a -A and -o -C 'epic'
+                # --overlap -S 'top'. Maybe this error occurs only on Mac OS?
                 logger.info("An error occured (3): %s", exc)
             else:
                 return (

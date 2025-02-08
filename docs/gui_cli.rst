@@ -59,6 +59,7 @@ the analysis directory, in which case mepylome will automatically detect it, or
 you need to explicitly provide the file path during the initialization phase.
 
 A possible data structure tree looks something like this:
+.. TODO More details about annotation file. Other columns?
 
 | **projects/**
 |   **analysis_dir/**

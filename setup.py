@@ -97,7 +97,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "mepylome=mepylome.analysis.cli:start_mepylome",
+            "mepylome=mepylome.cli:start_mepylome",
         ]
     },
 )

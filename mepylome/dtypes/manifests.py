@@ -75,6 +75,7 @@ PROBES_COLUMNS = [
     "Infinium_Design_Type",
     "Color_Channel",
     "CHR",
+    "Chr",
     "MAPINFO",
     "AlleleA_ProbeSeq",
     "AlleleB_ProbeSeq",
@@ -370,10 +371,15 @@ class Manifest:
         with get_csv_file(self.raw_path, csv_filename) as manifest_file:
             # Process probes
             Manifest._seek_to_start(manifest_file)
+            available_columns = pd.read_csv(manifest_file, nrows=0).columns
+            Manifest._seek_to_start(manifest_file)
+            valid_columns = [
+                col for col in PROBES_COLUMNS if col in available_columns
+            ]
             probes_df = pd.read_csv(
                 manifest_file,
                 low_memory=False,
-                usecols=PROBES_COLUMNS,
+                usecols=valid_columns,
             )
             n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
             probes_df = probes_df[:n_probes]
@@ -389,62 +395,81 @@ class Manifest:
                 usecols=range(len(CONTROL_COLUMNS)),
             )
             controls_df.columns = CONTROL_COLUMNS
-            controls_df["Address_ID"] = controls_df["Address_ID"].astype(
-                "int32"
-            )
+            if (
+                pd.to_numeric(controls_df["Address_ID"], errors="coerce")
+                .notna()
+                .all()
+            ):
+                controls_df["Address_ID"] = controls_df["Address_ID"].astype(
+                    "int32"
+                )
             controls_df.to_csv(self.ctrl_path, index=False)
 
     @staticmethod
     def _process_probes(data_frame):
         """Transforms manifest probes to a more efficient internal format."""
-        data_frame = data_frame.rename(
-            columns={
-                "MAPINFO": "Start",
-                "CHR": "Chromosome",
-            },
-        )
+        rename_map = {
+            "MAPINFO": "Start",
+            "CHR": "Chromosome",
+            "Chr": "Chromosome",
+        }
+        data_frame = data_frame.rename(columns=rename_map)
         data_frame["Chromosome"] = Chromosome.pd_from_string(
             data_frame["Chromosome"]
         )
         # IlmnID and Name are different in EPICv2
-        data_frame.IlmnID = data_frame.Name
-        data_frame = data_frame.drop(columns="Name")
+        data_frame["IlmnID"] = data_frame["Name"]
+        data_frame = data_frame.drop(columns=["Name"])
         channel_to_int = {"Grn": Channel.GRN, "Red": Channel.RED}
+        design_type_map = {
+            "I": InfiniumDesignType.I,
+            "II": InfiniumDesignType.II,
+        }
         with pd.option_context("future.no_silent_downcasting", True):
-            data_frame["Color_Channel"] = (
-                data_frame["Color_Channel"]
-                .replace(channel_to_int)
-                .infer_objects()
-            )
-            data_frame["Infinium_Design_Type"] = (
-                data_frame["Infinium_Design_Type"]
-                .replace(
-                    {"I": InfiniumDesignType.I, "II": InfiniumDesignType.II}
+            if "Color_Channel" in data_frame.columns:
+                data_frame["Color_Channel"] = (
+                    data_frame["Color_Channel"]
+                    .replace(channel_to_int)
+                    .infer_objects()
                 )
-                .infer_objects()
+
+            if "Infinium_Design_Type" in data_frame.columns:
+                data_frame["Infinium_Design_Type"] = (
+                    data_frame["Infinium_Design_Type"]
+                    .replace(design_type_map)
+                    .infer_objects()
+                )
+
+        data_frame["TypeI_N_CpG"] = 0
+        data_frame["TypeII_N_CpG"] = 0
+
+        if "AlleleB_ProbeSeq" in data_frame.columns:
+            data_frame["TypeI_N_CpG"] = np.maximum(
+                0,
+                data_frame["AlleleB_ProbeSeq"].fillna("").str.count("CG") - 1,
             )
-        data_frame["TypeI_N_CpG"] = np.maximum(
-            0, data_frame["AlleleB_ProbeSeq"].fillna("").str.count("CG") - 1
-        )
-        # R Stands for CG in AlleleA_ProbeSeq
-        data_frame["TypeII_N_CpG"] = data_frame["AlleleA_ProbeSeq"].str.count(
-            "R"
-        )
+
+        if "AlleleA_ProbeSeq" in data_frame.columns:
+            # R Stands for CG in AlleleA_ProbeSeq
+            data_frame["TypeII_N_CpG"] = (
+                data_frame["AlleleA_ProbeSeq"].fillna("").str.count("R")
+            )
+
         data_frame["N_CpG"] = NONE
-        data_frame.loc[
-            data_frame["Infinium_Design_Type"] == InfiniumDesignType.I,
-            "N_CpG",
-        ] = data_frame.loc[
-            data_frame["Infinium_Design_Type"] == InfiniumDesignType.I,
-            "TypeI_N_CpG",
-        ]
-        data_frame.loc[
-            data_frame["Infinium_Design_Type"] == InfiniumDesignType.II,
-            "N_CpG",
-        ] = data_frame.loc[
-            data_frame["Infinium_Design_Type"] == InfiniumDesignType.II,
-            "TypeII_N_CpG",
-        ]
+        if "Infinium_Design_Type" in data_frame.columns:
+            is_type_I = (
+                data_frame["Infinium_Design_Type"] == InfiniumDesignType.I
+            )
+            is_type_II = (
+                data_frame["Infinium_Design_Type"] == InfiniumDesignType.II
+            )
+
+            data_frame.loc[is_type_I, "N_CpG"] = data_frame.loc[
+                is_type_I, "TypeI_N_CpG"
+            ]
+            data_frame.loc[is_type_II, "N_CpG"] = data_frame.loc[
+                is_type_II, "TypeII_N_CpG"
+            ]
 
         # Use int32 to improve performance of indexing
         int_cols = [
@@ -456,25 +481,38 @@ class Manifest:
             "TypeI_N_CpG",
             "TypeII_N_CpG",
         ]
-        data_frame[int_cols] = (
-            data_frame[int_cols].fillna(NONE).astype("int32")
-        )
-        data_frame["End"] = data_frame["Start"]
-        data_frame = data_frame.drop(
-            columns=["AlleleA_ProbeSeq", "AlleleB_ProbeSeq"]
-        )
+        for col in int_cols:
+            if col in data_frame.columns:
+                data_frame[col] = data_frame[col].fillna(NONE).astype("int32")
+
+        if "Start" in data_frame.columns:
+            data_frame["End"] = data_frame["Start"]
+
+        drop_cols = ["AlleleA_ProbeSeq", "AlleleB_ProbeSeq"]
+        existing_drop_cols = [
+            col for col in drop_cols if col in data_frame.columns
+        ]
+        data_frame = data_frame.drop(columns=existing_drop_cols)
 
         def get_probe_type(name, infinium_type):
             """Determines the probe type (I, II, SnpI, SnpII or Control)."""
             probe_type = ProbeType.from_manifest_values(name, infinium_type)
             return probe_type.value
 
-        vectorized_get_type = np.vectorize(get_probe_type)
-        data_frame["Probe_Type"] = vectorized_get_type(
-            data_frame.IlmnID.values,
-            data_frame["Infinium_Design_Type"].values,
-        )
+        if (
+            "IlmnID" in data_frame.columns
+            and "Infinium_Design_Type" in data_frame.columns
+        ):
+            vectorized_get_type = np.vectorize(get_probe_type)
+            data_frame["Probe_Type"] = vectorized_get_type(
+                data_frame["IlmnID"].values,
+                data_frame["Infinium_Design_Type"].values,
+            )
+
         # TODO drop Infinium_Design_Type
+        if not {"Chromosome", "Start", "End"}.issubset(data_frame.columns):
+            return data_frame
+
         probes_ranges = pr.PyRanges(data_frame).sort()
         return probes_ranges.df
 
@@ -525,9 +563,14 @@ class Manifest:
             dtype=self._get_data_types(),
         )
         # Use int32 instead of int64 to improve performance of indexing
-        data_frame["Address_ID"] = (
-            data_frame["Address_ID"].astype("int32").copy()
-        )
+        if (
+            pd.to_numeric(data_frame["Address_ID"], errors="coerce")
+            .notna()
+            .all()
+        ):
+            data_frame["Address_ID"] = (
+                data_frame["Address_ID"].astype("int32").copy()
+            )
         return data_frame
 
     def _read_snp_probes(self):
