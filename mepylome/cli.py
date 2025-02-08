@@ -15,6 +15,8 @@ import textwrap
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import List
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 
 def get_app_version():
@@ -51,7 +53,7 @@ def absolute_path(path):
 
 
 class SmartFormatter(argparse.HelpFormatter):
-    """Keeps new lines and doesn't break words, but still wraps lines
+    """Keeps new lines and doesn't break words, but still wraps lines.
 
     Source: https://gist.github.com/panzi/b4a51b3968f67b9ff4c99459fb9c5b3d
     """
