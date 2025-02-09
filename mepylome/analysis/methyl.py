@@ -567,19 +567,22 @@ class MethylAnalysis:
                 - `'450k'`   : The CpG sites from the Illumina 450k array.
                 - `'epic'`   : The CpG sites from the Illumina EPIC array.
                 - `'epicv2'` : The CpG sites from the Illumina EPIC v2 array.
+
             4. A `'+'`-joined string of the options above combining multiple
-              array types, returning the intersection of their CpG sites. For
-              example:
+            array types, returning the intersection of their CpG sites. For
+            example:
 
                 - `'450k+epic'`  : CpG sites both in the 450k and EPIC arrays.
-                - `'epic+epicv2'`: CpG sites both in the EPIC and EPICv2 arrays.
+                - `'epic+epicv2'`: CpG sites both in the EPIC and EPICv2
+                  arrays.
 
             5. `'all'`: Equivalent to `'450k+epic+epicv2'`, returning CpG sites
-              present in all three arrays.
+            present in all three arrays.
+
             6. `'auto'` (default): Automatically detects all array types from
-              IDAT files in `analysis_dir` and returns the intersection of CpG
-              sites. This process may take longer as all files need to be read
-              and, if necessary, decompressed.
+            IDAT files in `analysis_dir` and returns the intersection of CpG
+            sites. This process may take longer as all files need to be read
+            and, if necessary, decompressed.
 
         cpg_blacklist (set or list, optional): A list or set of CpG sites to
             exclude. Default is None.

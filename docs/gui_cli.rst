@@ -44,51 +44,76 @@ The GUI offers the following capabilities:
 
 .. _general_setup:
 
-General setup
+General Setup
 -------------
 
-For methylation analysis, ensure you have an analysis directory containing the
-IDAT files you wish to analyze, as well as a CNV-neutral reference set located
-in another directory. Additionally, you will need an annotation file. This
-spreadsheet should meet the following criteria: it must have a header, and the
-first column should contain the Illumina Sentrix ID of the samples you want to
-analyze. It can include additional columns with parameters specific to the
-samples. In the GUI, you can later color the UMAP dots according to each
-column in the annotation file. You can either place the annotation file within
-the analysis directory, in which case mepylome will automatically detect it, or
-you need to explicitly provide the file path during the initialization phase.
+For methylation analysis, ensure that the following files and directories are in place:
 
-A possible data structure tree looks something like this:
-.. TODO More details about annotation file. Other columns?
+1. **Analysis Directory** (`analysis_dir`): Contains the IDAT files that you
+   wish to analyze.
 
-| **projects/**
-|   **analysis_dir/**
-|     200925700133_R02C01_Grn.idat
-|     200925700133_R02C01_Red.idat
-|     200925700133_R03C01_Grn.idat
-|     200925700133_R03C01_Red.idat
-|     200925700133_R04C01_Grn.idat
-|     200925700133_R04C01_Red.idat
-|     200925700133_R05C01_Grn.idat
-|     200925700133_R05C01_Red.idat
-|     annotation.csv
-|   **reference_dir/**
-|     201904410008_R02C01_Grn.idat
-|     201904410008_R02C01_Red.idat
-|     201904410008_R03C01_Grn.idat
-|     201904410008_R03C01_Red.idat
-|     201904410008_R04C01_Grn.idat
-|     201904410008_R04C01_Red.idat
-|     201904410008_R05C01_Grn.idat
-|     201904410008_R05C01_Red.idat
-|     201904410008_R06C01_Grn.idat
-|     201904410008_R06C01_Red.idat
+2. **CNV-neutral Reference Set** (`reference_dir`): Located in a separate
+   directory for generating CNV plots.
+
+3. **Annotation File** (`annotation`): An optional spreadsheet containing
+   sample-specific information. This file must meet the following
+   criteria:
+
+   - It must have a **header** row.
+   - One of the columns should contain either the exact **IDAT basenames** or
+     the **Illumina Sentrix IDs** that correspond to the samples in the
+     analysis directory.
+   - Additional columns can contain other sample-specific information (e.g.,
+     diagnosis, tumor grade, tissue type, treatment, etc.).
+   - The annotation file can either be placed directly inside the analysis
+     directory (mepylome will search recusrively and select the first found
+     spreadsheet) or provided explicitly during initialization if it’s located
+     elsewhere.
 
 Both `analysis_dir` and `reference_dir` can contain IDAT files of various array
-types and may include multiple subdirectories. Mepylome searches for all IDAT
-files recursively.
+types and may include multiple subdirectories. Mepylome searches for all
+IDAT files recursively within these directories.
 
-The file `annotation.csv` has the following structure:
+In the **GUI**, you can color the UMAP dots based on any column in the annotation
+file (for example, diagnosis or tumor grade). You can also combine multiple
+columns to create more complex color mappings (such as coloring the dots based
+on both diagnosis and tumor grade). The annotation file can be placed directly
+within the analysis directory for automatic detection by Mepylome, or you can
+explicitly provide the file path during the initialization phase.
+
+
+Example Structure and File Organization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here’s an example of how your directory structure might look:
+
+.. code-block::
+
+    projects/
+        ├── analysis_dir/
+        │   ├── annotation.csv    # Annotation file with sample information
+        │   └── idat_files/       # Subdirectory containing IDAT files
+        │       ├── 200925700133_R02C01_Grn.idat
+        │       ├── 200925700133_R02C01_Red.idat
+        │       ├── 200925700133_R03C01_Grn.idat
+        │       ├── 200925700133_R03C01_Red.idat
+        │       ├── 200925700133_R04C01_Grn.idat
+        │       ├── 200925700133_R04C01_Red.idat
+        │       ├── 200925700133_R05C01_Grn.idat
+        │       ├── 200925700133_R05C01_Red.idat
+        └── reference_dir/
+            ├── 201904410008_R02C01_Grn.idat
+            ├── 201904410008_R02C01_Red.idat
+            ├── 201904410008_R03C01_Grn.idat
+            ├── 201904410008_R03C01_Red.idat
+            ├── 201904410008_R04C01_Grn.idat
+            ├── 201904410008_R04C01_Red.idat
+            ├── 201904410008_R05C01_Grn.idat
+            ├── 201904410008_R05C01_Red.idat
+            └── 201904410008_R06C01_Grn.idat
+
+
+The file `annotation.csv` should have the following structure:
 
 ====================== ================ ===========
 IDAT                    Diagnosis        Site
@@ -99,9 +124,20 @@ IDAT                    Diagnosis        Site
 200925700133_R05C01     Osteosarcoma     femur
 ====================== ================ ===========
 
+That is:
 
-After completing the quick demonstration, you will have a valid setup in
-`~/mepylome/tutorial/`.
+.. code-block:: text
+
+    IDAT,Diagnosis,Site
+    200925700133_R02C01,Osteosarcoma,Femur
+    200925700133_R03C01,Osteosarcoma,Humerus
+    200925700133_R04C01,Osteosarcoma,Femur
+    200925700133_R05C01,Osteosarcoma,Femur
+
+
+After completing the quick demonstration (tutorial), you will have a valid
+setup in `~/mepylome/tutorial/`.
+
 
 
 Comand line interface

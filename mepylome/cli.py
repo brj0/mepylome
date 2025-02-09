@@ -11,10 +11,8 @@ Usage:
 """
 
 import argparse
+import re
 import textwrap
-from importlib.metadata import PackageNotFoundError, version
-from pathlib import Path
-from typing import List
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
@@ -52,7 +50,7 @@ def absolute_path(path):
     return Path(path).absolute()
 
 
-class SmartFormatter(argparse.HelpFormatter):
+class SmartFormatter(argparse.ArgumentDefaultsHelpFormatter):
     """Keeps new lines and doesn't break words, but still wraps lines.
 
     Source: https://gist.github.com/panzi/b4a51b3968f67b9ff4c99459fb9c5b3d
@@ -60,25 +58,18 @@ class SmartFormatter(argparse.HelpFormatter):
 
     def _split_lines(self, text, width):
         lines = []
-        for line_str in text.split("\n"):
-            line = []
-            line_len = 0
-            for word in line_str.split():
-                word_len = len(word)
-                next_len = line_len + word_len
-                if line:
-                    next_len += 1
-                if next_len > width:
-                    lines.append(" ".join(line))
-                    line.clear()
-                    line_len = 0
-                elif line:
-                    line_len += 1
-
-                line.append(word)
-                line_len += word_len
-
-            lines.append(" ".join(line))
+        for line in textwrap.dedent(text).strip().split("\n"):
+            ident = re.match(r"^\s*", line).group(0)
+            curr_line = [ident] if ident else []
+            curr_len = len(ident)
+            for word in line.split():
+                if curr_line and curr_len + len(word) + 1 > width:
+                    lines.append(" ".join(curr_line))
+                    curr_line = [ident] if ident else []
+                    curr_len = len(ident)
+                curr_line.append(word)
+                curr_len += len(word) + (1 if curr_line else 0)
+            lines.append(" ".join(curr_line))
         return lines
 
     def _fill_text(self, text, width, indent):
@@ -86,24 +77,26 @@ class SmartFormatter(argparse.HelpFormatter):
             indent + line
             for line in self._split_lines(text, width - len(indent))
         )
+
     def _format_action(self, action):
         """Adds an extra newline after each option."""
-        parts = super()._format_action(action)
-        return parts + "\n"
+        return super()._format_action(action) + "\n"
 
 
 def parse_args():
     """Parses command line arguments."""
     parser = argparse.ArgumentParser(
         description=(
-            """Mepylome: Methylation Array Analysis Toolkit
+            """
+            Mepylome: Methylation Array Analysis Toolkit
             --------------------------------------------
 
             Command-line interface (CLI) for running the Mepylome methylation analysis GUI interface. This tool allows you to analyze methylation microarray data, visualize results, and run various analyses, including CNV (Copy Number Variation) and UMAP (Uniform Manifold Approximation and Projection) through a Dash-based GUI application.
             """
         ),
         epilog=(
-            """Example usage:
+            """
+            Example usage:
             --------------
 
             1. Minimal Setup:
@@ -136,7 +129,8 @@ def parse_args():
                     --precalculate_cnv \\
                     --host 127.0.0.1 \\
                     --port 8050 \\
-                    --debug"""
+                    --debug
+            """
         ),
         formatter_class=SmartFormatter,
     )
@@ -151,7 +145,10 @@ def parse_args():
         "--test_dir",
         type=absolute_path,
         help=(
-            """Directory for test files, including new cases for analysis or validation. Files uploaded via the GUI will be placed here. If set to None, the application will automatically use a temporary directory."""
+            "Directory for test files, including new cases for analysis or "
+            "validation. Files uploaded via the GUI will be placed here. If "
+            "set to None, the application will automatically use a temporary "
+            "directory."
         ),
     )
     parser.add_argument(
@@ -159,7 +156,11 @@ def parse_args():
         "--annotation",
         type=str,
         help=(
-            """Path to an annotation spreadsheet where Sentrix IDs are preferably listed in the first column. If not provided, the system will attempt to infer the correct column automatically, and if an annotation file is missing, it will try to detect a spreadsheet in the analysis_dir if available."""
+            "Path to an annotation spreadsheet where Sentrix IDs are "
+            "preferably listed in the first column. If not provided, the "
+            "system will attempt to infer the correct column automatically, "
+            "and if an annotation file is missing, it will try to detect a "
+            "spreadsheet in the analysis_dir if available."
         ),
     )
     parser.add_argument(
@@ -167,7 +168,8 @@ def parse_args():
         "--reference_dir",
         type=absolute_path,
         help=(
-            """Directory containing CNV neutral reference IDAT files. Must be provided if you wanna generate CNV plots."""
+            "Directory containing CNV neutral reference IDAT files. Must be "
+            "provided if you wanna generate CNV plots."
         ),
     )
     parser.add_argument(
@@ -175,7 +177,9 @@ def parse_args():
         "--output_dir",
         type=absolute_path,
         help=(
-            """Path to the directory where output files will be saved. If not provided, the default directory '/tmp/mepylome/analysis' will be used."""
+            "Path to the directory where output files will be saved. If not "
+            "provided, the default directory '/tmp/mepylome/analysis' will be "
+            "used."
         ),
     )
     parser.add_argument(
@@ -185,7 +189,8 @@ def parse_args():
         choices=["illumina", "swan", "noob"],
         default="illumina",
         help=(
-            """Prepreparation method used for methylation microarrays: 'illumina', 'swan', or 'noob'."""
+            "Prepreparation method used for methylation microarrays: "
+            "'illumina', 'swan', or 'noob'."
         ),
     )
     parser.add_argument(
@@ -194,7 +199,8 @@ def parse_args():
         type=str,
         default="auto",
         help=(
-            """Specifies the CpG sites to analyze. Possible values:
+            """
+            Specifies the CpG sites to analyze. Possible values:
 
                 1. A path to a CSV file containing the CpG sites.
 
@@ -209,7 +215,8 @@ def parse_args():
                     - '450k+epic'  : CpG sites both in the 450k and EPIC arrays.
                     - 'epic+epicv2': CpG sites both in the EPIC and EPICv2 arrays.
 
-                4. 'all': Equivalent to '450k+epic+epicv2', returning CpG sites present in all three arrays. 5. 'auto': Automatically detects all array types from IDAT files in analysis_dir and returns the intersection of CpG sites. This process may take longer as all files need to be read and, if necessary, decompressed."""
+                4. 'all': Equivalent to '450k+epic+epicv2', returning CpG sites present in all three arrays. 5. 'auto': Automatically detects all array types from IDAT files in analysis_dir and returns the intersection of CpG sites. This process may take longer as all files need to be read and, if necessary, decompressed.
+            """
         ),
     )
     parser.add_argument(
@@ -224,7 +231,10 @@ def parse_args():
         "--precalculate_cnv",
         action="store_true",
         help=(
-            """If set, CNV data will be precalculated before the main analysis. This process takes approximately 2-5 seconds per case initially, but it will improve performance during runtime by reducing computation time."""
+            "If set, CNV data will be precalculated before the main analysis. "
+            "This process takes approximately 2-5 seconds per case initially, "
+            "but it will improve performance during runtime by reducing "
+            "computation time."
         ),
     )
     parser.add_argument(
@@ -233,7 +243,11 @@ def parse_args():
         action="store_false",
         dest="load_full_betas",
         help=(
-            """Prevent loading betas for all CpGs into memory setting `load_full_betas` to False. By default, betas are loaded to speed up the generation of sequential UMAP plots. Use this option only if you encounter memory overflow due to insufficient available memory (3-4 MB per sample)."""
+            "Prevent loading betas for all CpGs into memory setting "
+            "`load_full_betas` to False. By default, betas are loaded to "
+            "speed up the generation of sequential UMAP plots. Use this "
+            "option only if you encounter memory overflow due to insufficient "
+            "available memory (3-4 MB per sample)."
         ),
     )
     parser.add_argument(
@@ -241,7 +255,8 @@ def parse_args():
         "--overlap",
         action="store_true",
         help=(
-            """Only select IDAT files in the analysis directory that are also present in the annotation."""
+            "Only select IDAT files in the analysis directory that are also "
+            "present in the annotation."
         ),
     )
     parser.add_argument(
@@ -251,7 +266,9 @@ def parse_args():
         choices=["top", "random"],
         default="top",
         help=(
-            """Method to select CpG sites ('top' or 'random'). For 'top', CpG sites are selected based on their variation, taking the most varying ones. For 'random', CpG sites are randomly selected."""
+            "Method to select CpG sites ('top' or 'random'). For 'top', CpG "
+            "sites are selected based on their variation, taking the most "
+            "varying ones. For 'random', CpG sites are randomly selected."
         ),
     )
     parser.add_argument(
@@ -279,14 +296,18 @@ def parse_args():
         "--do_seg",
         action="store_true",
         help=(
-            """If set, enables segmentation analysis on CNV data and adds horizontal segmentation lines to the CNV plot. This will take an additional 2-5 seconds per sample."""
+            "If set, enables segmentation analysis on CNV data and adds "
+            "horizontal segmentation lines to the CNV plot. This will take an "
+            "additional 2-5 seconds per sample."
         ),
     )
     parser.add_argument(
         "--tutorial",
         action="store_true",
         help=(
-            """Downloads test IDAT files used in the tutorial and then launches the mepylome GUI session. Use this for a quick demonstration of how this package works."""
+            "Downloads test IDAT files used in the tutorial and then launches "
+            "the mepylome GUI session. Use this for a quick demonstration of "
+            "how this package works."
         ),
     )
     parser.add_argument(
@@ -325,7 +346,7 @@ def start_mepylome():
             not cli_args["analysis_dir"].exists()
             and not cli_args["reference_dir"].exists()
         ):
-            "Download Tutorial IDAT files"
+            # Download Tutorial IDAT files
             setup_tutorial_files(
                 cli_args["analysis_dir"], cli_args["reference_dir"]
             )
