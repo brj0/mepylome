@@ -642,7 +642,7 @@ You can print an overview of the parameters of the object:
     app:
     None
     
-    betas_top:
+    betas_sel:
     None
     
     betas_all:
@@ -844,7 +844,7 @@ The beta values are then stored in:
 
 .. code-block:: python
 
-    >>> methyl_analysis.betas_top
+    >>> methyl_analysis.betas_sel
                          cg15836656  cg12823387  cg25563772  ...  cg22115994  cg27601809  cg00444740
     200925700133_R04C01    0.117822    0.058700    0.058626  ...    0.295462    0.738677    0.474659
     201530470054_R05C01    0.087871    0.050942    0.065696  ...    0.119668    0.305578    0.105583

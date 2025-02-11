@@ -223,14 +223,14 @@ def get_side_navigation(
                 html.Div(
                     dbc.Button(
                         "Console",
-                        id="toggle-button",
+                        id="toggle-button-setting",
                         n_clicks=0,
                         size="sm",
                     ),
                     className="d-grid gap-2",
                 ),
                 html.Div(
-                    id="console-out",
+                    id="console-out-setting",
                     style={
                         "overflow": "hidden",
                         "fontFamily": "monospace",
@@ -273,7 +273,7 @@ def get_side_navigation(
                 html.H6("Analysis directory"),
                 dbc.Input(
                     id="analysis-dir",
-                    valid=True,
+                    valid=False,
                     value=str(analysis_dir),
                     type="text",
                 ),
@@ -282,7 +282,7 @@ def get_side_navigation(
                 html.H6("Annotation file"),
                 dbc.Input(
                     id="annotation-file",
-                    valid=True,
+                    valid=False,
                     value=str(annotation),
                     type="text",
                 ),
@@ -299,7 +299,7 @@ def get_side_navigation(
                 html.H6("Output directory"),
                 dbc.Input(
                     id="output-dir",
-                    valid=True,
+                    valid=False,
                     value=str(output_dir),
                     type="text",
                 ),
@@ -425,11 +425,16 @@ def get_side_navigation(
             label="Upload",
             children=[
                 html.Br(),
+                html.Span(
+                    "Do not upload too many files at once, else it "
+                    "might not work!"
+                ),
                 html.Br(),
                 dcc.Upload(
                     [
                         "Drag & Drop or ",
                         html.A("Select IDAT File pairs"),
+                        html.Br(),
                     ],
                     style={
                         "width": "100%",
@@ -442,6 +447,28 @@ def get_side_navigation(
                     },
                     multiple=True,
                     id="upload-idat",
+                ),
+                html.Br(),
+                html.Div(
+                    dbc.Button(
+                        "Console",
+                        id="toggle-button-upload",
+                        n_clicks=0,
+                        size="sm",
+                    ),
+                    className="d-grid gap-2",
+                ),
+                html.Div(
+                    id="console-out-upload",
+                    style={
+                        "overflow": "hidden",
+                        "fontFamily": "monospace",
+                        "fontSize": "9px",
+                        "whiteSpace": "pre-wrap",
+                        "height": "40vh",
+                        "display": "flex",
+                        "flexDirection": "column-reverse",
+                    },
                 ),
                 html.Br(),
                 html.Div(id="output-idat-upload"),
@@ -631,7 +658,7 @@ class MethylAnalysis:
         feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
             user-provided feature matrix to be used for UMAP dimensionality
             reduction. If provided, this matrix will be used instead of
-            `betas_top`. If not provided (default is None), the `betas_top`
+            `betas_sel`. If not provided (default is None), the `betas_sel`
             containing methylation beta values will be used for UMAP.
 
         overlap (bool): Flag to analyze only samples that are both in the
@@ -734,8 +761,9 @@ class MethylAnalysis:
         load_full_betas (bool): Flag to load beta values for all CpG sites into
             memory (default: True).
 
-        betas_top (pandas.DataFrame): Dataframe containing top variable beta
-            values, initially set to None.
+        betas_sel (pandas.DataFrame): DataFrame containing a selected subset of
+            beta values used for dimensionality reduction. Initially set to
+            None.
 
         betas_all (pandas.DataFrame): Dataframe containing beta values for all
             CpG sites, initially set to None.
@@ -743,7 +771,7 @@ class MethylAnalysis:
         feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
             user-provided feature matrix to be used for UMAP dimensionality
             reduction. If provided, this matrix will be used instead of
-            `betas_top` for UMAP plots and instead of `betas_all` for
+            `betas_sel` for UMAP plots and instead of `betas_all` for
             classifying (default: None).
 
         betas_path (Path): Path to the betas directory, initially set to
@@ -853,7 +881,7 @@ class MethylAnalysis:
         self.feature_matrix = feature_matrix
         self.umap_plot = EMPTY_FIGURE
         self.umap_plot_path = None
-        self.betas_top = None
+        self.betas_sel = None
         self.betas_all = None
         self.betas_path = None
         self.umap_df = None
@@ -1238,7 +1266,7 @@ class MethylAnalysis:
         )
         self.clf_dir = self.output_dir / f"{clf_hash_key}"
 
-        # Reset betas_top if necessary
+        # Reset betas_sel if necessary
         dependencies = [
             "analysis_dir",
             "prep",
@@ -1249,7 +1277,7 @@ class MethylAnalysis:
             "sample_ids",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
-            self.betas_top = None
+            self.betas_sel = None
 
         # Reset betas_all if necessary
         dependencies = [
@@ -1280,22 +1308,22 @@ class MethylAnalysis:
         self.make_umap_plot()
 
     def compute_umap(self):
-        """Applies the UMAP algorithm on 'betas_top'.
+        """Applies the UMAP algorithm on 'betas_sel'.
 
         Saves the 2D embedding in 'umap_df' and and on disk.
 
         Raises:
-            AttributeError: If a dimension mismatch occurs, or if 'betas_top'
+            AttributeError: If a dimension mismatch occurs, or if 'betas_sel'
                 is not set.
         """
-        if self.betas_top is None and self.feature_matrix is None:
-            msg = "'betas_top' is not set. First run 'set_betas'"
+        if self.betas_sel is None and self.feature_matrix is None:
+            msg = "'betas_sel' is not set. First run 'set_betas'"
             raise AttributeError(msg)
         logger.info("Importing umap library...")
         import umap
 
         matrix_to_use = (
-            self.betas_top
+            self.betas_sel
             if self.feature_matrix is None
             else self.feature_matrix
         )
@@ -1379,7 +1407,7 @@ class MethylAnalysis:
                 logger.info("Probable dimension mismatch.")
 
     def set_betas(self):
-        """Sets the beta values DataFrame ('betas_top') for further analysis.
+        """Sets the beta values DataFrame ('betas_sel') for further analysis.
 
         This method reads the IDAT files located in 'analysis_dir', extracts
         the beta values, and saves them locally in 'output_dir'. Depending on
@@ -1390,22 +1418,22 @@ class MethylAnalysis:
         Raises:
             ValueError: If no valid samples are found.
         """
-        if len(self.idat_handler) == 0:
+        if not self.idat_handler:
             msg = "No valid samples found"
             raise ValueError(msg)
 
         self._update_paths()
 
         def get_random_cpgs():
-            logger.info("Get random CpG's...")
-            rng = np.random.default_rng()
-            random_idx = np.sort(
-                rng.choice(len(self.cpgs), self.n_cpgs, replace=False)
+            logger.info("Selecting random CpG's...")
+            return np.sort(
+                np.random.default_rng().choice(
+                    self.cpgs, self.n_cpgs, replace=False
+                )
             )
-            return self.cpgs[random_idx]
 
         def _get_betas(cpgs):
-            logger.info("Get beta values...")
+            logger.info("Retrieving beta values...")
             return get_betas(
                 idat_handler=self.idat_handler,
                 cpgs=cpgs,
@@ -1414,27 +1442,31 @@ class MethylAnalysis:
                 pbar=self._prog_bar,
             )
 
-        def _extract_sub_dataframe():
-            logger.info("Extract beta values...")
-            if self.cpg_selection == "random":
-                return extract_sub_dataframe(self.betas_all, self.umap_cpgs)
-            return self.betas_all[self._sorted_cpgs[: self.n_cpgs]]
+        # Load all beta values if necessary
+        if self.betas_all is None and (
+            self.load_full_betas or self.cpg_selection == "top"
+        ):
+            self.betas_all = _get_betas(self.cpgs)
+            self._sorted_cpgs = reordered_cpgs_by_variance(self.betas_all)
 
+        # Handle CpG selection
         if self.cpg_selection == "random":
             self.umap_cpgs = get_random_cpgs()
+            self.betas_sel = (
+                extract_sub_dataframe(self.betas_all, self.umap_cpgs)
+                if self.betas_all is not None
+                else _get_betas(self.umap_cpgs)
+            )
 
-        if self.betas_all is not None:
-            self.betas_top = _extract_sub_dataframe()
+        elif self.cpg_selection == "top":
+            self.umap_cpgs = self._sorted_cpgs[: self.n_cpgs]
+            self.betas_sel = self.betas_all[self.umap_cpgs]
 
-        elif self.load_full_betas or self.cpg_selection == "top":
-            self.betas_all = _get_betas(self.cpgs)
-            # TODO Add: Option to calculate cpg variance for a balanced
-            # selection of all tumor entities (in unbalanced data set)
-            self._sorted_cpgs = reordered_cpgs_by_variance(self.betas_all)
-            self.betas_top = _extract_sub_dataframe()
-
+        # TODO Add: Option to calculate cpg variance for a balanced
+        # selection of all tumor entities (in unbalanced data set)
         else:
-            self.betas_top = _get_betas(self.umap_cpgs)
+            msg = f"Invalid 'cpg_selection': {self.cpg_selection}"
+            raise ValueError(msg)
 
     def _get_coordinates(self, sample_id):
         """Returns UMAP 2D embedding coordinates."""
@@ -1648,7 +1680,6 @@ class MethylAnalysis:
         if ids and not isinstance(ids, (list, tuple, np.ndarray)):
             ids = [ids]
 
-        self._update_paths()
         self.set_betas()
         ensure_directory_exists(self.clf_dir)
 
@@ -2024,9 +2055,6 @@ class MethylAnalysis:
 
             if n_cpgs is None:
                 error_message = "Invalid no. of CpGs."
-            elif not analysis_dir_valid:
-                # TODO Add user only uploads all files and without analysis_dir
-                error_message = "Invalid analysis path."
             elif not output_dir_valid:
                 error_message = "Invalid Output path."
             elif prep is None:
@@ -2067,14 +2095,26 @@ class MethylAnalysis:
             return no_update, no_update, "", {}
 
         @app.callback(
-            Output("console-out", "style"),
-            [Input("toggle-button", "n_clicks")],
-            [State("console-out", "style")],
+            Output("console-out-setting", "style"),
+            [Input("toggle-button-setting", "n_clicks")],
+            [State("console-out-setting", "style")],
         )
         def toggle_console_out(n_clicks, current_style):
-            if n_clicks % 2 == 0:
-                return {**current_style, "display": "flex"}
-            return {**current_style, "display": "none"}
+            return {
+                **current_style,
+                "display": "flex" if n_clicks % 2 == 0 else "none",
+            }
+
+        @app.callback(
+            Output("console-out-upload", "style"),
+            [Input("toggle-button-upload", "n_clicks")],
+            [State("console-out-upload", "style")],
+        )
+        def toggle_console_out(n_clicks, current_style):
+            return {
+                **current_style,
+                "display": "flex" if n_clicks % 2 == 0 else "none",
+            }
 
         @app.callback(
             [
@@ -2117,7 +2157,8 @@ class MethylAnalysis:
             [
                 Output("umap-progress-bar", "value"),
                 Output("umap-progress-bar", "label"),
-                Output("console-out", "children"),
+                Output("console-out-setting", "children"),
+                Output("console-out-upload", "children"),
                 Output("clf-out", "children"),
             ],
             [Input("clock", "n_intervals")],
@@ -2134,7 +2175,7 @@ class MethylAnalysis:
                     log_str = log_str + line
             with self._clf_log.open("r") as file:
                 clf_str = file.readlines()
-            return progress, out_str, log_str, clf_str
+            return progress, out_str, log_str, log_str, clf_str
 
         @app.callback(
             Output("output-idat-upload", "children"),
@@ -2143,6 +2184,7 @@ class MethylAnalysis:
             State("upload-idat", "last_modified"),
         )
         def update_output(list_of_contents, list_of_names, list_of_dates):
+            logger.info("Uploading files...")
             def parse_contents(contents, filename, date):
                 file_path = self.test_dir / filename
                 content_string = contents.split(",")[1]
@@ -2157,14 +2199,14 @@ class MethylAnalysis:
                 )
 
             if list_of_contents is not None:
-                children = [
-                    parse_contents(c, n, d)
-                    for c, n, d in zip(
-                        list_of_contents, list_of_names, list_of_dates
-                    )
-                ]
+                children = []
+                for c, n, d in zip(
+                    list_of_contents, list_of_names, list_of_dates
+                ):
+                    children.append(parse_contents(c, n, d))
                 self.idat_handler = None
                 self._update_paths()
+                self.cpgs = self._get_cpgs()
                 return children
 
         @app.callback(

@@ -585,20 +585,20 @@ print(best_clf_sg.reports[0])
 # %%
 # Initialize directories.
 tumor_site = "soft_tissue_tumors"
-analysis_dir_sf = data_dir / tumor_site
-test_dir_sf = validation_dir / tumor_site
+analysis_dir_st = data_dir / tumor_site
+test_dir_st = validation_dir / tumor_site
 
-test_dir_sf.mkdir(parents=True, exist_ok=True)
-analysis_dir_sf.mkdir(parents=True, exist_ok=True)
+test_dir_st.mkdir(parents=True, exist_ok=True)
+analysis_dir_st.mkdir(parents=True, exist_ok=True)
 
 # Download the annotation spreadsheet.
 if not (
-    excel_path := analysis_dir_sf / f"{tumor_site}-annotation.xlsx"
+    excel_path := analysis_dir_st / f"{tumor_site}-annotation.xlsx"
 ).exists():
     download_file(datasets[tumor_site]["xlsx"], excel_path)
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir_sf, datasets[tumor_site]["geo_ids"])
+download_from_geo_and_untar(analysis_dir_st, datasets[tumor_site]["geo_ids"])
 
 
 # %% [markdown]
@@ -609,8 +609,8 @@ download_from_geo_and_untar(analysis_dir_sf, datasets[tumor_site]["geo_ids"])
 # of CpG sites, and UMAP settings are configured here.
 
 # %%
-analysis_sf = MethylAnalysis(
-    analysis_dir=analysis_dir_sf,
+analysis_st = MethylAnalysis(
+    analysis_dir=analysis_dir_st,
     reference_dir=reference_dir,
     output_dir=output_dir,
     n_cpgs=25000,
@@ -631,7 +631,7 @@ analysis_sf = MethylAnalysis(
 # be performed interactively within the GUI.
 
 # %%
-analysis_sf.set_betas()
+analysis_st.set_betas()
 
 
 # %% [markdown]
@@ -640,21 +640,21 @@ analysis_sf.set_betas()
 # Set the columns used for coloring the UMAP plot before initiating the
 # dimensionality reduction process. The UMAP algorithm produces a visual
 # representation of the sample clusters, which is stored as a Plotly object in
-# `analysis_sf.umap_plot`.
+# `analysis_st.umap_plot`.
 
 # %%
 # Calculate UMAP
-analysis_sf.idat_handler.selected_columns = ["Methylation Class Name"]
-analysis_sf.make_umap()
+analysis_st.idat_handler.selected_columns = ["Methylation Class Name"]
+analysis_st.make_umap()
 
 # %%
 # Show the results
-print(analysis_sf.umap_df)
+print(analysis_st.umap_df)
 
 # %%
 # Generate and show image
-output_path = output_dir / f"{analysis_dir_sf.name}-umap_plot.jpg"
-analysis_sf.umap_plot.write_image(
+output_path = output_dir / f"{analysis_dir_st.name}-umap_plot.jpg"
+analysis_st.umap_plot.write_image(
     output_path,
     format="jpg",
     width=IMG_HEIGHT,
@@ -674,7 +674,7 @@ IPImage(filename=output_path)
 # on platforms like Google Colab or Binder.
 
 # %%
-analysis_sf.run_app(open_tab=True)
+analysis_st.run_app(open_tab=True)
 
 
 # %% [markdown]
@@ -685,14 +685,14 @@ analysis_sf.run_app(open_tab=True)
 
 # %%
 # Save CNV example
-analysis_sf.make_cnv_plot("3999112131_R05C01")
-cnv_plot = analysis_sf.cnv_plot
+analysis_st.make_cnv_plot("3999112131_R05C01")
+cnv_plot = analysis_st.cnv_plot
 cnv_plot.update_layout(
     yaxis_range=[-1.1, 1.1],
     font={"size": FONTSIZE},
     margin={"t": 50},
 )
-output_path = output_dir / f"{analysis_dir_sf.name}-cnv_plot.jpg"
+output_path = output_dir / f"{analysis_dir_st.name}-cnv_plot.jpg"
 cnv_plot.write_image(
     output_path,
     format="jpg",
@@ -714,13 +714,13 @@ IPImage(filename=output_path)
 # on the computational resources available.
 
 # %%
-analysis_sf.precompute_cnvs()
-cn_summary_path_sf = calculate_cn_summary(
-    analysis_sf, "Methylation Class Name"
+analysis_st.precompute_cnvs()
+cn_summary_path_st = calculate_cn_summary(
+    analysis_st, "Methylation Class Name"
 )
 
 # %%
-IPImage(filename=cn_summary_path_sf)
+IPImage(filename=cn_summary_path_st)
 
 # %% [markdown]
 # ### Supervised Classifier Validation
@@ -735,8 +735,8 @@ IPImage(filename=cn_summary_path_sf)
 
 # %%
 # Train supervised classifiers
-ids = analysis_sf.idat_handler.ids
-clf_out_sf = analysis_sf.classify(
+ids = analysis_st.idat_handler.ids
+clf_out_st = analysis_st.classify(
     ids=ids,
     clf_list=[
         "none-kbest-et",
@@ -750,15 +750,15 @@ clf_out_sf = analysis_sf.classify(
 
 # %%
 # Print reports for all classifier for the first sample
-for clf_result in clf_out_sf:
+for clf_result in clf_out_st:
     print(clf_result.reports[0])
 
 # Identify and display the best classifier
-best_clf_sf = max(
-    clf_out_sf, key=lambda result: np.mean(result.metrics["accuracy_scores"])
+best_clf_st = max(
+    clf_out_st, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
-print(best_clf_sf.reports[0])
+print(best_clf_st.reports[0])
 
 
 # %% [markdown]
