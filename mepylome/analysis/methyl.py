@@ -1754,7 +1754,7 @@ class MethylAnalysis:
                 _log(clf_result.reports[0] + "\n\n\n")
             results.append(clf_result)
 
-        return results[0] if len(results) == 1 else results
+        return results
 
     def get_app(self):
         """Returns a Dash application object for methylation analysis."""

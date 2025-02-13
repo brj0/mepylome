@@ -276,22 +276,58 @@ class IdatHandler:
         analysis_samples = set(self.analysis_id_to_path.keys())
         sentrix_analysis_samples = convert_to_sentrix_ids(analysis_samples)
 
-        for col in self.annotation_df.columns:
-            column_samples = set(self.annotation_df[col])
+        # Compute overlaps
+        regular_overlap = self.annotation_df.isin(analysis_samples)
+        sentrix_df = self.annotation_df.apply(convert_to_sentrix_ids)
+        sentrix_overlap = sentrix_df.isin(sentrix_analysis_samples)
 
-            if analysis_samples == column_samples:
-                return False, col
+        # Column-wise match counts
+        regular_hits = regular_overlap.sum(axis=0)
+        sentrix_hits = sentrix_overlap.sum(axis=0)
 
-            sentrix_column_samples = convert_to_sentrix_ids(column_samples)
+        # Find the best column
+        best_regular_col = (
+            regular_hits.idxmax() if regular_hits.max() > 0 else None
+        )
+        best_sentrix_col = (
+            sentrix_hits.idxmax() if sentrix_hits.max() > 0 else None
+        )
 
-            if (
-                len(analysis_samples) == len(sentrix_analysis_samples)
-                and len(column_samples) == len(sentrix_column_samples)
-                and sentrix_analysis_samples & sentrix_column_samples
-            ):
-                return True, col
+        best_regular_hits = regular_hits.max()
+        best_sentrix_hits = sentrix_hits.max()
 
-        return False, None
+        if best_sentrix_hits > best_regular_hits:
+            best_col = best_sentrix_col
+            is_sentrix = True
+
+            n_regular = len(set(self.annotation_df[best_col]))
+            n_sentrix = len(set(sentrix_df[best_col]))
+            if n_regular > n_sentrix:
+                logging.warning(
+                    (
+                        "Sentrix ID extraction reduced samples in column '%s' "
+                        "of the annotation file from %s to %s. There may be "
+                        "duplicates or mismaps!"
+                    ),
+                    best_col,
+                    n_regular,
+                    n_sentrix,
+                )
+            if len(analysis_samples) != len(sentrix_analysis_samples):
+                logging.warning(
+                    (
+                        "Sentrix ID extraction reduced samples in directory "
+                        "%s from %s to %s. There may be duplicates or mismaps!"
+                    ),
+                    self.idat_dir,
+                    len(analysis_samples),
+                    len(sentrix_analysis_samples),
+                )
+        else:
+            best_col = best_regular_col
+            is_sentrix = False
+
+        return is_sentrix, best_col
 
     def _set_annotation_index_and_convert_ids(self, id_missmatch, col_name):
         """Set annotation index and convert IDs to Sentrix format if needed."""
@@ -313,7 +349,7 @@ class IdatHandler:
         self.annotation_df.index = convert_to_sentrix_ids(
             self.annotation_df[col_name]
         )
-        self.annotation_df.drop(columns=[col_name], inplace=True)
+        self.annotation_df = self.annotation_df.drop(columns=[col_name])
         self.sample_ids = convert_to_sentrix_ids(self.sample_ids)
         logger.info("Extracted Sentrix IDs from column '%s'.", col_name)
 
