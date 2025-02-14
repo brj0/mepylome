@@ -133,22 +133,22 @@ def _get_pipeline_description(clf, output_format="txt"):
             if default_params.get(k) != v
         }
         if output_format == "html":
-            return "".join(
+            return [
                 (
-                    f"<tr><td class='label'>- {param}</td>"
-                    f"<td class='value'>{value}</td></tr>"
+                    f"<tr><td class='clf-label'>- {param}</td>"
+                    f"<td class='clf-value'>{value}</td></tr>"
                 )
                 for param, value in non_default_params.items()
-            )
+            ]
         return [
             f"- {param}: {value}"
             for param, value in non_default_params.items()
         ]
 
     if output_format == "html":
-        lines = ["<h2>Pipeline Structure:</h2><table>"]
+        lines = ["<h2>Classifier Structure:</h2>", "<table>"]
     else:
-        lines = ["Pipeline Structure:"]
+        lines = ["Classifier Structure:"]
     if hasattr(clf, "steps"):
         step_name_len = max(len(name) for name, _ in clf.steps)
         for name, step in clf.steps:
@@ -158,8 +158,8 @@ def _get_pipeline_description(clf, output_format="txt"):
             )
             if output_format == "html":
                 lines.append(
-                    f"<tr><td class='label'>{step_name}</td>"
-                    f"<td class='value'>{step_type}</td></tr>"
+                    f"<tr><td class='clf-label'>{step_name}</td>"
+                    f"<td class='clf-value'>{step_type}</td></tr>"
                 )
             else:
                 lines.append(f"{step_name:<{step_name_len}} : {step_type}")
@@ -169,8 +169,8 @@ def _get_pipeline_description(clf, output_format="txt"):
         clf_name = clf.__class__.__name__
         if output_format == "html":
             lines.append(
-                f"<tr><td class='label'>Classifier</td>"
-                f"<td class='value'>{clf_name}</td></tr>"
+                f"<tr><td class='clf-label'>Classifier</td>"
+                f"<td class='clf-value'>{clf_name}</td></tr>"
             )
         else:
             lines.append(f"Classifier: {clf_name}")
@@ -180,6 +180,39 @@ def _get_pipeline_description(clf, output_format="txt"):
         lines.append("</table>")
 
     return "\n".join(lines)
+
+
+def _format_metrics(metrics, output_format="txt"):
+    """Transforms classifier metrics to readable text."""
+
+    def format_metric_scores(scores):
+        if isinstance(scores, (list, np.ndarray)):
+            return f"{np.mean(scores):.4f} (SD {np.std(scores):.4f})"
+        return str(scores)
+
+    formatted_stats = {}
+
+    metric_keys = {
+        "Method": "cv",
+        "Samples": "n_samples",
+        "Features": "n_features",
+        "Accuracy": "accuracy_scores",
+        "AUC": "auc_scores",
+        "F1-Score": "f1_scores",
+        "Precision": "precision_scores",
+        "Recall": "recall_scores",
+    }
+
+    for key, metric in metric_keys.items():
+        if metric in metrics:
+            if metric == "cv":
+                formatted_stats[key] = (
+                    f"{metrics[metric].n_splits}-fold cross validation"
+                )
+            else:
+                formatted_stats[key] = format_metric_scores(metrics[metric])
+
+    return formatted_stats
 
 
 class TrainedSklearnClassifier(TrainedClassifier):
@@ -201,25 +234,30 @@ class TrainedSklearnClassifier(TrainedClassifier):
         return self._classes
 
     def info(self, output_format="txt"):
-        description = _get_pipeline_description(self.clf)
-        result = description + "\n\nMetrics:"
-        formatted_stats = _format_stats(self._metrics)
-        max_key_length = max(len(key) for key in formatted_stats)
-        for key, value in formatted_stats.items():
-            if output_format == "html":
-                result += f"\n{key:<{max_key_length}} : {value}"
-            else:
-                result += (
-                    f"<tr><td class='label'>{key}</td>"
-                    f"<td class='value'>{value}</td></tr>"
-                )
-        return result
+        description = _get_pipeline_description(self.clf, output_format)
+        formatted_stats = _format_metrics(self._metrics)
 
-    def model(self):
-        return self.clf
+        if output_format == "html":
+            result = [f"{description}"]
+            result.append("<h2>Metrics:</h2>")
+            result.append("<table>")
+            for key, value in formatted_stats.items():
+                result.append(f"<tr><td class='metrics-label'>{key}</td>")
+                result.append(f"<td class='metrics-value'>{value}</td></tr>")
+            result.append("</table>")
+        else:
+            max_key_length = max(len(key) for key in formatted_stats)
+            result = [description + "\n", "Metrics:"]
+            for key, value in formatted_stats.items():
+                result.append(f"{key:<{max_key_length}} : {value}")
+
+        return "\n".join(result)
 
     def metrics(self):
         return self._metrics
+
+    def model(self):
+        return self.clf
 
 
 class TrainedSklearnCVClassifier(TrainedClassifier):
@@ -264,19 +302,24 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         return self._classes
 
     def info(self, output_format="txt"):
-        description = _get_pipeline_description(self.clf)
-        result = description + "\n\nMetrics:"
-        formatted_stats = _format_stats(self._metrics)
-        max_key_length = max(len(key) for key in formatted_stats)
-        for key, value in formatted_stats.items():
-            if output_format == "html":
-                result += f"\n{key:<{max_key_length}} : {value}"
-            else:
-                result += (
-                    f"<tr><td class='label'>{key}</td>"
-                    f"<td class='value'>{value}</td></tr>"
-                )
-        return result
+        description = _get_pipeline_description(self.clf, output_format)
+        formatted_stats = _format_metrics(self._metrics)
+
+        if output_format == "html":
+            result = [f"{description}"]
+            result.append("<h2>Metrics:</h2>")
+            result.append("<table>")
+            for key, value in formatted_stats.items():
+                result.append(f"<tr><td class='metrics-label'>{key}</td>")
+                result.append(f"<td class='metrics-value'>{value}</td></tr>")
+            result.append("</table>")
+        else:
+            max_key_length = max(len(key) for key in formatted_stats)
+            result = [description + "\n", "Metrics:"]
+            for key, value in formatted_stats.items():
+                result.append(f"{key:<{max_key_length}} : {value}")
+
+        return "\n".join(result)
 
     def metrics(self):
         return self._metrics
@@ -346,7 +389,7 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
     )
 
 
-def make_reports(prediction, info):
+def make_reports(prediction, info, output_format="txt"):
     """Generates detailed reports from classifier predictions.
 
     Args:
@@ -354,32 +397,50 @@ def make_reports(prediction, info):
             for each class, indexed by sample IDs.
         info (str): A description of the classifier such as its name and
             metrics. Will be printed before predictions.
+        output_format (str): The format of the report ('txt' or 'html').
+            Defaults to 'txt'.
 
     Returns:
         list[str]: A list of detailed string reports, one for each sample.
     """
     reports = []
-
     for sample_id, row in prediction.iterrows():
         top_predictions = row[row > 0].nlargest(10) * 100
-        report_lines = [
-            str(sample_id),
-            "=" * len(str(sample_id)),
-            f"\n{info}\n",
-            "Classification Probability:",
-        ]
-        label_len = max(len(str(label)) for label in top_predictions.index)
-        formatted_lines = [
-            f"{label:<{label_len}} : {probability:6.2f} %"
-            for label, probability in top_predictions.items()
-        ]
-        n_dashes = (
-            max(len(line) for line in formatted_lines)
-            if formatted_lines
-            else 0
-        )
-        dashes = "-" * n_dashes
-        report_lines.extend([dashes, *formatted_lines, dashes])
+        if output_format == "txt":
+            report_lines = [
+                str(sample_id),
+                "=" * len(str(sample_id)),
+                f"\n{info}\n",
+                "Classification Probability:",
+            ]
+            label_len = max(len(str(label)) for label in top_predictions.index)
+            formatted_lines = [
+                f"{label:<{label_len}} : {probability:6.2f} %"
+                for label, probability in top_predictions.items()
+            ]
+            n_dashes = (
+                max(len(line) for line in formatted_lines)
+                if formatted_lines
+                else 0
+            )
+            dashes = "-" * n_dashes
+            report_lines.extend([dashes, *formatted_lines, dashes])
+        if output_format == "html":
+            report_lines = [
+                f"<h1>{sample_id}</h1>",
+                f"{info}",
+                "<h2>Classification Probability:</h2>",
+                "<div class='classification-result'>",
+                "<table>",
+            ]
+            report_lines.extend(
+                (
+                    f"<tr><td class='prob-label'>{label}</td>"
+                    f"<td class='prob-value'>{probability:.2f}%</td></tr>"
+                )
+                for label, probability in top_predictions.items()
+            )
+            report_lines.extend(["</table>", "</div>", "<hr>"])
         reports.append("\n".join(report_lines))
     return reports
 
@@ -451,39 +512,6 @@ def cross_val_metrics(clf, X, y, probabilities_cv, cv):
         "precision_scores": precision_scores,
         "recall_scores": recall_scores,
     }
-
-
-def _format_stats(metrics, output_format="txt"):
-    """Transforms classifier metrics to readable text."""
-
-    def format_metric_scores(scores):
-        if isinstance(scores, (list, np.ndarray)):
-            return f"{np.mean(scores):.4f} (SD {np.std(scores):.4f})"
-        return str(scores)
-
-    formatted_stats = {}
-
-    metric_keys = {
-        "Method": "cv",
-        "Samples": "n_samples",
-        "Features": "n_features",
-        "Accuracy": "accuracy_scores",
-        "AUC": "auc_scores",
-        "F1-Score": "f1_scores",
-        "Precision": "precision_scores",
-        "Recall": "recall_scores",
-    }
-
-    for key, metric in metric_keys.items():
-        if metric in metrics:
-            if metric == "cv":
-                formatted_stats[key] = (
-                    f"{metrics[metric].n_splits}-fold cross validation"
-                )
-            else:
-                formatted_stats[key] = format_metric_scores(metrics[metric])
-
-    return formatted_stats
 
 
 def is_trained(clf):
@@ -566,7 +594,9 @@ class ClassifierResult:
     reports: list
 
 
-def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
+def fit_and_evaluate_clf(
+    X, y, X_test, id_test, directory, clf, cv, n_jobs=1, output_format="txt"
+):
     """Predicts the methylation class by supervised learning classifier.
 
     Uses supervised machine learning classifiers (Random Forest, K-Nearest
@@ -628,6 +658,8 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
                     - "stacking": StackingClassifier (combines multiple
                       classifiers).
                     - "none": No classifier (passthrough).
+                output_format (str): The format of the report ('txt' or
+                    'html'). Defaults to 'txt'.
 
             - A custom class, that inherits from `TrainedClassifier`.
 
@@ -657,9 +689,9 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, directory, clf, cv, n_jobs=1):
         trained_clf = clf
     classes = trained_clf.classes()
     probabilities = trained_clf.predict_proba(X_test, id_test)
-    info = trained_clf.info()
+    info = trained_clf.info(output_format=output_format)
     prediction = pd.DataFrame(probabilities, index=id_test, columns=classes)
-    reports = make_reports(prediction, info)
+    reports = make_reports(prediction, info, output_format=output_format)
     return ClassifierResult(
         prediction,
         trained_clf.model(),

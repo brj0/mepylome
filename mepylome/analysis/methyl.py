@@ -1627,7 +1627,9 @@ class MethylAnalysis:
         plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
         return plot, df_cn_summary
 
-    def classify(self, *, ids=None, values=None, clf_list):
+    def classify(
+        self, *, ids=None, values=None, clf_list, output_format="txt"
+    ):
         """Classify samples using specified classifiers.
 
         This method performs classification on given samples, defined either by
@@ -1654,6 +1656,8 @@ class MethylAnalysis:
                 handled the same way as `self.classifiers`. For full details on
                 the format and options, refer to the docstring for
                 `self.classifiers`.
+            output_format (str): The format of the report ('txt' or 'html').
+                Defaults to 'txt'.
 
         Returns:
             list: A list containing:
@@ -1743,6 +1747,7 @@ class MethylAnalysis:
                 clf=clf["model"],
                 cv=clf["cv"],
                 n_jobs=self.n_jobs,
+                output_format=output_format,
             )
             elapsed_time = time.time() - start_time
             if logger.isEnabledFor(logging.INFO):
@@ -2106,17 +2111,6 @@ class MethylAnalysis:
             }
 
         @app.callback(
-            Output("console-out-upload", "style"),
-            [Input("toggle-button-upload", "n_clicks")],
-            [State("console-out-upload", "style")],
-        )
-        def toggle_console_out(n_clicks, current_style):
-            return {
-                **current_style,
-                "display": "flex" if n_clicks % 2 == 0 else "none",
-            }
-
-        @app.callback(
             [
                 Input("umap-n_neighbors", "value"),
                 Input("umap-metric", "value"),
@@ -2185,6 +2179,7 @@ class MethylAnalysis:
         )
         def update_output(list_of_contents, list_of_names, list_of_dates):
             logger.info("Uploading files...")
+
             def parse_contents(contents, filename, date):
                 file_path = self.test_dir / filename
                 content_string = contents.split(",")[1]
