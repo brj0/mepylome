@@ -396,7 +396,9 @@ class IdatHandler:
             self.analysis_id_to_path.keys()
         )
         self.analysis_id_to_path = {
-            x: self.analysis_id_to_path[x] for x in valid_ids
+            x: self.analysis_id_to_path[x]
+            for x in self.analysis_id_to_path
+            if x in valid_ids
         }
 
     def _warn_on_sample_overlap(self):

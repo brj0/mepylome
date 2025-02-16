@@ -1,3 +1,5 @@
+"""Setup script for package installation."""
+
 import os
 from pathlib import Path
 
@@ -56,7 +58,7 @@ with open("README.md") as f:
 
 setup(
     name="mepylome",
-    version="0.7.8",
+    version="0.7.9",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
     long_description=long_description,

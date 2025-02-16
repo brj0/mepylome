@@ -146,7 +146,7 @@ def _get_pipeline_description(clf, output_format="txt"):
         ]
 
     if output_format == "html":
-        lines = ["<h2>Classifier Structure:</h2>", "<table>"]
+        lines = ["<h2>Classifier Structure</h2>", "<table>"]
     else:
         lines = ["Classifier Structure:"]
     if hasattr(clf, "steps"):
@@ -239,11 +239,13 @@ class TrainedSklearnClassifier(TrainedClassifier):
 
         if output_format == "html":
             result = [f"{description}"]
-            result.append("<h2>Metrics:</h2>")
+            result.append("<h2>Metrics</h2>")
             result.append("<table>")
             for key, value in formatted_stats.items():
-                result.append(f"<tr><td class='metrics-label'>{key}</td>")
-                result.append(f"<td class='metrics-value'>{value}</td></tr>")
+                result.append(
+                    f"<tr><td class='metrics-label'>{key}</td>"
+                    f"<td class='metrics-value'>{value}</td></tr>"
+                )
             result.append("</table>")
         else:
             max_key_length = max(len(key) for key in formatted_stats)
@@ -307,11 +309,13 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
 
         if output_format == "html":
             result = [f"{description}"]
-            result.append("<h2>Metrics:</h2>")
+            result.append("<h2>Metrics</h2>")
             result.append("<table>")
             for key, value in formatted_stats.items():
-                result.append(f"<tr><td class='metrics-label'>{key}</td>")
-                result.append(f"<td class='metrics-value'>{value}</td></tr>")
+                result.append(
+                    f"<tr><td class='metrics-label'>{key}</td>"
+                    f"<td class='metrics-value'>{value}</td></tr>"
+                )
             result.append("</table>")
         else:
             max_key_length = max(len(key) for key in formatted_stats)
@@ -429,7 +433,7 @@ def make_reports(prediction, info, output_format="txt"):
             report_lines = [
                 f"<h1>{sample_id}</h1>",
                 f"{info}",
-                "<h2>Classification Probability:</h2>",
+                "<h2>Classification Probability</h2>",
                 "<div class='classification-result'>",
                 "<table>",
             ]

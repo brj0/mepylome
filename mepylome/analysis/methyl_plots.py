@@ -248,9 +248,7 @@ def write_cnv_to_disk(
         num_cores = max(1, cpu_count() - 1)
         # Line breaks are not supported in context managers in Python 3.8.
         # To avoid errors, both `Pool` and `tqdm` are used on the same line.
-        # fmt: off
-        with Pool(num_cores) as pool, tqdm(total=len(new_idat_paths), desc="Generating CNV files") as tqdm_bar:
-            # fmt: on
+        with Pool(num_cores) as pool, tqdm(total=len(new_idat_paths), desc="Generating CNV files") as tqdm_bar: # noqa: E501
             for _ in pool.imap(_write_single_cnv_to_disk, new_idat_paths):
                 if pbar is not None:
                     pbar.increment()

@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 import webbrowser
+from collections import Counter
 from pathlib import Path
 
 import dash_bootstrap_components as dbc
@@ -319,6 +320,35 @@ def get_side_navigation(
                     multi=False,
                 ),
                 html.Br(),
+                html.H6("How should CpG's be selected"),
+                dcc.Dropdown(
+                    id="cpg-selection",
+                    options={
+                        "random": "Random",
+                        "top": "Top varying (all samples)",
+                        "balanced": ("Top varying (balanced selection)"),
+                    },
+                    value=cpg_selection,
+                    clearable=False,
+                    multi=False,
+                ),
+                html.Br(),
+                html.Div(
+                    [
+                        html.H6("Select Balancing Column:"),
+                        dcc.Dropdown(
+                            id="balancing-column",
+                            options=annotation_columns,
+                            value=annotation_columns[0],
+                            clearable=False,
+                            multi=False,
+                            placeholder="Choose a column for balancing...",
+                        ),
+                        html.Br(),
+                    ],
+                    id="balancing-column-container",
+                    style={"display": "none"},
+                ),
                 html.H6("Calculate CNV"),
                 dcc.Dropdown(
                     id="precalculate-cnv",
@@ -327,18 +357,6 @@ def get_side_navigation(
                         OFF: "When clicking on dots",
                     },
                     value=ON if precalculate else OFF,
-                    clearable=False,
-                    multi=False,
-                ),
-                html.Br(),
-                html.H6("How should CpG's be selected"),
-                dcc.Dropdown(
-                    id="cpg-selection",
-                    options={
-                        "random": "By random",
-                        "top": "Take most varying CpG's (memory intensive!)",
-                    },
-                    value=cpg_selection,
                     clearable=False,
                     multi=False,
                 ),
@@ -535,8 +553,43 @@ def extract_sub_dataframe(data_frame, columns, fill=0.49):
     return pd.DataFrame(result_np, columns=columns, index=data_frame.index)
 
 
+def get_balanced_indices(feature_labels, seed=None):
+    """Returns indices of a balanced selection of feature labels.
+
+    Args:
+        feature_labels (list or array-like): Labels of features to balance.
+        seed (int, optional): Random seed for reproducibility.
+
+    Returns:
+        np.ndarray: Sorted indices of the balanced selection.
+    """
+    feature_labels = np.array(feature_labels)
+    class_frequencies = Counter(feature_labels)
+    min_class_size = min(class_frequencies.values())
+    if min_class_size <= 1:
+        problematic_classes = [
+            cls for cls, count in class_frequencies.items() if count <= 1
+        ]
+        msg = f"Only 1 sample for the following classes: {problematic_classes}"
+        raise ValueError(msg)
+    class_to_indices = {
+        label: np.where(feature_labels == label)[0]
+        for label in class_frequencies
+    }
+    rng = np.random.default_rng(seed)
+    balanced_sample_indices = np.hstack(
+        [
+            rng.choice(class_to_indices[label], min_class_size, replace=False)
+            for label in class_frequencies
+        ]
+    )
+    balanced_sample_indices.sort()
+    return balanced_sample_indices
+
+
 def reordered_cpgs_by_variance(data_frame):
     """Reorders CpGs by descending column variance."""
+    logger.info("Reordering CpG's...")
     variances = np.var(data_frame.values, axis=0)
     sorted_columns = np.argsort(-variances, kind="stable")
     return data_frame.columns[sorted_columns]
@@ -668,10 +721,23 @@ class MethylAnalysis:
             analysis will be restricted to these samples only. If `None`, the
             analysis will include all available samples.
 
-        cpg_selection (str): Method to select CpG sites ('top' or 'random')
-            (default: 'top'). For 'top', CpG sites are selected based on their
-            variation, taking the most varying ones. For 'random', CpG sites
-            are randomly selected.
+        cpg_selection (str): Method to select CpG sites for UMAP ('top',
+            'random', or 'balanced') (default: 'top').
+
+            - 'top': Selects CpG sites with the highest variance.
+            - 'random': Selects CpG sites randomly.
+            - 'balanced': Selects the most varying CpG sites while ensuring a
+              balanced distribution across groups based on
+              `self.balancing_feature`.  This method takes an **equal number of
+              sample files from `self.analysis_dir`**  for each group defined
+              by `self.balancing_feature`.  It is especially useful when the
+              dataset is **imbalanced**, where some  groups have significantly
+              more samples than others.
+
+        self.balancing_feature (str): Column in `self.annotation` used for
+            balancing when `cpg_selection='balanced'`. The balancing feature
+            determines the groups/categories used to create a stratified
+            selection of CpG sites.
 
         do_seg (bool): If set, enables segmentation analysis on CNV data and
             adds horizontal segmentation lines to the CNV plot. This will take
@@ -733,10 +799,23 @@ class MethylAnalysis:
         prep (str): Prepreparation method used for methylation microarrays:
             'illumina', 'swan', or 'noob (default: 'illumina').
 
-        cpg_selection (str): Method to select CpG sites ('top' or 'random')
-            (default: 'top'). For 'top', CpG sites are selected based on their
-            variation, taking the most varying ones. For 'random', CpG sites
-            are randomly selected.
+        cpg_selection (str): Method to select CpG sites for UMAP ('top',
+            'random', or 'balanced') (default: 'top').
+
+            - 'top': Selects CpG sites with the highest variance.
+            - 'random': Selects CpG sites randomly.
+            - 'balanced': Selects the most varying CpG sites while ensuring a
+              balanced distribution across groups based on
+              `self.balancing_feature`.  This method takes an **equal number of
+              sample files from `self.analysis_dir`**  for each group defined
+              by `self.balancing_feature`.  It is especially useful when the
+              dataset is **imbalanced**, where some  groups have significantly
+              more samples than others.
+
+        self.balancing_feature (str): Column in `self.annotation` used for
+            balancing when `cpg_selection='balanced'`. The balancing feature
+            determines the groups/categories used to create a stratified
+            selection of CpG sites.
 
         host (str): Host address for the Dash application (default:
             'localhost').
@@ -810,7 +889,7 @@ class MethylAnalysis:
 
 
     Raises:
-        ValueError: If `cpg_selection` is not 'top' or 'random'.
+        ValueError: If `cpg_selection` is not 'top', 'balanced', or 'random'.
 
     Examples:
         >>> # Basic usage
@@ -854,45 +933,56 @@ class MethylAnalysis:
         debug=False,
         umap_parms=None,
         verbose=1,
+        balancing_feature=None,
     ):
-        self.umap_cpgs = None
         self.analysis_dir = Path(analysis_dir).expanduser()
         self.annotation = Path(annotation).expanduser()
-        self.overlap = overlap
-        self.sample_ids = None if sample_ids is None else list(sample_ids)
-        self._idat_handler = None
-        self.n_cpgs = n_cpgs
-        self.n_jobs = n_jobs
-        self.cpg_blacklist = set(cpg_blacklist or [])
-        self.cpg_selection = cpg_selection
-        self.host = host
-        self.port = port
-        self.debug = debug
-        self.reference_dir = Path(reference_dir).expanduser()
-        self.output_dir = Path(output_dir).expanduser()
-        self.test_dir = Path(test_dir).expanduser()
-        self.cnv_dir = None
-        self.umap_dir = None
-        self.clf_dir = None
-        self.cv_default = cv_default
-        self.prep = prep
-        self.precalculate_cnv = precalculate_cnv
-        self.load_full_betas = load_full_betas
-        self.feature_matrix = feature_matrix
-        self.umap_plot = EMPTY_FIGURE
-        self.umap_plot_path = None
-        self.betas_sel = None
+        self.app = None
+        self.balancing_feature = balancing_feature or []
         self.betas_all = None
         self.betas_path = None
-        self.umap_df = None
-        self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
-        self.cnv_plot = EMPTY_FIGURE
-        self.raw_umap_plot = None
+        self.betas_sel = None
+        self.clf_dir = None
+        self.cnv_dir = None
         self.cnv_id = None
+        self.cnv_plot = EMPTY_FIGURE
+        self.cpg_blacklist = set(cpg_blacklist or [])
+        self.cpg_selection = cpg_selection
+        self.cv_default = cv_default
+        self.debug = debug
         self.dropdown_id = None
+        self.feature_matrix = feature_matrix
+        self.host = host
         self.ids = []
         self.ids_to_highlight = None
-        self.app = None
+        self.load_full_betas = load_full_betas
+        self.n_cpgs = n_cpgs
+        self.n_jobs = n_jobs
+        self.output_dir = Path(output_dir).expanduser()
+        self.overlap = overlap
+        self.port = port
+        self.precalculate_cnv = precalculate_cnv
+        self.prep = prep
+        self.raw_umap_plot = None
+        self.reference_dir = Path(reference_dir).expanduser()
+        self.sample_ids = None if sample_ids is None else list(sample_ids)
+        self.test_dir = Path(test_dir).expanduser()
+        self.umap_cpgs = None
+        self.umap_df = None
+        self.umap_dir = None
+        self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
+        self.umap_plot = EMPTY_FIGURE
+        self.umap_plot_path = None
+
+        self._classifiers = classifiers
+        self._clf_log = make_log_file(f"{self.analysis_dir.name}-clf")
+        self._idat_handler = None
+        self._internal_cpgs_hash = None
+        self._old_selected_columns = None
+        self._prog_bar = ProgressBar()
+        self._sorted_cpgs = None
+        self._testdir_provided = self.test_dir != INVALID_PATH
+        self._use_discrete_colors = True
 
         ensure_directory_exists(self.output_dir)
 
@@ -902,20 +992,14 @@ class MethylAnalysis:
         for handler in main_logger.handlers:
             handler.setLevel(VERBOSITY_LEVELS.get(verbose, logging.INFO))
 
-        self._classifiers = classifiers
-        self._prog_bar = ProgressBar()
-        self._use_discrete_colors = True
-        self._internal_cpgs_hash = None
-        self._old_selected_columns = None
-        self._sorted_cpgs = None
-        self._clf_log = make_log_file(f"{self.analysis_dir.name}-clf")
-        self._testdir_provided = self.test_dir != INVALID_PATH
-
-        if self.cpg_selection not in ["top", "random"]:
-            msg = "Invalid 'cpg_selection' (expected: 'top' or 'random')"
+        if self.cpg_selection not in ["top", "balanced", "random"]:
+            msg = (
+                "Invalid 'cpg_selection' (expected: 'top', 'balanced', or "
+                "'random')"
+            )
             raise ValueError(msg)
 
-        if not self.load_full_betas and self.cpg_selection == "top":
+        if not self.load_full_betas and self.cpg_selection != "random":
             msg = (
                 "If 'load_full_betas' is disabled, 'cpg_selection' must be "
                 " set to 'random'"
@@ -1239,6 +1323,7 @@ class MethylAnalysis:
             self.prep,
             self.n_cpgs,
             self.cpg_selection,
+            self.balancing_feature,
             extra_hash=[
                 cur_vars["cpgs"],
                 cur_vars["test_files"],
@@ -1269,12 +1354,12 @@ class MethylAnalysis:
         # Reset betas_sel if necessary
         dependencies = [
             "analysis_dir",
-            "prep",
-            "n_cpgs",
             "cpg_selection",
             "cpgs",
-            "test_files",
+            "n_cpgs",
+            "prep",
             "sample_ids",
+            "test_files",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
             self.betas_sel = None
@@ -1282,11 +1367,10 @@ class MethylAnalysis:
         # Reset betas_all if necessary
         dependencies = [
             "analysis_dir",
-            "prep",
-            "cpg_selection",
             "cpgs",
-            "test_files",
+            "prep",
             "sample_ids",
+            "test_files",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
             self.betas_all = None
@@ -1444,7 +1528,7 @@ class MethylAnalysis:
 
         # Load all beta values if necessary
         if self.betas_all is None and (
-            self.load_full_betas or self.cpg_selection == "top"
+            self.load_full_betas or self.cpg_selection in ["top", "balanced"]
         ):
             self.betas_all = _get_betas(self.cpgs)
             self._sorted_cpgs = reordered_cpgs_by_variance(self.betas_all)
@@ -1462,8 +1546,15 @@ class MethylAnalysis:
             self.umap_cpgs = self._sorted_cpgs[: self.n_cpgs]
             self.betas_sel = self.betas_all[self.umap_cpgs]
 
-        # TODO Add: Option to calculate cpg variance for a balanced
-        # selection of all tumor entities (in unbalanced data set)
+        elif self.cpg_selection == "balanced":
+            features = self.idat_handler.features(self.balancing_feature)
+            balanced_indices = get_balanced_indices(features, seed=42)
+            self._balanced_sorted_cpgs = reordered_cpgs_by_variance(
+                self.betas_all.iloc[balanced_indices]
+            )
+            self.umap_cpgs = self._balanced_sorted_cpgs[: self.n_cpgs]
+            self.betas_sel = self.betas_all[self.umap_cpgs]
+
         else:
             msg = f"Invalid 'cpg_selection': {self.cpg_selection}"
             raise ValueError(msg)
@@ -2034,6 +2125,7 @@ class MethylAnalysis:
                 State("output-dir", "valid"),
                 State("precalculate-cnv", "value"),
                 State("cpg-selection", "value"),
+                State("balancing-column", "value"),
             ],
             prevent_initial_call=True,
             running=[
@@ -2052,6 +2144,7 @@ class MethylAnalysis:
             output_dir_valid,
             precalculate_cnv,
             cpg_selection,
+            balancing_feature,
         ):
             if not n_clicks:
                 return no_update, no_update, "", {}
@@ -2080,6 +2173,9 @@ class MethylAnalysis:
             self.cpg_selection = cpg_selection
             self.analysis_dir = Path(analysis_dir).expanduser()
             self.annotation = Path(annotation).expanduser()
+            self.balancing_feature = (
+                balancing_feature if cpg_selection == "balanced" else []
+            )
 
             try:
                 ensure_directory_exists(self.output_dir)
@@ -2109,6 +2205,16 @@ class MethylAnalysis:
                 **current_style,
                 "display": "flex" if n_clicks % 2 == 0 else "none",
             }
+
+        @app.callback(
+            Output("balancing-column-container", "style"),
+            Input("cpg-selection", "value"),
+        )
+        def toggle_column_dropdown(selected_method):
+            """Show column dropdown only if 'balanced' is selected."""
+            if selected_method == "balanced":
+                return {"display": "block"}
+            return {"display": "none"}
 
         @app.callback(
             [
