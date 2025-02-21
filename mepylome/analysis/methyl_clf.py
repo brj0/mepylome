@@ -29,6 +29,7 @@ from sklearn.ensemble import (
 )
 from sklearn.feature_selection import (
     SelectKBest,
+    VarianceThreshold,
     mutual_info_classif,
 )
 from sklearn.gaussian_process import GaussianProcessClassifier
@@ -381,12 +382,14 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
         "svc_linear": SVC(kernel="linear", probability=True, verbose=True),
         "svc_rbf": SVC(kernel="rbf", probability=True, verbose=True),
     }
+    drop_constants = VarianceThreshold(threshold=0)
     scaler = scalers[scaler]
     selector = selectors[selector]
     classifier = classifiers[clf]
     return Pipeline(
         [
             ("scaler", scaler),
+            ("drop_constants", drop_constants),
             ("feature_selection", selector),
             ("classifier", classifier),
         ]
@@ -444,9 +447,92 @@ def make_reports(prediction, info, output_format="txt"):
                 )
                 for label, probability in top_predictions.items()
             )
-            report_lines.extend(["</table>", "</div>", "<hr>"])
+            report_lines.extend(["</table>", "</div>"])
         reports.append("\n".join(report_lines))
     return reports
+
+
+def make_classifier_report_page(reports):
+    """Generates an HTML page for multiple classifier reports.
+
+    Args:
+        report_sections (list of str): A list of HTML reports obtained from
+            'MethylAnalysis.classify'.
+
+    Returns:
+        str: A formatted HTML string.
+    """
+    body_string = "\n<hr>\n".join(reports)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classifier Report</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            background: #f4f7f9;
+            color: #333;
+            margin: 0 auto;
+            max-width: 700px;
+            line-height: 1.4;
+        }}
+        h1 {{
+            text-align: center;
+            margin-top: 10px;
+            font-size: 1.5em;
+        }}
+        h2 {{
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }}
+        table {{
+            width: 100%;
+            max-width: 500px;
+            margin: 10px auto;
+            border-collapse: collapse;
+        }}
+        hr {{
+            margin: 20px 0;
+            border: none;
+            height: 2px;
+            background-color: #ccc;
+        }}
+        th, td {{
+            padding: 3px 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            font-size: 0.9em;
+        }}
+        td.clf-label, td.metrics-label, td.prob-label {{
+            font-weight: bold;
+        }}
+        td.clf-value, td.metrics-value, td.prob-value {{
+            text-align: right;
+        }}
+        .classification-result td {{
+            background: #e9f7ff;
+        }}
+        .classification-result-k {{
+            background: #ffe4b5;
+            font-weight: bold;
+            color: #d85c5c;
+        }}
+        @media (max-width: 768px) {{
+            body {{
+                max-width: 95%;
+            }}
+            table {{
+                max-width: 100%;
+            }}
+        }}
+    </style>
+</head>
+<body>
+{body_string}
+</body>
+</html>"""
 
 
 def _is_ovr_or_ovo(clf):

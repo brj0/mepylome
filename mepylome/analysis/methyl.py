@@ -80,8 +80,8 @@ DEFAULT_N_CPGS = 25000
 ON = "on"
 OFF = "off"
 UMAP_METRICS = [
-    "euclidean",
     "manhattan",
+    "euclidean",
     "cosine",
     "chebyshev",
     "canberra",
@@ -584,6 +584,7 @@ def get_balanced_indices(feature_labels, seed=None):
         ]
     )
     balanced_sample_indices.sort()
+    logger.info("Balanced classes with %s samples each.", min_class_size)
     return balanced_sample_indices
 
 
@@ -752,7 +753,7 @@ class MethylAnalysis:
             (default: False).
 
         umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
-            'euclidean', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
+            'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
         verbose (int): Sets the (global) logging verbosity level:
             - 0: Errors and warnings only.
@@ -866,7 +867,7 @@ class MethylAnalysis:
             set to None.
 
         umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
-            'euclidean', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
+            'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
         raw_umap_plot (plotly.Figure): Raw UMAP plot data, initially set to
             None.
@@ -974,6 +975,7 @@ class MethylAnalysis:
         self.umap_plot = EMPTY_FIGURE
         self.umap_plot_path = None
 
+        self._balanced_sorted_cpgs = None
         self._classifiers = classifiers
         self._clf_log = make_log_file(f"{self.analysis_dir.name}-clf")
         self._idat_handler = None
@@ -1006,10 +1008,16 @@ class MethylAnalysis:
             )
             raise ValueError(msg)
 
-        if self.annotation == INVALID_PATH:
+        if self.annotation != INVALID_PATH and not self.annotation.exists():
+            logger.warning(
+                "Warning: The provided annotation file '%s' does not exist.",
+                self.annotation,
+            )
+        if self.annotation == INVALID_PATH or not self.annotation.exists():
             self.annotation = guess_annotation_file(self.analysis_dir)
         if not self.annotation.exists():
             logger.info("No annotation file found")
+
         logger.info("Try to import cbseg or linear_segment...")
         self.do_seg = False if _get_cgsegment() is None else do_seg
 
@@ -1172,7 +1180,7 @@ class MethylAnalysis:
         """Returns UMAP parameters with defaults if not provided."""
         umap_parms = {} if umap_parms is None else umap_parms
         default = {
-            "metric": "euclidean",
+            "metric": "manhattan",
             "min_dist": 0.1,
             "n_neighbors": 15,
             "verbose": True,
@@ -1989,6 +1997,19 @@ class MethylAnalysis:
                     try:
                         self.make_cnv_plot(sample_id, genes_sel)
                         return self.umap_plot, self.cnv_plot, ""
+                    except FileNotFoundError as exc:
+                        logger.info("umap failed: %s", exc)
+                        logger.info("sample_id: %s", sample_id)
+                        logger.info("MethylAnalysis: %s", self)
+
+                        error_message = (
+                            f"{exc} - There is probably no CNV neutral "
+                            "reference set for the array type of the "
+                            "selected sample. To solve this, add missing CNV "
+                            f"neutral sets to '{self.reference_dir}' and "
+                            f"remove the error file in '{self.cnv_dir}'."
+                        )
+                        return self.umap_plot, EMPTY_FIGURE, error_message
                     except Exception as exc:
                         logger.info("umap failed: %s", exc)
                         logger.info("sample_id: %s", sample_id)
