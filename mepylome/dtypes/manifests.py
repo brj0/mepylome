@@ -509,7 +509,7 @@ class Manifest:
                 data_frame["Infinium_Design_Type"].values,
             )
 
-        # TODO drop Infinium_Design_Type
+        # TODO: drop Infinium_Design_Type
         if not {"Chromosome", "Start", "End"}.issubset(data_frame.columns):
             return data_frame
 
@@ -550,7 +550,7 @@ class Manifest:
             probes_file,
             dtype=self._get_data_types(),
         )
-        # TODO epicv2 has duplicated ID's for example c='cg22367159'
+        # TODO: epicv2 has duplicated ID's for example c='cg22367159'
         data_frame = data_frame.drop_duplicates(
             subset=["IlmnID"], keep="first"
         )

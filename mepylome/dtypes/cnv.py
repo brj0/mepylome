@@ -53,7 +53,7 @@ def _get_cgsegment():
     except Exception:
         logger.warning(
             "**Warning**: Segmentation won't be calculated due to missing "
-            "'linear_segment' resp. 'cbseg' package. See documentation."
+            "'linear_segment' resp. 'cbseg' package. See documentation"
         )
         return None
 
@@ -188,7 +188,7 @@ class Annotation:
             self._cpg_detail = self.detail.join(
                 self.adjusted_manifest[["IlmnID"]]
             ).df[["Name", "IlmnID"]]
-        logger.info("Constructing annotation done.")
+        logger.info("Constructing annotation done")
 
     @staticmethod
     @lru_cache
@@ -524,21 +524,21 @@ class CNV:
         nan_indices = np.isnan(intensity)
         if np.any(nan_indices):
             intensity[nan_indices] = 1
-            logger.debug("%s: Intensities that are NA set to 1.", prefix)
+            logger.debug("%s: Intensities that are NA set to 1", prefix)
 
         # Replace values less than 1 with 1
         lt_one_indices = intensity < 1
         if np.any(lt_one_indices):
             intensity[lt_one_indices] = 1
-            logger.debug("%s: Intensities < 0 set to 1.", prefix)
+            logger.debug("%s: Intensities < 0 set to 1", prefix)
 
         # Check abnormal low and high intensities
         mean_intensity = np.mean(intensity, axis=1)
         if np.min(mean_intensity) < 5000:
-            logger.info("%s: Intensities are abnormally low (< 5000).", prefix)
+            logger.info("%s: Intensities are abnormally low (< 5000)", prefix)
         if np.max(mean_intensity) > 50000:
             logger.info(
-                "%s: Intensities are abnormally high (> 50000).", prefix
+                "%s: Intensities are abnormally high (> 50000)", prefix
             )
         methyl_data.intensity = pd.DataFrame(
             intensity.T,

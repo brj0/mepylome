@@ -452,16 +452,18 @@ def make_reports(prediction, info, output_format="txt"):
     return reports
 
 
-def make_classifier_report_page(reports):
+def make_classifier_report_page(reports, title=None):
     """Generates an HTML page for multiple classifier reports.
 
     Args:
         report_sections (list of str): A list of HTML reports obtained from
             'MethylAnalysis.classify'.
+        itle (str): Title of the report page. Defaults to 'None'.
 
     Returns:
         str: A formatted HTML string.
     """
+    title_str = f"<h1>{title}</h1><hr>" if title else ""
     body_string = "\n<hr>\n".join(reports)
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -530,6 +532,7 @@ def make_classifier_report_page(reports):
     </style>
 </head>
 <body>
+{title_str}
 {body_string}
 </body>
 </html>"""

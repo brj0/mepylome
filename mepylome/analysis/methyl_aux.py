@@ -126,7 +126,7 @@ def guess_annotation_file(directory):
         if file.suffix.lower() in supported_extensions:
             logger.info("Found annotation file: %s", file)
             return file
-    logger.info("No annotation file found.")
+    logger.info("No annotation file found")
     return INVALID_PATH
 
 
@@ -154,8 +154,9 @@ class IdatHandler:
     description lookups for methylation classes.
 
     Args:
-        idat_dir (str or Path): The directory where the IDAT files are located.
-        annotation_file (str or Path, optional): The path to the annotation
+        analysis_dir (str or Path): The directory where the IDAT files are
+            located.
+        annotation (str or Path, optional): The path to the annotation
             file. Defaults to None.
         test_dir (Path or None, optional): Directory for test files, including
             new cases or validation IDAT files or other test cases. Defaults to
@@ -163,12 +164,20 @@ class IdatHandler:
         overlap (bool, optional): If True, restricts the sample paths to only
             those present in both the IDAT files and the annotation file.
             Defaults to False.
-        sample_ids (list, optional): A list of sample IDs. If provided, the
-            analysis will be restricted to these samples only. If `None`, the
-            analysis will include all available samples.
+        analysis_ids (list, optional): A list of sample IDs within
+            `analysis_dir`.
+            - If provided, only these samples will be used.
+            - If `None`, all available IDAT files in `analysis_dir` will be
+              used.
+            Defaults to None.
+        test_ids (list, optional): A list of sample IDs within `test_dir`.
+            - If provided, only these samples will be used.
+            - If `None`, all available IDAT files in `test_dir` will be used.
+            Defaults to None.
 
     Attributes:
-        idat_dir (Path): The directory path where the IDAT files are located.
+        analysis_dir (Path): The directory path where the IDAT files are
+            located.
         test_dir (Path or None, optional): Directory for test files, including
             new cases or validation IDAT files or other test cases. Defaults to
             `None`.
@@ -177,55 +186,62 @@ class IdatHandler:
         test_ids (list): A list of valid test IDAT sample
             IDs.
         id_to_path (dict): A dictionary where the keys are sample IDs and the
-            values are the file paths of IDAT files (from both `idat_dir` and
-            `test_dir`).
-        annotation_file (Path): The path to the annotation file. Defaults to
+            values are the file paths of IDAT files (from both `analysis_dir`
+            and `test_dir`).
+        annotation (Path): The path to the annotation file. Defaults to
             None. If not provided, the first spreadsheet file found in
-            `self.idat_dir` will be used as the annotation.
+            `self.analysis_dir` will be used as the annotation.
         annotation_df (pandas.DataFrame or None): A DataFrame containing the
             annotation data, if loaded.
         samples_annotated (pandas.DataFrame or None): A DataFrame containing
             the samples as index and the annotation in the columns.
         selected_columns (list): A list of selected columns from the annotated
             samples, initialized with the first column.
-        sample_ids (list, optional): A list of sample IDs. If provided, the
-            analysis will be restricted to these samples only. If `None`, the
-            analysis will include all available samples.
+        analysis_ids (list): A list of sample IDs in 'analysis_dir'
+            that will be used.
+        test_ids (list): A list of sample IDs in 'test_dir' that will
+            be used.
+
+    Raises:
+        ValueError:
+            - If any sample in `analysis_ids` is not found in `analysis_dir`.
+            - If any sample in in `test_ids` is not found in `test_dir`.
     """
 
     def __init__(
         self,
-        idat_dir,
-        annotation_file=None,
+        analysis_dir,
         *,
+        annotation=None,
         test_dir=None,
+        test_ids=None,
         overlap=False,
-        sample_ids=None,
+        analysis_ids=None,
     ):
         # Initialize paths and attributes
-        self.idat_dir = Path(idat_dir)
-        self.annotation_file = (
-            Path(annotation_file)
-            if annotation_file and Path(annotation_file).exists()
-            else guess_annotation_file(self.idat_dir)
+        self.analysis_dir = Path(analysis_dir)
+        self.annotation = (
+            Path(annotation)
+            if annotation and Path(annotation).exists()
+            else guess_annotation_file(self.analysis_dir)
         )
         self.test_dir = Path(test_dir) if test_dir else None
         self.overlap = overlap
-        self.sample_ids = sample_ids
+        self.analysis_ids = analysis_ids
+        self.test_ids = test_ids
 
         # Load IDAT paths and annotation data
-        self.analysis_id_to_path = self._get_id_to_path(self.idat_dir)
+        self.analysis_id_to_path = self._get_id_to_path(self.analysis_dir)
         self.test_id_to_path = self._get_id_to_path(self.test_dir)
         self.annotation_df = self._read_annotation_file()
 
         # Find ID column in annotation, set as index and filter cases
         id_mismatch, matched_column = self._identify_annotation_index()
         self._set_annotation_index_and_convert_ids(id_mismatch, matched_column)
-        self._restrict_sample_ids(id_mismatch)
+        self._restrict_sample_ids()
         self._apply_overlap_filter()
 
         # Derived attributes
-        self.test_ids = list(self.test_id_to_path.keys())
         self.id_to_path = {**self.analysis_id_to_path, **self.test_id_to_path}
         self.idat_basename_to_id = {
             v.name: k for k, v in self.id_to_path.items()
@@ -239,6 +255,17 @@ class IdatHandler:
         # Validation
         self._warn_on_sample_overlap()
 
+    def parameters(self):
+        """Returns the initialization attributes, potentially modified."""
+        return {
+            "analysis_dir": self.analysis_dir,
+            "annotation": self.annotation,
+            "test_dir": self.test_dir,
+            "overlap": self.overlap,
+            "test_ids": self.test_ids,
+            "analysis_ids": self.analysis_ids,
+        }
+
     def _get_id_to_path(self, directory):
         """Retrieve valid IDAT sample IDs and paths from a directory."""
         if not directory or not Path(directory).exists():
@@ -251,10 +278,10 @@ class IdatHandler:
 
     def _read_annotation_file(self):
         try:
-            return read_dataframe(self.annotation_file)
+            return read_dataframe(self.annotation)
         except (FileNotFoundError, ValueError):
             logger.info(
-                "Annotation file is missing, invalid or could not be read."
+                "Annotation file is missing, invalid or could not be read"
             )
             return pd.DataFrame()
 
@@ -319,7 +346,7 @@ class IdatHandler:
                         "Sentrix ID extraction reduced samples in directory "
                         "%s from %s to %s. There may be duplicates or mismaps!"
                     ),
-                    self.idat_dir,
+                    self.analysis_dir,
                     len(analysis_samples),
                     len(sentrix_analysis_samples),
                 )
@@ -334,12 +361,13 @@ class IdatHandler:
         if col_name is None:
             logger.info(
                 "No IDAT files found that are both on disk and "
-                "in the annotation file."
+                "in the annotation file"
             )
             return
+
         if not id_missmatch:
             self.annotation_df = self.annotation_df.set_index(col_name)
-            logger.info("Setting '%s' as annotation index.", col_name)
+            logger.info("Setting '%s' as annotation index", col_name)
             return
 
         self.analysis_id_to_path = convert_to_sentrix_ids(
@@ -350,8 +378,9 @@ class IdatHandler:
             self.annotation_df[col_name]
         )
         self.annotation_df = self.annotation_df.drop(columns=[col_name])
-        self.sample_ids = convert_to_sentrix_ids(self.sample_ids)
-        logger.info("Extracted Sentrix IDs from column '%s'.", col_name)
+        self.analysis_ids = convert_to_sentrix_ids(self.analysis_ids)
+        self.test_ids = convert_to_sentrix_ids(self.test_ids)
+        logger.info("Extracted Sentrix IDs from column '%s'", col_name)
 
     def _get_samples_annotated(self):
         result_df = pd.DataFrame(index=self.id_to_path.keys())
@@ -371,21 +400,37 @@ class IdatHandler:
 
         return result_df
 
-    def _restrict_sample_ids(self, id_mismatch):
-        """Restricts samples to the ones in 'sample_ids'."""
-        if not self.sample_ids:
-            return
+    def _restrict_sample_ids(self):
+        """Restricts samples to the ones in 'analysis_ids' and 'test_ids'."""
+        # NOTE: This must be after _set_annotation_index_and_convert_ids
 
-        restricted_ids = (
-            convert_to_sentrix_ids(self.sample_ids)
-            if id_mismatch
-            else self.sample_ids
+        def restrict_and_validate(ids, id_to_path, id_type):
+            if not ids:
+                return id_to_path
+
+            ids_set = set(ids)
+            missing_ids = ids_set - set(id_to_path.keys())
+            if missing_ids:
+                msg = (
+                    f"Some ids in 'self.{id_type}_ids' are not found on disk: "
+                    f"{', '.join(missing_ids)}"
+                )
+                raise ValueError(msg)
+            return {
+                id_: path for id_, path in id_to_path.items() if id_ in ids_set
+            }
+
+        self.analysis_id_to_path = restrict_and_validate(
+            self.analysis_ids, self.analysis_id_to_path, "analysis"
         )
-        self.analysis_id_to_path = {
-            id_: path
-            for id_, path in self.analysis_id_to_path.items()
-            if id_ in restricted_ids
-        }
+
+        self.test_id_to_path = restrict_and_validate(
+            self.test_ids, self.test_id_to_path, "test"
+        )
+
+        # Make shure ids are not None
+        self.test_ids = list(self.test_id_to_path.keys())
+        self.analysis_ids = list(self.analysis_id_to_path.keys())
 
     def _apply_overlap_filter(self):
         """Filter samples to include only those IDATs present in annotation."""

@@ -215,7 +215,9 @@ def parse_args():
                     - '450k+epic'  : CpG sites both in the 450k and EPIC arrays.
                     - 'epic+epicv2': CpG sites both in the EPIC and EPICv2 arrays.
 
-                4. 'all': Equivalent to '450k+epic+epicv2', returning CpG sites present in all three arrays. 5. 'auto': Automatically detects all array types from IDAT files in analysis_dir and returns the intersection of CpG sites. This process may take longer as all files need to be read and, if necessary, decompressed.
+                4. 'all': Equivalent to '450k+epic+epicv2', returning CpG sites present in all three arrays.
+
+                5. 'auto': Automatically detects all array types from IDAT files in analysis_dir and returns the intersection of CpG sites. This process may take longer as all files need to be read and, if necessary, decompressed.
             """
         ),
     )

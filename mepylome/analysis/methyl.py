@@ -584,7 +584,7 @@ def get_balanced_indices(feature_labels, seed=None):
         ]
     )
     balanced_sample_indices.sort()
-    logger.info("Balanced classes with %s samples each.", min_class_size)
+    logger.info("Balanced classes with %s samples each", min_class_size)
     return balanced_sample_indices
 
 
@@ -718,9 +718,14 @@ class MethylAnalysis:
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
 
-        sample_ids (list, optional): A list of sample IDs. If provided, the
+        analysis_ids (list, optional): A list of sample IDs. If provided, the
             analysis will be restricted to these samples only. If `None`, the
             analysis will include all available samples.
+
+        test_ids (list, optional): A list of sample IDs within `test_dir`.
+            - If provided, only these samples will be used.
+            - If `None`, all available IDAT files in `test_dir` will be used.
+            Defaults to None.
 
         cpg_selection (str): Method to select CpG sites for UMAP ('top',
             'random', or 'balanced') (default: 'top').
@@ -777,9 +782,11 @@ class MethylAnalysis:
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
 
-        sample_ids (list, optional): A list of sample IDs. If provided, the
-            analysis will be restricted to these samples only. If `None`, the
-            analysis will include all available samples.
+        analysis_ids (list): A list of sample IDs in 'analysis_dir'
+            that will be used.
+
+        test_ids (list): A list of sample IDs in 'test_dir' that will
+            be used.
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
 
@@ -926,7 +933,8 @@ class MethylAnalysis:
         load_full_betas=True,
         feature_matrix=None,
         overlap=False,
-        sample_ids=None,
+        analysis_ids=None,
+        test_ids=None,
         cpg_selection="top",
         do_seg=False,
         host="localhost",
@@ -966,8 +974,11 @@ class MethylAnalysis:
         self.prep = prep
         self.raw_umap_plot = None
         self.reference_dir = Path(reference_dir).expanduser()
-        self.sample_ids = None if sample_ids is None else list(sample_ids)
+        self.analysis_ids = (
+            None if analysis_ids is None else list(analysis_ids)
+        )
         self.test_dir = Path(test_dir).expanduser()
+        self.test_ids = test_ids
         self.umap_cpgs = None
         self.umap_df = None
         self.umap_dir = None
@@ -1010,7 +1021,7 @@ class MethylAnalysis:
 
         if self.annotation != INVALID_PATH and not self.annotation.exists():
             logger.warning(
-                "Warning: The provided annotation file '%s' does not exist.",
+                "Warning: The provided annotation file '%s' does not exist",
                 self.annotation,
             )
         if self.annotation == INVALID_PATH or not self.annotation.exists():
@@ -1030,7 +1041,7 @@ class MethylAnalysis:
 
         self.read_umap_plot_from_disk()
 
-        logger.info("Initialization completed.")
+        logger.info("Initialization completed")
 
     @property
     def cpgs(self):
@@ -1061,33 +1072,31 @@ class MethylAnalysis:
             IdatHandler: An instance of IdatHandler configured with current
             settings.
         """
-
-        def _to_list(sample_ids):
-            if sample_ids is None:
-                return []
-            if isinstance(sample_ids, (pd.Series, np.ndarray)):
-                return sample_ids.tolist()
-            return list(sample_ids)
-
         if self._idat_handler is not None:
             self._old_selected_columns = self._idat_handler.selected_columns
 
+        new_parameters = {
+            "analysis_dir": self.analysis_dir,
+            "annotation": self.annotation,
+            "overlap": self.overlap,
+            "test_dir": self.test_dir,
+            "analysis_ids": self.analysis_ids,
+            "test_ids": self.test_ids,
+        }
+
+        # Reinitialize IdatHandler if values have changed
         if (
             self._idat_handler is None
-            or self.analysis_dir != self._idat_handler.idat_dir
-            or self.annotation != self._idat_handler.annotation_file
-            or self.overlap != self._idat_handler.overlap
-            or self.test_dir != self._idat_handler.test_dir
-            or _to_list(self.sample_ids)
-            != _to_list(self._idat_handler.sample_ids)
+            or self._idat_handler.parameters() != new_parameters
         ):
-            self._idat_handler = IdatHandler(
-                idat_dir=self.analysis_dir,
-                annotation_file=self.annotation,
-                overlap=self.overlap,
-                test_dir=self.test_dir,
-                sample_ids=self.sample_ids,
-            )
+            self._idat_handler = IdatHandler(**new_parameters)
+
+            # Update the attributes and log changes.
+            for attr, current in new_parameters.items():
+                new = getattr(self._idat_handler, attr)
+                if current != new:
+                    logger.info(f"Updating '{attr}'")
+                    setattr(self, attr, new)
 
         # Restore old selected columns if they are still valid
         if self._old_selected_columns and all(
@@ -1210,7 +1219,7 @@ class MethylAnalysis:
             "cpg_selection": self.cpg_selection,
             "cpgs": self._get_cpgs_hash(),
             "test_files": self._get_test_files_hash(),
-            "sample_ids": self.sample_ids,
+            "analysis_ids": self.analysis_ids,
         }
 
     def _get_cpgs(self, input_var="auto"):
@@ -1229,16 +1238,16 @@ class MethylAnalysis:
         if cpgs_from_file is not None:
             return exclude_blacklist(cpgs_from_file)
 
-        valid_str_params = {"auto", "450k", "epic", "epicv2"}
+        supported_types = {"450k", "epic", "epicv2"}
 
-        if isinstance(input_var, str):
-            input_var = set(input_var.split("+"))
+        if input_var == "all":
+            input_var = supported_types
             logger.info(
                 "The following array types were provided: %s", input_var
             )
 
-        if "auto" in input_var:
-            logger.info("Determine array types...")
+        elif input_var == "auto":
+            logger.info("Automatically determine array types...")
             input_var = {
                 str(ArrayType.from_idat(path))
                 for path in self.idat_handler.paths
@@ -1248,28 +1257,32 @@ class MethylAnalysis:
             )
             input_var = input_var - {str(ArrayType.UNKNOWN)}
 
-        if input_var.issubset(valid_str_params):
+        elif isinstance(input_var, str):
+            input_var = set(input_var.split("+"))
+            logger.info(
+                "The following array types were provided: %s", input_var
+            )
+
+        if input_var.issubset(supported_types):
             if not input_var:
                 return np.array([])
-
-            if "all" in input_var:
-                input_var = valid_str_params
 
             logger.info("Load manifests and calculate CpG overlap...")
 
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
-                for array_type in valid_str_params - {"auto"}
+                for array_type in supported_types
                 if array_type in input_var
             ]
             cpgs = set.intersection(*cpg_sets)
             return exclude_blacklist(cpgs)
 
-        mismatches = input_var - valid_str_params
+        mismatches = input_var - supported_types
         msg = (
             "'cpgs' must be one of the following:\n"
             "- a list, set, or array of CpG sites\n"
-            f"- a '+' joined string of valid parameters: {valid_str_params}\n"
+            "- 'all' or 'auto'\n"
+            f"- a '+' joined string of valid parameters: {supported_types}\n"
             f"Received invalid input: {mismatches}"
         )
         raise ValueError(msg)
@@ -1366,7 +1379,7 @@ class MethylAnalysis:
             "cpgs",
             "n_cpgs",
             "prep",
-            "sample_ids",
+            "analysis_ids",
             "test_files",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
@@ -1377,7 +1390,7 @@ class MethylAnalysis:
             "analysis_dir",
             "cpgs",
             "prep",
-            "sample_ids",
+            "analysis_ids",
             "test_files",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
@@ -1496,7 +1509,7 @@ class MethylAnalysis:
             try:
                 self.make_umap_plot()
             except AttributeError:
-                logger.info("Probable dimension mismatch.")
+                logger.info("Probable dimension mismatch")
 
     def set_betas(self):
         """Sets the beta values DataFrame ('betas_sel') for further analysis.
@@ -1641,15 +1654,15 @@ class MethylAnalysis:
             do_seg=self.do_seg,
         )
 
-    def precompute_cnvs(self, sample_ids=None):
+    def precompute_cnvs(self, ids=None):
         """Precalculates CNVs for all samples and saves them to disk.
 
         This method performs CNV analysis, and writes the output to the
-        configured CNV directory. If `sample_ids` is not provided, the method
+        configured CNV directory. If `ids` is not provided, the method
         will compute CNVs for all samples found in the `analysis_dir`.
 
         Args:
-            sample_ids (list, optional): A list of sample IDs to process. If
+            ids (list, optional): A list of sample IDs to process. If
                 `None`, the function will compute CNVs for all samples in the
                 `analysis_dir`. Default is `None`.
 
@@ -1659,11 +1672,11 @@ class MethylAnalysis:
         """
         logger.info("Precalculate CNV's...")
         self._update_paths()
-        if sample_ids is None:
-            sample_ids = self.idat_handler.ids
-        self._prog_bar.reset(len(sample_ids), text="(CNV)")
+        if ids is None:
+            ids = self.idat_handler.ids
+        self._prog_bar.reset(len(ids), text="(CNV)")
         write_cnv_to_disk(
-            sample_path=[self.idat_handler.id_to_path[x] for x in sample_ids],
+            sample_path=[self.idat_handler.id_to_path[x] for x in ids],
             reference_dir=self.reference_dir,
             cnv_dir=self.cnv_dir,
             prep=self.prep,
@@ -1717,12 +1730,12 @@ class MethylAnalysis:
             )
         return (None,) * len(extract)
 
-    def cn_summary(self, sample_ids):
+    def cn_summary(self, ids):
         if not self.do_seg:
             msg = "To use CN-summary plots you must set 'do_seg' to 'True'."
             raise ValueError(msg)
-        self.precompute_cnvs(sample_ids)
-        basenames = [self.idat_handler.id_to_basename[x] for x in sample_ids]
+        self.precompute_cnvs(ids)
+        basenames = [self.idat_handler.id_to_basename[x] for x in ids]
         plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
         return plot, df_cn_summary
 
@@ -1736,8 +1749,8 @@ class MethylAnalysis:
         labels for classification are derived from the `selected_columns`.
         Classification can either use a provided `feature_matrix` (custom
         features), or default to CpG methylation data (`betas_all`). All
-        samples in `analysis_dir` resp. those in `sample_ids` with valid label
-        will be used for learning.
+        samples in `analysis_dir` resp. those in `analysis_ids` with valid
+        label will be used for learning.
 
 
         Classifiers are applied to the data, and the method returns their
@@ -1877,7 +1890,7 @@ class MethylAnalysis:
             ids_to_highlight=self.ids_to_highlight,
             annotation_columns=self.idat_handler.columns,
             analysis_dir=self.analysis_dir,
-            annotation=self.idat_handler.annotation_file,
+            annotation=self.idat_handler.annotation,
             reference_dir=self.reference_dir,
             output_dir=self.output_dir,
             cpgs=self.cpgs,
@@ -2042,7 +2055,7 @@ class MethylAnalysis:
                     return False, f"Protected directory: {path}", no_update
                 if path.is_dir():
                     self.analysis_dir = path
-                    return True, "", str(self.idat_handler.annotation_file)
+                    return True, "", str(self.idat_handler.annotation)
                 return False, f"Not a directory: {path}", no_update
 
             except Exception:
@@ -2202,7 +2215,7 @@ class MethylAnalysis:
                 ensure_directory_exists(self.output_dir)
                 self.make_umap()
             except Exception as exc:
-                # TODO BUG Error 'no module named tqdm.auto' if mepylome is new
+                # BUG: Error 'no module named tqdm.auto' if mepylome is new
                 # installed. This error disapears after running tutorial
                 # Error was produced via cli with -a -A and -o -C 'epic'
                 # --overlap -S 'top'. Maybe this error occurs only on Mac OS?
@@ -2313,7 +2326,7 @@ class MethylAnalysis:
                 decoded = base64.b64decode(content_string)
                 with file_path.open("wb") as f:
                     f.write(decoded)
-                logger.info("Upload of %s completed.", filename)
+                logger.info("Upload of %s completed", filename)
                 return html.Div(
                     [
                         html.H6(filename),
