@@ -1789,12 +1789,8 @@ class MethylAnalysis:
         Raises:
             ValueError: If not exactly one if `ids` or `values` is set.
         """
-        if (ids is not None) and (values is not None):
-            msg = "Provide only one of 'ids' or 'values'."
-            raise ValueError(msg)
-
-        if (ids is None) and (values is None):
-            msg = "Provide either 'ids' or 'values'."
+        if sum(bool(x) for x in (ids, values)) != 1:
+            msg = "Provide exactly one of 'ids' or 'values'."
             raise ValueError(msg)
 
         if ids and not isinstance(ids, (list, tuple, np.ndarray)):
@@ -1806,6 +1802,7 @@ class MethylAnalysis:
 
         self._update_paths()
         ensure_directory_exists(self.clf_dir)
+
         clfs = self._get_classifiers(clf_list)
 
         def _clf_path(clf):
@@ -1830,10 +1827,9 @@ class MethylAnalysis:
                 )
 
         else:
-            X, y = self._load_training_data(ids)
+            X, y, _values = self._load_training_data(ids)
+            values = _values if _values is not None else values
 
-            if ids and len(ids):
-                values = X.loc[ids]
 
         def _log(string):
             with self._clf_log.open("a") as f:
@@ -1892,6 +1888,8 @@ class MethylAnalysis:
             )
             raise ValueError(msg)
 
+        values = X.loc[ids] if ids else None
+
         def _invalid_class(cls):
             return isinstance(cls, str) and cls.strip("|") == ""
 
@@ -1905,7 +1903,7 @@ class MethylAnalysis:
         X = X.iloc[valid_indices]
         y = [y[i] for i in valid_indices]
 
-        return X, y
+        return X, y, values
 
     def get_app(self):
         """Returns a Dash application object for methylation analysis."""
