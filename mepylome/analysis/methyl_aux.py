@@ -641,12 +641,16 @@ class BetasHandler:
         with (self.dir["error"] / filename).open("w") as f:
             f.write(str(msg))
 
-    def get(self, idat_handler, cpgs, fill=NEUTRAL_BETA, parallel=True):
+    def get(
+        self, idat_handler, cpgs, ids=None, fill=NEUTRAL_BETA, parallel=True
+    ):
         """Retrieves beta values for specified IDs and CpGs."""
+        ids_set = set(ids) if ids is not None else None
         filenames = [
             filename
             for filename in idat_handler.idat_basenames
             if filename not in self.invalid_filenames
+            and (ids_set is None or filename in ids_set)
         ]
         ids = [idat_handler.idat_basename_to_id[x] for x in filenames]
 
@@ -712,7 +716,7 @@ def extract_beta(data):
         print(f"The following error occured for {idat_file.name}: {error}")
 
 
-def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
+def get_betas(idat_handler, cpgs, prep, betas_dir, ids=None, pbar=None):
     """Extracts and processes beta values from IDAT files.
 
     This function processes IDAT files to extract beta values for specified
@@ -723,8 +727,10 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
         idat_handler (IdatHandler): Handler for IDAT file paths and metadata.
         cpgs (list): List of CpGs to include in the output matrix.
         prep (str): Prepreparation method for the MethylData.
-        betas_path (Path): Path to save/load the betas.
+        betas_dir (Path): Path the directory to save/load the betas.
         pbar (ProgressBar): Progress bar for tracking progress.
+        ids (list, optional): A list of IDs to retrieve. If not provided
+            (default), all IDs will be retrieved.
 
     Returns:
         pd.DataFrame: DataFrame containing the beta values for the specified
@@ -732,7 +738,7 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
     """
     # Loading manifests here prevents race conditions
     Manifest.load()
-    betas_handler = BetasHandler(betas_path)
+    betas_handler = BetasHandler(betas_dir)
     ids_found = {
         idat_handler.idat_basename_to_id.get(x)
         for x in betas_handler.filenames
@@ -756,4 +762,4 @@ def get_betas(idat_handler, cpgs, prep, betas_path, pbar=None):
                     if pbar is not None:
                         pbar.increment()
         betas_handler.update()
-    return betas_handler.get(idat_handler, cpgs)
+    return betas_handler.get(idat_handler=idat_handler, cpgs=cpgs, ids=ids)

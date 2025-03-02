@@ -184,8 +184,8 @@ else:
 
 
 data_dir = mepylome_dir / "data"
-output_dir = mepylome_dir / "out"
-reference_dir = mepylome_dir / "cn_neutral_idats"
+output_dir = mepylome_dir / "outputs"
+reference_dir = mepylome_dir / "cnv_references"
 validation_dir = mepylome_dir / "validation_data"
 
 # Ensure the directory exists
@@ -401,7 +401,7 @@ analysis_dir_sg.mkdir(parents=True, exist_ok=True)
 
 # Download the annotation spreadsheet.
 if not (
-    excel_path := analysis_dir_sg / f"{tumor_site}-annotation.xlsx"
+    excel_path := analysis_dir_sg / f"{tumor_site}.xlsx"
 ).exists():
     download_file(datasets[tumor_site]["xlsx"], excel_path)
     # Deletes the first 2 rows (useless description).
@@ -593,7 +593,7 @@ analysis_dir_st.mkdir(parents=True, exist_ok=True)
 
 # Download the annotation spreadsheet.
 if not (
-    excel_path := analysis_dir_st / f"{tumor_site}-annotation.xlsx"
+    excel_path := analysis_dir_st / f"{tumor_site}.xlsx"
 ).exists():
     download_file(datasets[tumor_site]["xlsx"], excel_path)
 
@@ -1081,7 +1081,7 @@ geo_annotation = merge_csv(geo_metadata_dir)
 # Join the TCGA and GEO annotation files
 
 # %%
-if (csv_path := analysis_dir_scc / f"{tumor_site}-annotation.csv").exists():
+if (csv_path := analysis_dir_scc / f"{tumor_site}.csv").exists():
     print("Merged annotation file allready exists.")
 else:
     anno_df = pd.concat([geo_annotation, tcga_annotation], ignore_index=True)

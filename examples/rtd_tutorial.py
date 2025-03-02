@@ -511,7 +511,7 @@ None
 betas_all:
 None
 
-betas_path:
+betas_dir:
 /tmp/mepylome/analysis/betas-tutorial_analysis-illumina-3b616e0e24a8b0e2d443b777b8ad8b61
 
 cnv_dir:

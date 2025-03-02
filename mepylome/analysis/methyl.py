@@ -861,7 +861,7 @@ class MethylAnalysis:
             `betas_sel` for UMAP plots and instead of `betas_all` for
             classifying (default: None).
 
-        betas_path (Path): Path to the betas directory, initially set to
+        betas_dir (Path): Path to the betas directory, initially set to
             None.
 
         umap_plot (plotly.Figure): Plot for UMAP, initially set to
@@ -949,7 +949,7 @@ class MethylAnalysis:
         self.app = None
         self.balancing_feature = balancing_feature or []
         self.betas_all = None
-        self.betas_path = None
+        self.betas_dir = None
         self.betas_sel = None
         self.clf_dir = None
         self.cnv_dir = None
@@ -1220,6 +1220,7 @@ class MethylAnalysis:
             "cpgs": self._get_cpgs_hash(),
             "test_files": self._get_test_files_hash(),
             "analysis_ids": self.analysis_ids,
+            "test_ids": self.test_ids,
         }
 
     def _get_cpgs(self, input_var="auto"):
@@ -1320,7 +1321,7 @@ class MethylAnalysis:
             "betas",
             self.prep,
         )
-        self.betas_path = self.output_dir / f"{betas_hash_key}"
+        self.betas_dir = self.output_dir / f"{betas_hash_key}"
 
         # cnv dir
         cnv_hash_key = input_args_id(
@@ -1368,6 +1369,7 @@ class MethylAnalysis:
             extra_hash=[
                 cur_vars["cpgs"],
                 self.annotation,
+                self.analysis_ids,
             ],
         )
         self.clf_dir = self.output_dir / f"{clf_hash_key}"
@@ -1380,6 +1382,7 @@ class MethylAnalysis:
             "n_cpgs",
             "prep",
             "analysis_ids",
+            "test_ids",
             "test_files",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
@@ -1391,6 +1394,7 @@ class MethylAnalysis:
             "cpgs",
             "prep",
             "analysis_ids",
+            "test_ids",
             "test_files",
         ]
         if any(self._prev_vars[arg] != cur_vars[arg] for arg in dependencies):
@@ -1543,7 +1547,7 @@ class MethylAnalysis:
                 idat_handler=self.idat_handler,
                 cpgs=cpgs,
                 prep=self.prep,
-                betas_path=self.betas_path,
+                betas_dir=self.betas_dir,
                 pbar=self._prog_bar,
             )
 
@@ -1610,7 +1614,7 @@ class MethylAnalysis:
             self.umap_plot.add_annotation(
                 x=x,
                 y=y,
-                text=f"CNV: {self.cnv_id}",
+                text=f"{self.cnv_id}",
                 showarrow=True,
                 arrowhead=2,
             )
@@ -1796,43 +1800,40 @@ class MethylAnalysis:
         if ids and not isinstance(ids, (list, tuple, np.ndarray)):
             ids = [ids]
 
-        self.set_betas()
-        ensure_directory_exists(self.clf_dir)
-
-        # Clean the file
+        # Clean the clf log file
         with self._clf_log.open("w"):
             pass
 
-        y = self.idat_handler.features()
-        logger.info("Start classifying...")
+        self._update_paths()
+        ensure_directory_exists(self.clf_dir)
+        clfs = self._get_classifiers(clf_list)
 
-        if self.feature_matrix is not None:
-            X = pd.DataFrame(self.feature_matrix, index=self.betas_all.index)
-        elif self.load_full_betas:
-            X = self.betas_all
+        def _clf_path(clf):
+            filename = input_args_id(clf["model"], clf["cv"]) + ".pkl"
+            return self.clf_dir / filename
+
+        all_classifiers_trained = all(_clf_path(clf).exists() for clf in clfs)
+
+        # Only load data to memory if training is needed
+        if all_classifiers_trained:
+            shape = (len(self.analysis_ids), len(self.cpgs))
+            X = type("EmptyDataFrame", (), {"shape": shape})
+            y = None
+            if ids and len(ids):
+                values = get_betas(
+                    idat_handler=self.idat_handler,
+                    ids=ids,
+                    cpgs=self.cpgs,
+                    prep=self.prep,
+                    betas_dir=self.betas_dir,
+                    pbar=self._prog_bar,
+                )
+
         else:
-            msg = (
-                "For classification either all CpGs must be loaded into "
-                "memory (enable 'load_full_betas') or 'feature_matrix' "
-                "must be provided."
-            )
-            raise ValueError(msg)
+            X, y = self._load_training_data(ids)
 
-        if ids and len(ids):
-            values = X.loc[ids]
-
-        def _invalid_class(cls):
-            return isinstance(cls, str) and cls.strip("|") == ""
-
-        # Remove all test samples and samples with unknown classification.
-        test_indices = set(X.index.get_indexer(self.idat_handler.test_ids))
-        valid_indices = [
-            i
-            for i, x in enumerate(y)
-            if not _invalid_class(x) and i not in test_indices
-        ]
-        X = X.iloc[valid_indices]
-        y = [y[i] for i in valid_indices]
+            if ids and len(ids):
+                values = X.loc[ids]
 
         def _log(string):
             with self._clf_log.open("a") as f:
@@ -1840,12 +1841,11 @@ class MethylAnalysis:
             print(string, end="")
 
         # Stop if there is no data to fit.
-        if X.empty:
+        if isinstance(X, pd.DataFrame) and X.empty:
             _log("No data to fit.\n")
             return []
 
         results = []
-        clfs = self._get_classifiers(clf_list)
         for i, clf in enumerate(clfs):
             if logger.isEnabledFor(logging.INFO):
                 _log(f"Start training classifier {i + 1}/{len(clfs)}...\n")
@@ -1855,7 +1855,7 @@ class MethylAnalysis:
                 y=y,
                 X_test=values,
                 id_test=ids,
-                directory=self.clf_dir,
+                save_path=_clf_path(clf),
                 clf=clf["model"],
                 cv=clf["cv"],
                 n_jobs=self.n_jobs,
@@ -1872,6 +1872,40 @@ class MethylAnalysis:
             results.append(clf_result)
 
         return results
+
+    def _load_training_data(self, ids):
+        """Load training data for classification."""
+        self.set_betas()
+
+        y = self.idat_handler.features()
+        logger.info("Start classifying...")
+
+        if self.feature_matrix is not None:
+            X = pd.DataFrame(self.feature_matrix, index=self.betas_all.index)
+        elif self.load_full_betas:
+            X = self.betas_all
+        else:
+            msg = (
+                "For classification either all CpGs must be loaded into "
+                "memory (enable 'load_full_betas') or 'feature_matrix' "
+                "must be provided."
+            )
+            raise ValueError(msg)
+
+        def _invalid_class(cls):
+            return isinstance(cls, str) and cls.strip("|") == ""
+
+        # Remove all test samples and samples with unknown classification.
+        test_indices = set(X.index.get_indexer(self.idat_handler.test_ids))
+        valid_indices = [
+            i
+            for i, x in enumerate(y)
+            if not _invalid_class(x) and i not in test_indices
+        ]
+        X = X.iloc[valid_indices]
+        y = [y[i] for i in valid_indices]
+
+        return X, y
 
     def get_app(self):
         """Returns a Dash application object for methylation analysis."""

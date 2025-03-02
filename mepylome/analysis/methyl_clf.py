@@ -64,8 +64,6 @@ from sklearn.preprocessing import (
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
-from mepylome.dtypes.cache import input_args_id
-
 logger = logging.getLogger(__name__)
 
 
@@ -183,7 +181,7 @@ def _get_pipeline_description(clf, output_format="txt"):
     return "\n".join(lines)
 
 
-def _format_metrics(metrics, output_format="txt"):
+def _format_metrics(metrics):
     """Transforms classifier metrics to readable text."""
 
     def format_metric_scores(scores):
@@ -616,7 +614,7 @@ def is_trained(clf):
     return all(hasattr(clf_, attr) for attr in trained_attributes)
 
 
-def train_clf(clf, X, y, directory, cv, n_jobs=1):
+def train_clf(clf, X, y, save_path, cv, n_jobs=1):
     """Trains a classifier and stores the trained model to disk.
 
     If the classifier has already been trained (and saved), it loads the
@@ -627,7 +625,7 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
         clf (classifier): The classifier to train or load.
         X (array-like): The feature matrix.
         y (array-like): The target labels.
-        directory (Path): The directory where the trained model should be
+        save_path (Path): The path where the trained model should be
             saved.
         cv (int or cross-validation generator): Determines the cross-validation
             splitting strategy.
@@ -639,12 +637,8 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
     """
     n_splits = cv if isinstance(cv, int) else cv.n_splits
 
-    clf_filename = input_args_id(clf, cv, X.shape, len(y)) + ".pkl"
-
-    clf_path = directory / clf_filename
-
-    if clf_path.exists():
-        with clf_path.open("rb") as file:
+    if save_path.exists():
+        with save_path.open("rb") as file:
             return pickle.load(file)
 
     if is_trained(clf):
@@ -671,7 +665,7 @@ def train_clf(clf, X, y, directory, cv, n_jobs=1):
             clf=clf, probabilities_cv=probabilities_cv, X=X, metrics=metrics
         )
 
-    with clf_path.open("wb") as file:
+    with save_path.open("wb") as file:
         pickle.dump(trained_clf, file)
 
     return trained_clf
@@ -688,7 +682,7 @@ class ClassifierResult:
 
 
 def fit_and_evaluate_clf(
-    X, y, X_test, id_test, directory, clf, cv, n_jobs=1, output_format="txt"
+    X, y, X_test, id_test, save_path, clf, cv, n_jobs=1, output_format="txt"
 ):
     """Predicts the methylation class by supervised learning classifier.
 
@@ -702,7 +696,7 @@ def fit_and_evaluate_clf(
         y (array-like): Class labels.
         X_test (array-like): Value of the sample to be evaluated.
         id_test (str): Unique identifiers for the test samples to be evaluated.
-        directory (str or Path): Directory where the classifiers and results
+        save_path (str or Path): Path where the classifiers and results
             will be saved/cached.
         clf (list): Classifier to use. Can be:
 
@@ -771,12 +765,12 @@ def fit_and_evaluate_clf(
     """
     if isinstance(clf, (Pipeline, ClassifierMixin)):
         trained_clf = train_clf(
-            clf=clf, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
+            clf=clf, X=X, y=y, save_path=save_path, cv=cv, n_jobs=n_jobs
         )
     elif isinstance(clf, str):
         pipeline = make_clf_pipeline(*clf.split("-"), X.shape, cv)
         trained_clf = train_clf(
-            clf=pipeline, X=X, y=y, directory=directory, cv=cv, n_jobs=n_jobs
+            clf=pipeline, X=X, y=y, save_path=save_path, cv=cv, n_jobs=n_jobs
         )
     else:
         trained_clf = clf

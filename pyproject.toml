@@ -30,8 +30,8 @@ select = [
     "PD",
     # Pylint
     "PL",
-    # ALL
-    # "ALL",
+    # Trailing whitespace
+    "W",
 ]
 ignore = [
     # Relax the convention by _not_ requiring documentation for every function
