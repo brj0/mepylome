@@ -1789,7 +1789,7 @@ class MethylAnalysis:
         Raises:
             ValueError: If not exactly one if `ids` or `values` is set.
         """
-        if sum(bool(x) for x in (ids, values)) != 1:
+        if sum(x is not None for x in (ids, values)) != 1:
             msg = "Provide exactly one of 'ids' or 'values'."
             raise ValueError(msg)
 

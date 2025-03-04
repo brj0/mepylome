@@ -821,12 +821,12 @@ methyl_analysis.idat_handler.selected_columns = ["Diagnosis"]
 clf_out = methyl_analysis.classify(ids=ids, clf_list="none-kbest-rf")
 
 ## Output accuracy scores:
-print("Accuracy Scores:", clf_out.metrics["accuracy_scores"])
+print("Accuracy Scores:", clf_out[0].metrics["accuracy_scores"])
 """
 Accuracy Scores: [1.0, 1.0, 1.0, 1.0, 1.0]
 """
 ## Detailed classifier report of first sample:
-print(clf_out.reports[0])
+print(clf_out[0].reports[0])
 """
 201530470054_R05C01
 ===================
@@ -859,6 +859,7 @@ Classification Probability:
 # Perform prediction on beta values:
 
 ## Number of CpGs in the dataset
+methyl_analysis.set_betas()
 n_cpgs = methyl_analysis.betas_all.shape[1]
 ## Generate random beta values for 10 artificial samples
 random_beta_values = pd.DataFrame(
@@ -909,7 +910,7 @@ rf_clf.fit(X, y)
 ids = methyl_analysis.idat_handler.ids
 clf_out = methyl_analysis.classify(ids=ids, clf_list=rf_clf)
 
-print(clf_out.reports[0])
+print(clf_out[0].reports[0])
 """
 201530470054_R05C01
 ===================
@@ -949,7 +950,7 @@ et_clf = ExtraTreesClassifier(n_estimators=300, random_state=0)
 ids = methyl_analysis.idat_handler.ids
 clf_out = methyl_analysis.classify(ids=ids, clf_list=et_clf)
 
-print(clf_out.reports[0])
+print(clf_out[0].reports[0])
 """
 201530470054_R05C01
 ===================
@@ -1000,7 +1001,7 @@ class CustomClassifier(TrainedClassifier):
     def classes(self):
         return self._classes
 
-    def info(self):
+    def info(self, output_format="txt"):
         return "This text will be printed in reports."
 
     def metrics(self):
@@ -1013,7 +1014,7 @@ custom_clf = CustomClassifier(rf_clf)
 ## Perform classification
 clf_out = methyl_analysis.classify(ids=ids, clf_list=custom_clf)
 
-print(clf_out.reports[0])
+print(clf_out[0].reports[0])
 """
 201530470054_R05C01
 ===================
