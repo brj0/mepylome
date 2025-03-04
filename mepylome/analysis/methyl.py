@@ -1830,7 +1830,6 @@ class MethylAnalysis:
             X, y, _values = self._load_training_data(ids)
             values = _values if _values is not None else values
 
-
         def _log(string):
             with self._clf_log.open("a") as f:
                 f.write(string)

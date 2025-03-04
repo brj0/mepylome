@@ -6,6 +6,7 @@ diagnostic_config:
     name: "Salivary Gland Tumors"
     do_umap: true
     do_classify: true
+    do_cnv: true
     version: 0.0.0
     classifier_list:
       - none-kbest-et
@@ -16,7 +17,7 @@ diagnostic_config:
       # - none-pca-et
       # - none-none-knn
     annotation_diagnosis_column: 
-      - "Methylation_class"
+      - "Methylation class"
     methyl_analysis:
       analysis_dir: "~/mepylome/data/salivary_gland_tumors"
       reference_dir: "~/mepylome/data/cnv_references"

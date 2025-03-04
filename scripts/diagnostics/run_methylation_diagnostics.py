@@ -6,6 +6,7 @@ classifiers, and saves the resulting reports in the directories containing the
 new cases. The pipeline is highly customizable through the config file.
 """
 
+import argparse
 import io
 import json
 import logging
@@ -27,6 +28,7 @@ from mepylome.dtypes.manifests import (
 )
 
 IMG_HEIGHT = 2000
+FONTSIZE = 23
 IMG_WIDTH = 1000
 
 
@@ -146,6 +148,29 @@ def supervised_classifier(analysis, dataset_name, dataset_config):
         path.write_text(html_str)
 
 
+def make_cnv(analysis, dataset_name, dataset_config):
+    """Generates CNV Plot and saves it to corresponding directory."""
+    ids = analysis.idat_handler.test_ids
+    analysis.precompute_cnvs(ids)
+    for id_ in ids:
+        analysis.make_cnv_plot(id_)
+        cnv_plot = analysis.cnv_plot
+        cnv_plot.update_layout(
+            yaxis_range=[-1.1, 1.1],
+            font={"size": FONTSIZE},
+            margin={"t": 50},
+        )
+        save_dir = analysis.idat_handler.test_id_to_path[id_].parent
+        cnv_plot.write_image(
+            save_dir / f"{id_}_{dataset_name}_cnv.jpg",
+            format="jpg",
+            width=IMG_HEIGHT,
+            height=IMG_WIDTH,
+            scale=1,
+        )
+        cnv_plot.write_html(save_dir / f"{id_}_{dataset_name}_cnv.html")
+
+
 def run_single_diagnostics(dataset_name, dataset_config, default_blacklist):
     """Run methylation analysis for a single dataset."""
     init_params = dataset_config.get("methyl_analysis", {})
@@ -159,6 +184,9 @@ def run_single_diagnostics(dataset_name, dataset_config, default_blacklist):
 
     if dataset_config.get("do_classify"):
         supervised_classifier(analysis, dataset_name, dataset_config)
+
+    if dataset_config.get("do_cnv"):
+        make_cnv(analysis, dataset_name, dataset_config)
 
     if dataset_config.get("do_umap"):
         unsupervised_classifier(analysis, dataset_name, dataset_config)
@@ -180,12 +208,32 @@ def run_diagnostics(config_path):
         run_single_diagnostics(dataset_name, dataset_config, default_blacklist)
 
 
-if __name__ == "__main__":
+def main():
+    """Start diagnostics."""
+    parser = argparse.ArgumentParser(
+        description="Run methylation diagnostics."
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path(__file__).parent / "config.yaml",
+        help=(
+            "Path to the config file (default: 'config.yaml' in the current "
+            "directory)",
+        ),
+    )
+    args = parser.parse_args()
+
     try:
-        config_path = Path(__file__).parent / "config.yaml"
+        config_path = args.config
         logging.info("Starting diagnostics with config: %s", config_path)
         run_diagnostics(config_path)
         logging.info("Diagnostics completed successfully.")
     except Exception as e:
         logging.error("An error occurred: %s", e)
         raise
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    main()

@@ -512,7 +512,7 @@ def make_classifier_report_page(reports, title=None):
             text-align: right;
         }}
         .classification-result td {{
-            background: #e9f7ff;
+            background: #ffebe6;
         }}
         .classification-result-k {{
             background: #ffe4b5;

@@ -258,7 +258,7 @@ def calculate_cn_summary(analysis, class_):
         )
         plot_list.append(plot)
     png_paths = [
-        output_dir / f"{analysis_dir.name}-cn_summary-{clean_filename(x)}.png"
+        output_dir / f"{analysis_dir.name}_cn_summary_{clean_filename(x)}.png"
         for x in all_classes
     ]
     for path, fig in zip(png_paths, plot_list):
@@ -277,7 +277,7 @@ def calculate_cn_summary(analysis, class_):
         x = col * width
         y = row * height
         new_image.paste(img, (x, y))
-    output_path = output_dir / f"{analysis_dir.name}-cn_summary.png"
+    output_path = output_dir / f"{analysis_dir.name}_cn_summary.png"
     new_image.save(output_path)
     return output_path
 
@@ -400,9 +400,7 @@ test_dir_sg.mkdir(parents=True, exist_ok=True)
 analysis_dir_sg.mkdir(parents=True, exist_ok=True)
 
 # Download the annotation spreadsheet.
-if not (
-    excel_path := analysis_dir_sg / f"{tumor_site}.xlsx"
-).exists():
+if not (excel_path := analysis_dir_sg / f"{tumor_site}.xlsx").exists():
     download_file(datasets[tumor_site]["xlsx"], excel_path)
     # Deletes the first 2 rows (useless description).
     pd.read_excel(excel_path, skiprows=2).to_excel(excel_path, index=False)
@@ -467,7 +465,7 @@ print(analysis_sg.umap_df)
 
 # %%
 # Generate and show image
-output_path = output_dir / f"{analysis_dir_sg.name}-umap_plot.jpg"
+output_path = output_dir / f"{analysis_dir_sg.name}_umap_plot.jpg"
 analysis_sg.umap_plot.write_image(
     output_path,
     format="jpg",
@@ -505,7 +503,7 @@ cnv_plot.update_layout(
     font={"size": FONTSIZE},
     margin={"t": 50},
 )
-output_path = output_dir / f"{analysis_dir_sg.name}-cnv_plot.jpg"
+output_path = output_dir / f"{analysis_dir_sg.name}_cnv_plot.jpg"
 cnv_plot.write_image(
     output_path,
     format="jpg",
@@ -592,9 +590,7 @@ test_dir_st.mkdir(parents=True, exist_ok=True)
 analysis_dir_st.mkdir(parents=True, exist_ok=True)
 
 # Download the annotation spreadsheet.
-if not (
-    excel_path := analysis_dir_st / f"{tumor_site}.xlsx"
-).exists():
+if not (excel_path := analysis_dir_st / f"{tumor_site}.xlsx").exists():
     download_file(datasets[tumor_site]["xlsx"], excel_path)
 
 # Download the IDAT files.
@@ -653,7 +649,7 @@ print(analysis_st.umap_df)
 
 # %%
 # Generate and show image
-output_path = output_dir / f"{analysis_dir_st.name}-umap_plot.jpg"
+output_path = output_dir / f"{analysis_dir_st.name}_umap_plot.jpg"
 analysis_st.umap_plot.write_image(
     output_path,
     format="jpg",
@@ -692,7 +688,7 @@ cnv_plot.update_layout(
     font={"size": FONTSIZE},
     margin={"t": 50},
 )
-output_path = output_dir / f"{analysis_dir_st.name}-cnv_plot.jpg"
+output_path = output_dir / f"{analysis_dir_st.name}_cnv_plot.jpg"
 cnv_plot.write_image(
     output_path,
     format="jpg",
@@ -1147,7 +1143,7 @@ print(analysis_scc.umap_df)
 
 # %%
 # Generate and show image
-output_path = output_dir / f"{analysis_dir_scc.name}-umap_plot.jpg"
+output_path = output_dir / f"{analysis_dir_scc.name}_umap_plot.jpg"
 analysis_scc.umap_plot.write_image(
     output_path,
     format="jpg",
@@ -1186,7 +1182,7 @@ cnv_plot.update_layout(
     font={"size": FONTSIZE},
     margin={"t": 50},
 )
-output_path = output_dir / f"{analysis_dir_scc.name}-cnv_plot.jpg"
+output_path = output_dir / f"{analysis_dir_scc.name}_cnv_plot.jpg"
 cnv_plot.write_image(
     output_path,
     format="jpg",
