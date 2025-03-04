@@ -166,14 +166,20 @@ class IdatHandler:
             Defaults to False.
         analysis_ids (list, optional): A list of sample IDs within
             `analysis_dir`.
+
             - If provided, only these samples will be used.
+
             - If `None`, all available IDAT files in `analysis_dir` will be
               used.
+
             Defaults to None.
+
         test_ids (list, optional): A list of sample IDs within `test_dir`.
+
             - If provided, only these samples will be used.
+
             - If `None`, all available IDAT files in `test_dir` will be used.
-            Defaults to None.
+              Defaults to None.
 
     Attributes:
         analysis_dir (Path): The directory path where the IDAT files are
@@ -183,8 +189,6 @@ class IdatHandler:
             `None`.
         overlap (bool): A flag indicating whether to restrict sample paths to
             only those present in both the IDAT files and the annotation file.
-        test_ids (list): A list of valid test IDAT sample
-            IDs.
         id_to_path (dict): A dictionary where the keys are sample IDs and the
             values are the file paths of IDAT files (from both `analysis_dir`
             and `test_dir`).
