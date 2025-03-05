@@ -58,7 +58,7 @@ with open("README.md") as f:
 
 setup(
     name="mepylome",
-    version="0.8.0",
+    version="0.8.1",
     description="Python package for processing Infinum DNA methylation arrays",
     packages=find_packages(),
     long_description=long_description,
@@ -74,6 +74,7 @@ setup(
         "xlrd",
         "scikit-learn",
         "dash>=2.16.0",
+        "plotly<6.0.0", # BUG: plotly 6.0.0 go.Scattergl cannot display text
         "umap-learn",
         "dash_bootstrap_components",
         "importlib_resources; python_version < '3.9'",

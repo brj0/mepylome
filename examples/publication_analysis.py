@@ -96,7 +96,7 @@
 
 # %% language="bash"
 #
-# pip install mepylome ipython pillow linear_segment
+# pip install mepylome ipython pillow linear_segment ipywidgets
 # pip install -U kaleido
 
 
@@ -561,6 +561,7 @@ clf_out_sg = analysis_sg.classify(
 # Print reports for all classifier for the first sample
 for clf_result in clf_out_sg:
     print(clf_result.reports[0])
+    print()
 
 # %%
 # Identify and display the best classifier
@@ -748,6 +749,7 @@ clf_out_st = analysis_st.classify(
 # Print reports for all classifier for the first sample
 for clf_result in clf_out_st:
     print(clf_result.reports[0])
+    print()
 
 # Identify and display the best classifier
 best_clf_st = max(
@@ -1240,6 +1242,7 @@ clf_out_scc = analysis_scc.classify(
 # Print reports for all classifier for the first sample
 for clf_result in clf_out_scc:
     print(clf_result.reports[0])
+    print()
 
 # Identify and display the best classifier
 best_clf_scc = max(

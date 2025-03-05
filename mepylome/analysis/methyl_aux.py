@@ -649,13 +649,20 @@ class BetasHandler:
         self, idat_handler, cpgs, ids=None, fill=NEUTRAL_BETA, parallel=True
     ):
         """Retrieves beta values for specified IDs and CpGs."""
-        ids_set = set(ids) if ids is not None else None
-        filenames = [
-            filename
-            for filename in idat_handler.idat_basenames
-            if filename not in self.invalid_filenames
-            and (ids_set is None or filename in ids_set)
-        ]
+        if ids is None:
+            filenames = [
+                filename
+                for filename in idat_handler.idat_basenames
+                if filename not in self.invalid_filenames
+            ]
+        else:
+            ids_set = {idat_handler.id_to_basename[id_] for id_ in ids}
+            filenames = [
+                filename
+                for filename in idat_handler.idat_basenames
+                if filename not in self.invalid_filenames
+                and filename in ids_set
+            ]
         ids = [idat_handler.idat_basename_to_id[x] for x in filenames]
 
         check_memory(len(filenames), len(cpgs), DTYPE)

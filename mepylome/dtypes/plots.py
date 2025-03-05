@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import plotly
 import plotly.graph_objects as go
 
 from mepylome.dtypes.cache import memoize
@@ -24,7 +25,7 @@ ZIP_ENDING = "_cnv.zip"
 THRESHOLD_BALANCED = 0.1
 
 ensure_directory_exists(MEPYLOME_TMP_DIR)
-CNV_GRID = Path(MEPYLOME_TMP_DIR, "cnv_grid.json")
+CNV_GRID = Path(MEPYLOME_TMP_DIR, f"cnv_grid_v{plotly.__version__}.json")
 
 
 class Genome:
