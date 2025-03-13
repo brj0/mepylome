@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 import requests
-import yaml
+import tomllib
 
 from mepylome import ArrayType, Manifest
 from mepylome.analysis import MethylAnalysis
@@ -34,11 +34,14 @@ IMG_WIDTH = 1000
 
 def load_config(config_path):
     """Load a JSON or YAML file and return its contents as a dictionary."""
-    with config_path.open() as file:
+    with config_path.open("rb" if config_path.suffix == ".toml" else "r") as file:
         if config_path.suffix == ".json":
             return json.load(file)
         if config_path.suffix in [".yaml", ".yml"]:
+            import yaml
             return yaml.safe_load(file)
+        if config_path.suffix == ".toml":
+            return tomllib.load(file)
     raise ValueError("Unsupported config format")
 
 
@@ -216,9 +219,9 @@ def main():
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path(__file__).parent / "config.yaml",
+        default=Path(__file__).parent / "config.toml",
         help=(
-            "Path to the config file (default: 'config.yaml' in the current "
+            "Path to the config file (default: 'config.toml' in the current "
             "directory)",
         ),
     )

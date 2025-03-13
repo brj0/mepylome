@@ -1,0 +1,46 @@
+default_blacklist = "~/mepylome/data/cpg_blacklist.csv"
+
+
+[diagnostic_config.salivary_gland_tumors]
+name = "Salivary Gland Tumors"
+do_umap = true
+do_classify = true
+do_cnv = true
+version = "0.0.0"
+classifier_list = [
+    "none-kbest-et",
+    "none-kbest-lr",
+]
+annotation_diagnosis_column = ["Methylation class"]
+
+  [diagnostic_config.salivary_gland_tumors.methyl_analysis]
+  analysis_dir = "~/mepylome/data/salivary_gland_tumors"
+  reference_dir = "~/mepylome/data/cnv_references"
+  annotation = "~/mepylome/data/salivary_gland_tumors/salivary_gland_tumors.xlsx"
+  test_dir = "~/mepylome/data/new_cases"
+  output_dir = "~/mepylome/outputs"
+  cpgs = "epic+epicv2"
+  n_cpgs = 25000
+  overlap = true
+
+
+[diagnostic_config.soft_tissue_tumors]
+name = "Soft Tissue Tumors"
+do_umap = true
+do_classify = true
+version = "0.0.0"
+classifier_list = [
+    "none-kbest-et",
+    "none-kbest-lr",
+]
+annotation_diagnosis_column = ["Methylation_class"]
+
+  [diagnostic_config.soft_tissue_tumors.methyl_analysis]
+  analysis_dir = "~/mepylome/data/soft_tissue_tumors"
+  reference_dir = "~/mepylome/data/cnv_references"
+  annotation = "~/mepylome/data/soft_tissue_tumors/soft_tissue_tumors.xlsx"
+  test_dir = "~/mepylome/data/new_cases"
+  output_dir = "~/mepylome/outputs"
+  cpgs = "all"
+  n_cpgs = 25000
+  overlap = true

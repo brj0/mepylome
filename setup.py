@@ -69,12 +69,12 @@ setup(
         "pandas",
         "openpyxl",
         "tqdm",
-        "pyranges",
+        "pyranges!=0.1.3",  # BUG: pyranges bug with version 0.1.3
         "psutil",
         "xlrd",
         "scikit-learn",
         "dash>=2.16.0",
-        "plotly<6.0.0", # BUG: plotly 6.0.0 go.Scattergl cannot display text
+        "plotly!=6.0.0",  # BUG: plotly 6.0.0 go.Scattergl cannot display text
         "umap-learn",
         "dash_bootstrap_components",
         "importlib_resources; python_version < '3.9'",
