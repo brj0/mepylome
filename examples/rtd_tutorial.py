@@ -826,7 +826,7 @@ print("Accuracy Scores:", clf_out[0].metrics["accuracy_scores"])
 Accuracy Scores: [1.0, 1.0, 1.0, 1.0, 1.0]
 """
 ## Detailed classifier report of first sample:
-print(clf_out[0].reports[0])
+print(clf_out[0].reports["txt"][0])
 """
 201530470054_R05C01
 ===================
@@ -910,7 +910,7 @@ rf_clf.fit(X, y)
 ids = methyl_analysis.idat_handler.ids
 clf_out = methyl_analysis.classify(ids=ids, clf_list=rf_clf)
 
-print(clf_out[0].reports[0])
+print(clf_out[0].reports["txt"][0])
 """
 201530470054_R05C01
 ===================
@@ -950,7 +950,7 @@ et_clf = ExtraTreesClassifier(n_estimators=300, random_state=0)
 ids = methyl_analysis.idat_handler.ids
 clf_out = methyl_analysis.classify(ids=ids, clf_list=et_clf)
 
-print(clf_out[0].reports[0])
+print(clf_out[0].reports["txt"][0])
 """
 201530470054_R05C01
 ===================
@@ -1014,7 +1014,7 @@ custom_clf = CustomClassifier(rf_clf)
 ## Perform classification
 clf_out = methyl_analysis.classify(ids=ids, clf_list=custom_clf)
 
-print(clf_out[0].reports[0])
+print(clf_out[0].reports["txt"][0])
 """
 201530470054_R05C01
 ===================

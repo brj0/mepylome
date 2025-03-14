@@ -618,14 +618,18 @@ class MethylAnalysis:
         analysis_dir (str or Path): Directory containing IDAT files for
             analysis.
 
-        annotation (str or Path): Path to an annotation spreadsheet where
-            Sentrix IDs are preferably listed in the first column. If not
-            provided, the system will attempt to infer the correct column
-            automatically, and if an annotation file is missing, it will try to
-            detect a spreadsheet in the `analysis_dir` if available.
+        annotation (str or Path): Path to an annotation spreadsheet used to map
+            sample files located in both `analysis_dir` and `test_dir`. One of
+            the columns must contain the ID corresponding to the IDAT files
+            (such as SentrixID or ID from files downloaded from GEO). If not
+            provided, the system will attempt to identify the correct column
+            automatically. If the annotation file is missing, it will search
+            for a spreadsheet within the `analysis_dir` if available. (default:
+            None)
 
         reference_dir (str or Path): Directory containing CNV neutral reference
             IDAT files. Must be provided if you wanna generate CNV plots.
+            (default: None)
 
         output_dir (str or Path): Directory where output files will be saved
             (default: "/tmp/mepylome/analysis").
@@ -633,7 +637,7 @@ class MethylAnalysis:
         test_dir (Path or None): Directory for test files, including new cases
             for analysis or validation. Files uploaded via the GUI will be
             placed here. If set to `None`, the application will automatically
-            use a temporary directory.
+            use a temporary directory. (default: None)
 
         prep (str): Prepreparation method used for methylation microarrays:
             'illumina', 'swan', or 'noob (default: 'illumina').
@@ -713,19 +717,20 @@ class MethylAnalysis:
             user-provided feature matrix to be used for UMAP dimensionality
             reduction. If provided, this matrix will be used instead of
             `betas_sel`. If not provided (default is None), the `betas_sel`
-            containing methylation beta values will be used for UMAP.
+            containing methylation beta values will be used for UMAP. (default:
+            None)
 
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
 
         analysis_ids (list, optional): A list of sample IDs. If provided, the
             analysis will be restricted to these samples only. If `None`, the
-            analysis will include all available samples.
+            analysis will include all available samples. (default: None)
 
         test_ids (list, optional): A list of sample IDs within `test_dir`.
             - If provided, only these samples will be used.
             - If `None`, all available IDAT files in `test_dir` will be used.
-            Defaults to None.
+            (default: None)
 
         cpg_selection (str): Method to select CpG sites for UMAP ('top',
             'random', or 'balanced') (default: 'top').
@@ -734,13 +739,13 @@ class MethylAnalysis:
             - 'random': Selects CpG sites randomly.
             - 'balanced': Selects the most varying CpG sites while ensuring a
               balanced distribution across groups based on
-              `self.balancing_feature`.  This method takes an **equal number of
+              `balancing_feature`.  This method takes an **equal number of
               sample files from `self.analysis_dir`**  for each group defined
-              by `self.balancing_feature`.  It is especially useful when the
+              by `balancing_feature`.  It is especially useful when the
               dataset is **imbalanced**, where some  groups have significantly
               more samples than others.
 
-        self.balancing_feature (str): Column in `self.annotation` used for
+        balancing_feature (str): Column in `self.annotation` used for
             balancing when `cpg_selection='balanced'`. The balancing feature
             determines the groups/categories used to create a stratified
             selection of CpG sites.
@@ -773,11 +778,8 @@ class MethylAnalysis:
         analysis_dir (Path): Path to the directory containing IDAT files for
             analysis.
 
-        annotation (Path): Path to an annotation spreadsheet where
-            Sentrix IDs are preferably listed in the first column. If not
-            provided, the system will attempt to infer the correct column
-            automatically, and if an annotation file is missing, it will try to
-            detect a spreadsheet in the `analysis_dir` if available.
+        annotation (str or Path): Path to an annotation spreadsheet used to map
+            sample files located in both `analysis_dir` and `test_dir`.
 
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
@@ -814,13 +816,13 @@ class MethylAnalysis:
             - 'random': Selects CpG sites randomly.
             - 'balanced': Selects the most varying CpG sites while ensuring a
               balanced distribution across groups based on
-              `self.balancing_feature`.  This method takes an **equal number of
+              `balancing_feature`.  This method takes an **equal number of
               sample files from `self.analysis_dir`**  for each group defined
-              by `self.balancing_feature`.  It is especially useful when the
+              by `balancing_feature`.  It is especially useful when the
               dataset is **imbalanced**, where some  groups have significantly
               more samples than others.
 
-        self.balancing_feature (str): Column in `self.annotation` used for
+        balancing_feature (str): Column in `annotation` used for
             balancing when `cpg_selection='balanced'`. The balancing feature
             determines the groups/categories used to create a stratified
             selection of CpG sites.
@@ -1743,9 +1745,7 @@ class MethylAnalysis:
         plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
         return plot, df_cn_summary
 
-    def classify(
-        self, *, ids=None, values=None, clf_list, output_format="txt"
-    ):
+    def classify(self, *, ids=None, values=None, clf_list):
         """Classify samples using specified classifiers.
 
         This method performs classification on given samples, defined either by
@@ -1755,7 +1755,6 @@ class MethylAnalysis:
         features), or default to CpG methylation data (`betas_all`). All
         samples in `analysis_dir` resp. those in `analysis_ids` with valid
         label will be used for learning.
-
 
         Classifiers are applied to the data, and the method returns their
         predictions and performance reports.
@@ -1772,15 +1771,23 @@ class MethylAnalysis:
                 handled the same way as `self.classifiers`. For full details on
                 the format and options, refer to the docstring for
                 `self.classifiers`.
-            output_format (str): The format of the report ('txt' or 'html').
-                Defaults to 'txt'.
 
         Returns:
-            list: A list containing:
-                - pd.DataFrame: The predicted labels with probabilities.
-                - sklearn object or TrainedClassifier: The classifier object
-                  used.
-                - list: Evaluation metrics for the classifier.
+            list[ClassifierResult]: A list of ClassifierResult objects, each
+            containing the following attributes:
+
+                - prediction (pd.DataFrame): A DataFrame containing the
+                  predicted labels with their associated probabilities.
+                - model (sklearn.base.BaseEstimator or TrainedClassifier): The
+                  trained classifier object used for prediction.
+                - metrics (dict): A dictionary of evaluation metrics for the
+                  classifier, such as accuracy, precision, recall, etc.
+                - reports (dict): A dictionary containing textual and HTML
+                  reports of the classifier's performance. The keys are:
+
+                    - "txt": A plain-text report (e.g., classification report).
+                    - "html": An HTML-formatted report for richer
+                      visualization.
 
         Outputs:
             Log file: Contains training time, classifier performance metrics,
@@ -1854,16 +1861,15 @@ class MethylAnalysis:
                 clf=clf["model"],
                 cv=clf["cv"],
                 n_jobs=self.n_jobs,
-                output_format=output_format,
             )
             elapsed_time = time.time() - start_time
             if logger.isEnabledFor(logging.INFO):
                 _log(f"Time used for classification: {elapsed_time:.2f} s\n\n")
             if (
                 logger.isEnabledFor(logging.INFO)
-                and len(clf_result.reports) == 1
+                and len(clf_result.reports["txt"]) == 1
             ):
-                _log(clf_result.reports[0] + "\n\n\n")
+                _log(clf_result.reports["txt"][0] + "\n\n\n")
             results.append(clf_result)
 
         return results

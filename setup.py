@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pybind11
-from setuptools import Extension, find_packages, setup
+from setuptools import Extension, setup
 
 include_dirs = [
     pybind11.get_include(),
@@ -53,54 +53,6 @@ if add_cpp:
 else:
     ext_modules = []
 
-with open("README.md") as f:
-    long_description = f.read()
-
 setup(
-    name="mepylome",
-    version="0.8.1",
-    description="Python package for processing Infinum DNA methylation arrays",
-    packages=find_packages(),
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    install_requires=[
-        "numpy",
-        "odfpy",
-        "pandas",
-        "openpyxl",
-        "tqdm",
-        "pyranges",
-        "psutil",
-        "xlrd",
-        "scikit-learn",
-        "dash>=2.16.0",
-        "plotly<6.0.0", # BUG: plotly 6.0.0 go.Scattergl cannot display text
-        "umap-learn",
-        "dash_bootstrap_components",
-        "importlib_resources; python_version < '3.9'",
-        "xxhash",
-    ],
     ext_modules=ext_modules,
-    keywords="Illumina, Methylation, Infinum, Microarray, BeadChip",
-    license="MIT license",
-    author="Jon Brugger",
-    url="https://github.com/brj0/mepylome",
-    # Include package data such as csv-Files, images, ...
-    include_package_data=True,
-    classifiers=[
-        "Development Status :: 3 - Alpha",
-        "Intended Audience :: Developers",
-        "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: POSIX",
-        "Programming Language :: C++",
-        "Programming Language :: Python :: 3",
-        "Topic :: Scientific/Engineering",
-        "Topic :: Software Development",
-    ],
-    entry_points={
-        "console_scripts": [
-            "mepylome=mepylome.cli:start_mepylome",
-        ]
-    },
 )

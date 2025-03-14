@@ -24,7 +24,7 @@ diagnostic_config:
       annotation: "~/mepylome/data/salivary_gland_tumors/salivary_gland_tumors.xlsx"
       test_dir: "~/mepylome/data/new_cases"
       output_dir: "~/mepylome/outputs"
-      cpgs: "all"
+      cpgs: "450k+epic+epicv2"
       n_cpgs: 25000
       overlap: true
       cpg_blacklist: null
@@ -50,7 +50,7 @@ diagnostic_config:
   #     annotation: "~/mepylome/data/soft_tissue_tumors/soft_tissue_tumors.xlsx"
   #     test_dir: "~/mepylome/data/new_cases"
   #     output_dir: "~/mepylome/outputs"
-  #     cpgs: "all"
+  #     cpgs: "450k+epic+epicv2"
   #     n_cpgs: 25000
   #     overlap: true
   #     cpg_blacklist: null

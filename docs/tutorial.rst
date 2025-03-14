@@ -1012,11 +1012,11 @@ Perform prediction on sample IDs:
     >>> clf_out = methyl_analysis.classify(ids=ids, clf_list="none-kbest-rf")
 
     >>> # Output accuracy scores:
-    >>> print("Accuracy Scores:", clf_out.metrics["accuracy_scores"])
+    >>> print("Accuracy Scores:", clf_out[0].metrics["accuracy_scores"])
     Accuracy Scores: [1.0, 1.0, 1.0, 1.0, 1.0]
 
     >>> # Detailed classifier report of first sample:
-    >>> print(clf_out.reports[0])
+    >>> print(clf_out[0].reports["txt"][0])
     201530470054_R05C01
     ===================
     
@@ -1052,6 +1052,7 @@ Perform prediction on beta values:
 .. code-block:: python
 
     >>> # Number of CpGs in the dataset
+    >>> methyl_analysis.set_betas()
     >>> n_cpgs = methyl_analysis.betas_all.shape[1]
     >>> # Generate random beta values for 10 artificial samples
     >>> random_beta_values = pd.DataFrame(
@@ -1106,7 +1107,7 @@ them into the analysis. Below is an example using a Random Forest classifier.
     >>> ids = methyl_analysis.idat_handler.ids
     >>> clf_out = methyl_analysis.classify(ids=ids, clf_list=rf_clf)
 
-    >>> print(clf_out.reports[0])
+    >>> print(clf_out[0].reports["txt"][0])
     201530470054_R05C01
     ===================
     
@@ -1149,7 +1150,7 @@ is an example using an Extra Trees classifier.
     >>> ids = methyl_analysis.idat_handler.ids
     >>> clf_out = methyl_analysis.classify(ids=ids, clf_list=et_clf)
 
-    >>> print(clf_out.reports[0])
+    >>> print(clf_out[0].reports["txt"][0])
     201530470054_R05C01
     ===================
     
@@ -1203,7 +1204,7 @@ or apply additional functionality.
     >>>     def classes(self):
     >>>         return self._classes
 
-    >>>     def info(self):
+    >>>     def info(self, output_format="txt"):
     >>>         return "This text will be printed in reports."
 
     >>>     def metrics(self):
@@ -1216,7 +1217,7 @@ or apply additional functionality.
     >>> # Perform classification
     >>> clf_out = methyl_analysis.classify(ids=ids, clf_list=custom_clf)
 
-    >>> print(clf_out.reports[0])
+    >>> print(clf_out[0].reports["txt"][0])
     201530470054_R05C01
     ===================
     

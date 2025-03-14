@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.6
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -123,7 +123,7 @@ import requests
 from IPython.display import Image as IPImage
 from PIL import Image
 
-from mepylome import ArrayType, Manifest
+from mepylome import ArrayType, Manifest, idat_basepaths
 from mepylome.analysis import MethylAnalysis
 from mepylome.dtypes.manifests import (
     DOWNLOAD_DIR,
@@ -233,7 +233,7 @@ def download_from_geo_and_untar(analysis_dir, geo_ids):
 
 
 def clean_filename(name):
-    # Replace invalid characters with a single underscore
+    """Replace invalid characters with a single underscore."""
     return re.sub(r"[^\w\-]+", "_", name)
 
 
@@ -560,7 +560,7 @@ clf_out_sg = analysis_sg.classify(
 # %%
 # Print reports for all classifier for the first sample
 for clf_result in clf_out_sg:
-    print(clf_result.reports[0])
+    print(clf_result.reports["txt"][0])
     print()
 
 # %%
@@ -569,7 +569,7 @@ best_clf_sg = max(
     clf_out_sg, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
-print(best_clf_sg.reports[0])
+print(best_clf_sg.reports["txt"][0])
 
 
 # %% [markdown]
@@ -613,6 +613,7 @@ analysis_st = MethylAnalysis(
     n_cpgs=25000,
     load_full_betas=True,
     overlap=False,
+    cpgs="450k+epic+epicv2",
     cpg_blacklist=blacklist,
     debug=False,
     do_seg=True,
@@ -748,15 +749,16 @@ clf_out_st = analysis_st.classify(
 # %%
 # Print reports for all classifier for the first sample
 for clf_result in clf_out_st:
-    print(clf_result.reports[0])
+    print(clf_result.reports["txt"][0])
     print()
 
+# %%
 # Identify and display the best classifier
 best_clf_st = max(
     clf_out_st, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
-print(best_clf_st.reports[0])
+print(best_clf_st.reports["txt"][0])
 
 
 # %% [markdown]
@@ -808,8 +810,8 @@ else:
 
 # %% [markdown]
 # Now we download the complete TCGA data. **This may take several hours** due
-# to slow server connection speeds. It is recommended to run this process
-# overnight and not to abort the process to ensure it completes successfully.
+# to slow server connection. It is recommended to run this process overnight
+# and not to abort the process to ensure it completes successfully.
 
 # %%
 tcga_dir = analysis_dir_scc / "tcga_scc"
@@ -1080,6 +1082,7 @@ geo_annotation = merge_csv(geo_metadata_dir)
 
 # %%
 if (csv_path := analysis_dir_scc / f"{tumor_site}.csv").exists():
+    anno_df = pd.read_csv(csv_path)
     print("Merged annotation file allready exists.")
 else:
     anno_df = pd.concat([geo_annotation, tcga_annotation], ignore_index=True)
@@ -1098,15 +1101,22 @@ else:
 # of CpG sites, and UMAP settings are configured here.
 
 # %%
+# Only consider test files with annotation.
+test_ids_scc = set(anno_df.Sample_ID).intersection(
+    x.name for x in idat_basepaths(test_dir_scc)
+)
+
 analysis_scc = MethylAnalysis(
     analysis_dir=analysis_dir_scc,
     reference_dir=reference_dir,
     output_dir=output_dir,
     test_dir=test_dir_scc,
+    test_ids=test_ids_scc,
     n_cpgs=25000,
     load_full_betas=True,
     overlap=True,
     cpg_blacklist=blacklist,
+    cpgs="450k+epic+epicv2",
     debug=False,
     do_seg=True,
     umap_parms={
@@ -1241,15 +1251,16 @@ clf_out_scc = analysis_scc.classify(
 # %%
 # Print reports for all classifier for the first sample
 for clf_result in clf_out_scc:
-    print(clf_result.reports[0])
+    print(clf_result.reports["txt"][0])
     print()
 
+# %%
 # Identify and display the best classifier
 best_clf_scc = max(
     clf_out_scc, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
-print(best_clf_scc.reports[0])
+print(best_clf_scc.reports["txt"][0])
 
 # %% [markdown]
 # Now we apply the best classifier on the independent validation samples:
@@ -1261,7 +1272,7 @@ test_ids = list(
     set(test_ids).intersection(analysis_scc.idat_handler.annotation_df.index)
 )
 clf_out_pred = analysis_scc.classify(ids=test_ids, clf_list=best_clf_scc.model)
-pred = clf_out_pred.prediction.idxmax(axis=1)
+pred = clf_out_pred[0].prediction.idxmax(axis=1)
 true_values = analysis_scc.idat_handler.samples_annotated.loc[test_ids][
     "Diagnosis"
 ]
@@ -1272,7 +1283,7 @@ print(f"Classifier Accuracy: {100*accuracy_scc:.2f} % ({correct}/{total})")
 
 # Analyze misclassified samples
 misclassified = pred != true_values
-misclassified_samples = clf_out_pred.prediction[misclassified].copy()
+misclassified_samples = clf_out_pred[0].prediction[misclassified].copy()
 misclassified_samples["Pred"] = pred[misclassified]
 misclassified_samples["True"] = true_values[misclassified]
 print("Missclassified samples:\n", misclassified_samples)

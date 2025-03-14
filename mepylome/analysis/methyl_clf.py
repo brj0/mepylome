@@ -650,11 +650,15 @@ def train_clf(clf, X, y, save_path, cv, n_jobs=1):
     counts_per_class = np.unique(y, return_counts=True)[1]
 
     if min(counts_per_class) < n_splits:
+        # Find the class with the minimum count
+        min_class_index = np.argmin(counts_per_class)
+        min_class_label = np.unique(y)[min_class_index]
+        min_class_count = counts_per_class[min_class_index]
         logger.info(
-            "Warning: One of the classes has fewer than "
-            f"{n_splits} samples (cv splits). Stats may not be computable."
+            f"Warning: Class '{min_class_label}' has {min_class_count} "
+            f"samples, less than 'n_splits' (={n_splits}). Some cross-"
+            "validation metrics won't be computed."
         )
-        trained_clf = TrainedSklearnClassifier(clf=clf, X=X)
     else:
         logger.info("Start cross-validation...")
         probabilities_cv = cross_val_predict(
@@ -678,12 +682,10 @@ class ClassifierResult:
     prediction: any
     model: any
     metrics: dict
-    reports: list
+    reports: dict
 
 
-def fit_and_evaluate_clf(
-    X, y, X_test, id_test, save_path, clf, cv, n_jobs=1, output_format="txt"
-):
+def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
     """Predicts the methylation class by supervised learning classifier.
 
     Uses supervised machine learning classifiers (Random Forest, K-Nearest
@@ -745,8 +747,6 @@ def fit_and_evaluate_clf(
                     - "stacking": StackingClassifier (combines multiple
                       classifiers).
                     - "none": No classifier (passthrough).
-                output_format (str): The format of the report ('txt' or
-                    'html'). Defaults to 'txt'.
 
             - A custom class, that inherits from `TrainedClassifier`.
 
@@ -760,8 +760,8 @@ def fit_and_evaluate_clf(
               probabilities for each class.
             - model (object): The trained classifier object.
             - metrics (dict): Dict containing classifier metrics.
-            - reports (list): List of evaluation report strings for each
-              sample.
+            - reports (dict): Dict of evaluation report (both 'txt' and 'html')
+              for each sample.
     """
     if isinstance(clf, (Pipeline, ClassifierMixin)):
         trained_clf = train_clf(
@@ -776,12 +776,14 @@ def fit_and_evaluate_clf(
         trained_clf = clf
     classes = trained_clf.classes()
     probabilities = trained_clf.predict_proba(X_test, id_test)
-    info = trained_clf.info(output_format=output_format)
+    info_txt = trained_clf.info(output_format="txt")
+    info_html = trained_clf.info(output_format="html")
     prediction = pd.DataFrame(probabilities, index=id_test, columns=classes)
-    reports = make_reports(prediction, info, output_format=output_format)
+    reports_txt = make_reports(prediction, info_txt, output_format="txt")
+    reports_html = make_reports(prediction, info_html, output_format="html")
     return ClassifierResult(
         prediction,
         trained_clf.model(),
         trained_clf.metrics(),
-        reports,
+        {"txt": reports_txt, "html": reports_html},
     )
