@@ -156,11 +156,13 @@ def parse_args():
         "--annotation",
         type=str,
         help=(
-            "Path to an annotation spreadsheet where Sentrix IDs are "
-            "preferably listed in the first column. If not provided, the "
-            "system will attempt to infer the correct column automatically, "
-            "and if an annotation file is missing, it will try to detect a "
-            "spreadsheet in the analysis_dir if available."
+            "Path to an annotation spreadsheet used to map sample files "
+            "located in both `analysis_dir` and `test_dir`. One of the columns "
+            "must contain the ID corresponding to the IDAT files (such as "
+            "SentrixID or ID from files downloaded from GEO). If not "
+            "provided, the system will attempt to identify the correct column "
+            "automatically. If the annotation file is missing, it will search "
+            "for a spreadsheet within the `analysis_dir` if available."
         ),
     )
     parser.add_argument(

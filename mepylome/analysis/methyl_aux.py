@@ -568,7 +568,7 @@ def check_memory(nrows, ncols, dtype):
         msg = (
             f"Not enout free memory available. For the given dimension "
             f"({nrows} samples, {ncols} CpG's), "
-            f"{required_memory / (1024 ** 3):.1f} GB is required."
+            f"{required_memory / (1024**3):.1f} GB is required."
         )
         raise MemoryError(msg)
 

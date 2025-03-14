@@ -1279,7 +1279,7 @@ true_values = analysis_scc.idat_handler.samples_annotated.loc[test_ids][
 correct = np.sum(pred == true_values)
 total = len(pred)
 accuracy_scc = correct / total
-print(f"Classifier Accuracy: {100*accuracy_scc:.2f} % ({correct}/{total})")
+print(f"Classifier Accuracy: {100 * accuracy_scc:.2f} % ({correct}/{total})")
 
 # Analyze misclassified samples
 misclassified = pred != true_values
