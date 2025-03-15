@@ -157,9 +157,9 @@ def parse_args():
         type=str,
         help=(
             "Path to an annotation spreadsheet used to map sample files "
-            "located in both `analysis_dir` and `test_dir`. One of the columns "
-            "must contain the ID corresponding to the IDAT files (such as "
-            "SentrixID or ID from files downloaded from GEO). If not "
+            "located in both `analysis_dir` and `test_dir`. One of the "
+            "columns must contain the ID corresponding to the IDAT files "
+            "(such as SentrixID or ID from files downloaded from GEO). If not "
             "provided, the system will attempt to identify the correct column "
             "automatically. If the annotation file is missing, it will search "
             "for a spreadsheet within the `analysis_dir` if available."
@@ -333,8 +333,8 @@ def start_mepylome():
     if not cli_args["load_full_betas"] and cli_args["cpg_selection"] == "top":
         cli_args["cpg_selection"] = "random"
         msg = (
-            "Warning: Since '-no_load_full_betas' is set, 'cpg_selection' "
-            "has been automatically changed to 'random'.\n"
+            "Warning: Since '-no_load_full_betas' is set, 'cpg_selection' has "
+            "been automatically changed to 'random'.\n"
         )
         print(msg)
 
