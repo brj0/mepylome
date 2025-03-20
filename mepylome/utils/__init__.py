@@ -14,6 +14,7 @@ from .files import (
     setup_tutorial_files,
 )
 from .varia import (
+    CONFIG,
     MEPYLOME_TMP_DIR,
     Timer,
     get_free_port,
@@ -33,5 +34,6 @@ __all__ = [
     "get_free_port",
     "Timer",
     "normexp_get_xs",
+    "CONFIG",
     "MEPYLOME_TMP_DIR",
 ]

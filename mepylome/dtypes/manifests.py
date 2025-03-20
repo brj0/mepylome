@@ -23,7 +23,7 @@ from mepylome.utils.files import (
     get_csv_file,
     reset_file,
 )
-from mepylome.utils.varia import MEPYLOME_TMP_DIR
+from mepylome.utils.varia import CONFIG, MEPYLOME_TMP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -33,37 +33,20 @@ __all__ = ["Manifest"]
 MANIFEST_DIR = Path.home() / ".mepylome" / "manifest_files_v0"
 DOWNLOAD_DIR = MEPYLOME_TMP_DIR / "manifests"
 
-ENDING_CONTROL_PROBES = "_control-probes"
+ENDING_CONTROL_PROBES = CONFIG["suffixes"]["manifest_control_probes"]
 NONE = -1
 
 MANIFEST_URL = {
-    ArrayType.ILLUMINA_450K: (
-        "https://webdata.illumina.com/downloads/productfiles/humanmethylation450/humanmethylation450_15017482_v1-2.csv"
-    ),
-    ArrayType.ILLUMINA_EPIC: (
-        "https://webdata.illumina.com/downloads/productfiles/methylationEPIC/infinium-methylationepic-v-1-0-b5-manifest-file-csv.zip"
-    ),
-    ArrayType.ILLUMINA_EPIC_V2: (
-        "https://support.illumina.com.cn/content/dam/illumina-support/documents/downloads/productfiles/methylationepic/InfiniumMethylationEPICv2.0ProductFiles(ZIPFormat).zip"
-    ),
-    ArrayType.ILLUMINA_MOUSE: (
-        "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip"
-    ),
+    ArrayType(type_): url for type_, url in CONFIG["urls"]["manifest"].items()
 }
-PROCESSED_MANIFEST_URL = f"https://raw.githubusercontent.com/brj0/mepylome-data/main/{MANIFEST_DIR.name}/"
-
+PROCESSED_MANIFEST_URL = (
+    CONFIG["urls"]["processed_manifests"] % MANIFEST_DIR.name
+)
 REMOTE_FILENAME = {
-    ArrayType.ILLUMINA_450K: "humanmethylation450_15017482_v1-2.csv",
-    ArrayType.ILLUMINA_EPIC: "infinium-methylationepic-v-1-0-b5-manifest-file.csv",
-    ArrayType.ILLUMINA_EPIC_V2: "EPIC-8v2-0_A1.csv",
-    ArrayType.ILLUMINA_MOUSE: "MouseMethylation-12v1-0_A2.csv",
+    ArrayType(type_): url for type_, url in CONFIG["files"]["remote"].items()
 }
-
 LOCAL_FILENAME = {
-    ArrayType.ILLUMINA_450K: "manifest-450k.csv.gz",
-    ArrayType.ILLUMINA_EPIC: "manifest-epic.csv.gz",
-    ArrayType.ILLUMINA_EPIC_V2: "manifest-epicv2.csv.gz",
-    ArrayType.ILLUMINA_MOUSE: "manifest-mouse.csv.gz",
+    ArrayType(type_): url for type_, url in CONFIG["files"]["local"].items()
 }
 
 

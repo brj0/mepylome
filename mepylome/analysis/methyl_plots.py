@@ -14,17 +14,16 @@ from tqdm import tqdm
 
 from mepylome.dtypes import (
     CNV,
-    IMPORTANT_GENES,
-    ZIP_ENDING,
     Manifest,
     MethylData,
     ReferenceMethylData,
     cnv_plot_from_data,
     read_cnv_data_from_disk,
 )
+from mepylome.utils import CONFIG
 
 PLOTLY_RENDER_MODE = "webgl"
-ERROR_ENDING = "_error.txt"
+ERROR_ENDING = CONFIG["suffixes"]["cnv_error"]
 
 EMPTY_FIGURE = go.Figure()
 EMPTY_FIGURE.update_layout(
@@ -36,6 +35,7 @@ EMPTY_FIGURE.update_layout(
     margin={"l": 0, "r": 0, "t": 0, "b": 0},
 )
 EMPTY_FIGURE = go.Figure(layout=go.Layout(yaxis={"range": [-2, 2]}))
+ZIP_ENDING = CONFIG["suffixes"]["cnv_zip"]
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +287,7 @@ def get_cnv_plot(sample_path, reference_dir, prep, cnv_dir, genes_sel, do_seg):
         bins,
         detail,
         segments,
-        IMPORTANT_GENES,
+        CONFIG["genes"]["default_genes_list"],
         list(genes_sel),
     )
     return plot.update_layout(

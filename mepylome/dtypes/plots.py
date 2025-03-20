@@ -14,15 +14,15 @@ import plotly
 import plotly.graph_objects as go
 
 from mepylome.dtypes.cache import memoize
-from mepylome.dtypes.genetic_data import CHROMOSOME_DATA, IMPORTANT_GENES
 from mepylome.utils.files import ensure_directory_exists
-from mepylome.utils.varia import MEPYLOME_TMP_DIR, get_free_port
+from mepylome.utils.varia import CONFIG, MEPYLOME_TMP_DIR, get_free_port
 
 logger = logging.getLogger(__name__)
 
 PLOTLY_RENDER_MODE = "webgl"
-ZIP_ENDING = "_cnv.zip"
+ZIP_ENDING = CONFIG["suffixes"]["cnv_zip"]
 THRESHOLD_BALANCED = 0.1
+CHROMOSOME_DATA = CONFIG["genes"]["chromosome_data"]
 
 ensure_directory_exists(MEPYLOME_TMP_DIR)
 CNV_GRID = Path(MEPYLOME_TMP_DIR, f"cnv_grid_v{plotly.__version__}.json")
@@ -439,7 +439,7 @@ class CNVPlot:
         cnv_dir (str): Path to the directory containing CNV data.
         cnv_file (str): Name of the CNV file in the directory.
         genes_fix (list): List of genes to highlight. Defaults to
-            IMPORTANT_GENES.
+            CONFIG["genes"]["default_genes_list"].
         host (str): Host address for running the Dash app. Defaults to
             "localhost".
         port (int): Port number for running the Dash app. Defaults to 8050.
@@ -450,7 +450,7 @@ class CNVPlot:
         self,
         cnv_dir,
         cnv_file,
-        genes=IMPORTANT_GENES,
+        genes=CONFIG["genes"]["default_genes_list"],
         host="localhost",
         port=8050,
     ):
@@ -460,7 +460,7 @@ class CNVPlot:
             cnv_dir (str): Path to the directory containing CNV data.
             cnv_file (str): Name of the CNV file in the directory.
             genes (list, optional): List of genes to highlight. Defaults to
-                IMPORTANT_GENES.
+                CONFIG["genes"]["default_genes_list"].
             host (str, optional): Host address for running the Dash app.
                 Defaults to "localhost".
             port (int, optional): Port number for running the Dash app.

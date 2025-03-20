@@ -16,6 +16,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import numpy as np
+import toml
+
+from mepylome.utils.files import get_resource_path
 
 __all__ = ["Timer", "normexp_get_xs", "MEPYLOME_TMP_DIR"]
 
@@ -198,3 +201,12 @@ def get_free_port(start_port):
             if s.connect_ex(("localhost", port)) != 0:
                 return port
             port += 1
+
+
+def load_config():
+    """Loads the configuration from the package's config.toml."""
+    config_path = get_resource_path("mepylome", "data/config.toml")
+    return toml.load(config_path)
+
+
+CONFIG = load_config()

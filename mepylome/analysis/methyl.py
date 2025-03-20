@@ -55,7 +55,6 @@ from mepylome.analysis.methyl_plots import (
     write_cnv_to_disk,
 )
 from mepylome.dtypes import (
-    ZIP_ENDING,
     Annotation,
     ArrayType,
     Manifest,
@@ -67,6 +66,7 @@ from mepylome.dtypes import (
     read_cnv_data_from_disk,
 )
 from mepylome.utils import (
+    CONFIG,
     MEPYLOME_TMP_DIR,
     ensure_directory_exists,
     get_free_port,
@@ -79,6 +79,7 @@ DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "analysis")
 DEFAULT_N_CPGS = 25000
 ON = "on"
 OFF = "off"
+ZIP_ENDING = CONFIG["suffixes"]["cnv_zip"]
 UMAP_METRICS = [
     "manhattan",
     "euclidean",

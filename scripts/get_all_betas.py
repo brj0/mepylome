@@ -16,6 +16,7 @@ import numpy as np
 from tqdm import tqdm
 
 from mepylome import Manifest, MethylData, RawData
+from mepylome.utils import CONFIG
 
 INDEX_FILE = "/applications/reference_data/betaEPIC450Kmix_bin/index.csv"
 NEW_IDAT_DIR = "/data/epidip_IDAT"
@@ -24,7 +25,7 @@ BETA_BIN_FILE_SIZE = 3207696
 ENDING_GRN = "_Grn.idat"
 ENDING_BETAS = "_betas_filtered.bin"
 LOG_FILE = "/applications/tmp/beta.logger"
-ENDING_ERROR = "_error.txt"
+ENDING_ERROR = CONFIG["suffixes"]["cnv_error"]
 
 logging.basicConfig(
     format="%(asctime)s - %(message)s",

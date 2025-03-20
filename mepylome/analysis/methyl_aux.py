@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 DTYPE = np.float32
 INVALID_PATH = Path("None")
-UPLOADED = "Uploaded"
 TEST_CASE = "Test_Case"
 METHYLATION_CLASS = "Methylation_Class"
 

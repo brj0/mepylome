@@ -19,16 +19,23 @@ from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.beads import MethylData, ReferenceMethylData
 from mepylome.dtypes.cache import cache_key, memoize
 from mepylome.dtypes.chromosome import Chromosome
-from mepylome.dtypes.genetic_data import GAPS, GENES
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.plots import CNVPlot
-from mepylome.utils.files import ensure_directory_exists
-from mepylome.utils.varia import MEPYLOME_TMP_DIR
+from mepylome.utils.files import ensure_directory_exists, get_resource_path
+from mepylome.utils.varia import CONFIG, MEPYLOME_TMP_DIR
 
 logger = logging.getLogger(__name__)
 
 UNSET = object()
-ZIP_ENDING = "_cnv.zip"
+ZIP_ENDING = CONFIG["suffixes"]["cnv_zip"]
+PACKAGE_DIR = get_resource_path("mepylome")
+
+# Data copied from conumee
+GAPS = PACKAGE_DIR / CONFIG["paths"]["gaps"]
+
+# HG19 Gene data downloaded from:
+# https://grch37.ensembl.org/biomart/martview
+GENES = PACKAGE_DIR / CONFIG["paths"]["genes"]
 
 
 def _get_cgsegment():

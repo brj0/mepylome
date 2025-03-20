@@ -42,6 +42,7 @@ dependencies = [
     "pyranges!=0.1.3",
     "scikit-learn",
     "tqdm",
+    "toml",
     "umap-learn",
     "xlrd",
     "xxhash"

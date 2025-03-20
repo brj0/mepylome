@@ -13,12 +13,6 @@ from .beads import (
 from .cache import get_id_tuple, input_args_id, memoize
 from .chromosome import Chromosome
 from .cnv import CNV, ZIP_ENDING, Annotation, _get_cgsegment
-from .genetic_data import (
-    CHROMOSOME_DATA,
-    GAPS,
-    GENES,
-    IMPORTANT_GENES,
-)
 from .idat import IdatParser
 from .manifests import Manifest
 from .plots import (
@@ -32,16 +26,12 @@ from .probes import Channel, InfiniumDesignType, ProbeType
 __all__ = [
     "Annotation",
     "ArrayType",
-    "CHROMOSOME_DATA",
     "CNV",
     "CNVPlot",
     "NEUTRAL_BETA",
     "input_args_id",
     "Channel",
     "Chromosome",
-    "GAPS",
-    "GENES",
-    "IMPORTANT_GENES",
     "IdatParser",
     "InfiniumDesignType",
     "Manifest",
