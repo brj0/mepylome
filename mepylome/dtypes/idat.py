@@ -247,6 +247,7 @@ class IdatParser:
                 f"IdatParser(\n"
                 f"    file_size: {self.file_size}\n"
                 f"    num_fields: {self.num_fields}\n"
+                f"    n_snps_read: {self.n_snps_read}\n"
                 f"    illumina_ids: {self.illumina_ids!r}\n"
                 f"    probe_means: {self.probe_means!r}\n"
             )
