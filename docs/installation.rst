@@ -30,7 +30,11 @@ significant changes), additional packages are required. These packages depend
 on a C compiler. Follow the instructions below to install them based on your
 Python version.
 
-**For Python < 3.10**, install the necessary packages using the following
+
+Python Versions Below 3.10
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For Python < 3.10, install the necessary packages using the following
 command:
 
 .. code-block:: sh
@@ -40,18 +44,40 @@ command:
     pip install cbseg
 
 If you encounter any compatibility issues, you may need to downgrade numpy to
-version 1.26.4.
+version 1.26.4. Make sure you have a C compiler installed on your system to
+build this package.
 
 
-**For Python 3.10 and Later**, you can install the linear_segment package
+Python 3.10 and Later
+~~~~~~~~~~~~~~~~~~~~~
+
+For Python 3.10 and Later, you can install the `linear_segment` package
 instead. Use the following command:
 
 .. code-block:: sh
 
     pip install linear_segment
 
-Make sure you have a C compiler installed on your system to build these
-packages.
+Make sure you have a C compiler installed on your system to build this
+package.
+
+
+Alternative Package
+~~~~~~~~~~~~~~~~~~~
+
+As an alternative, you can try installing the `ruptures` package, which
+provides similar functionality. Its probably the fastes package. To install,
+use:
+
+.. code-block:: sh
+
+    pip install ruptures
+
+
+Important Note
+~~~~~~~~~~~~~~
+
+Only **one** of the above packages should be installed at a time to avoid conflicts.
 
 
 C++ parser

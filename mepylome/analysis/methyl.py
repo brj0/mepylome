@@ -1032,7 +1032,7 @@ class MethylAnalysis:
         if not self.annotation.exists():
             logger.info("No annotation file found")
 
-        logger.info("Try to import cbseg or linear_segment...")
+        logger.info("Try to import cbseg, linear_segment or ruptures...")
         self.do_seg = False if _get_cgsegment() is None else do_seg
 
         # Set test dir, as it is needed by _get_cpgs

@@ -40,12 +40,26 @@ GENES = PACKAGE_DIR / CONFIG["paths"]["genes"]
 
 def _get_cgsegment():
     try:
+        import ruptures
+
+        def function(bin_values):
+            algo = ruptures.KernelCPD("linear").fit(bin_values)
+            segments = algo.predict(pen=1)
+            return [
+                [start, end] for start, end in zip([0] + segments, segments)
+            ]
+
+        return function
+    except Exception:
+        pass
+    try:
         import linear_segment
 
         def function(bin_values):
-            return linear_segment.segment(
+            segments = linear_segment.segment(
                 bin_values, shuffles=1000, cutoff=0.3
             )
+            return [[s.start, s.end] for s in segments]
 
         return function
     except Exception:
@@ -54,13 +68,15 @@ def _get_cgsegment():
         import cbseg
 
         def function(bin_values):
-            return cbseg.segment(bin_values, shuffles=1000, p=0.0001)
+            segments = cbseg.segment(bin_values, shuffles=1000, p=0.0001)
+            return [[s.start, s.end] for s in segments]
 
         return function
     except Exception:
         logger.warning(
             "**Warning**: Segmentation won't be calculated due to missing "
-            "'linear_segment' resp. 'cbseg' package. See documentation"
+            "'linear_segment', 'cbseg' or 'ruptures' package. See "
+            "documentation"
         )
         return None
 
@@ -660,10 +676,7 @@ class CNV:
         chrom = df["Chromosome"].iloc[0]
         seg = cbsegment(bin_values)
         return pd.DataFrame(
-            [
-                [chrom, df.Start.iloc[s.start], df.End.iloc[s.end - 1]]
-                for s in seg
-            ],
+            [[chrom, df.Start.iloc[s[0]], df.End.iloc[s[1] - 1]] for s in seg],
             columns=["Chromosome", "Start", "End"],
         )
 
