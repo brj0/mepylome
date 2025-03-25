@@ -581,6 +581,7 @@ def get_array_cpgs():
                 ArrayType("450k"): Manifest("450k").methylation_probes,
                 ArrayType("epic"): Manifest("epic").methylation_probes,
                 ArrayType("epicv2"): Manifest("epicv2").methylation_probes,
+                ArrayType("msa48"): Manifest("msa48").methylation_probes,
             }
             pickle.dump(array_cpgs, f)
     with path.open("rb") as f:

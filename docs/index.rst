@@ -26,7 +26,7 @@ Features
 - Extraction of methylation signals
 - Calculation of Copy Number Variations (CNV) with visualization using
   `plotly <https://github.com/plotly/plotly.py>`_
-- Support for the following Illumina array types: 450k, EPIC, EPICv2
+- Support for the following Illumina array types: 450k, EPIC, EPICv2, MSA48
 - Significantly faster compared to `minfi <https://github.com/hansenlab/minfi>`_
   and `conumee2 <https://github.com/hovestadtlab/conumee2>`_
 - Methylation analysis tool with a graphical browser interface for UMAP

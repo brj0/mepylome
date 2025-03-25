@@ -153,6 +153,7 @@ Load the available manifest files for different array types.
     >>> manifest_450k = Manifest("450k")
     >>> manifest_epic = Manifest("epic")
     >>> manifest_epic_v2 = Manifest("epicv2")
+    >>> manifest_msa48 = Manifest("msa48")
 
 
 .. note::

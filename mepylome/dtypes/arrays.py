@@ -33,6 +33,7 @@ class ArrayType(Enum):
     ILLUMINA_450K = "450k"
     ILLUMINA_EPIC = "epic"
     ILLUMINA_EPIC_V2 = "epicv2"
+    ILLUMINA_MSA48 = "msa48"
     ILLUMINA_MOUSE = "mouse"
     UNKNOWN = "unknown"
 
@@ -53,6 +54,9 @@ class ArrayType(Enum):
 
         if 1100000 <= probe_count <= 1108000:
             return cls.ILLUMINA_EPIC_V2
+
+        if 384400 <= probe_count <= 384600:
+            return cls.ILLUMINA_MSA48
 
         if 55200 <= probe_count <= 55400:
             return cls.ILLUMINA_27K

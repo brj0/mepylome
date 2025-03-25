@@ -653,6 +653,7 @@ class MethylAnalysis:
                 - `'450k'`   : The CpG sites from the Illumina 450k array.
                 - `'epic'`   : The CpG sites from the Illumina EPIC array.
                 - `'epicv2'` : The CpG sites from the Illumina EPIC v2 array.
+                - `'msa48'`  : The CpG sites from the Illumina MSA array.
 
             4. A `'+'`-joined string of the options above combining multiple
             array types, returning the intersection of their CpG sites. For
@@ -662,10 +663,7 @@ class MethylAnalysis:
                 - `'epic+epicv2'`: CpG sites both in the EPIC and EPICv2
                   arrays.
 
-            5. `'all'`: Equivalent to `'450k+epic+epicv2'`, returning CpG sites
-            present in all three arrays.
-
-            6. `'auto'` (default): Automatically detects all array types from
+            5. `'auto'` (default): Automatically detects all array types from
             IDAT files in `analysis_dir` and returns the intersection of CpG
             sites. This process may take longer as all files need to be read
             and, if necessary, decompressed.
@@ -1048,23 +1046,20 @@ class MethylAnalysis:
 
     @property
     def cpgs(self):
-        """Array of CpG sites to analyze in sorted order."""
+        """Array of CpG sites to analyze, sorted in order.
+
+        When setting, the input should be the same as the `cpgs` argument in
+        the constructor (`__init__`).
+
+        Raises:
+            ValueError: If the provided `cpgs` value is not a valid type or
+            format.
+        """
         return self._cpgs
 
     @cpgs.setter
     def cpgs(self, cpgs):
-        """Set the CpG sites for analysis.
-
-        Args:
-            cpgs (str or np.ndarray): An array of CpG sites to analyze, or one
-                of the following strings: '450k', 'epic', 'epicv2', or 'auto'
-                for automatic detection. It can also be a path to a CSV file
-                containing the CpG sites.
-
-        Raises:
-            ValueError: If the provided cpgs value is not a valid type or
-                format.
-        """
+        """Set the CpG sites for analysis."""
         self._cpgs = self._get_cpgs(cpgs)
 
     @property
@@ -1098,7 +1093,7 @@ class MethylAnalysis:
             for attr, current in new_parameters.items():
                 new = getattr(self._idat_handler, attr)
                 if current != new:
-                    logger.info(f"Updating '{attr}'")
+                    logger.info("Updating '%s'", attr)
                     setattr(self, attr, new)
 
         # Restore old selected columns if they are still valid
@@ -1242,15 +1237,7 @@ class MethylAnalysis:
         if cpgs_from_file is not None:
             return exclude_blacklist(cpgs_from_file)
 
-        supported_types = {"450k", "epic", "epicv2"}
-
-        if input_var == "all":
-            input_var = supported_types
-            logger.info(
-                "The following array types were provided: %s", input_var
-            )
-
-        elif input_var == "auto":
+        if input_var == "auto":
             logger.info("Automatically determine array types...")
             input_var = {
                 str(ArrayType.from_idat(path))
@@ -1267,6 +1254,10 @@ class MethylAnalysis:
                 "The following array types were provided: %s", input_var
             )
 
+        supported_types = {str(x) for x in ArrayType} - {
+            str(ArrayType.UNKNOWN),
+            str(ArrayType.ILLUMINA_27K),
+        }
         if input_var.issubset(supported_types):
             if not input_var:
                 return np.array([])
@@ -1281,12 +1272,12 @@ class MethylAnalysis:
             cpgs = set.intersection(*cpg_sets)
             return exclude_blacklist(cpgs)
 
-        mismatches = input_var - supported_types
+        mismatches = ", ".join(input_var - supported_types)
+        types_str = ", ".join(supported_types)
         msg = (
             "'cpgs' must be one of the following:\n"
             "- a list, set, or array of CpG sites\n"
-            "- 'all' or 'auto'\n"
-            f"- a '+' joined string of valid parameters: {supported_types}\n"
+            f"- a '+' joined string of valid parameters: {types_str}\n"
             f"Received invalid input: {mismatches}"
         )
         raise ValueError(msg)

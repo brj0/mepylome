@@ -88,7 +88,7 @@ class Manifest:
         array_type (str or ArrayType): The type of array to process. Use either
             ArrayType (ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC,
             ArrayType.ILLUMINA_EPIC_V2) or corresponding string ('450k',
-            'epic', 'epicv2')
+            'epic', 'epicv2', 'msa48')
         proc_path (str or Path): The path to the local processed manifest file
             (default: None).
         raw_path (str or Path, optional): Path to the raw manifest file.

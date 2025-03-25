@@ -655,9 +655,9 @@ def train_clf(clf, X, y, save_path, cv, n_jobs=1):
         min_class_label = np.unique(y)[min_class_index]
         min_class_count = counts_per_class[min_class_index]
         logger.info(
-            f"Warning: Class '{min_class_label}' has {min_class_count} "
-            f"samples, less than 'n_splits' (={n_splits}). Some cross-"
-            "validation metrics won't be computed."
+            "Warning: Class '%s' has %d samples, less than 'n_splits' (=%d). "
+            "Some cross-validation metrics won't be computed.",
+            min_class_label, min_class_count, n_splits
         )
     else:
         logger.info("Start cross-validation...")

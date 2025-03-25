@@ -12,6 +12,7 @@ import socket
 import tempfile
 import time
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from uuid import uuid4
 
@@ -22,9 +23,19 @@ from mepylome.utils.files import get_resource_path
 
 __all__ = ["Timer", "normexp_get_xs", "MEPYLOME_TMP_DIR"]
 
+
+def get_app_version():
+    """Retrieve the app version from the package metadata."""
+    try:
+        return version("mepylome")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 logger = logging.getLogger(__name__)
 
-MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / "mepylome"
+version_str = get_app_version().replace(".", "_")
+MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / f"mepylome-{version_str}"
 LOG_DIR = MEPYLOME_TMP_DIR / "log"
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)

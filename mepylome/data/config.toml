@@ -6,18 +6,21 @@ processed_manifests = "https://raw.githubusercontent.com/brj0/mepylome-data/main
 epic = "https://webdata.illumina.com/downloads/productfiles/methylationEPIC/infinium-methylationepic-v-1-0-b5-manifest-file-csv.zip"
 epicv2 = "https://support.illumina.com.cn/content/dam/illumina-support/documents/downloads/productfiles/methylationepic/InfiniumMethylationEPICv2.0ProductFiles(ZIPFormat).zip"
 mouse = "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/mouse-methylation/infinium-mouse-methylation-manifest-file-csv.zip"
+msa48 = "https://support.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/infiniummethylationscreening/MSA-48v1-0_20102838_A1.csv"
 
 [files.remote]
 450k = "humanmethylation450_15017482_v1-2.csv"
 epic = "infinium-methylationepic-v-1-0-b5-manifest-file.csv"
 epicv2 = "EPIC-8v2-0_A1.csv"
 mouse = "MouseMethylation-12v1-0_A2.csv"
+msa48 = "MSA-48v1-0_20102838_A1.csv"
 
 [files.local]
 450k = "manifest-450k.csv.gz"
 epic = "manifest-epic.csv.gz"
 epicv2 = "manifest-epicv2.csv.gz"
 mouse = "manifest-mouse.csv.gz"
+msa48 = "manifest-msa48.csv.gz"
 
 [suffixes]
 manifest_control_probes = "_control-probes"
