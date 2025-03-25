@@ -657,7 +657,9 @@ def train_clf(clf, X, y, save_path, cv, n_jobs=1):
         logger.info(
             "Warning: Class '%s' has %d samples, less than 'n_splits' (=%d). "
             "Some cross-validation metrics won't be computed.",
-            min_class_label, min_class_count, n_splits
+            min_class_label,
+            min_class_count,
+            n_splits,
         )
     else:
         logger.info("Start cross-validation...")
