@@ -191,10 +191,10 @@ def write_single_cnv_to_disk(
         ]
         full_traceback = traceback.format_exc()
         error_message = (
-            f"During processing '{sample_id}' the following exception "
-            f"occurred:\n\n {str(exc)}\n\nFull "
-            f"traceback:\n{full_traceback}\n\n Corresponding files on disk:\n "
-            f"{'\n'.join(files_on_disk)}\n\n\nTo recalculate, delete this "
+            "During processing '" + str(sample_id) + "' the following "
+            "exception occurred:\n\n " + str(exc) + "\n\nFull traceback:\n"
+            + str(full_traceback) + "\n\n Corresponding files on disk:\n "
+            + '\n'.join(files_on_disk) + "\n\n\nTo recalculate, delete this "
             "file."
         )
         logger.error(error_message)
