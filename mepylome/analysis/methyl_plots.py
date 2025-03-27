@@ -3,6 +3,7 @@
 import colorsys
 import hashlib
 import logging
+import traceback
 from functools import lru_cache, partial
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
@@ -188,14 +189,13 @@ def write_single_cnv_to_disk(
             f"{x}, size={x.stat().st_size} B"
             for x in idat_basepath.parent.glob(f"{sample_id}*")
         ]
+        full_traceback = traceback.format_exc()
         error_message = (
-            "During processing '"
-            + sample_id
-            + "' the following exception occurred:\n\n"
-            + str(exc)
-            + "\n\nCorresponding files on disk:\n"
-            + "\n".join(files_on_disk)
-            + "\n\n\nTo recalculate, delete this file."
+            f"During processing '{sample_id}' the following exception "
+            f"occurred:\n\n {str(exc)}\n\nFull "
+            f"traceback:\n{full_traceback}\n\n Corresponding files on disk:\n "
+            f"{'\n'.join(files_on_disk)}\n\n\nTo recalculate, delete this "
+            "file."
         )
         logger.error(error_message)
         with Path(cnv_dir, cnv_filename).open("w") as f:
