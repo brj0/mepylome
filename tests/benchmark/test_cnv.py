@@ -23,6 +23,8 @@ from mepylome import CNV, MethylData, idat_basepaths
 
 time1 = time.time()
 
+import_time = time1 - time0
+
 HOME_DIR = Path.home()
 TEST_DIR = Path(HOME_DIR, "mepylome", "tests")
 
@@ -39,19 +41,31 @@ if subdir is None or not subdir.exists():
     print(f"Received: {subdir}")
     sys.exit()
 
-print(f"Time for importing mepylome: {time1 - time0}")
+print(f"Time for importing mepylome: {import_time}")
 
 idat_files = sorted(idat_basepaths(subdir))
 
-sample_file = idat_files[0]
-reference_files = idat_files[1:21]
+num_samples = 10
+total_time = import_time
+reference_methyl = None
 
-time0 = time.time()
+for i in range(num_samples):
+    time0 = time.time()
 
-sample_methyl = MethylData(file=sample_file)
-reference_methyl = MethylData(file=reference_files)
-cnv = CNV.set_all(sample_methyl, reference_methyl)
+    sample_file = idat_files[i]
+    reference_files = idat_files[-20:]
 
-time1 = time.time()
+    if not reference_methyl:
+        reference_methyl = MethylData(file=reference_files)
 
-print(f"Time for CNV analysis: {time1 - time0}")
+    sample_methyl = MethylData(file=sample_file)
+    cnv = CNV.set_all(sample_methyl, reference_methyl)
+
+    time1 = time.time()
+
+    elapsed_time = time1 - time0
+    total_time += elapsed_time
+    print(f"Time for CNV analysis (Sample {i+1}): {elapsed_time}")
+
+average_time = total_time / num_samples
+print(f"Average time for CNV analysis: {average_time}")

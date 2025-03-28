@@ -45,17 +45,17 @@ time0 <- Sys.time()
 suppressMessages(suppressWarnings(library(minfi)))
 time1 <- Sys.time()
 
-time_diff <- difftime(time1, time0, units = "secs")
+minfi_import_time <- difftime(time1, time0, units = "secs")
 
-cat(paste("minfi import time:", time_diff, "s\n"))
+cat(paste("minfi import time:", minfi_import_time, "s\n"))
 
 time0 <- Sys.time()
 suppressMessages(suppressWarnings(library(conumee2.0)))
 time1 <- Sys.time()
 
-time_diff <- difftime(time1, time0, units = "secs")
+conumee_import_time <- difftime(time1, time0, units = "secs")
 
-cat(paste("conumee2.0 import time:", time_diff, "s\n"))
+cat(paste("conumee2.0 import time:", conumee_import_time, "s\n"))
 
 
 # Get all *_Grn.idat files
@@ -98,21 +98,35 @@ get_annotation <- function(array_type) {
     return(anno)
 }
 
+num_samples <- 10
+total_time <- minfi_import_time + conumee_import_time
+reference_cnv_data <- NULL
+anno <- NULL
 
-# Read IDAT files and preprocess
-time0 <- Sys.time()
+for (i in 1:num_samples) {
+    time0 <- Sys.time()
 
-sample_mset <- get_mset(basepaths[1])
-array_type <- sample_mset@annotation["array"]
-anno <- get_annotation(array_type)
-reference_mset <- get_mset(basepaths[2:min(21, length(basepaths))])
-sample_cnv_data <- CNV.load(sample_mset)
-reference_cnv_data <- CNV.load(reference_mset)
-cnv <- CNV.fit(sample_cnv_data, reference_cnv_data, anno)
-cnv <- CNV.segment(CNV.detail(CNV.bin(cnv)))
+    sample_path <- basepaths[i]
+    sample_mset <- get_mset(sample_path)
+    array_type <- sample_mset@annotation["array"]
 
-time1 <- Sys.time()
+    if (is.null(reference_cnv_data)) {
+        reference_mset <- get_mset(tail(basepaths, 20))
+        reference_cnv_data <- CNV.load(reference_mset)
+        anno <- get_annotation(array_type)
+    }
 
-time_diff <- difftime(time1, time0, units = "secs")
+    sample_cnv_data <- CNV.load(sample_mset)
+    cnv <- CNV.fit(sample_cnv_data, reference_cnv_data, anno)
+    cnv <- CNV.segment(CNV.detail(CNV.bin(cnv)))
 
-cat(paste0("Time for CNV analysis: ", time_diff, " s\n"))
+    time1 <- Sys.time()
+
+    elapsed_time <- as.numeric(difftime(time1, time0, units = "secs"))
+    total_time <- total_time + elapsed_time
+
+    cat(paste0("Time for CNV analysis (Sample ", i, "): ", elapsed_time, " s\n"))
+}
+
+average_time <- total_time / num_samples
+cat(paste0("Average time for CNV analysis: ", average_time, " s\n"))
