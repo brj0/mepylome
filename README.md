@@ -25,7 +25,7 @@ an interactive GUI that enables users to generate UMAP plots and CNV plots
 - Extraction of methylation signals
 - Calculation of Copy Number Variations (CNV) with visualization using
   [plotly](https://github.com/plotly/plotly.py).
-- Support for the following Illumina array types: 450k, EPIC, EPICv2
+- Support for the following Illumina array types: 450k, EPIC, EPICv2, MSA48
 - Significantly faster compared to [minfi](https://github.com/hansenlab/minfi)
   and [conumee2](https://github.com/hovestadtlab/conumee2).
 - Methylation analysis tool with a graphical browser interface for UMAP
