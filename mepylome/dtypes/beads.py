@@ -74,22 +74,21 @@ def idat_basepaths(files):
     """
 
     def get_idat_files(file_or_dir):
-        path = Path(file_or_dir).expanduser()
+        path = os.path.expanduser(file_or_dir)
         # If path is dir take all files in it
-        if path.is_dir():
-            for root, _, filenames in os.walk(path, followlinks=True):
+        if os.path.isdir(path):
+            for dirpath, _, filenames in os.walk(path, followlinks=True):
                 for filename in filenames:
                     if filename.endswith(ENDING_SUFFIXES):
-                        yield Path(root) / filename
+                        yield os.path.join(dirpath, filename)
         else:
             yield path
 
     def strip_suffix(file_path):
-        path_str = str(file_path)
         for suffix in ENDING_SUFFIXES:
-            if path_str.endswith(suffix):
-                return path_str[: -len(suffix)]
-        return path_str
+            if file_path.endswith(suffix):
+                return file_path[: -len(suffix)]
+        return file_path
 
     if not isinstance(files, list):
         files = [files]
@@ -99,7 +98,7 @@ def idat_basepaths(files):
         for idat_file in get_idat_files(file_or_dir)
     ]
     # Remove duplicates, keep ordering
-    return [Path(base) for base in list(dict.fromkeys(_files))]
+    return [Path(base) for base in dict.fromkeys(_files)]
 
 
 def idat_paths_from_basenames(basenames):
