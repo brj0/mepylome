@@ -33,20 +33,21 @@ def is_valid_idat_basepath(basepath):
     """Checks if the given basepath(s) point to valid IDAT files."""
     if not isinstance(basepath, list):
         basepath = [basepath]
+    basepath = [str(x) for x in basepath]
     return all(
         (
-            Path(str(x) + ENDING_GRN).exists()
-            or Path(str(x) + ENDING_GRN + ENDING_GZ).exists()
+            os.path.exists(x + ENDING_GRN)
+            or os.path.exists(x + ENDING_GRN + ENDING_GZ)
         )
         and (
-            Path(str(x) + ENDING_RED).exists()
-            or Path(str(x) + ENDING_RED + ENDING_GZ).exists()
+            os.path.exists(x + ENDING_RED)
+            or os.path.exists(x + ENDING_RED + ENDING_GZ)
         )
         for x in basepath
     )
 
 
-def idat_basepaths(files):
+def idat_basepaths(files, only_valid=False):
     """Returns unique basepaths from IDAT files or directory.
 
     This function processes a list of IDAT files or a directory containing IDAT
@@ -56,6 +57,8 @@ def idat_basepaths(files):
 
     Args:
         files (path or list): A file or directory path or a list of file paths.
+        only_valid (bool): If True, only returns basepaths that point to valid
+            IDAT file pairs. Defaults is 'False'.
 
     Returns:
         list: A list of unique basepaths corresponding to the provided IDAT
@@ -98,7 +101,14 @@ def idat_basepaths(files):
         for idat_file in get_idat_files(file_or_dir)
     ]
     # Remove duplicates, keep ordering
-    return [Path(base) for base in dict.fromkeys(_files)]
+    unique_basepaths_dict = dict.fromkeys(_files)
+    if only_valid:
+        return [
+            Path(base)
+            for base in unique_basepaths_dict
+            if is_valid_idat_basepath(base)
+        ]
+    return [Path(base) for base in unique_basepaths_dict]
 
 
 def idat_paths_from_basenames(basenames):

@@ -65,7 +65,7 @@ for i in range(num_samples):
 
     elapsed_time = time1 - time0
     total_time += elapsed_time
-    print(f"Time for CNV analysis (Sample {i+1}): {elapsed_time}")
+    print(f"Time for CNV analysis (Sample {i + 1}): {elapsed_time}")
 
 average_time = total_time / num_samples
 print(f"Average time for CNV analysis: {average_time}")

@@ -19,7 +19,6 @@ from mepylome.dtypes.beads import (
     MethylData,
     _overlap_indices,
     idat_basepaths,
-    is_valid_idat_basepath,
 )
 from mepylome.dtypes.manifests import Manifest
 from mepylome.utils.files import ensure_directory_exists
@@ -275,8 +274,7 @@ class IdatHandler:
             return {}
         return {
             path.name: path
-            for path in idat_basepaths(directory)
-            if is_valid_idat_basepath(path)
+            for path in idat_basepaths(directory, only_valid=True)
         }
 
     def _read_annotation_file(self):
