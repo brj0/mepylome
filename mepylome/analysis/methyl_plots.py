@@ -129,7 +129,7 @@ def umap_plot_from_data(umap_df, use_discrete_colors=True):
         color_map = continuous_colors(methyl_classes)
     category_orders = {"Umap_color": methyl_classes}
     # If there are too many columns, they are not displayed correctly
-    n_hover = 35
+    n_hover = 30
     umap_plot = px.scatter(
         umap_df,
         x="Umap_x",
