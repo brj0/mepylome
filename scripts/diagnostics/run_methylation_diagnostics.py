@@ -98,23 +98,25 @@ def unsupervised_classifier(analysis, dataset_name, dataset_config):
         """Generate and save UMAP plots for a given sample ID."""
         analysis.cnv_id = id_
         analysis.test_ids = [id_]
-        analysis.make_umap()
-
         basepath = analysis.idat_handler.test_id_to_path[id_].parent
         base_filename = f"{id_}_{dataset_name}"
 
-        def _make_path(extension):
-            return basepath / (base_filename + f"_{extension}")
+        jpg_path = basepath / (base_filename + "_umap.jpg")
+        html_path = basepath / (base_filename + "_umap.html")
+
+        if jpg_path.exists() and html_path.exists():
+            return
 
         # Save UMAP to disk
+        analysis.make_umap()
         analysis.umap_plot.write_image(
-            _make_path("umap.jpg"),
+            jpg_path,
             format="jpg",
             width=IMG_HEIGHT,
             height=IMG_WIDTH,
             scale=1,
         )
-        analysis.umap_plot.write_html(_make_path("umap.html"))
+        analysis.umap_plot.write_html(html_path)
 
     ids = analysis.idat_handler.test_ids
     for id_ in ids:
@@ -144,12 +146,14 @@ def supervised_classifier(analysis, dataset_name, dataset_config):
     clf_name = dataset_config.get("name", dataset_name)
 
     for id_ in ids:
+        filename = f"{id_}_{dataset_name}_classifiers.html"
+        path = analysis.idat_handler.test_id_to_path[id_].parent / filename
+        if path.exists():
+            continue
         html_str = make_classifier_report_page(
             reports=id_to_report[id_],
             title=f"{clf_name} Classifier {version_str}",
         )
-        filename = f"{id_}_{dataset_name}_classifiers.html"
-        path = analysis.idat_handler.test_id_to_path[id_].parent / filename
         path.write_text(html_str)
 
 
@@ -158,6 +162,11 @@ def make_cnv(analysis, dataset_name, dataset_config):
     ids = analysis.idat_handler.test_ids
     analysis.precompute_cnvs(ids)
     for id_ in ids:
+        save_dir = analysis.idat_handler.test_id_to_path[id_].parent
+        jpg_path = save_dir / f"{id_}_{dataset_name}_cnv.jpg"
+        html_path = save_dir / f"{id_}_{dataset_name}_cnv.html"
+        if jpg_path.exists() and html_path.exists():
+            continue
         analysis.make_cnv_plot(id_)
         cnv_plot = analysis.cnv_plot
         cnv_plot.update_layout(
@@ -165,15 +174,14 @@ def make_cnv(analysis, dataset_name, dataset_config):
             font={"size": FONTSIZE},
             margin={"t": 50},
         )
-        save_dir = analysis.idat_handler.test_id_to_path[id_].parent
         cnv_plot.write_image(
-            save_dir / f"{id_}_{dataset_name}_cnv.jpg",
+            jpg_path,
             format="jpg",
             width=IMG_HEIGHT,
             height=IMG_WIDTH,
             scale=1,
         )
-        cnv_plot.write_html(save_dir / f"{id_}_{dataset_name}_cnv.html")
+        cnv_plot.write_html(html_path)
 
 
 def run_single_diagnostics(dataset_name, dataset_config, default_blacklist):
