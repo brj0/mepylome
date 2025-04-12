@@ -29,7 +29,6 @@ from sklearn.ensemble import (
 )
 from sklearn.feature_selection import (
     SelectKBest,
-    VarianceThreshold,
     mutual_info_classif,
 )
 from sklearn.gaussian_process import GaussianProcessClassifier
@@ -380,14 +379,12 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
         "svc_linear": SVC(kernel="linear", probability=True, verbose=True),
         "svc_rbf": SVC(kernel="rbf", probability=True, verbose=True),
     }
-    drop_constants = VarianceThreshold(threshold=0)
     scaler = scalers[scaler]
     selector = selectors[selector]
     classifier = classifiers[clf]
     return Pipeline(
         [
             ("scaler", scaler),
-            ("drop_constants", drop_constants),
             ("feature_selection", selector),
             ("classifier", classifier),
         ]
