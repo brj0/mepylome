@@ -9,19 +9,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mepylome"
-version = "0.8.8"
+version = "0.8.10"
 description = "Python package for processing Infinum DNA methylation arrays"
 readme = "README.md"
 authors = [
     { name = "Jon Brugger" }
 ]
-license = { text = "MIT license" }
+license = "MIT"
 keywords = ["Illumina", "Methylation", "Infinum", "Microarray", "BeadChip"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
@@ -52,7 +51,7 @@ dependencies = [
 Homepage = "https://github.com/brj0/mepylome"
 
 [tool.setuptools]
-packages = ["mepylome"]
+packages = { find = {} }
 include-package-data = true
 
 [project.scripts]
