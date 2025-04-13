@@ -551,9 +551,9 @@ clf_out_sg = analysis_sg.classify(
         "none-kbest-et",
         "none-kbest-lr",
         "none-kbest-rf",
-        "none-kbest-svc_rbf",
-        "none-pca-lr",
-        "none-pca-et",
+        # "none-kbest-svc_rbf",
+        # "none-pca-lr",
+        # "none-pca-et",
     ],
 )
 
@@ -740,9 +740,9 @@ clf_out_st = analysis_st.classify(
         "none-kbest-et",
         "none-kbest-lr",
         "none-kbest-rf",
-        "none-kbest-svc_rbf",
-        "none-pca-lr",
-        "none-pca-et",
+        # "none-kbest-svc_rbf",
+        # "none-pca-lr",
+        # "none-pca-et",
     ],
 )
 
@@ -1242,9 +1242,9 @@ clf_out_scc = analysis_scc.classify(
         "none-kbest-et",
         "none-kbest-lr",
         "none-kbest-rf",
-        "none-kbest-svc_rbf",
-        "none-pca-lr",
-        "none-pca-et",
+        # "none-kbest-svc_rbf",
+        # "none-pca-lr",
+        # "none-pca-et",
     ],
 )
 
