@@ -104,6 +104,7 @@
 # ### Core Imports, Configuration and main Functions
 
 # %%
+import gc
 import io
 import json
 import multiprocessing
@@ -571,6 +572,10 @@ best_clf_sg = max(
 print("Most accurate classifier:")
 print(best_clf_sg.reports["txt"][0])
 
+# %%
+# Free memory
+del analysis_sg
+gc.collect()
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
@@ -759,6 +764,12 @@ best_clf_st = max(
 )
 print("Most accurate classifier:")
 print(best_clf_st.reports["txt"][0])
+
+
+# %%
+# Free memory
+del analysis_st
+gc.collect()
 
 
 # %% [markdown]
@@ -1288,6 +1299,10 @@ misclassified_samples["Pred"] = pred[misclassified]
 misclassified_samples["True"] = true_values[misclassified]
 print("Missclassified samples:\n", misclassified_samples)
 
+# %%
+# Free memory
+del analysis_scc
+gc.collect()
 
 # %% [markdown]
 # # 4. Appendix
