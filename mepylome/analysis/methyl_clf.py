@@ -380,15 +380,15 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
         "svc_linear": SVC(kernel="linear", probability=True, verbose=True),
         "svc_rbf": SVC(kernel="rbf", probability=True, verbose=True),
     }
-    drop_constants = VarianceThreshold(threshold=0)
+    drop_constants = VarianceThreshold(threshold=1e-4)
     scaler = scalers[scaler]
     selector = selectors[selector]
     classifier = classifiers[clf]
     return Pipeline(
         [
+            ("drop_constants", drop_constants),
             ("scaler", scaler),
             ("feature_selection", selector),
-            ("drop_constants", drop_constants),
             ("classifier", classifier),
         ]
     )
