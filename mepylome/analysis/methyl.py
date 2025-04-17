@@ -703,6 +703,11 @@ class MethylAnalysis:
         n_jobs (int): Number of parallel processes to run for classifying
             (default: 1). Choose -1 for using all available cores.
 
+        n_jobs_cnv (int, optional): Number of parallel processes to use for CNV
+            precalculation. If None, a reasonable number of cores will be
+            automatically chosen based on the system and workload. (default:
+            None)
+
         precalculate_cnv (bool): If set to `True`, CNV data will be
             precalculated before the main analysis. This process takes
             approximately 2-5 seconds per case initially, but it will improve
@@ -791,8 +796,12 @@ class MethylAnalysis:
 
         n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
 
-        n_jobs (int): Number of parallel processes to run for classifying
-            (default: 1). Choose -1 for using all available cores.
+        n_jobs (int): Number of parallel processes to run for classifying. If
+            equal to -1 all available cores will be used.
+
+        n_jobs_cnv (int): Number of parallel processes to use for CNV
+            precalculation. If None, a reasonable number of cores will be
+            automatically chosen based on the system and workload.
 
         reference_dir (str or Path): Directory containing CNV neutral reference
             IDAT files. Must be provided if you wanna generate CNV plots.
@@ -844,7 +853,7 @@ class MethylAnalysis:
             None.
 
         precalculate_cnv (bool): Flag to precalculate CNV information by
-            invoking 'precalculate_all_cnvs' (default: False).
+            invoking 'precompute_cnvs' (default: False).
 
         load_full_betas (bool): Flag to load beta values for all CpG sites into
             memory (default: True).
@@ -930,6 +939,7 @@ class MethylAnalysis:
         classifiers=None,
         cv_default=5,
         n_jobs=1,
+        n_jobs_cnv=None,
         precalculate_cnv=False,
         load_full_betas=True,
         feature_matrix=None,
@@ -968,6 +978,7 @@ class MethylAnalysis:
         self.load_full_betas = load_full_betas
         self.n_cpgs = n_cpgs
         self.n_jobs = n_jobs
+        self.n_jobs_cnv = n_jobs_cnv
         self.output_dir = Path(output_dir).expanduser()
         self.overlap = overlap
         self.port = port
@@ -1680,6 +1691,7 @@ class MethylAnalysis:
             prep=self.prep,
             do_seg=self.do_seg,
             pbar=self._prog_bar,
+            n_cores=self.n_jobs_cnv,
         )
         self._prog_bar.reset(1, 1)
 

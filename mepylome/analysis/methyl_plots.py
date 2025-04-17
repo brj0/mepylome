@@ -207,7 +207,7 @@ def write_single_cnv_to_disk(
 
 
 def write_cnv_to_disk(
-    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None
+    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None, n_cores=None
 ):
     """Generate and save CNV-analysis output files for given samples.
 
@@ -223,6 +223,9 @@ def write_cnv_to_disk(
         prep (str): Prepreparation method for MethylData.
         do_seg (bool): If segments should be calculated as well (slow)
         pbar (optional): Progress bar for tracking progress.
+        n_cores (int, optional): Number of CPU cores to use. If None, a
+            reasonable number of cores will be automatically chosen based on
+            the system and workload.
     """
     new_idat_paths = [
         x
@@ -230,13 +233,17 @@ def write_cnv_to_disk(
         if not Path(cnv_dir, str(x.name) + ZIP_ENDING).exists()
         and not Path(cnv_dir, str(x.name) + ERROR_ENDING).exists()
     ]
+
     if len(new_idat_paths) == 0:
         return
+
     logger.info("Write CNV to disk...")
+
     # Load the reference into memory before parallelization to prevent loading
     # it for each core.
     Manifest.load()
     _ = get_reference_methyl_data(reference_dir, prep)
+
     _write_single_cnv_to_disk = partial(
         write_single_cnv_to_disk,
         reference_dir=reference_dir,
@@ -244,16 +251,26 @@ def write_cnv_to_disk(
         prep=prep,
         do_seg=do_seg,
     )
-    # Pooling is slower if there is only 1 sample
-    if len(new_idat_paths) == 1:
-        _write_single_cnv_to_disk(new_idat_paths[0])
+
+    if n_cores is None:
+        n_cores = max(1, min(len(new_idat_paths), cpu_count() - 1, 4))
     else:
-        # If we use all cores pooling will freeze.
-        num_cores = max(1, cpu_count() - 1)
+        n_cores = max(1, min(n_cores, len(new_idat_paths), cpu_count()))
+
+    if n_cores == 1:
+        with tqdm(
+            total=len(new_idat_paths), desc="Generating CNV files"
+        ) as tqdm_bar:
+            for sample in new_idat_paths:
+                _write_single_cnv_to_disk(sample)
+                if pbar is not None:
+                    pbar.increment()
+                _ = tqdm_bar.update(1)
+    else:
         # Line breaks are not supported in context managers in Python 3.8.
         # To avoid errors, both `Pool` and `tqdm` are used on the same line.
         # fmt: off
-        with Pool(num_cores) as pool, tqdm(total=len(new_idat_paths), desc="Generating CNV files") as tqdm_bar: # noqa: E501
+        with Pool(n_cores) as pool, tqdm(total=len(new_idat_paths), desc="Generating CNV files") as tqdm_bar: # noqa: E501
             # fmt: on
             for _ in pool.imap(_write_single_cnv_to_disk, new_idat_paths):
                 if pbar is not None:
