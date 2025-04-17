@@ -159,7 +159,6 @@ def umap_plot_from_data(umap_df, use_discrete_colors=True):
     return umap_plot
 
 
-@lru_cache(maxsize=None)
 def get_reference_methyl_data(reference_dir, prep):
     """Loads and caches CNV-neutral reference data."""
     try:
@@ -239,11 +238,6 @@ def write_cnv_to_disk(
 
     logger.info("Write CNV to disk...")
 
-    # Load the reference into memory before parallelization to prevent loading
-    # it for each core.
-    Manifest.load()
-    _ = get_reference_methyl_data(reference_dir, prep)
-
     _write_single_cnv_to_disk = partial(
         write_single_cnv_to_disk,
         reference_dir=reference_dir,
@@ -258,6 +252,7 @@ def write_cnv_to_disk(
         n_cores = max(1, min(n_cores, len(new_idat_paths), cpu_count()))
 
     if n_cores == 1:
+        # This is significantly faster than Pool(1)
         with tqdm(
             total=len(new_idat_paths), desc="Generating CNV files"
         ) as tqdm_bar:
