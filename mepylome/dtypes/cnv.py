@@ -7,6 +7,7 @@ analysis.
 import heapq
 import io
 import logging
+import pickle
 import zipfile
 from functools import lru_cache
 from pathlib import Path
@@ -17,7 +18,7 @@ import pyranges as pr
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.beads import MethylData, ReferenceMethylData
-from mepylome.dtypes.cache import cache_key, memoize
+from mepylome.dtypes.cache import cache_key, input_args_id, memoize
 from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.plots import CNVPlot
@@ -26,7 +27,6 @@ from mepylome.utils.varia import CONFIG, MEPYLOME_TMP_DIR
 
 logger = logging.getLogger(__name__)
 
-UNSET = object()
 ZIP_ENDING = CONFIG["suffixes"]["cnv_zip"]
 PACKAGE_DIR = get_resource_path("mepylome")
 
@@ -117,8 +117,8 @@ class Annotation:
         cls,
         manifest=None,
         array_type=None,
-        gap=UNSET,
-        detail=UNSET,
+        gap=None,
+        detail=None,
         bin_size=50000,
         min_probes_per_bin=15,
     ):
@@ -139,12 +139,23 @@ class Annotation:
         cls._cache[key] = instance
         return instance
 
+    def __getnewargs__(self):
+        # Necessary for pickle
+        return (
+            self._init_manifest,
+            self._init_array_type,
+            self._init_gap,
+            self._init_detail,
+            self._init_bin_size,
+            self._init_min_probes_per_bin,
+        )
+
     def __init__(
         self,
         manifest=None,
         array_type=None,
-        gap=UNSET,
-        detail=UNSET,
+        gap=None,
+        detail=None,
         bin_size=50000,
         min_probes_per_bin=15,
     ):
@@ -153,6 +164,29 @@ class Annotation:
             return
         self._cached = True
 
+        self._init_manifest = manifest
+        self._init_array_type = array_type
+        self._init_gap = gap
+        self._init_detail = detail
+        self._init_bin_size = bin_size
+        self._init_min_probes_per_bin = min_probes_per_bin
+
+        pickle_hash = input_args_id(
+            "annotation",
+            self._init_manifest,
+            self._init_array_type,
+            self._init_gap,
+            self._init_detail,
+            self._init_bin_size,
+            self._init_min_probes_per_bin,
+        )
+        self._pickle_path = MEPYLOME_TMP_DIR / f"{pickle_hash}.pkl"
+        if self._pickle_path.exists():
+            with self._pickle_path.open("rb") as file:
+                saved_instance = pickle.load(file)
+                self.__dict__.update(saved_instance.__dict__)
+                return
+
         logger.info("Constructing annotation...")
         if manifest is None and array_type is None:
             msg = "'manifest' or 'array_type' must be given"
@@ -160,14 +194,10 @@ class Annotation:
         self.bin_size = bin_size
         self.min_probes_per_bin = min_probes_per_bin
 
-        self.gap = gap
-        if self.gap is UNSET:
-            self.gap = self.default_gaps()
+        self.gap = gap or self.default_gaps()
 
-        self.detail = detail
-        if self.detail is UNSET:
-            self.detail = self.default_genes()
-        elif self.detail is not None:
+        self.detail = detail or self.default_genes()
+        if detail is not None:
             # PyRanges ranges start at 0
             self.detail.Start -= 1
             self.detail = self.detail.sort()
@@ -211,6 +241,11 @@ class Annotation:
             self._cpg_detail = self.detail.join(
                 self.adjusted_manifest[["IlmnID"]]
             ).df[["Name", "IlmnID"]]
+
+        # Save to disk
+        with self._pickle_path.open("wb") as file:
+            pickle.dump(self, file)
+
         logger.info("Constructing annotation done")
 
     @staticmethod
@@ -361,6 +396,36 @@ class Annotation:
         bin_df[["Start", "End", "N_probes"]] = matrix[:, :3]
         bin_df = bin_df[bin_df.N_probes != INVALID]
         return bin_df[["Chromosome", "Start", "End", "N_probes"]]
+
+    @staticmethod
+    def load(array_types=None):
+        """Loads specified annotation into memory.
+
+        Args:
+            array_types (list or ArrayType, optional): List of array types or
+                a single array type to load. Defaults to all available types.
+
+        Examples:
+            >>> # Load all annotations:
+            >>> Annotation.load()
+
+            >>> # Load specific annotation:
+            >>> Annotation.load(
+            >>>     [ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC]
+            >>> )
+            >>> Annotation.load("epicv2")
+        """
+        if array_types is None:
+            array_types = [
+                ArrayType.ILLUMINA_450K,
+                ArrayType.ILLUMINA_EPIC,
+                ArrayType.ILLUMINA_EPIC_V2,
+                ArrayType.ILLUMINA_MSA48,
+            ]
+        if not isinstance(array_types, list):
+            array_types = [array_types]
+        for array_type in array_types:
+            _ = Annotation(array_type=array_type)
 
     def __repr__(self):
         title = "Annotation():"
