@@ -132,10 +132,10 @@ class Manifest:
     def __getnewargs__(self):
         # Necessary for pickle
         return (
-            self.array_type,
-            self.raw_path,
-            self.proc_path,
-            self.download_proc,
+            self._init_array_type,
+            self._init_raw_path,
+            self._init_proc_path,
+            self._init_download_proc,
         )
 
     def __init__(
@@ -148,6 +148,11 @@ class Manifest:
         if hasattr(self, "_cached"):
             return
         self._cached = True
+
+        self._init_array_type = array_type
+        self._init_raw_path = raw_path
+        self._init_proc_path = proc_path
+        self._init_download_proc = download_proc
 
         def to_path(x):
             return x if x is None else Path(x)
@@ -289,6 +294,7 @@ class Manifest:
                 ArrayType.ILLUMINA_450K,
                 ArrayType.ILLUMINA_EPIC,
                 ArrayType.ILLUMINA_EPIC_V2,
+                ArrayType.ILLUMINA_MSA48,
             ]
         if not isinstance(array_types, list):
             array_types = [array_types]
