@@ -23,7 +23,7 @@ from mepylome.dtypes import (
     ReferenceMethylData,
     idat_basepaths,
 )
-from mepylome.utils import make_log_file
+from mepylome.utils import clear_cache, make_log_file
 
 # Suppress pyranges warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -72,6 +72,7 @@ __all__ = [
     "ArrayType",
     "Annotation",
     "CNV",
+    "clear_cache",
     "IdatParser",
     "Manifest",
     "MethylData",

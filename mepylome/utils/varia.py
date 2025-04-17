@@ -21,7 +21,7 @@ import toml
 
 from mepylome.utils.files import get_resource_path
 
-__all__ = ["Timer", "normexp_get_xs", "MEPYLOME_TMP_DIR"]
+__all__ = ["Timer", "clear_cache", "normexp_get_xs", "MEPYLOME_TMP_DIR"]
 
 
 def get_app_version():
@@ -212,6 +212,59 @@ def get_free_port(start_port):
             if s.connect_ex(("localhost", port)) != 0:
                 return port
             port += 1
+
+
+def clear_cache():
+    """Clears caches of all imported/loaded functions and objects."""
+    import sys
+
+    loaded = sys.modules
+
+    if "mepylome.dtypes" in loaded:
+        from mepylome.dtypes import Manifest, MethylData, ReferenceMethylData
+
+        Manifest._cache.clear()
+        MethylData._cached_indices._cache.clear()
+        ReferenceMethylData._cache.clear()
+        logger.info(
+            "Cleared cache for: Manifest, MethylData, ReferenceMethylData"
+        )
+
+    if "mepylome.dtypes.cnv" in loaded:
+        from mepylome.dtypes.cnv import Annotation, cached_index
+
+        Annotation._cache.clear()
+        Annotation.default_gaps.cache_clear()
+        Annotation.default_genes.cache_clear()
+        cached_index._cache.clear()
+        logger.info("Cleared cache for: Annotation, cached_index")
+
+    if "mepylome.dtypes.beads" in loaded:
+        from mepylome.dtypes.beads import _overlap_indices
+
+        _overlap_indices._cache.clear()
+        logger.info("Cleared cache for: _overlap_indices")
+
+    if "mepylome.dtypes.plots" in loaded:
+        from mepylome.dtypes.plots import cnv_grid, find_genes_within_bins
+
+        cnv_grid.cache_clear()
+        find_genes_within_bins._cache.clear()
+        logger.info("Cleared cache for: cnv_grid, find_genes_within_bins")
+
+    if "mepylome.methyl_plots" in loaded:
+        from .methyl_plots import get_cnv_plot, get_reference_methyl_data
+
+        get_cnv_plot.cache_clear()
+        get_reference_methyl_data.cache_clear()
+        logger.info(
+            "Cleared cache for: get_cnv_plot, get_reference_methyl_data"
+        )
+
+    import gc
+
+    gc.collect()
+    logger.info("Garbage collection triggered")
 
 
 def load_config():
