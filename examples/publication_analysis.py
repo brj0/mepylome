@@ -533,6 +533,14 @@ cn_summary_path_sg = calculate_cn_summary(analysis_sg, "Methylation class")
 IPImage(filename=cn_summary_path_sg)
 
 # %% [markdown]
+# On memory-limited platforms such as Google Colab, we need to manually free up
+# memory between operations to avoid crashes or slowdowns.
+
+# %%
+# Free memory
+mepylome.clear_cache()
+
+# %% [markdown]
 # ### Supervised Classifier Validation
 #
 # The next step involves validating various supervised classification
