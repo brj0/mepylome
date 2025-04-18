@@ -331,7 +331,7 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         return self.clf
 
 
-class LowMemoryVarianceThreshold(BaseEstimator, TransformerMixin):
+class VarianceThresholdLite(BaseEstimator, TransformerMixin):
     """low memory version of sklearn.feature_selection.VarianceThreshold."""
 
     def __init__(self, threshold=0.0):
@@ -374,7 +374,7 @@ def make_clf_pipeline(step_keys, X_shape, cv):
         "kbest": SelectKBest(k=10000),
         "mutual_info": SelectKBest(mutual_info_classif, k=10000),
         "pca": PCA(n_components=n_components_pca),
-        "lvt": LowMemoryVarianceThreshold(threshold=1e-4),
+        "lvt": VarianceThresholdLite(threshold=1e-4),
     }
     models = {
         "ada": AdaBoostClassifier(),
@@ -405,9 +405,12 @@ def make_clf_pipeline(step_keys, X_shape, cv):
         "svc_rbf": SVC(kernel="rbf", probability=True, verbose=True),
     }
     components = {
-        **{key: ("Scaler", pro) for key, pro in scalers.items()},
-        **{key: ("Feature Selection", sel) for key, sel in selectors.items()},
-        **{key: ("Classifier", clf) for key, clf in models.items()},
+        **{key: ("scaler", pro) for key, pro in scalers.items()},
+        **{
+            key: ("feature_selection", sel)
+            for key, sel in selectors.items()
+        },
+        **{key: ("classifier", clf) for key, clf in models.items()},
     }
     if isinstance(step_keys, str):
         step_keys = re.findall(r"[a-zA-Z0-9_]+", step_keys)
@@ -415,7 +418,13 @@ def make_clf_pipeline(step_keys, X_shape, cv):
     if invalid_keys:
         msg = f"Invalid step key(s) found: {', '.join(invalid_keys)}"
         raise ValueError(msg)
-    return Pipeline([components[key] for key in step_keys])
+    pipeline_components = []
+    for i, key in enumerate(step_keys):
+        type_name, component = components[key]
+        step_name = f"{i+1}-{type_name}"
+        pipeline_components.append((step_name, component))
+
+    return Pipeline(pipeline_components)
 
 
 def make_reports(prediction, info, output_format="txt"):

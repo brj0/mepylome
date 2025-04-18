@@ -202,13 +202,13 @@ def get_side_navigation(
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
     color_scheme = "discrete" if use_discrete_colors else "continuous"
     clf_options = {
-        "kbest-et": "ExtraTreesClassifier",
-        "kbest-lr": "LogisticRegression",
-        "kbest-rf": "RandomForestClassifier",
-        "kbest-svc_rbf": "SVC(kernel='rbf')",
-        "pca-lr": "PCALogisticRegression",
-        "pca-et": "PCAExtraTreesClassifier",
-        "knn": "KNeighborsClassifier",
+        "lvt-kbest-et": "ExtraTreesClassifier",
+        "lvt-kbest-lr": "LogisticRegression",
+        "lvt-kbest-rf": "RandomForestClassifier",
+        "lvt-kbest-svc_rbf": "SVC(kernel='rbf')",
+        "lvt-pca-lr": "PCALogisticRegression",
+        "lvt-pca-et": "PCAExtraTreesClassifier",
+        "lvt-knn": "KNeighborsClassifier",
         **{str(i): clf["name"] for i, clf in enumerate(custom_clfs)},
     }
     tabs = [
@@ -501,7 +501,7 @@ def get_side_navigation(
                 dcc.Dropdown(
                     id="clf-clf-dropdown",
                     options=clf_options,
-                    value=["kbest-lr", "kbest-et"],
+                    value=["lvt-kbest-lr", "lvt-kbest-et"],
                     multi=True,
                 ),
                 html.Br(),
@@ -689,7 +689,7 @@ class MethylAnalysis:
                   Cross-validation strategy (default: `self.cv_default`).
 
             - A classifier model object (e.g., `RandomForestClassifier()`,
-              `kbest-rf`), in which case the 'name' and 'cv' are
+              `lvt-kbest-rf`), in which case the 'name' and 'cv' are
               automatically generated (see above). A classifier model can be
               one of:
 

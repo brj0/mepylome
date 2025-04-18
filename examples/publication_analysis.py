@@ -549,12 +549,12 @@ ids = analysis_sg.idat_handler.ids
 clf_out_sg = analysis_sg.classify(
     ids=ids,
     clf_list=[
-        "kbest-et",
-        "kbest-lr",
-        "kbest-rf",
-        # "kbest-svc_rbf",
-        # "pca-lr",
-        # "pca-et",
+        "lvt-kbest-et",
+        "lvt-kbest-lr",
+        "lvt-kbest-rf",
+        # "lvt-kbest-svc_rbf",
+        # "lvt-pca-lr",
+        # "lvt-pca-et",
     ],
 )
 
@@ -742,12 +742,12 @@ ids = analysis_st.idat_handler.ids
 clf_out_st = analysis_st.classify(
     ids=ids,
     clf_list=[
-        "kbest-et",
-        "kbest-lr",
-        "kbest-rf",
-        # "kbest-svc_rbf",
-        # "pca-lr",
-        # "pca-et",
+        "lvt-kbest-et",
+        "lvt-kbest-lr",
+        "lvt-kbest-rf",
+        # "lvt-kbest-svc_rbf",
+        # "lvt-pca-lr",
+        # "lvt-pca-et",
     ],
 )
 
@@ -1250,12 +1250,12 @@ ids = analysis_scc.idat_handler.ids
 clf_out_scc = analysis_scc.classify(
     ids=ids,
     clf_list=[
-        "kbest-et",
-        "kbest-lr",
-        "kbest-rf",
-        # "kbest-svc_rbf",
-        # "pca-lr",
-        # "pca-et",
+        "lvt-kbest-et",
+        "lvt-kbest-lr",
+        "lvt-kbest-rf",
+        # "lvt-kbest-svc_rbf",
+        # "lvt-pca-lr",
+        # "lvt-pca-et",
     ],
 )
 
