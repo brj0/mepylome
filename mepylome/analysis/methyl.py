@@ -202,13 +202,13 @@ def get_side_navigation(
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
     color_scheme = "discrete" if use_discrete_colors else "continuous"
     clf_options = {
-        "none-kbest-et": "ExtraTreesClassifier",
-        "none-kbest-lr": "LogisticRegression",
-        "none-kbest-rf": "RandomForestClassifier",
-        "none-kbest-svc_rbf": "SVC(kernel='rbf')",
-        "none-pca-lr": "PCALogisticRegression",
-        "none-pca-et": "PCAExtraTreesClassifier",
-        "none-none-knn": "KNeighborsClassifier",
+        "kbest-et": "ExtraTreesClassifier",
+        "kbest-lr": "LogisticRegression",
+        "kbest-rf": "RandomForestClassifier",
+        "kbest-svc_rbf": "SVC(kernel='rbf')",
+        "pca-lr": "PCALogisticRegression",
+        "pca-et": "PCAExtraTreesClassifier",
+        "knn": "KNeighborsClassifier",
         **{str(i): clf["name"] for i, clf in enumerate(custom_clfs)},
     }
     tabs = [
@@ -501,7 +501,7 @@ def get_side_navigation(
                 dcc.Dropdown(
                     id="clf-clf-dropdown",
                     options=clf_options,
-                    value=["none-kbest-lr", "none-kbest-et"],
+                    value=["kbest-lr", "kbest-et"],
                     multi=True,
                 ),
                 html.Br(),
@@ -590,11 +590,13 @@ def get_balanced_indices(feature_labels, seed=None):
 
 
 def reordered_cpgs_by_variance(data_frame):
-    """Reorders CpGs by descending column variance."""
-    logger.info("Reordering CpG's...")
+    """Returns CpG and their variances, ordered by descending variance."""
+    logger.info("Reordering CpG's by variance...")
     variances = np.var(data_frame.values, axis=0)
-    sorted_columns = np.argsort(-variances, kind="stable")
-    return data_frame.columns[sorted_columns]
+    sorted_indices = np.argsort(-variances, kind="stable")
+    sorted_columns = data_frame.columns[sorted_indices]
+    sorted_variances = variances[sorted_indices]
+    return sorted_columns, sorted_variances
 
 
 def get_cpgs_from_file(input_path):
@@ -687,7 +689,7 @@ class MethylAnalysis:
                   Cross-validation strategy (default: `self.cv_default`).
 
             - A classifier model object (e.g., `RandomForestClassifier()`,
-              `none-kbest-rf`), in which case the 'name' and 'cv' are
+              `kbest-rf`), in which case the 'name' and 'cv' are
               automatically generated (see above). A classifier model can be
               one of:
 
@@ -1160,9 +1162,9 @@ class MethylAnalysis:
             >>>     "name": "Custom RF",
             >>>     "cv": 10,
             >>> }
-            >>> analysis.classifiers = ["none-kbest-rf", clf]
+            >>> analysis.classifiers = ["kbest-rf", clf]
             >>> analysis.classifiers
-            [{'model': 'none-kbest-rf', 'name': 'Custom_Classifier_0', 'cv':
+            [{'model': 'kbest-rf', 'name': 'Custom_Classifier_0', 'cv':
             StratifiedKFold(n_splits=5, random_state=None, shuffle=True)},
             {'model': RandomForestClassifier(), 'name': 'Custom RF', 'cv':
             StratifiedKFold(n_splits=10, random_state=None, shuffle=True)}]
@@ -1561,7 +1563,9 @@ class MethylAnalysis:
             self.load_full_betas or self.cpg_selection in ["top", "balanced"]
         ):
             self.betas_all = _get_betas(self.cpgs)
-            self._sorted_cpgs = reordered_cpgs_by_variance(self.betas_all)
+            self._sorted_cpgs, self._sorted_cpgs_var = (
+                reordered_cpgs_by_variance(self.betas_all)
+            )
 
         # Handle CpG selection
         if self.cpg_selection == "random":
@@ -1579,8 +1583,10 @@ class MethylAnalysis:
         elif self.cpg_selection == "balanced":
             features = self.idat_handler.features(self.balancing_feature)
             balanced_indices = get_balanced_indices(features, seed=42)
-            self._balanced_sorted_cpgs = reordered_cpgs_by_variance(
-                self.betas_all.iloc[balanced_indices]
+            self._balanced_sorted_cpgs, self._balanced_sorted_cpgs_var = (
+                reordered_cpgs_by_variance(
+                    self.betas_all.iloc[balanced_indices]
+                )
             )
             self.umap_cpgs = self._balanced_sorted_cpgs[: self.n_cpgs]
             self.betas_sel = self.betas_all[self.umap_cpgs]
@@ -1824,7 +1830,14 @@ class MethylAnalysis:
 
         # Only load data to memory if training is needed
         if all_classifiers_trained:
-            shape = (len(self.analysis_ids), len(self.cpgs))
+            shape = (
+                (
+                    len(self.analysis_ids),
+                    len(self.cpgs),
+                )
+                if self.feature_matrix is None
+                else self.feature_matrix.shape
+            )
             X = type("EmptyDataFrame", (), {"shape": shape})
             y = None
             if ids and len(ids):

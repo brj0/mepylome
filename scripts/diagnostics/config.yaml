@@ -9,13 +9,13 @@ diagnostic_config:
     do_cnv: true
     version: 0.0.0
     classifier_list:
-      - none-kbest-et
-      - none-kbest-lr
-      # - none-kbest-rf
-      # - none-kbest-svc_rbf
-      # - none-pca-lr
-      # - none-pca-et
-      # - none-none-knn
+      - kbest-et
+      - kbest-lr
+      # - kbest-rf
+      # - kbest-svc_rbf
+      # - pca-lr
+      # - pca-et
+      # - knn
     annotation_diagnosis_column: 
       - "Methylation class"
     methyl_analysis:
@@ -35,13 +35,13 @@ diagnostic_config:
   #   do_classify: true
   #   version: 0.0.0
   #   classifier_list:
-  #     - none-kbest-et
-  #     - none-kbest-lr
-  #     - none-kbest-rf
-  #     - none-kbest-svc_rbf
-  #     - none-pca-lr
-  #     - none-pca-et
-  #     - none-none-knn
+  #     - kbest-et
+  #     - kbest-lr
+  #     - kbest-rf
+  #     - kbest-svc_rbf
+  #     - pca-lr
+  #     - pca-et
+  #     - knn
   #   annotation_diagnosis_column: 
   #     - "Methylation_class"
   #   methyl_analysis:

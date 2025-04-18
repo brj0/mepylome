@@ -104,7 +104,6 @@
 # ### Core Imports, Configuration and main Functions
 
 # %%
-import gc
 import io
 import json
 import multiprocessing
@@ -124,6 +123,7 @@ import requests
 from IPython.display import Image as IPImage
 from PIL import Image
 
+import mepylome
 from mepylome import ArrayType, Manifest, idat_basepaths
 from mepylome.analysis import MethylAnalysis
 from mepylome.dtypes.manifests import (
@@ -549,12 +549,12 @@ ids = analysis_sg.idat_handler.ids
 clf_out_sg = analysis_sg.classify(
     ids=ids,
     clf_list=[
-        "none-kbest-et",
-        "none-kbest-lr",
-        "none-kbest-rf",
-        # "none-kbest-svc_rbf",
-        # "none-pca-lr",
-        # "none-pca-et",
+        "kbest-et",
+        "kbest-lr",
+        "kbest-rf",
+        # "kbest-svc_rbf",
+        # "pca-lr",
+        # "pca-et",
     ],
 )
 
@@ -575,7 +575,7 @@ print(best_clf_sg.reports["txt"][0])
 # %%
 # Free memory
 del analysis_sg
-gc.collect()
+mepylome.clear_cache()
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
@@ -742,12 +742,12 @@ ids = analysis_st.idat_handler.ids
 clf_out_st = analysis_st.classify(
     ids=ids,
     clf_list=[
-        "none-kbest-et",
-        "none-kbest-lr",
-        "none-kbest-rf",
-        # "none-kbest-svc_rbf",
-        # "none-pca-lr",
-        # "none-pca-et",
+        "kbest-et",
+        "kbest-lr",
+        "kbest-rf",
+        # "kbest-svc_rbf",
+        # "pca-lr",
+        # "pca-et",
     ],
 )
 
@@ -769,7 +769,7 @@ print(best_clf_st.reports["txt"][0])
 # %%
 # Free memory
 del analysis_st
-gc.collect()
+mepylome.clear_cache()
 
 
 # %% [markdown]
@@ -1250,12 +1250,12 @@ ids = analysis_scc.idat_handler.ids
 clf_out_scc = analysis_scc.classify(
     ids=ids,
     clf_list=[
-        "none-kbest-et",
-        "none-kbest-lr",
-        "none-kbest-rf",
-        # "none-kbest-svc_rbf",
-        # "none-pca-lr",
-        # "none-pca-et",
+        "kbest-et",
+        "kbest-lr",
+        "kbest-rf",
+        # "kbest-svc_rbf",
+        # "pca-lr",
+        # "pca-et",
     ],
 )
 
@@ -1302,7 +1302,7 @@ print("Missclassified samples:\n", misclassified_samples)
 # %%
 # Free memory
 del analysis_scc
-gc.collect()
+mepylome.clear_cache()
 
 # %% [markdown]
 # # 4. Appendix

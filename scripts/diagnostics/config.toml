@@ -8,8 +8,8 @@ do_classify = true
 do_cnv = true
 version = "0.0.0"
 classifier_list = [
-    "none-kbest-et",
-    "none-kbest-lr",
+    "kbest-et",
+    "kbest-lr",
 ]
 annotation_diagnosis_column = ["Methylation class"]
 
@@ -30,8 +30,8 @@ do_umap = true
 do_classify = true
 version = "0.0.0"
 classifier_list = [
-    "none-kbest-et",
-    "none-kbest-lr",
+    "kbest-et",
+    "kbest-lr",
 ]
 annotation_diagnosis_column = ["Methylation_class"]
 

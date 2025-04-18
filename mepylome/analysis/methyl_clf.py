@@ -7,6 +7,7 @@ networks) for predicting the methylation class.
 import hashlib
 import logging
 import pickle
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -357,13 +358,12 @@ class LowMemoryVarianceThreshold(BaseEstimator, TransformerMixin):
         return self.variances_ > self.threshold
 
 
-def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
+def make_clf_pipeline(step_keys, X_shape, cv):
     """Sklearn pipeline with scaling, feature selection, and classifier."""
     n_splits = cv if isinstance(cv, int) else cv.n_splits
     n_components_pca = min(((n_splits - 1) * X_shape[0] // n_splits), 50)
     scalers = {
         "minmax": MinMaxScaler(),
-        "none": "passthrough",
         "power": PowerTransformer(),
         "quantile": QuantileTransformer(output_distribution="uniform"),
         "quantile_normal": QuantileTransformer(output_distribution="normal"),
@@ -372,12 +372,11 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
     }
     selectors = {
         "kbest": SelectKBest(k=10000),
-        "lda": LinearDiscriminantAnalysis(n_components=1),
         "mutual_info": SelectKBest(mutual_info_classif, k=10000),
-        "none": "passthrough",
         "pca": PCA(n_components=n_components_pca),
+        "lvt": LowMemoryVarianceThreshold(threshold=1e-4),
     }
-    classifiers = {
+    models = {
         "ada": AdaBoostClassifier(),
         "bag": BaggingClassifier(),
         "dt": DecisionTreeClassifier(),
@@ -390,7 +389,6 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
         "lr": LogisticRegression(max_iter=10000),
         "mlp": MLPClassifier(verbose=True),
         "nb": GaussianNB(),
-        "none": "passthrough",
         "perceptron": Perceptron(max_iter=1000, tol=1e-3),
         "qda": QuadraticDiscriminantAnalysis(),
         "rf": RandomForestClassifier(),
@@ -406,18 +404,18 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
         "svc_linear": SVC(kernel="linear", probability=True, verbose=True),
         "svc_rbf": SVC(kernel="rbf", probability=True, verbose=True),
     }
-    drop_constants = LowMemoryVarianceThreshold(threshold=1e-4)
-    scaler = scalers[scaler]
-    selector = selectors[selector]
-    classifier = classifiers[clf]
-    return Pipeline(
-        [
-            ("drop_constants", drop_constants),
-            ("scaler", scaler),
-            ("feature_selection", selector),
-            ("classifier", classifier),
-        ]
-    )
+    components = {
+        **{key: ("Scaler", pro) for key, pro in scalers.items()},
+        **{key: ("Feature Selection", sel) for key, sel in selectors.items()},
+        **{key: ("Classifier", clf) for key, clf in models.items()},
+    }
+    if isinstance(step_keys, str):
+        step_keys = re.findall(r"[a-zA-Z0-9_]+", step_keys)
+    invalid_keys = [key for key in step_keys if key not in components]
+    if invalid_keys:
+        msg = f"Invalid step key(s) found: {', '.join(invalid_keys)}"
+        raise ValueError(msg)
+    return Pipeline([components[key] for key in step_keys])
 
 
 def make_reports(prediction, info, output_format="txt"):
@@ -735,8 +733,10 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
             - A string in the format "scaler-selector-classifier". Possible
               values are:
 
+            - A pipeline string composed of arbitrary components joined by
+              dashes ("-"). The components can include:
+
                 scaler:
-                    - "none": No scaling (passthrough).
                     - "std": Standard scaling (StandardScaler).
                     - "minmax": Min-max scaling (MinMaxScaler).
                     - "robust": Robust scaling (RobustScaler).
@@ -747,7 +747,6 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
                       (QuantileTransformer, normal distribution).
 
                 selector:
-                    - "none": No feature selection (passthrough).
                     - "kbest": Select the best features (SelectKBest).
                     - "pca": Principal component analysis (PCA).
                     - "lda": Linear Discriminant Analysis (LDA).
@@ -774,7 +773,11 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
                     - "sgd": SGDClassifier.
                     - "stacking": StackingClassifier (combines multiple
                       classifiers).
-                    - "none": No classifier (passthrough).
+
+
+                Example: Using a feature selector and a classifier (SelectKBest
+                    selection and Logistic Regression):
+                    - "kbest-lr"
 
             - A custom class, that inherits from `TrainedClassifier`.
 
@@ -796,7 +799,7 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
             clf=clf, X=X, y=y, save_path=save_path, cv=cv, n_jobs=n_jobs
         )
     elif isinstance(clf, str):
-        pipeline = make_clf_pipeline(*clf.split("-"), X.shape, cv)
+        pipeline = make_clf_pipeline(clf, X.shape, cv)
         trained_clf = train_clf(
             clf=pipeline, X=X, y=y, save_path=save_path, cv=cv, n_jobs=n_jobs
         )
