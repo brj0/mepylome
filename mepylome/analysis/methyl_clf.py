@@ -406,10 +406,7 @@ def make_clf_pipeline(step_keys, X_shape, cv):
     }
     components = {
         **{key: ("scaler", pro) for key, pro in scalers.items()},
-        **{
-            key: ("feature_selection", sel)
-            for key, sel in selectors.items()
-        },
+        **{key: ("feature_selection", sel) for key, sel in selectors.items()},
         **{key: ("classifier", clf) for key, clf in models.items()},
     }
     if isinstance(step_keys, str):
@@ -421,7 +418,7 @@ def make_clf_pipeline(step_keys, X_shape, cv):
     pipeline_components = []
     for i, key in enumerate(step_keys):
         type_name, component = components[key]
-        step_name = f"{i+1}-{type_name}"
+        step_name = f"{i + 1}-{type_name}"
         pipeline_components.append((step_name, component))
 
     return Pipeline(pipeline_components)
