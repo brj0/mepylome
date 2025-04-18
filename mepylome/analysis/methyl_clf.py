@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from sklearn.base import ClassifierMixin
+from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import (
     LinearDiscriminantAnalysis,
@@ -29,7 +29,6 @@ from sklearn.ensemble import (
 )
 from sklearn.feature_selection import (
     SelectKBest,
-    VarianceThreshold,
     mutual_info_classif,
 )
 from sklearn.gaussian_process import GaussianProcessClassifier
@@ -331,6 +330,33 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         return self.clf
 
 
+class LowMemoryVarianceThreshold(BaseEstimator, TransformerMixin):
+    """low memory version of sklearn.feature_selection.VarianceThreshold."""
+
+    def __init__(self, threshold=0.0):
+        self.threshold = threshold
+
+    def fit(self, X, y=None):
+        X = np.asarray(X)
+        if X.ndim != 2:
+            msg = "Input X must be 2D."
+            raise ValueError(msg)
+        X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
+        self.variances_ = np.var(X_array, axis=0)
+        self.support_mask_ = self.variances_ > self.threshold
+        if not np.any(self.support_mask_):
+            msg = f"No features meet the variance threshold {self.threshold}"
+            raise ValueError(msg)
+        return self
+
+    def transform(self, X):
+        X = np.asarray(X)
+        return X[:, self.support_mask_]
+
+    def _get_support_mask(self):
+        return self.variances_ > self.threshold
+
+
 def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
     """Sklearn pipeline with scaling, feature selection, and classifier."""
     n_splits = cv if isinstance(cv, int) else cv.n_splits
@@ -380,7 +406,7 @@ def make_clf_pipeline(scaler, selector, clf, X_shape, cv):
         "svc_linear": SVC(kernel="linear", probability=True, verbose=True),
         "svc_rbf": SVC(kernel="rbf", probability=True, verbose=True),
     }
-    drop_constants = VarianceThreshold(threshold=1e-4)
+    drop_constants = LowMemoryVarianceThreshold(threshold=1e-4)
     scaler = scalers[scaler]
     selector = selectors[selector]
     classifier = classifiers[clf]
