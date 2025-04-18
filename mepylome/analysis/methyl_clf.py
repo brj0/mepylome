@@ -372,9 +372,9 @@ def make_clf_pipeline(step_keys, X_shape, cv):
     }
     selectors = {
         "kbest": SelectKBest(k=10000),
+        "lvt": VarianceThresholdLite(threshold=1e-4),
         "mutual_info": SelectKBest(mutual_info_classif, k=10000),
         "pca": PCA(n_components=n_components_pca),
-        "lvt": VarianceThresholdLite(threshold=1e-4),
     }
     models = {
         "ada": AdaBoostClassifier(),
@@ -406,7 +406,7 @@ def make_clf_pipeline(step_keys, X_shape, cv):
     }
     components = {
         **{key: ("scaler", pro) for key, pro in scalers.items()},
-        **{key: ("feature_selection", sel) for key, sel in selectors.items()},
+        **{key: ("feature_selecter", sel) for key, sel in selectors.items()},
         **{key: ("classifier", clf) for key, clf in models.items()},
     }
     if isinstance(step_keys, str):
