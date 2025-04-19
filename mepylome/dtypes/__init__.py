@@ -10,7 +10,7 @@ from .beads import (
     idat_basepaths,
     is_valid_idat_basepath,
 )
-from .cache import get_id_tuple, input_args_id, memoize
+from .cache import clear_cache, get_id_tuple, input_args_id, memoize
 from .chromosome import Chromosome
 from .cnv import CNV, ZIP_ENDING, Annotation, _get_cgsegment
 from .idat import IdatParser
@@ -30,6 +30,7 @@ __all__ = [
     "CNVPlot",
     "NEUTRAL_BETA",
     "input_args_id",
+    "clear_cache",
     "Channel",
     "Chromosome",
     "IdatParser",

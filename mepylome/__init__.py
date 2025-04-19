@@ -21,9 +21,10 @@ from mepylome.dtypes import (
     MethylData,
     RawData,
     ReferenceMethylData,
+    clear_cache,
     idat_basepaths,
 )
-from mepylome.utils import clear_cache, make_log_file
+from mepylome.utils import make_log_file
 
 # Suppress pyranges warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
