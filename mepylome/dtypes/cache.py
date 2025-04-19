@@ -257,6 +257,16 @@ def clear_cache():
             "Cleared cache for: get_cnv_plot, get_reference_methyl_data"
         )
 
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+
+            libc = ctypes.CDLL("libc.so.6")
+            result = libc.malloc_trim(0)
+            logger.info("Called malloc_trim(0), result: %s", result)
+        except Exception as e:
+            logger.info("malloc_trim failed: %s", e)
+
     import gc
 
     gc.collect()
