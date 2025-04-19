@@ -406,7 +406,7 @@ def make_clf_pipeline(step_keys, X_shape, cv):
     }
     components = {
         **{key: ("scaler", pro) for key, pro in scalers.items()},
-        **{key: ("feature_selecter", sel) for key, sel in selectors.items()},
+        **{key: ("feature_selector", sel) for key, sel in selectors.items()},
         **{key: ("classifier", clf) for key, clf in models.items()},
     }
     if isinstance(step_keys, str):
