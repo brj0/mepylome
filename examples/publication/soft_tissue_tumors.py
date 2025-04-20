@@ -68,8 +68,8 @@
 # 0. **[Initialization](#0.-Initialization)**
 # 1. **[Data Loading](#1.-Data-Loading)**
 # 2. **[UMAP Calculation](#2.-UMAP-Calculation)**
-# 3. **[CNV Analysis](#3.-CNV-Analysis)**
-# 4. **[Supervised Classifier Training](#4.-Supervised-Classifier-Training)**
+# 3. **[Supervised Classifier Training](#3.-Supervised-Classifier-Training)**
+# 4. **[CNV Analysis](#4.-CNV-Analysis)**
 
 
 # %% [markdown]
@@ -458,9 +458,64 @@ analysis.run_app(open_tab=True)
 
 
 # %% [markdown]
+# On memory-limited platforms such as Google Colab, we need to manually free up
+# memory between operations to avoid crashes.
+
+# %%
+# Free memory
+clear_cache()
+
+
+# %% [markdown]
 # -----------------------------------------------------------------------------
-# <a name="3.-CNV-Analysis"></a>
-# ## 3. CNV Analysis
+# <a name="3.-Supervised-Classifier-Training"></a>
+# ## 3. Supervised Classifier Training
+#
+# ### Supervised Classifier Validation
+#
+# The next step involves validating various supervised classification
+# algorithms to evaluate their performance on the dataset. This process helps
+# identify the most accurate model for methylation-based classification.
+#
+# **Note**:
+# Training is resource- and time-intensive. The process may take up to 10
+# minutes, depending on the computational resources available.
+
+# %%
+# Train supervised classifiers
+ids = analysis.idat_handler.ids
+clf_out = analysis.classify(
+    ids=ids,
+    clf_list=[
+        "vtl-kbest-et",
+        "vtl-kbest-lr",
+        "vtl-kbest-rf",
+    ],
+)
+
+# %%
+# Print reports for all classifier for the first sample
+for clf_result in clf_out:
+    print(clf_result.reports["txt"][0])
+    print()
+
+# %%
+# Identify and display the best classifier
+best_clf = max(
+    clf_out, key=lambda result: np.mean(result.metrics["accuracy_scores"])
+)
+print("Most accurate classifier:")
+print(best_clf.reports["txt"][0])
+
+# %%
+# Free memory
+clear_cache()
+
+
+# %% [markdown]
+# -----------------------------------------------------------------------------
+# <a name="4.-CNV-Analysis"></a>
+# ## 4. CNV Analysis
 #
 # ### Generate and Save CNV Plot
 #
@@ -503,52 +558,3 @@ cn_summary_path = calculate_cn_summary(analysis, "Methylation Class Name")
 
 # %%
 IPImage(filename=cn_summary_path)
-
-# %% [markdown]
-# On memory-limited platforms such as Google Colab, we need to manually free up
-# memory between operations to avoid crashes.
-
-# %%
-# Free memory
-clear_cache()
-
-# %% [markdown]
-# -----------------------------------------------------------------------------
-# <a name="4.-Supervised-Classifier-Training"></a>
-# ## 4. Supervised Classifier Training
-#
-# ### Supervised Classifier Validation
-#
-# The next step involves validating various supervised classification
-# algorithms to evaluate their performance on the dataset. This process helps
-# identify the most accurate model for methylation-based classification.
-#
-# **Note**:
-# Training is resource- and time-intensive. The process may take up to 10
-# minutes, depending on the computational resources available.
-
-# %%
-# Train supervised classifiers
-ids = analysis.idat_handler.ids
-clf_out = analysis.classify(
-    ids=ids,
-    clf_list=[
-        "vtl-kbest-et",
-        "vtl-kbest-lr",
-        "vtl-kbest-rf",
-    ],
-)
-
-# %%
-# Print reports for all classifier for the first sample
-for clf_result in clf_out:
-    print(clf_result.reports["txt"][0])
-    print()
-
-# %%
-# Identify and display the best classifier
-best_clf = max(
-    clf_out, key=lambda result: np.mean(result.metrics["accuracy_scores"])
-)
-print("Most accurate classifier:")
-print(best_clf.reports["txt"][0])

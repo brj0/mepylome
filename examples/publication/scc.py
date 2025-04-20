@@ -68,8 +68,8 @@
 # 0. **[Initialization](#0.-Initialization)**
 # 1. **[Data Loading](#1.-Data-Loading)**
 # 2. **[UMAP Calculation](#2.-UMAP-Calculation)**
-# 3. **[CNV Analysis](#3.-CNV-Analysis)**
-# 4. **[Supervised Classifier Training](#4.-Supervised-Classifier-Training)**
+# 3. **[Supervised Classifier Training](#3.-Supervised-Classifier-Training)**
+# 4. **[CNV Analysis](#4.-CNV-Analysis)**
 
 
 # %% [markdown]
@@ -811,28 +811,6 @@ cnv_plot.write_image(
 IPImage(filename=output_path)
 
 # %% [markdown]
-# -----------------------------------------------------------------------------
-# <a name="3.-CNV-Analysis"></a>
-# ## 3. CNV Analysis
-#
-# ### Generate CNV Summary Plots
-#
-# In addition to individual CNV plots, this step computes summary plots to
-# highlight genomic alterations across multiple samples.
-#
-# **Note**:
-# Generating all copy number variation (CNV) plots is resource- and
-# time-intensive. The process can take a significant amount of time, depending
-# on the computational resources available.
-
-# %%
-analysis.precompute_cnvs()
-cn_summary_path = calculate_cn_summary(analysis, "Diagnosis")
-
-# %%
-IPImage(filename=cn_summary_path)
-
-# %% [markdown]
 # On memory-limited platforms such as Google Colab, we need to manually free up
 # memory between operations to avoid crashes.
 
@@ -840,10 +818,11 @@ IPImage(filename=cn_summary_path)
 # Free memory
 clear_cache()
 
+
 # %% [markdown]
 # -----------------------------------------------------------------------------
-# <a name="4.-Supervised-Classifier-Training"></a>
-# ## 4. Supervised Classifier Training
+# <a name="3.-Supervised-Classifier-Training"></a>
+# ## 3. Supervised Classifier Training
 #
 # ### Supervised Classifier Validation
 #
@@ -906,6 +885,33 @@ misclassified_samples = clf_out_pred[0].prediction[misclassified].copy()
 misclassified_samples["Pred"] = pred[misclassified]
 misclassified_samples["True"] = true_values[misclassified]
 print("Missclassified samples:\n", misclassified_samples)
+
+# %%
+# Free memory
+clear_cache()
+
+
+# %% [markdown]
+# -----------------------------------------------------------------------------
+# <a name="4.-CNV-Analysis"></a>
+# ## 4. CNV Analysis
+#
+# ### Generate CNV Summary Plots
+#
+# In addition to individual CNV plots, this step computes summary plots to
+# highlight genomic alterations across multiple samples.
+#
+# **Note**:
+# Generating all copy number variation (CNV) plots is resource- and
+# time-intensive. The process can take a significant amount of time, depending
+# on the computational resources available.
+
+# %%
+analysis.precompute_cnvs()
+cn_summary_path = calculate_cn_summary(analysis, "Diagnosis")
+
+# %%
+IPImage(filename=cn_summary_path)
 
 
 # %% [markdown]
