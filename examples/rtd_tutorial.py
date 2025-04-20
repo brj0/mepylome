@@ -819,7 +819,7 @@ methyl_analysis.idat_handler.selected_columns = ["Diagnosis"]
 ## Perform classification using a preimplemented classifier (pipeline with no
 ## scaler, SelectKBest as selector and RandomForestClassifier for
 ## classification) and cross-validation
-clf_out = methyl_analysis.classify(ids=ids, clf_list="lvt-kbest-rf")
+clf_out = methyl_analysis.classify(ids=ids, clf_list="vtl-kbest-rf")
 
 ## Output accuracy scores:
 print("Accuracy Scores:", clf_out[0].metrics["accuracy_scores"])
@@ -868,7 +868,7 @@ random_beta_values = pd.DataFrame(
 )
 ## Perform classification on random values:
 clf_out = methyl_analysis.classify(
-    values=random_beta_values, clf_list="lvt-kbest-rf"
+    values=random_beta_values, clf_list="vtl-kbest-rf"
 )
 
 # **2. Train Your Own Classifiers**

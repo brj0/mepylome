@@ -372,7 +372,7 @@ def make_clf_pipeline(step_keys, X_shape, cv):
     }
     selectors = {
         "kbest": SelectKBest(k=10000),
-        "lvt": VarianceThresholdLite(threshold=1e-4),
+        "vtl": VarianceThresholdLite(threshold=1e-4),
         "mutual_info": SelectKBest(mutual_info_classif, k=10000),
         "pca": PCA(n_components=n_components_pca),
     }

@@ -1010,7 +1010,7 @@ Perform prediction on sample IDs:
     >>> # Perform classification using a preimplemented classifier (pipeline with no
     >>> # scaler, SelectKBest as selector and RandomForestClassifier for
     >>> # classification) and cross-validation
-    >>> clf_out = methyl_analysis.classify(ids=ids, clf_list="lvt-kbest-rf")
+    >>> clf_out = methyl_analysis.classify(ids=ids, clf_list="vtl-kbest-rf")
 
     >>> # Output accuracy scores:
     >>> print("Accuracy Scores:", clf_out[0].metrics["accuracy_scores"])
@@ -1061,7 +1061,7 @@ Perform prediction on beta values:
     >>> )
     >>> # Perform classification on random values:
     >>> clf_out = methyl_analysis.classify(
-    >>>     values=random_beta_values, clf_list="lvt-kbest-rf"
+    >>>     values=random_beta_values, clf_list="vtl-kbest-rf"
     >>> )
 
 

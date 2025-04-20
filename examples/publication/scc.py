@@ -861,9 +861,9 @@ ids = analysis.idat_handler.ids
 clf_out = analysis.classify(
     ids=ids,
     clf_list=[
-        "lvt-kbest-et",
-        "lvt-kbest-lr",
-        "lvt-kbest-rf",
+        "vtl-kbest-et",
+        "vtl-kbest-lr",
+        "vtl-kbest-rf",
     ],
 )
 
