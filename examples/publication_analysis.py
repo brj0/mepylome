@@ -123,8 +123,7 @@ import requests
 from IPython.display import Image as IPImage
 from PIL import Image
 
-import mepylome
-from mepylome import ArrayType, Manifest, idat_basepaths
+from mepylome import ArrayType, Manifest, clear_cache, idat_basepaths
 from mepylome.analysis import MethylAnalysis
 from mepylome.dtypes.manifests import (
     DOWNLOAD_DIR,
@@ -534,11 +533,11 @@ IPImage(filename=cn_summary_path_sg)
 
 # %% [markdown]
 # On memory-limited platforms such as Google Colab, we need to manually free up
-# memory between operations to avoid crashes or slowdowns.
+# memory between operations to avoid crashes.
 
 # %%
 # Free memory
-mepylome.clear_cache()
+clear_cache()
 
 # %% [markdown]
 # ### Supervised Classifier Validation
@@ -583,7 +582,7 @@ print(best_clf_sg.reports["txt"][0])
 # %%
 # Free memory
 del analysis_sg
-mepylome.clear_cache()
+clear_cache()
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
@@ -734,6 +733,14 @@ cn_summary_path_st = calculate_cn_summary(
 IPImage(filename=cn_summary_path_st)
 
 # %% [markdown]
+# On memory-limited platforms such as Google Colab, we need to manually free up
+# memory between operations to avoid crashes.
+
+# %%
+# Free memory
+clear_cache()
+
+# %% [markdown]
 # ### Supervised Classifier Validation
 #
 # The next step involves validating various supervised classification
@@ -777,7 +784,7 @@ print(best_clf_st.reports["txt"][0])
 # %%
 # Free memory
 del analysis_st
-mepylome.clear_cache()
+clear_cache()
 
 
 # %% [markdown]
@@ -1242,6 +1249,14 @@ cn_summary_path_scc = calculate_cn_summary(analysis_scc, "Diagnosis")
 IPImage(filename=cn_summary_path_scc)
 
 # %% [markdown]
+# On memory-limited platforms such as Google Colab, we need to manually free up
+# memory between operations to avoid crashes.
+
+# %%
+# Free memory
+clear_cache()
+
+# %% [markdown]
 # ### Supervised Classifier Validation
 #
 # The next step involves validating various supervised classification
@@ -1310,7 +1325,7 @@ print("Missclassified samples:\n", misclassified_samples)
 # %%
 # Free memory
 del analysis_scc
-mepylome.clear_cache()
+clear_cache()
 
 # %% [markdown]
 # # 4. Appendix

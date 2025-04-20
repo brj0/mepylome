@@ -203,6 +203,8 @@ def write_single_cnv_to_disk(
         logger.error(error_message)
         with Path(cnv_dir, cnv_filename).open("w") as f:
             f.write(error_message)
+    finally:
+        del sample_methyl, reference, cnv
 
 
 def write_cnv_to_disk(

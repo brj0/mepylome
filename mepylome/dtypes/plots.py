@@ -308,7 +308,7 @@ def find_genes_within_bins(bins, detail):
         # By sorting first, resultig string will be sorted too
         .sort_values(by="Name")
         .groupby("Range")["Name"]
-        .agg(lambda x: ", ".join(x))
+        .agg(", ".join)
         .reindex(range(len(bins)), fill_value="")
         .reset_index(drop=True)
     )
