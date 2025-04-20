@@ -786,31 +786,6 @@ analysis.run_app(open_tab=True)
 
 
 # %% [markdown]
-# ### Generate and Save CNV Plot
-#
-# Creates a copy number variation (CNV) plot for a specified sample and saves
-# the output as an image.
-
-# %%
-# Save CNV example
-analysis.make_cnv_plot("364f7953-d0af-4929-8491-7b5e94d488aa_noid")
-cnv_plot = analysis.cnv_plot
-cnv_plot.update_layout(
-    yaxis_range=[-1.1, 1.1],
-    font={"size": FONTSIZE},
-    margin={"t": 50},
-)
-output_path = output_dir / f"{analysis_dir.name}_cnv_plot.jpg"
-cnv_plot.write_image(
-    output_path,
-    format="jpg",
-    width=IMG_HEIGHT,
-    height=IMG_WIDTH,
-    scale=1,
-)
-IPImage(filename=output_path)
-
-# %% [markdown]
 # On memory-limited platforms such as Google Colab, we need to manually free up
 # memory between operations to avoid crashes.
 
@@ -836,6 +811,7 @@ clear_cache()
 
 # %%
 # Train supervised classifiers
+analysis.idat_handler.selected_columns = ["Diagnosis"]
 ids = analysis.idat_handler.ids
 clf_out = analysis.classify(
     ids=ids,
@@ -896,6 +872,31 @@ clear_cache()
 # <a name="4.-CNV-Analysis"></a>
 # ## 4. CNV Analysis
 #
+# %% [markdown]
+# ### Generate and Save CNV Plot
+#
+# Creates a copy number variation (CNV) plot for a specified sample and saves
+# the output as an image.
+
+# %%
+# Save CNV example
+analysis.make_cnv_plot("364f7953-d0af-4929-8491-7b5e94d488aa_noid")
+cnv_plot = analysis.cnv_plot
+cnv_plot.update_layout(
+    yaxis_range=[-1.1, 1.1],
+    font={"size": FONTSIZE},
+    margin={"t": 50},
+)
+output_path = output_dir / f"{analysis_dir.name}_cnv_plot.jpg"
+cnv_plot.write_image(
+    output_path,
+    format="jpg",
+    width=IMG_HEIGHT,
+    height=IMG_WIDTH,
+    scale=1,
+)
+IPImage(filename=output_path)
+
 # ### Generate CNV Summary Plots
 #
 # In addition to individual CNV plots, this step computes summary plots to
