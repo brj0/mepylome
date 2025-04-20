@@ -412,7 +412,7 @@ analysis.set_betas()
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
-# <a name="2.-Soft-Tissue-Tumors"></a>
+# <a name="2.-UMAP-Calculation"></a>
 # ## 2. UMAP Calculation
 #
 # ### Generate UMAP Plot
