@@ -338,11 +338,10 @@ class VarianceThresholdLite(BaseEstimator, TransformerMixin):
         self.threshold = threshold
 
     def fit(self, X, y=None):
-        X = np.asarray(X)
-        if X.ndim != 2:
+        X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
+        if X_array.ndim != 2:
             msg = "Input X must be 2D."
             raise ValueError(msg)
-        X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         self.variances_ = np.var(X_array, axis=0)
         self.support_mask_ = self.variances_ > self.threshold
         if not np.any(self.support_mask_):
@@ -351,11 +350,49 @@ class VarianceThresholdLite(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
-        X = np.asarray(X)
-        return X[:, self.support_mask_]
+        X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
+        return X_array[:, self.support_mask_]
 
     def _get_support_mask(self):
         return self.variances_ > self.threshold
+
+
+class TopVarianceSelector(BaseEstimator, TransformerMixin):
+    """Low-memory selector for top-N features by variance."""
+
+    def __init__(self, n_top=10000):
+        self.n_top = n_top
+
+    def fit(self, X, y=None):
+        X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
+        if X_array.ndim != 2:
+            msg = "Input X must be 2D."
+            raise ValueError(msg)
+
+        # Compute variance per column
+        self.variances_ = np.var(X_array, axis=0)
+
+        # Get indices of top N variances
+        if self.n_top > X_array.shape[1]:
+            msg = (
+                f"n_top={self.n_top} exceeds number of features "
+                "{X_array.shape[1]}"
+            )
+            raise ValueError(msg)
+        self.top_indices_ = np.argsort(self.variances_)[-self.n_top :]
+
+        return self
+
+    def transform(self, X):
+        X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
+        return X_array[:, self.top_indices_]
+
+    def get_support(self, indices=False):
+        if indices:
+            return self.top_indices_
+        mask = np.zeros_like(self.variances_, dtype=bool)
+        mask[self.top_indices_] = True
+        return mask
 
 
 def make_clf_pipeline(step_keys, X_shape, cv):
@@ -373,6 +410,7 @@ def make_clf_pipeline(step_keys, X_shape, cv):
     selectors = {
         "kbest": SelectKBest(k=10000),
         "vtl": VarianceThresholdLite(threshold=1e-4),
+        "top": TopVarianceSelector(n_top=30000),
         "mutual_info": SelectKBest(mutual_info_classif, k=10000),
         "pca": PCA(n_components=n_components_pca),
     }

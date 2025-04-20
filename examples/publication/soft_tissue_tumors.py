@@ -483,13 +483,18 @@ clear_cache()
 
 # %%
 # Train supervised classifiers
+analysis.idat_handler.selected_columns = ["Methylation Class Name"]
 ids = analysis.idat_handler.ids
 clf_out = analysis.classify(
     ids=ids,
     clf_list=[
-        "vtl-kbest-et",
-        "vtl-kbest-lr",
-        "vtl-kbest-rf",
+        # Classifiers optimized for low-memory platforms (e.g. Google Colab)
+        "top-kbest-et",
+        "top-kbest-lr",
+        "top-kbest-rf",
+        # "vtl-kbest-et",
+        # "vtl-kbest-lr",
+        # "vtl-kbest-rf",
     ],
 )
 
