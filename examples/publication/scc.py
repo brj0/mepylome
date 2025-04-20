@@ -28,9 +28,6 @@
 # ### Usage
 #
 # - Follow the notebook/script step-by-step.
-# - If you only intend to run a specific section (e.g., 1, 2, or 3), ensure
-#   that you first execute the setup section (0). This approach is essential if
-#   memory is limited.
 #
 #
 # ### System Tested
@@ -52,29 +49,27 @@
 # by clicking the link below.
 #
 # **Note**: The graphical user interface (GUI) features are limited in Google
-# Colab. If using the free version, memory constraints may arise, so it is
-# recommended to run sections 1, 2, and 3 separately with a kernel restart
-# between each part. Additionally, long download operations (e.g., for the
-# squamous cell carcinoma section) may face timeouts or interruptions.
+# Colab. If using the free version, memory constraints may arise. Additionally,
+# long download operations  may face timeouts or interruptions.
 #
-# [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/publication_analysis.ipynb)
+# [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/publication/scc.ipynb)
 #
 #
 # This notebook was automatically generated from the corresponding py-file
 # with:
 #
 # ```bash
-# jupytext --to ipynb publication_analysis.py
+# jupytext --to ipynb *.py
 # ```
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
 # ## Contents
 # 0. **[Initialization](#0.-Initialization)**
-# 1. **[Salivary Gland Tumors](#1.-Salivary-Gland-Tumors)**
-# 2. **[Soft Tissue Tumors](#2.-Soft-Tissue-Tumors)**
-# 3. **[Squamous Cell Carcinoma](#3.-Squamous-Cell-Carcinoma)**
-# 4. **[Appendix](#4.-Appendix)**
+# 1. **[Data Loading](#1.-Data-Loading)**
+# 2. **[UMAP Calculation](#2.-UMAP-Calculation)**
+# 3. **[CNV Analysis](#3.-CNV-Analysis)**
+# 4. **[Supervised Classifier Training](#4.-Supervised-Classifier-Training)**
 
 
 # %% [markdown]
@@ -143,18 +138,6 @@ GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
 
 # Define dataset URLs and filenames
 datasets = {
-    "salivary_gland_tumors": {
-        "xlsx": "https://ars.els-cdn.com/content/image/1-s2.0-S0893395224002059-mmc4.xlsx",
-        "geo_ids": ["GSE243075"],
-    },
-    "soft_tissue_tumors": {
-        "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-020-20603-4/MediaObjects/41467_2020_20603_MOESM4_ESM.xlsx",
-        "geo_ids": ["GSE140686"],
-    },
-    "sinonasal_tumors": {
-        "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-022-34815-3/MediaObjects/41467_2022_34815_MOESM6_ESM.xlsx",
-        "geo_ids": ["GSE196228"],
-    },
     "scc": {
         "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
         "geo_ids": [],
@@ -335,7 +318,7 @@ def sex_chromosome_cpgs():
 blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
 
 # %% [markdown]
-# ### Copy-Neutral Reference Probes
+# ### CNV-Neutral Reference Samples
 #
 # To ensure accurate analysis, we utilize control probes from [Koelsche et
 # al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). These probes
@@ -382,416 +365,9 @@ download_geo_probes(reference_dir, cn_neutral_probes)
 
 # %% [markdown]
 # -----------------------------------------------------------------------------
-# <a name="1.-Salivary-Gland-Tumors"></a>
-# ## 1. Salivary Gland Tumors
+# <a name="1.-Data-Loading"></a>
+# ## 1. Data Loading
 #
-# This section replicates the methylation analysis performed in the study by
-# [Jurmeister et al. (2024)](https://doi.org/10.1016/j.modpat.2024.100625). To
-# begin, we download the required data and organize it within the designated
-# directories.
-
-# %%
-# Initialize directories.
-tumor_site = "salivary_gland_tumors"
-analysis_dir_sg = data_dir / tumor_site
-test_dir_sg = validation_dir / tumor_site
-
-test_dir_sg.mkdir(parents=True, exist_ok=True)
-analysis_dir_sg.mkdir(parents=True, exist_ok=True)
-
-# Download the annotation spreadsheet.
-if not (excel_path := analysis_dir_sg / f"{tumor_site}.xlsx").exists():
-    download_file(datasets[tumor_site]["xlsx"], excel_path)
-    # Deletes the first 2 rows (useless description).
-    pd.read_excel(excel_path, skiprows=2).to_excel(excel_path, index=False)
-
-# Download the IDAT files.
-download_from_geo_and_untar(analysis_dir_sg, datasets[tumor_site]["geo_ids"])
-
-
-# %% [markdown]
-# ### Create the Methylation Analysis Object
-#
-# The `MethylAnalysis` object serves as the main interface for performing DNA
-# methylation analysis. Key parameters such as the directory structure, number
-# of CpG sites, and UMAP settings are configured here.
-
-# %%
-analysis_sg = MethylAnalysis(
-    analysis_dir=analysis_dir_sg,
-    reference_dir=reference_dir,
-    output_dir=output_dir,
-    test_dir=test_dir_sg,
-    n_cpgs=25000,
-    load_full_betas=True,
-    overlap=False,
-    cpg_blacklist=blacklist,
-    debug=False,
-    do_seg=True,
-    umap_parms={
-        "n_neighbors": 8,
-        "metric": "manhattan",
-        "min_dist": 0.3,
-    },
-)
-
-
-# %% [markdown]
-# ### Load Beta Values
-#
-# Reads and processes beta values from the provided dataset. This step can also
-# be performed interactively within the GUI.
-
-# %%
-analysis_sg.set_betas()
-
-
-# %% [markdown]
-# ### Generate UMAP Plot
-#
-# Set the columns used for coloring the UMAP plot before initiating the
-# dimensionality reduction process. The UMAP algorithm produces a visual
-# representation of the sample clusters, which is stored as a Plotly object in
-# `analysis_sg.umap_plot`.
-
-# %%
-# Calculate UMAP
-analysis_sg.idat_handler.selected_columns = ["Methylation class"]
-analysis_sg.make_umap()
-
-# %%
-# Show the results
-print(analysis_sg.umap_df)
-
-# %%
-# Generate and show image
-output_path = output_dir / f"{analysis_dir_sg.name}_umap_plot.jpg"
-analysis_sg.umap_plot.write_image(
-    output_path,
-    format="jpg",
-    width=IMG_HEIGHT,
-    height=IMG_WIDTH,
-    scale=1,
-)
-IPImage(filename=output_path)
-
-# %% [markdown]
-# ### Launch the Analysis GUI
-#
-# Initializes an interactive GUI for further exploration of the methylation
-# data.
-#
-# **Note:** This step works best in local environments and may have limitations
-# on platforms like Google Colab or Binder.
-
-# %%
-analysis_sg.run_app(open_tab=True)
-
-
-# %% [markdown]
-# ### Generate and Save CNV Plot
-#
-# Creates a copy number variation (CNV) plot for a specified sample and saves
-# the output as an image.
-
-# %%
-# Save CNV example
-analysis_sg.make_cnv_plot("206842050057_R06C01")
-cnv_plot = analysis_sg.cnv_plot
-cnv_plot.update_layout(
-    yaxis_range=[-1.1, 1.1],
-    font={"size": FONTSIZE},
-    margin={"t": 50},
-)
-output_path = output_dir / f"{analysis_dir_sg.name}_cnv_plot.jpg"
-cnv_plot.write_image(
-    output_path,
-    format="jpg",
-    width=IMG_HEIGHT,
-    height=IMG_WIDTH,
-    scale=1,
-)
-IPImage(filename=output_path)
-
-# %% [markdown]
-# ### Generate CNV Summary Plots
-#
-# In addition to individual CNV plots, this step computes summary plots to
-# highlight genomic alterations across multiple samples.
-#
-# **Note**:
-# Generating all copy number variation (CNV) plots is resource- and
-# time-intensive. The process can take a significant amount of time, depending
-# on the computational resources available.
-
-# %%
-analysis_sg.precompute_cnvs()
-cn_summary_path_sg = calculate_cn_summary(analysis_sg, "Methylation class")
-
-# %%
-IPImage(filename=cn_summary_path_sg)
-
-# %% [markdown]
-# On memory-limited platforms such as Google Colab, we need to manually free up
-# memory between operations to avoid crashes.
-
-# %%
-# Free memory
-clear_cache()
-
-# %% [markdown]
-# ### Supervised Classifier Validation
-#
-# The next step involves validating various supervised classification
-# algorithms to evaluate their performance on the dataset. This process helps
-# identify the most accurate model for methylation-based classification.
-#
-# **Note**:
-# Training is resource- and time-intensive. The process may take up to 10
-# minutes, depending on the computational resources available.
-
-# %%
-# Train supervised classifiers
-ids = analysis_sg.idat_handler.ids
-clf_out_sg = analysis_sg.classify(
-    ids=ids,
-    clf_list=[
-        "lvt-kbest-et",
-        "lvt-kbest-lr",
-        "lvt-kbest-rf",
-        # "lvt-kbest-svc_rbf",
-        # "lvt-pca-lr",
-        # "lvt-pca-et",
-    ],
-)
-
-# %%
-# Print reports for all classifier for the first sample
-for clf_result in clf_out_sg:
-    print(clf_result.reports["txt"][0])
-    print()
-
-# %%
-# Identify and display the best classifier
-best_clf_sg = max(
-    clf_out_sg, key=lambda result: np.mean(result.metrics["accuracy_scores"])
-)
-print("Most accurate classifier:")
-print(best_clf_sg.reports["txt"][0])
-
-# %%
-# Free memory
-del analysis_sg
-clear_cache()
-
-# %% [markdown]
-# -----------------------------------------------------------------------------
-# <a name="2.-Soft-Tissue-Tumors"></a>
-# ## 2. Soft Tissue Tumors
-#
-# This section replicates the methylation analysis performed in [Koelsche et
-# al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). To begin, we
-# download the required data and organize it within the designated directories.
-
-# %%
-# Initialize directories.
-tumor_site = "soft_tissue_tumors"
-analysis_dir_st = data_dir / tumor_site
-test_dir_st = validation_dir / tumor_site
-
-test_dir_st.mkdir(parents=True, exist_ok=True)
-analysis_dir_st.mkdir(parents=True, exist_ok=True)
-
-# Download the annotation spreadsheet.
-if not (excel_path := analysis_dir_st / f"{tumor_site}.xlsx").exists():
-    download_file(datasets[tumor_site]["xlsx"], excel_path)
-
-# Download the IDAT files.
-download_from_geo_and_untar(analysis_dir_st, datasets[tumor_site]["geo_ids"])
-
-
-# %% [markdown]
-# ### Create the Methylation Analysis Object
-#
-# The `MethylAnalysis` object serves as the main interface for performing DNA
-# methylation analysis. Key parameters such as the directory structure, number
-# of CpG sites, and UMAP settings are configured here.
-
-# %%
-analysis_st = MethylAnalysis(
-    analysis_dir=analysis_dir_st,
-    reference_dir=reference_dir,
-    output_dir=output_dir,
-    n_cpgs=25000,
-    load_full_betas=True,
-    overlap=False,
-    cpgs="450k+epic+epicv2",
-    cpg_blacklist=blacklist,
-    debug=False,
-    do_seg=True,
-    umap_parms={
-        "metric": "manhattan",
-    },
-)
-
-# %% [markdown]
-# ### Load Beta Values
-#
-# Reads and processes beta values from the provided dataset. This step can also
-# be performed interactively within the GUI.
-
-# %%
-analysis_st.set_betas()
-
-
-# %% [markdown]
-# ### Generate UMAP Plot
-#
-# Set the columns used for coloring the UMAP plot before initiating the
-# dimensionality reduction process. The UMAP algorithm produces a visual
-# representation of the sample clusters, which is stored as a Plotly object in
-# `analysis_st.umap_plot`.
-
-# %%
-# Calculate UMAP
-analysis_st.idat_handler.selected_columns = ["Methylation Class Name"]
-analysis_st.make_umap()
-
-# %%
-# Show the results
-print(analysis_st.umap_df)
-
-# %%
-# Generate and show image
-output_path = output_dir / f"{analysis_dir_st.name}_umap_plot.jpg"
-analysis_st.umap_plot.write_image(
-    output_path,
-    format="jpg",
-    width=IMG_HEIGHT,
-    height=IMG_WIDTH,
-    scale=1,
-)
-IPImage(filename=output_path)
-
-
-# %% [markdown]
-# ### Launch the Analysis GUI
-#
-# Initializes an interactive GUI for further exploration of the methylation
-# data.
-#
-# **Note:** This step works best in local environments and may have limitations
-# on platforms like Google Colab or Binder.
-
-# %%
-analysis_st.run_app(open_tab=True)
-
-
-# %% [markdown]
-# ### Generate and Save CNV Plot
-#
-# Creates a copy number variation (CNV) plot for a specified sample and saves
-# the output as an image.
-
-# %%
-# Save CNV example
-analysis_st.make_cnv_plot("3999112131_R05C01")
-cnv_plot = analysis_st.cnv_plot
-cnv_plot.update_layout(
-    yaxis_range=[-1.1, 1.1],
-    font={"size": FONTSIZE},
-    margin={"t": 50},
-)
-output_path = output_dir / f"{analysis_dir_st.name}_cnv_plot.jpg"
-cnv_plot.write_image(
-    output_path,
-    format="jpg",
-    width=IMG_HEIGHT,
-    height=IMG_WIDTH,
-    scale=1,
-)
-IPImage(filename=output_path)
-
-# %% [markdown]
-# ### Generate CNV Summary Plots
-#
-# In addition to individual CNV plots, this step computes summary plots to
-# highlight genomic alterations across multiple samples.
-#
-# **Note**:
-# Generating all copy number variation (CNV) plots is resource- and
-# time-intensive. The process can take a significant amount of time, depending
-# on the computational resources available.
-
-# %%
-analysis_st.precompute_cnvs()
-cn_summary_path_st = calculate_cn_summary(
-    analysis_st, "Methylation Class Name"
-)
-
-# %%
-IPImage(filename=cn_summary_path_st)
-
-# %% [markdown]
-# On memory-limited platforms such as Google Colab, we need to manually free up
-# memory between operations to avoid crashes.
-
-# %%
-# Free memory
-clear_cache()
-
-# %% [markdown]
-# ### Supervised Classifier Validation
-#
-# The next step involves validating various supervised classification
-# algorithms to evaluate their performance on the dataset. This process helps
-# identify the most accurate model for methylation-based classification.
-#
-# **Note**:
-# Training is resource- and time-intensive. The process may take up to 10
-# minutes, depending on the computational resources available.
-
-# %%
-# Train supervised classifiers
-ids = analysis_st.idat_handler.ids
-clf_out_st = analysis_st.classify(
-    ids=ids,
-    clf_list=[
-        "lvt-kbest-et",
-        "lvt-kbest-lr",
-        "lvt-kbest-rf",
-        # "lvt-kbest-svc_rbf",
-        # "lvt-pca-lr",
-        # "lvt-pca-et",
-    ],
-)
-
-# %%
-# Print reports for all classifier for the first sample
-for clf_result in clf_out_st:
-    print(clf_result.reports["txt"][0])
-    print()
-
-# %%
-# Identify and display the best classifier
-best_clf_st = max(
-    clf_out_st, key=lambda result: np.mean(result.metrics["accuracy_scores"])
-)
-print("Most accurate classifier:")
-print(best_clf_st.reports["txt"][0])
-
-
-# %%
-# Free memory
-del analysis_st
-clear_cache()
-
-
-# %% [markdown]
-# -----------------------------------------------------------------------------
-# <a name="3.-Squamous-Cell-Carcinoma"></a>
-# ## 3. Squamous Cell Carcinoma
-
 # %% In this example, we aim to reproduce the pan-SCC classifier [markdown]
 # presented in the study by [Jurmeister et al.
 # (2019)](https://doi.org/10.1126/scitranslmed.aaw8513). Our goal is to gather
@@ -803,11 +379,11 @@ clear_cache()
 # %%
 # Initialize directories.
 tumor_site = "scc"
-analysis_dir_scc = data_dir / tumor_site
-test_dir_scc = validation_dir / tumor_site
+analysis_dir = data_dir / tumor_site
+test_dir = validation_dir / tumor_site
 
-test_dir_scc.mkdir(parents=True, exist_ok=True)
-analysis_dir_scc.mkdir(parents=True, exist_ok=True)
+test_dir.mkdir(parents=True, exist_ok=True)
+analysis_dir.mkdir(parents=True, exist_ok=True)
 
 # %% [markdown]
 # ### Step 1: Download TCGA Data
@@ -815,17 +391,17 @@ analysis_dir_scc.mkdir(parents=True, exist_ok=True)
 
 # %%
 gdc_client_url = "https://gdc.cancer.gov/system/files/public/file/gdc-client_2.3_Ubuntu_x64-py3.8-ubuntu-20.04.zip"
-gdc_client_bin = analysis_dir_scc / "gdc-client"
+gdc_client_bin = analysis_dir / "gdc-client"
 
 # Download and set up the GDC client
 if not gdc_client_bin.exists():
-    zip_path_0 = analysis_dir_scc / "gdc-client.zip"
-    zip_path_1 = analysis_dir_scc / "gdc-client_2.3_Ubuntu_x64.zip"
+    zip_path_0 = analysis_dir / "gdc-client.zip"
+    zip_path_1 = analysis_dir / "gdc-client_2.3_Ubuntu_x64.zip"
     download_file(gdc_client_url, zip_path_0)
     with zipfile.ZipFile(zip_path_0, "r") as zip_file:
-        zip_file.extractall(analysis_dir_scc)
+        zip_file.extractall(analysis_dir)
     with zipfile.ZipFile(zip_path_1, "r") as zip_file:
-        zip_file.extractall(analysis_dir_scc)
+        zip_file.extractall(analysis_dir)
     zip_path_0.unlink()
     zip_path_1.unlink()
     gdc_client_bin.chmod(0o755)
@@ -840,9 +416,9 @@ else:
 # and not to abort the process to ensure it completes successfully.
 
 # %%
-tcga_dir = analysis_dir_scc / "tcga_scc"
+tcga_dir = analysis_dir / "tcga_scc"
 tcga_downloaded_tag = tcga_dir / ".download_complete"
-tcga_metadata_dir_tar = analysis_dir_scc / "tcga_metadata.tar.gz"
+tcga_metadata_dir_tar = analysis_dir / "tcga_metadata.tar.gz"
 tcga_metadata_dir = tcga_metadata_dir_tar.with_suffix("").with_suffix("")
 
 tcga_dir.mkdir(parents=True, exist_ok=True)
@@ -854,7 +430,7 @@ tcga_metadata_url = "https://raw.githubusercontent.com/brj0/mepylome-data/main/e
 if not tcga_metadata_dir.exists():
     print("Setting up TCGA annotation directory...")
     download_file(tcga_metadata_url, tcga_metadata_dir_tar)
-    extract_tar(tcga_metadata_dir_tar, analysis_dir_scc)
+    extract_tar(tcga_metadata_dir_tar, analysis_dir)
     print("Setting up TCGA annotation directory done.")
 
 # Check if the download is complete
@@ -1071,20 +647,20 @@ tcga_annotation = tcga_annotation[tcga_annotation["Censor"] == 0]
 # ### Step 2: Download and unzip the GEO data
 
 # %%
-geo_metadata_dir_tar = analysis_dir_scc / "geo_metadata.tar.gz"
+geo_metadata_dir_tar = analysis_dir / "geo_metadata.tar.gz"
 geo_metadata_dir = geo_metadata_dir_tar.with_suffix("").with_suffix("")
 
 # Check if the GEO annotation tar file exists and extract
 if not geo_metadata_dir.exists():
     print("Setting up GEO annotation directory...")
     download_file(geo_metadata_url, geo_metadata_dir_tar)
-    extract_tar(geo_metadata_dir_tar, analysis_dir_scc)
+    extract_tar(geo_metadata_dir_tar, analysis_dir)
     print("Setting up GEO annotation directory done.")
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir_scc, datasets[tumor_site]["geo_ids"])
+download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_ids"])
 download_from_geo_and_untar(
-    test_dir_scc, datasets[tumor_site + "_test"]["geo_ids"]
+    test_dir, datasets[tumor_site + "_test"]["geo_ids"]
 )
 
 
@@ -1107,7 +683,7 @@ geo_annotation = merge_csv(geo_metadata_dir)
 # Join the TCGA and GEO annotation files
 
 # %%
-if (csv_path := analysis_dir_scc / f"{tumor_site}.csv").exists():
+if (csv_path := analysis_dir / f"{tumor_site}.csv").exists():
     anno_df = pd.read_csv(csv_path)
     print("Merged annotation file allready exists.")
 else:
@@ -1128,16 +704,16 @@ else:
 
 # %%
 # Only consider test files with annotation.
-test_ids_scc = set(anno_df.Sample_ID).intersection(
-    x.name for x in idat_basepaths(test_dir_scc)
+test_ids = set(anno_df.Sample_ID).intersection(
+    x.name for x in idat_basepaths(test_dir)
 )
 
-analysis_scc = MethylAnalysis(
-    analysis_dir=analysis_dir_scc,
+analysis = MethylAnalysis(
+    analysis_dir=analysis_dir,
     reference_dir=reference_dir,
     output_dir=output_dir,
-    test_dir=test_dir_scc,
-    test_ids=test_ids_scc,
+    test_dir=test_dir,
+    test_ids=test_ids,
     n_cpgs=25000,
     load_full_betas=True,
     overlap=True,
@@ -1159,30 +735,34 @@ analysis_scc = MethylAnalysis(
 # be performed interactively within the GUI.
 
 # %%
-analysis_scc.set_betas()
+analysis.set_betas()
 
 
 # %% [markdown]
+# -----------------------------------------------------------------------------
+# <a name="2.-Soft-Tissue-Tumors"></a>
+# ## 2. UMAP Calculation
+#
 # ### Generate UMAP Plot
 #
 # Set the columns used for coloring the UMAP plot before initiating the
 # dimensionality reduction process. The UMAP algorithm produces a visual
 # representation of the sample clusters, which is stored as a Plotly object in
-# `analysis_scc.umap_plot`.
+# `analysis.umap_plot`.
 
 # %%
 # Calculate UMAP
-analysis_scc.idat_handler.selected_columns = ["Diagnosis"]
-analysis_scc.make_umap()
+analysis.idat_handler.selected_columns = ["Diagnosis"]
+analysis.make_umap()
 
 # %%
 # Show the results
-print(analysis_scc.umap_df)
+print(analysis.umap_df)
 
 # %%
 # Generate and show image
-output_path = output_dir / f"{analysis_dir_scc.name}_umap_plot.jpg"
-analysis_scc.umap_plot.write_image(
+output_path = output_dir / f"{analysis_dir.name}_umap_plot.jpg"
+analysis.umap_plot.write_image(
     output_path,
     format="jpg",
     width=IMG_HEIGHT,
@@ -1202,7 +782,7 @@ IPImage(filename=output_path)
 # on platforms like Google Colab or Binder.
 
 # %%
-analysis_scc.run_app(open_tab=True)
+analysis.run_app(open_tab=True)
 
 
 # %% [markdown]
@@ -1213,14 +793,14 @@ analysis_scc.run_app(open_tab=True)
 
 # %%
 # Save CNV example
-analysis_scc.make_cnv_plot("364f7953-d0af-4929-8491-7b5e94d488aa_noid")
-cnv_plot = analysis_scc.cnv_plot
+analysis.make_cnv_plot("364f7953-d0af-4929-8491-7b5e94d488aa_noid")
+cnv_plot = analysis.cnv_plot
 cnv_plot.update_layout(
     yaxis_range=[-1.1, 1.1],
     font={"size": FONTSIZE},
     margin={"t": 50},
 )
-output_path = output_dir / f"{analysis_dir_scc.name}_cnv_plot.jpg"
+output_path = output_dir / f"{analysis_dir.name}_cnv_plot.jpg"
 cnv_plot.write_image(
     output_path,
     format="jpg",
@@ -1231,6 +811,10 @@ cnv_plot.write_image(
 IPImage(filename=output_path)
 
 # %% [markdown]
+# -----------------------------------------------------------------------------
+# <a name="3.-CNV-Analysis"></a>
+# ## 3. CNV Analysis
+#
 # ### Generate CNV Summary Plots
 #
 # In addition to individual CNV plots, this step computes summary plots to
@@ -1242,11 +826,11 @@ IPImage(filename=output_path)
 # on the computational resources available.
 
 # %%
-analysis_scc.precompute_cnvs()
-cn_summary_path_scc = calculate_cn_summary(analysis_scc, "Diagnosis")
+analysis.precompute_cnvs()
+cn_summary_path = calculate_cn_summary(analysis, "Diagnosis")
 
 # %%
-IPImage(filename=cn_summary_path_scc)
+IPImage(filename=cn_summary_path)
 
 # %% [markdown]
 # On memory-limited platforms such as Google Colab, we need to manually free up
@@ -1257,6 +841,10 @@ IPImage(filename=cn_summary_path_scc)
 clear_cache()
 
 # %% [markdown]
+# -----------------------------------------------------------------------------
+# <a name="4.-Supervised-Classifier-Training"></a>
+# ## 4. Supervised Classifier Training
+#
 # ### Supervised Classifier Validation
 #
 # The next step involves validating various supervised classification
@@ -1269,51 +857,48 @@ clear_cache()
 
 # %%
 # Train supervised classifiers
-ids = analysis_scc.idat_handler.ids
-clf_out_scc = analysis_scc.classify(
+ids = analysis.idat_handler.ids
+clf_out = analysis.classify(
     ids=ids,
     clf_list=[
         "lvt-kbest-et",
         "lvt-kbest-lr",
         "lvt-kbest-rf",
-        # "lvt-kbest-svc_rbf",
-        # "lvt-pca-lr",
-        # "lvt-pca-et",
     ],
 )
 
 # %%
 # Print reports for all classifier for the first sample
-for clf_result in clf_out_scc:
+for clf_result in clf_out:
     print(clf_result.reports["txt"][0])
     print()
 
 # %%
 # Identify and display the best classifier
-best_clf_scc = max(
-    clf_out_scc, key=lambda result: np.mean(result.metrics["accuracy_scores"])
+best_clf = max(
+    clf_out, key=lambda result: np.mean(result.metrics["accuracy_scores"])
 )
 print("Most accurate classifier:")
-print(best_clf_scc.reports["txt"][0])
+print(best_clf.reports["txt"][0])
 
 # %% [markdown]
 # Now we apply the best classifier on the independent validation samples:
 
 # %%
-test_ids = analysis_scc.idat_handler.test_ids
+test_ids = analysis.idat_handler.test_ids
 # Ignore all files that are not in annotation file
 test_ids = list(
-    set(test_ids).intersection(analysis_scc.idat_handler.annotation_df.index)
+    set(test_ids).intersection(analysis.idat_handler.annotation_df.index)
 )
-clf_out_pred = analysis_scc.classify(ids=test_ids, clf_list=best_clf_scc.model)
+clf_out_pred = analysis.classify(ids=test_ids, clf_list=best_clf.model)
 pred = clf_out_pred[0].prediction.idxmax(axis=1)
-true_values = analysis_scc.idat_handler.samples_annotated.loc[test_ids][
+true_values = analysis.idat_handler.samples_annotated.loc[test_ids][
     "Diagnosis"
 ]
 correct = np.sum(pred == true_values)
 total = len(pred)
-accuracy_scc = correct / total
-print(f"Classifier Accuracy: {100 * accuracy_scc:.2f} % ({correct}/{total})")
+accuracy = correct / total
+print(f"Classifier Accuracy: {100 * accuracy:.2f} % ({correct}/{total})")
 
 # Analyze misclassified samples
 misclassified = pred != true_values
@@ -1322,15 +907,12 @@ misclassified_samples["Pred"] = pred[misclassified]
 misclassified_samples["True"] = true_values[misclassified]
 print("Missclassified samples:\n", misclassified_samples)
 
-# %%
-# Free memory
-del analysis_scc
-clear_cache()
 
 # %% [markdown]
-# # 4. Appendix
-
-# %% [markdown]
+# -----------------------------------------------------------------------------
+#
+# ## Appendix
+#
 # The GEO annotation files were downloaded and manually curated. Below is the
 # code used to download the GEO datasets and save their associated metadata:
 
