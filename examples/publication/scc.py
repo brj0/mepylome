@@ -109,6 +109,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -439,26 +440,33 @@ if not tcga_downloaded_tag.exists():
     if not gdc_client_bin.exists():
         msg = f"Error: GDC client not found at {gdc_client_bin}"
         raise FileNotFoundError(msg)
-    print("Downloading TCGA files. This may take some time!")
+    print("Downloading TCGA files. This may take several hours!")
     manifest_file = next(tcga_metadata_dir.glob("gdc_manifest.*txt"))
     if not manifest_file.exists():
         msg = "No TCGA manifest file found."
         raise FileNotFoundError(msg)
     print(f"Downloading TCGA data from manifest file: {manifest_file}")
-    subprocess.run(
-        [
-            str(gdc_client_bin),
-            "download",
-            "--latest",
-            "--manifest",
-            manifest_file,
-            "--dir",
-            str(tcga_dir),
-        ],
-        check=True,
-    )
-    print("Download finished.")
-    tcga_downloaded_tag.touch()
+    cmd = [
+        str(gdc_client_bin),
+        "download",
+        "--manifest",
+        str(manifest_file),
+        "--dir",
+        str(tcga_dir),
+    ]
+    tries = 0
+    while True:
+        try:
+            print(f"Running command: {' '.join(cmd)}")
+            subprocess.run(cmd, check=True)
+            print("Download finished.")
+            tcga_downloaded_tag.touch()
+            break
+        except Exception as exc:
+            tries += 1
+            print(exc)
+            print(f"Download failed (attempt {tries}), retrying...")
+            time.sleep(5)
 else:
     print("TCGA data already completely downloaded.")
 
