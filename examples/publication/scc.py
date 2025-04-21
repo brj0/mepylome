@@ -464,7 +464,7 @@ if not tcga_downloaded_tag.exists():
             break
         except Exception:
             tries += 1
-            print(f"Download failed (attempt {tries}), retrying...")
+            print(f"Download interrupted (attempt {tries}), retrying...")
             time.sleep(5)
 else:
     print("TCGA data already completely downloaded.")
