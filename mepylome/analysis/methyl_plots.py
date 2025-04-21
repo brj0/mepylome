@@ -11,6 +11,7 @@ from pathlib import Path
 import plotly.colors
 import plotly.express as px
 import plotly.graph_objects as go
+import psutil
 from tqdm import tqdm
 
 from mepylome.dtypes import (
@@ -204,6 +205,22 @@ def write_single_cnv_to_disk(
             f.write(error_message)
 
 
+def get_optimal_core_count(reserve_mem_gb=1.0):
+    """Determine optimal core count based on CPU and memory constraints."""
+    process = psutil.Process()
+    current_proc_mem_gb = process.memory_info().rss / 1e9
+    avail_mem_gb = psutil.virtual_memory().available / 1e9
+    usable_mem_gb = max(0, avail_mem_gb - reserve_mem_gb)
+
+    if current_proc_mem_gb <= 0:
+        # Fallback: use 1 core if memory usage can't be estimated
+        return 1
+
+    mem_based_cores = int(usable_mem_gb // current_proc_mem_gb)
+
+    return max(1, min(cpu_count() - 1, mem_based_cores))
+
+
 def write_cnv_to_disk(
     sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None, n_cores=None
 ):
@@ -235,8 +252,6 @@ def write_cnv_to_disk(
     if len(new_idat_paths) == 0:
         return
 
-    logger.info("Write CNV to disk...")
-
     _write_single_cnv_to_disk = partial(
         write_single_cnv_to_disk,
         reference_dir=reference_dir,
@@ -246,9 +261,11 @@ def write_cnv_to_disk(
     )
 
     if n_cores is None:
-        n_cores = max(1, min(len(new_idat_paths), cpu_count() - 1, 4))
+        n_cores = max(1, min(len(new_idat_paths), get_optimal_core_count()))
     else:
         n_cores = max(1, min(n_cores, len(new_idat_paths), cpu_count()))
+
+    logger.info("Write CNV to disk using %s core(s).", n_cores)
 
     if n_cores == 1:
         # This is significantly faster than Pool(1)
