@@ -1257,14 +1257,16 @@ class MethylAnalysis:
                 for path in self.idat_handler.paths
             }
             logger.info(
-                "The following array types were detected: %s", input_var
+                "The following array types were detected: %s",
+                ", ".join(input_var),
             )
             input_var = input_var - {str(ArrayType.UNKNOWN)}
 
         elif isinstance(input_var, str):
             input_var = set(input_var.split("+"))
             logger.info(
-                "The following array types were provided: %s", input_var
+                "The following array types were provided: %s",
+                ", ".join(input_var),
             )
 
         supported_types = {str(x) for x in ArrayType} - {
