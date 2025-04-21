@@ -462,9 +462,8 @@ if not tcga_downloaded_tag.exists():
             print("Download finished.")
             tcga_downloaded_tag.touch()
             break
-        except Exception as exc:
+        except Exception:
             tries += 1
-            print(exc)
             print(f"Download failed (attempt {tries}), retrying...")
             time.sleep(5)
 else:
