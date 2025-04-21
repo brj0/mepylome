@@ -8,8 +8,8 @@ do_classify = true
 do_cnv = true
 version = "0.0.0"
 classifier_list = [
-    "vtl-kbest-et",
-    "vtl-kbest-lr",
+    "vtl-kbest(k=10000)-et",
+    "vtl-kbest(k=10000)-lr(max_iter=10000)",
 ]
 annotation_diagnosis_column = ["Methylation class"]
 
@@ -30,8 +30,8 @@ do_umap = true
 do_classify = true
 version = "0.0.0"
 classifier_list = [
-    "vtl-kbest-et",
-    "vtl-kbest-lr",
+    "vtl-kbest(k=10000)-et",
+    "vtl-kbest(k=10000)-lr(max_iter=10000)",
 ]
 annotation_diagnosis_column = ["Methylation_class"]
 

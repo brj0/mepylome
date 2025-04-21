@@ -492,9 +492,9 @@ ids = analysis.idat_handler.ids
 clf_out = analysis.classify(
     ids=ids,
     clf_list=[
-        "vtl-kbest-et",
-        "vtl-kbest-lr",
-        "vtl-kbest-rf",
+        "vtl-kbest(k=10000)-et",
+        "vtl-kbest(k=10000)-lr(max_iter=10000)",
+        "vtl-kbest(k=10000)-rf",
     ],
 )
 

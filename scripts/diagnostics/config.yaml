@@ -9,13 +9,13 @@ diagnostic_config:
     do_cnv: true
     version: 0.0.0
     classifier_list:
-      - vtl-kbest-et
-      - vtl-kbest-lr
-      # - vtl-kbest-rf
-      # - vtl-kbest-svc_rbf
-      # - vtl-pca-lr
-      # - vtl-pca-et
-      # - vtl-knn
+      - vtl-kbest(k=10000)-et
+      - vtl-kbest(k=10000)-lr(max_iter=10000)
+      # - vtl-kbest(k=10000)-rf
+      # - vtl-kbest(k=10000)-svc
+      # - vtl-pca_auto-lr(max_iter=10000)
+      # - vtl-pca_auto-et
+      # - vtl-knn(weights='distance')
     annotation_diagnosis_column: 
       - "Methylation class"
     methyl_analysis:
@@ -35,13 +35,13 @@ diagnostic_config:
   #   do_classify: true
   #   version: 0.0.0
   #   classifier_list:
-  #     - vtl-kbest-et
-  #     - vtl-kbest-lr
-  #     - vtl-kbest-rf
-  #     - vtl-kbest-svc_rbf
-  #     - vtl-pca-lr
-  #     - vtl-pca-et
-  #     - vtl-knn
+  #     - vtl-kbest(k=10000)-et
+  #     - vtl-kbest(k=10000)-lr(max_iter=10000)
+  #     - vtl-kbest(k=10000)-rf
+  #     - vtl-kbest(k=10000)-svc
+  #     - vtl-pca_auto-lr(max_iter=10000)
+  #     - vtl-pca_auto-et
+  #     - vtl-knn(weights='distance')
   #   annotation_diagnosis_column: 
   #     - "Methylation_class"
   #   methyl_analysis:

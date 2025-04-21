@@ -4,6 +4,7 @@ Non supervised classifiers (random forest, k-nearest neighbors, neural
 networks) for predicting the methylation class.
 """
 
+import ast
 import hashlib
 import logging
 import pickle
@@ -26,11 +27,9 @@ from sklearn.ensemble import (
     GradientBoostingClassifier,
     HistGradientBoostingClassifier,
     RandomForestClassifier,
-    StackingClassifier,
 )
 from sklearn.feature_selection import (
     SelectKBest,
-    mutual_info_classif,
 )
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.linear_model import (
@@ -334,7 +333,7 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
 class VarianceThresholdLite(BaseEstimator, TransformerMixin):
     """low memory version of sklearn.feature_selection.VarianceThreshold."""
 
-    def __init__(self, threshold=0.0):
+    def __init__(self, threshold=1e-4):
         self.threshold = threshold
 
     def fit(self, X, y=None):
@@ -360,7 +359,7 @@ class VarianceThresholdLite(BaseEstimator, TransformerMixin):
 class TopVarianceSelector(BaseEstimator, TransformerMixin):
     """Low-memory selector for top-N features by variance."""
 
-    def __init__(self, n_top=10000):
+    def __init__(self, n_top=30000):
         self.n_top = n_top
 
     def fit(self, X, y=None):
@@ -395,67 +394,87 @@ class TopVarianceSelector(BaseEstimator, TransformerMixin):
         return mask
 
 
-def make_clf_pipeline(step_keys, X_shape, cv):
+def parse_component_key(key):
+    """Parse component name and kwargs like 'lr(n_iter=200)'."""
+    match = re.match(r"^(\w+)(?:\((.*)\))?$", key)
+    if not match:
+        raise ValueError(f"Invalid component key format: {key}")
+    name, kwargs_str = match.groups()
+    args = []
+    kwargs = {}
+    if kwargs_str:
+        tree = ast.parse(f"f({kwargs_str})", mode="eval")
+        if not isinstance(tree.body, ast.Call):
+            raise ValueError(f"Malformed kwargs in: {key}")
+        args = [ast.literal_eval(arg) for arg in tree.body.args]
+        kwargs = {
+            kw.arg: ast.literal_eval(kw.value) for kw in tree.body.keywords
+        }
+    return name, args, kwargs
+
+
+def make_clf_pipeline(step_keys, X_shape=None, cv=None):
     """Sklearn pipeline with scaling, feature selection, and classifier."""
-    n_splits = cv if isinstance(cv, int) else cv.n_splits
-    n_components_pca = min(((n_splits - 1) * X_shape[0] // n_splits), 50)
     scalers = {
-        "minmax": MinMaxScaler(),
-        "power": PowerTransformer(),
-        "quantile": QuantileTransformer(output_distribution="uniform"),
-        "quantile_normal": QuantileTransformer(output_distribution="normal"),
-        "robust": RobustScaler(),
-        "std": StandardScaler(),
+        "minmax": MinMaxScaler,
+        "power": PowerTransformer,
+        "quantile": QuantileTransformer,
+        "robust": RobustScaler,
+        "std": StandardScaler,
     }
     selectors = {
-        "kbest": SelectKBest(k=10000),
-        "vtl": VarianceThresholdLite(threshold=1e-4),
-        "top": TopVarianceSelector(n_top=30000),
-        "mutual_info": SelectKBest(mutual_info_classif, k=10000),
-        "pca": PCA(n_components=n_components_pca),
+        "kbest": lambda **kwargs: SelectKBest(**{"k": 10000, **kwargs}),
+        "pca": PCA,
+        "top": TopVarianceSelector,
+        "vtl": VarianceThresholdLite,
     }
+    if X_shape and cv:
+        n_splits = cv if isinstance(cv, int) else cv.n_splits
+        n_components_pca = min(((n_splits - 1) * X_shape[0] // n_splits), 50)
+        selectors["pca_auto"] = lambda **kwargs: PCA(
+            **{"n_components": n_components_pca, **kwargs}
+        )
     models = {
-        "ada": AdaBoostClassifier(),
-        "bag": BaggingClassifier(),
-        "dt": DecisionTreeClassifier(),
-        "et": ExtraTreesClassifier(),
-        "gb": GradientBoostingClassifier(),
-        "gp": GaussianProcessClassifier(),
-        "hgb": HistGradientBoostingClassifier(),
-        "knn": KNeighborsClassifier(n_neighbors=5, weights="distance"),
-        "lda": LinearDiscriminantAnalysis(),
-        "lr": LogisticRegression(max_iter=10000),
-        "mlp": MLPClassifier(verbose=True),
-        "nb": GaussianNB(),
-        "perceptron": Perceptron(max_iter=1000, tol=1e-3),
-        "qda": QuadraticDiscriminantAnalysis(),
-        "rf": RandomForestClassifier(),
-        "ridge": RidgeClassifier(),
-        "sgd": SGDClassifier(max_iter=1000, tol=1e-3),
-        "stacking": StackingClassifier(
-            estimators=[
-                ("rf", RandomForestClassifier()),
-                ("svc", SVC(kernel="linear", probability=True)),
-            ],
-            final_estimator=LogisticRegression(),
+        "ada": AdaBoostClassifier,
+        "bag": BaggingClassifier,
+        "dt": DecisionTreeClassifier,
+        "et": ExtraTreesClassifier,
+        "gb": GradientBoostingClassifier,
+        "gp": GaussianProcessClassifier,
+        "hgb": HistGradientBoostingClassifier,
+        "knn": KNeighborsClassifier,
+        "lda": LinearDiscriminantAnalysis,
+        "lr": LogisticRegression,
+        "mlp": lambda **kwargs: MLPClassifier(**{"verbose": True, **kwargs}),
+        "nb": GaussianNB,
+        "perceptron": Perceptron,
+        "qda": QuadraticDiscriminantAnalysis,
+        "rf": RandomForestClassifier,
+        "ridge": RidgeClassifier,
+        "sgd": SGDClassifier,
+        "svc": lambda **kwargs: SVC(
+            **{"probability": True, "verbose": True, **kwargs}
         ),
-        "svc_linear": SVC(kernel="linear", probability=True, verbose=True),
-        "svc_rbf": SVC(kernel="rbf", probability=True, verbose=True),
     }
     components = {
-        **{key: ("scaler", pro) for key, pro in scalers.items()},
-        **{key: ("feature_selector", sel) for key, sel in selectors.items()},
-        **{key: ("classifier", clf) for key, clf in models.items()},
+        **{key: ("scaler", val) for key, val in scalers.items()},
+        **{key: ("feature_selector", val) for key, val in selectors.items()},
+        **{key: ("classifier", val) for key, val in models.items()},
     }
+    components_full_name = {
+        clf().__class__.__name__: (name, clf)
+        for name, clf in components.values()
+    }
+    components.update(components_full_name)
     if isinstance(step_keys, str):
-        step_keys = re.findall(r"[a-zA-Z0-9_]+", step_keys)
-    invalid_keys = [key for key in step_keys if key not in components]
-    if invalid_keys:
-        msg = f"Invalid step key(s) found: {', '.join(invalid_keys)}"
-        raise ValueError(msg)
+        step_keys = step_keys.split("-")
     pipeline_components = []
-    for i, key in enumerate(step_keys):
-        type_name, component = components[key]
+    for i, full_key in enumerate(step_keys):
+        base_key, args, kwargs = parse_component_key(full_key)
+        if base_key not in components:
+            raise ValueError(f"Invalid step key: {base_key}")
+        type_name, constructor = components[base_key]
+        component = constructor(*args, **kwargs)
         step_name = f"{i + 1}-{type_name}"
         pipeline_components.append((step_name, component))
 
@@ -778,24 +797,25 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
               values are:
 
             - A pipeline string composed of arbitrary components joined by
-              dashes ("-"). The components can include:
+              dashes ("-"). Each component can be specified using either an
+              abbreviation or the full class name (e.g., "std" or
+              "StandardScaler").:
 
                 scaler:
                     - "std": Standard scaling (StandardScaler).
                     - "minmax": Min-max scaling (MinMaxScaler).
                     - "robust": Robust scaling (RobustScaler).
                     - "power": Power transformation (PowerTransformer).
-                    - "quantile": Quantile transformation (QuantileTransformer,
-                      uniform distribution).
-                    - "quantile_normal": Quantile transformation
-                      (QuantileTransformer, normal distribution).
+                    - "quantile": Quantile transformation
+                      (QuantileTransformer).
 
                 selector:
                     - "kbest": Select the best features (SelectKBest).
+                    - "top": To varying features (TopVarianceSelector).
                     - "pca": Principal component analysis (PCA).
+                    - "pca_auto": Principal component analysis (PCA). Number of
+                      components is determined automatically.
                     - "lda": Linear Discriminant Analysis (LDA).
-                    - "mutual_info": Select features based on mutual
-                      information (SelectKBest with mutual_info_classif).
 
                 clf:
                     - "rf": RandomForestClassifier.
@@ -803,8 +823,7 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
                     - "et": ExtraTreesClassifier.
                     - "knn": KNeighborsClassifier.
                     - "mlp": MLPClassifier.
-                    - "svc_linear": Support Vector Classifier (linear kernel).
-                    - "svc_rbf": Support Vector Classifier (RBF kernel).
+                    - "svc": Support Vector Classifier (SVC).
                     - "ada": AdaBoostClassifier.
                     - "bag": BaggingClassifier.
                     - "dt": DecisionTreeClassifier.
@@ -815,8 +834,6 @@ def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
                     - "qda": Quadratic Discriminant Analysis (QDA).
                     - "ridge": RidgeClassifier.
                     - "sgd": SGDClassifier.
-                    - "stacking": StackingClassifier (combines multiple
-                      classifiers).
 
 
                 Example: Using a feature selector and a classifier (SelectKBest

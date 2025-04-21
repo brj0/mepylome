@@ -202,13 +202,13 @@ def get_side_navigation(
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
     color_scheme = "discrete" if use_discrete_colors else "continuous"
     clf_options = {
-        "vtl-kbest-et": "ExtraTreesClassifier",
-        "vtl-kbest-lr": "LogisticRegression",
-        "vtl-kbest-rf": "RandomForestClassifier",
-        "vtl-kbest-svc_rbf": "SVC(kernel='rbf')",
-        "vtl-pca-lr": "PCALogisticRegression",
-        "vtl-pca-et": "PCAExtraTreesClassifier",
-        "vtl-knn": "KNeighborsClassifier",
+        "vtl-kbest(k=10000)-et": "ExtraTreesClassifier",
+        "vtl-kbest(k=10000)-lr(max_iter=10000)": "LogisticRegression",
+        "vtl-kbest(k=10000)-rf": "RandomForestClassifier",
+        "vtl-kbest(k=10000)-svc": "SVC(kernel='rbf')",
+        "vtl-pca_auto-lr(max_iter=10000)": "PCALogisticRegression",
+        "vtl-pca_auto-et": "PCAExtraTreesClassifier",
+        "vtl-knn(weights='distance')": "KNeighborsClassifier",
         **{str(i): clf["name"] for i, clf in enumerate(custom_clfs)},
     }
     tabs = [
@@ -501,7 +501,10 @@ def get_side_navigation(
                 dcc.Dropdown(
                     id="clf-clf-dropdown",
                     options=clf_options,
-                    value=["vtl-kbest-lr", "vtl-kbest-et"],
+                    value=[
+                        "vtl-kbest(k=10000)-lr(max_iter=10000)",
+                        "vtl-kbest(k=10000)-et",
+                    ],
                     multi=True,
                 ),
                 html.Br(),

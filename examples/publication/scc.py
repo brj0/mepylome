@@ -817,12 +817,12 @@ clf_out = analysis.classify(
     ids=ids,
     clf_list=[
         # Classifiers optimized for low-memory platforms (e.g. Google Colab)
-        "top-kbest-et",
-        "top-kbest-lr",
-        "top-kbest-rf",
-        # "vtl-kbest-et",
-        # "vtl-kbest-lr",
-        # "vtl-kbest-rf",
+        "top-kbest(k=10000)-et",
+        "top-kbest(k=10000)-lr(max_iter=10000)",
+        "top-kbest(k=10000)-rf",
+        # "vtl-kbest(k=10000)-et",
+        # "vtl-kbest(k=10000)-lr(max_iter=10000)",
+        # "vtl-kbest(k=10000)-rf",
     ],
 )
 
