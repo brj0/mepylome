@@ -412,9 +412,23 @@ def cnv_plot_from_data(
     # Highlight bins adjacent to the added genes
     logger.info("Make CNV plot: genes...")
     genes_sel = genes_sel if genes_sel else []
-    genes_x_range = (
-        detail[detail["Name"].isin(genes_sel)]["Range"].explode().tolist()
-    )
+
+    selected_genes_df = detail[detail["Name"].isin(genes_sel)]
+
+    empty_range_genes = selected_genes_df["Name"][
+        selected_genes_df["Range"].apply(lambda x: len(x) == 0)
+    ].tolist()
+
+    if empty_range_genes:
+        msg = (
+            "The following selected genes are outside of the CNV bins "
+            "and therefore cannot be highlighted: "
+            + ", ".join(empty_range_genes)
+        )
+        raise ValueError(msg)
+
+    genes_x_range = selected_genes_df["Range"].explode().tolist()
+
     highlighted_bins = bins.loc[genes_x_range, ["X_mid", "Median"]]
     plot = add_highlited_bins(plot, highlighted_bins)
 
