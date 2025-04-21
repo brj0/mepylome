@@ -230,6 +230,17 @@ def parse_args():
         help="Number of CpG sites to select for UMAP.",
     )
     parser.add_argument(
+        "-j",
+        "--n_jobs_cnv",
+        default=None,
+        type=int,
+        help=(
+            "Number of parallel processes to use for CNV precalculation. If "
+            "None, a reasonable number of cores will be automatically chosen "
+            "based on the system and workload."
+        ),
+    )
+    parser.add_argument(
         "-C",
         "--precalculate_cnv",
         action="store_true",
