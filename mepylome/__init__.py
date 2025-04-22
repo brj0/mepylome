@@ -6,11 +6,6 @@ performing methylation analysis.
 
 import logging
 import warnings
-from contextlib import suppress
-
-# If C++ parser should be added, before installation do: export MEPYLOME_CPP=1
-with suppress(ModuleNotFoundError):
-    from _mepylome import IdatParser as _IdatParser
 
 from mepylome.dtypes import (
     CNV,
@@ -83,9 +78,10 @@ __all__ = [
     "idat_basepaths",
 ]
 
-# Conditionally add _IdatParser to __all__ if it exists
+# If C++ parser should be added, before installation do: export MEPYLOME_CPP=1
 try:
-    _ = _IdatParser
+    from _mepylome import IdatParser as _IdatParser
+
     __all__ += ["_IdatParser"]
-except NameError:
+except Exception:
     pass
