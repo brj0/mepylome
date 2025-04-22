@@ -465,6 +465,11 @@ if not tcga_downloaded_tag.exists():
         except Exception:
             tries += 1
             print(f"Download interrupted (attempt {tries}), retrying...")
+            n_downloaded = sum(
+                1 for f in tcga_dir.rglob("*.idat") if f.is_file()
+            )
+            N_FILES = 3634
+            print(f"Downloaded files so far: {n_downloaded} / {N_FILES}")
             time.sleep(5)
 else:
     print("TCGA data already completely downloaded.")
