@@ -243,6 +243,10 @@ class IdatHandler:
         self._restrict_sample_ids()
         self._apply_overlap_filter()
 
+        # Make shure ids are not None
+        self.test_ids = list(self.test_id_to_path.keys())
+        self.analysis_ids = list(self.analysis_id_to_path.keys())
+
         # Derived attributes
         self.id_to_path = {**self.analysis_id_to_path, **self.test_id_to_path}
         self.idat_basename_to_id = {
@@ -428,10 +432,6 @@ class IdatHandler:
         self.test_id_to_path = restrict_and_validate(
             self.test_ids, self.test_id_to_path, "test"
         )
-
-        # Make shure ids are not None
-        self.test_ids = list(self.test_id_to_path.keys())
-        self.analysis_ids = list(self.analysis_id_to_path.keys())
 
     def _apply_overlap_filter(self):
         """Filter samples to include only those IDATs present in annotation."""
