@@ -111,6 +111,7 @@ import sys
 import tarfile
 import time
 import zipfile
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -412,9 +413,10 @@ else:
 
 
 # %% [markdown]
-# Now we download the complete TCGA data. **This may take several hours** due
-# to slow server connection. It is recommended to run this process overnight
-# and not to abort the process to ensure it completes successfully.
+# Now we download the complete TCGA data. **This may take several hours.**
+#
+# Note: The GDC Data Transfer Tool often aborts due to server issues. The
+# script retries failed chunks automatically.
 
 # %%
 tcga_dir = analysis_dir / "tcga_scc"
@@ -434,8 +436,47 @@ if not tcga_metadata_dir.exists():
     extract_tar(tcga_metadata_dir_tar, analysis_dir)
     print("Setting up TCGA annotation directory done.")
 
+
+def split_manifest(manifest_file, chunk_dir, chunk_size):
+    """Because of connectons timeouts, manifest needs to be split in parts."""
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+    with manifest_file.open("r") as f:
+        header = next(f)
+        lines = f.readlines()
+    for i in range(0, len(lines), chunk_size):
+        chunk_file = chunk_dir / f"chunk_{i // chunk_size:03d}.txt"
+        with chunk_file.open("w") as out:
+            out.write(header)
+            out.writelines(lines[i : i + chunk_size])
+    return sorted(chunk_dir.glob("chunk_*.txt"))
+
+
+def download_chunk(chunk_file):
+    """Downloads a manifest chunk."""
+    N_FILES = 3634
+    n_downloaded = sum(1 for f in tcga_dir.rglob("*.idat") if f.is_file())
+    print(f"Downloaded files so far: {n_downloaded} / {N_FILES}")
+    try:
+        cmd = [
+            str(gdc_client_bin),
+            "download",
+            "--manifest",
+            str(chunk_file),
+            "--dir",
+            str(tcga_dir),
+        ]
+        print(f"Starting download: {chunk_file.name}")
+        subprocess.run(cmd, check=True)
+        print(f"Finished download: {chunk_file.name}")
+        chunk_file.with_suffix(".done").touch()
+    except Exception:
+        print(f"Failed download: {chunk_file.name}. Retry later.")
+
+
 # Check if the download is complete
 if not tcga_downloaded_tag.exists():
+    CHUNK_SIZE = 200
+    PARALLEL_JOBS = 2
     print("Download has not been completed yet.")
     if not gdc_client_bin.exists():
         msg = f"Error: GDC client not found at {gdc_client_bin}"
@@ -446,31 +487,29 @@ if not tcga_downloaded_tag.exists():
         msg = "No TCGA manifest file found."
         raise FileNotFoundError(msg)
     print(f"Downloading TCGA data from manifest file: {manifest_file}")
-    cmd = [
-        str(gdc_client_bin),
-        "download",
-        "--manifest",
-        str(manifest_file),
-        "--dir",
-        str(tcga_dir),
-    ]
-    tries = 0
+    chunk_dir = tcga_metadata_dir / "manifest_chunks"
+    chunk_files = split_manifest(manifest_file, chunk_dir, CHUNK_SIZE)
+
     while True:
-        try:
-            print(f"Running command: {' '.join(cmd)}")
-            subprocess.run(cmd, check=True)
-            print("Download finished.")
-            tcga_downloaded_tag.touch()
+        remaining_chunks = [
+            chunk
+            for chunk in chunk_files
+            if not chunk.with_suffix(".done").exists()
+        ]
+        if not remaining_chunks:
             break
-        except Exception:
-            tries += 1
-            print(f"Download interrupted (attempt {tries}), retrying...")
-            n_downloaded = sum(
-                1 for f in tcga_dir.rglob("*.idat") if f.is_file()
-            )
-            N_FILES = 3634
-            print(f"Downloaded files so far: {n_downloaded} / {N_FILES}")
-            time.sleep(5)
+        with ProcessPoolExecutor(max_workers=PARALLEL_JOBS) as executor:
+            futures = [
+                executor.submit(download_chunk, chunk)
+                for chunk in remaining_chunks
+            ]
+            for _ in as_completed(futures):
+                pass  # Just wait for all to finish
+
+    print("Waiting 30s before retrying failed chunks...")
+    time.sleep(30)
+
+    tcga_downloaded_tag.touch()
 else:
     print("TCGA data already completely downloaded.")
 
