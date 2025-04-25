@@ -984,7 +984,6 @@ for geo_nr in geo_numbers:
     metadata.to_csv(
         geo_metadata_dir / f"{geo_nr}_raw_metadata.csv", index=True
     )
-
-for file in geo_metadata_dir.glob("*.soft.gz"):
-    print(f"Removing file: {file}")
-    file.unlink()
+    for file in geo_metadata_dir.glob("*.soft.gz"):
+        print(f"Removing file: {file}")
+        file.unlink()
