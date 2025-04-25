@@ -847,6 +847,7 @@ clear_cache()
 # remove this line to include all CpGs in the analysis.
 
 # %%
+# Preselect top 25,000 UMAP CpGs to reduce memory usage (optional)
 analysis.feature_matrix = analysis.betas_sel
 
 
