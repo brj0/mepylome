@@ -978,12 +978,9 @@ geo_numbers = datasets["scc"]["geo_ids"] + datasets["scc_test"]["geo_ids"]
 
 # Download and save metadata for each GEO series
 for geo_nr in geo_numbers:
-    gse = GEOparse.get_GEO(geo=geo_nr, destdir=geo_metadata_dir)
+    gse = GEOparse.get_GEO(geo=geo_nr, destdir=geo_metadata_dir, how="brief")
     metadata = gse.phenotype_data
     print(metadata.head())
     metadata.to_csv(
         geo_metadata_dir / f"{geo_nr}_raw_metadata.csv", index=True
     )
-    for file in geo_metadata_dir.glob("*.soft.gz"):
-        print(f"Removing file: {file}")
-        file.unlink()
