@@ -392,8 +392,8 @@ analysis_dir.mkdir(parents=True, exist_ok=True)
 
 # We download the complete TCGA dataset. **This may take several hours.**
 #
-# **Important:** Downloading from TCGA using the GDC Data Transfer Tool can be
-# unreliable. Connection resets and server-side interruptions are common.
+# **Important:** Downloading from TCGA can be unreliable. Connection resets and
+# server-side interruptions are common.
 #
 # This script will automatically retry failed downloads. However, if some files
 # still fail to download, you may **abort the process** and proceed to the next
@@ -497,6 +497,7 @@ else:
 # Clean up by removing array types other than `450k` and `epic`.
 
 
+# %%
 def remove_invalid_array_types(root_dir):
     """Removes all IDAT files that are not of type 450k or epicv1."""
     idat_files = root_dir.glob("*idat")
