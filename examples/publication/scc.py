@@ -425,14 +425,11 @@ def download_tcga_file(file_id, filename, dest_folder):
     """Downloads a TCGA file safely, cleaning up incomplete downloads."""
     final_path = dest_folder / filename
     temp_path = final_path.with_suffix(final_path.suffix + ".part")
-
     if final_path.exists():
         print(f"File already exists: {filename}")
         return True
-
     url = f"https://api.gdc.cancer.gov/data/{file_id}"
     dest_folder.mkdir(parents=True, exist_ok=True)
-
     try:
         with requests.get(url, stream=True, timeout=60) as r:
             r.raise_for_status()
@@ -462,11 +459,9 @@ def download_all_tcga_files(manifest_path, dest_folder, max_threads):
     downloaded = total_files - len(pending)
     MAX_ATTEMPTS = 10
     lock = Lock()
-
     while pending and attempt <= MAX_ATTEMPTS:
         print(f"\n--- Attempt {attempt}: {len(pending)} files remaining ---")
         next_round = []
-
         with ThreadPoolExecutor(max_workers=max_threads) as executor:
             futures = {
                 executor.submit(
@@ -477,7 +472,6 @@ def download_all_tcga_files(manifest_path, dest_folder, max_threads):
                 ): item
                 for item in pending
             }
-
             for future in as_completed(futures):
                 item = futures[future]
                 success = future.result()
@@ -490,10 +484,8 @@ def download_all_tcga_files(manifest_path, dest_folder, max_threads):
                     )
                 else:
                     next_round.append(item)
-
         pending = next_round
         attempt += 1
-
     if not pending:
         print("\n--- All files downloaded successfully ---")
         tcga_downloaded_tag.touch()
@@ -510,7 +502,6 @@ if not tcga_downloaded_tag.exists():
         msg = "No TCGA manifest file found."
         raise FileNotFoundError(msg)
     print(f"Downloading TCGA data from manifest file: {manifest_file}")
-
     download_all_tcga_files(manifest_file, tcga_dir, max_threads=8)
 else:
     print("TCGA data already completely downloaded.")
@@ -848,13 +839,14 @@ clear_cache()
 # Training is resource- and time-intensive. The process may take up to 10
 # minutes, depending on the computational resources available.
 
-# %%
-# Preselect features (optional, recommended for low-memory systems)
-
+# %% [markdown]
+# ***Preselect features (optional, recommended for low-memory systems)***:
 # To reduce memory usage during training, we preselect the top 25,000 most
 # variable CpG sites (used for UMAP above) as the feature matrix. This
 # dramatically lowers RAM requirements. If memory is not a concern, you can
 # remove this line to include all CpGs in the analysis.
+
+# %%
 analysis.feature_matrix = analysis.betas_sel
 
 
@@ -947,6 +939,7 @@ cnv_plot.write_image(
 )
 IPImage(filename=output_path)
 
+# %% [markdown]
 # ### Generate CNV Summary Plots
 #
 # In addition to individual CNV plots, this step computes summary plots to
