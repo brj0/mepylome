@@ -928,7 +928,7 @@ clear_cache()
 
 # %%
 # Save CNV example
-analysis.make_cnv_plot("364f7953-d0af-4929-8491-7b5e94d488aa_noid")
+analysis.make_cnv_plot("GSM3519735_202915460126_R05C01")
 cnv_plot = analysis.cnv_plot
 cnv_plot.update_layout(
     yaxis_range=[-1.1, 1.1],
