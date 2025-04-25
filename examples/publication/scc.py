@@ -105,13 +105,13 @@ import multiprocessing
 import os
 import platform
 import re
-import shutil
-import subprocess
 import sys
 import tarfile
-import time
 import zipfile
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    as_completed,
+)
 from pathlib import Path
 
 import numpy as np
@@ -389,34 +389,15 @@ analysis_dir.mkdir(parents=True, exist_ok=True)
 
 # %% [markdown]
 # ### Step 1: Download TCGA Data
-# First we download the GDC client that is used for downloading data from TCGA.
 
-# %%
-gdc_client_url = "https://gdc.cancer.gov/system/files/public/file/gdc-client_2.3_Ubuntu_x64-py3.8-ubuntu-20.04.zip"
-gdc_client_bin = analysis_dir / "gdc-client"
-
-# Download and set up the GDC client
-if not gdc_client_bin.exists():
-    zip_path_0 = analysis_dir / "gdc-client.zip"
-    zip_path_1 = analysis_dir / "gdc-client_2.3_Ubuntu_x64.zip"
-    download_file(gdc_client_url, zip_path_0)
-    with zipfile.ZipFile(zip_path_0, "r") as zip_file:
-        zip_file.extractall(analysis_dir)
-    with zipfile.ZipFile(zip_path_1, "r") as zip_file:
-        zip_file.extractall(analysis_dir)
-    zip_path_0.unlink()
-    zip_path_1.unlink()
-    gdc_client_bin.chmod(0o755)
-    print(f"GDC client binary downloaded and set up at {gdc_client_bin}")
-else:
-    print(f"GDC client already exists at {gdc_client_bin}")
-
-
-# %% [markdown]
-# Now we download the complete TCGA data. **This may take several hours.**
+# We download the complete TCGA dataset. **This may take several hours.**
 #
-# Note: The GDC Data Transfer Tool often aborts due to server issues. The
-# script retries failed chunks automatically.
+# **Important:** Downloading from TCGA using the GDC Data Transfer Tool can be
+# unreliable. Connection resets and server-side interruptions are common.
+#
+# This script will automatically retry failed downloads. However, if some files
+# still fail to download, you may **abort the process** and proceed to the next
+# cell.
 
 # %%
 tcga_dir = analysis_dir / "tcga_scc"
@@ -437,99 +418,83 @@ if not tcga_metadata_dir.exists():
     print("Setting up TCGA annotation directory done.")
 
 
-def split_manifest(manifest_file, chunk_dir, chunk_size):
-    """Because of connectons timeouts, manifest needs to be split in parts."""
-    chunk_dir.mkdir(parents=True, exist_ok=True)
-    with manifest_file.open("r") as f:
-        header = next(f)
-        lines = f.readlines()
-    for i in range(0, len(lines), chunk_size):
-        chunk_file = chunk_dir / f"chunk_{i // chunk_size:03d}.txt"
-        with chunk_file.open("w") as out:
-            out.write(header)
-            out.writelines(lines[i : i + chunk_size])
-    return sorted(chunk_dir.glob("chunk_*.txt"))
+def download_tcga_file(file_id, filename, dest_folder):
+    """Downloads a TCGA file safely, cleaning up incomplete downloads."""
+    final_path = dest_folder / filename
+    temp_path = final_path.with_suffix(final_path.suffix + ".part")
 
+    if final_path.exists():
+        print(f"File already exists: {filename}")
+        return True
 
-def download_chunk(chunk_file):
-    """Downloads a manifest chunk."""
-    N_FILES = 3634
-    n_downloaded = sum(1 for f in tcga_dir.rglob("*.idat") if f.is_file())
-    print(f"Downloaded files so far: {n_downloaded} / {N_FILES}")
+    url = f"https://api.gdc.cancer.gov/data/{file_id}"
+    dest_folder.mkdir(parents=True, exist_ok=True)
+
     try:
-        cmd = [
-            str(gdc_client_bin),
-            "download",
-            "--manifest",
-            str(chunk_file),
-            "--dir",
-            str(tcga_dir),
-        ]
-        print(f"Starting download: {chunk_file.name}")
-        subprocess.run(cmd, check=True)
-        print(f"Finished download: {chunk_file.name}")
-        chunk_file.with_suffix(".done").touch()
-    except Exception:
-        print(f"Failed download: {chunk_file.name}. Retry later.")
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with temp_path.open("wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        temp_path.rename(final_path)
+        return True
+    except Exception as e:
+        print(f"Failed: {filename} | Error: {e}")
+        if temp_path.exists():
+            temp_path.unlink()
+        return False
+
+
+def download_all_tcga_files(manifest_path, dest_folder, max_threads):
+    """Downloads all tcga files in manifest in parallel."""
+    manifest = pd.read_csv(manifest_path, sep="\t")
+    total_files = len(manifest)
+    downloaded_files = 0
+    while downloaded_files < total_files:
+        remaining_files = manifest.iloc[downloaded_files:]
+        with ThreadPoolExecutor(max_workers=max_threads) as executor:
+            futures = {
+                executor.submit(
+                    download_tcga_file,
+                    item["id"],
+                    item["filename"],
+                    dest_folder,
+                ): item
+                for _, item in remaining_files.iterrows()
+            }
+            for i, future in enumerate(
+                as_completed(futures), start=downloaded_files + 1
+            ):
+                success = future.result()
+                file_info = futures[future]
+                if success:
+                    downloaded_files += 1
+                    print(
+                        f"Downloaded file {i}/{total_files}: "
+                        f"{file_info['filename']} "
+                    )
 
 
 # Check if the download is complete
 if not tcga_downloaded_tag.exists():
-    CHUNK_SIZE = 200
-    PARALLEL_JOBS = 2
     print("Download has not been completed yet.")
-    if not gdc_client_bin.exists():
-        msg = f"Error: GDC client not found at {gdc_client_bin}"
-        raise FileNotFoundError(msg)
     print("Downloading TCGA files. This may take several hours!")
     manifest_file = next(tcga_metadata_dir.glob("gdc_manifest.*txt"))
     if not manifest_file.exists():
         msg = "No TCGA manifest file found."
         raise FileNotFoundError(msg)
     print(f"Downloading TCGA data from manifest file: {manifest_file}")
-    chunk_dir = tcga_metadata_dir / "manifest_chunks"
-    chunk_files = split_manifest(manifest_file, chunk_dir, CHUNK_SIZE)
 
-    while True:
-        remaining_chunks = [
-            chunk
-            for chunk in chunk_files
-            if not chunk.with_suffix(".done").exists()
-        ]
-        if not remaining_chunks:
-            break
-        with ProcessPoolExecutor(max_workers=PARALLEL_JOBS) as executor:
-            futures = [
-                executor.submit(download_chunk, chunk)
-                for chunk in remaining_chunks
-            ]
-            for _ in as_completed(futures):
-                pass  # Just wait for all to finish
-
-    print("Waiting 30s before retrying failed chunks...")
-    time.sleep(30)
-
+    download_all_tcga_files(manifest_file, tcga_dir, max_threads=8)
+    print("All TCGA files downloaded.")
     tcga_downloaded_tag.touch()
 else:
     print("TCGA data already completely downloaded.")
 
 
 # %% [markdown]
-# Clean up by moving all IDAT files into one directory and removing array types
-# other than `450k` and `epic`.
-
-
-# %%
-def move_idat_files_and_cleanup(root_dir):
-    """Move all idat files one dir up and delete empty subdirectories."""
-    root_dir = Path(root_dir)
-    for sub_dir in root_dir.iterdir():
-        if sub_dir.is_dir():
-            idat_files = list(sub_dir.glob("*.idat"))
-            for file in idat_files:
-                destination = root_dir / file.name
-                shutil.move(str(file), str(destination))
-            shutil.rmtree(sub_dir)
+# Clean up by removing array types other than `450k` and `epic`.
 
 
 def remove_invalid_array_types(root_dir):
@@ -543,7 +508,6 @@ def remove_invalid_array_types(root_dir):
             idat_file.unlink()
 
 
-move_idat_files_and_cleanup(tcga_dir)
 remove_invalid_array_types(tcga_dir)
 
 
@@ -861,19 +825,26 @@ clear_cache()
 # minutes, depending on the computational resources available.
 
 # %%
+# Preselect features (optional, recommended for low-memory systems)
+
+# To reduce memory usage during training, we preselect the top 25,000 most
+# variable CpG sites (used for UMAP above) as the feature matrix. This
+# dramatically lowers RAM requirements. If memory is not a concern, you can
+# remove this line to include all CpGs in the analysis.
+analysis.feature_matrix = analysis.betas_sel
+
+
+# %%
 # Train supervised classifiers
+
 analysis.idat_handler.selected_columns = ["Diagnosis"]
 ids = analysis.idat_handler.ids
 clf_out = analysis.classify(
     ids=ids,
     clf_list=[
-        # Classifiers optimized for low-memory platforms (e.g. Google Colab)
-        "top-kbest(k=10000)-et",
-        "top-kbest(k=10000)-lr(max_iter=10000)",
-        "top-kbest(k=10000)-rf",
-        # "vtl-kbest(k=10000)-et",
-        # "vtl-kbest(k=10000)-lr(max_iter=10000)",
-        # "vtl-kbest(k=10000)-rf",
+        "vtl-kbest(k=10000)-et",
+        "vtl-kbest(k=10000)-lr(max_iter=10000)",
+        "vtl-kbest(k=10000)-rf",
     ],
 )
 
