@@ -569,7 +569,7 @@ columns_dict = {
     "Sample_ID": "Sample_ID",
 }
 tcga_annotation = tcga_annotation.rename(columns=columns_dict)
-tcga_annotation = tcga_annotation[columns_dict.values()]
+tcga_annotation = tcga_annotation[columns_dict.values()].copy()
 
 # Standardize the 'Sex' column and convert 'Age' to numeric
 tcga_annotation["Sex"] = tcga_annotation["Sex"].replace(
