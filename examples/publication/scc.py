@@ -390,15 +390,17 @@ analysis_dir.mkdir(parents=True, exist_ok=True)
 
 # %% [markdown]
 # ### Step 1: Download TCGA Data
-
+#
 # We download the complete TCGA dataset. **This may take several hours.**
 #
 # **Important:** Downloading from TCGA can be unreliable. Connection resets and
 # server-side interruptions are common.
 #
-# This script will automatically retry failed downloads. However, if some files
-# still fail to download, you may **abort the process** and proceed to the next
-# cell.
+# This script is designed to be resilient: it automatically **retries failed
+# downloads** up to 10 times. After the final attempt, it will continue
+# regardless of whether some files failed. You can re-run this cell to try
+# downloading any remaining files.
+
 
 # %%
 tcga_dir = analysis_dir / "tcga_scc"
