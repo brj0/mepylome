@@ -113,6 +113,7 @@ from concurrent.futures import (
     as_completed,
 )
 from pathlib import Path
+from threading import Lock
 
 import numpy as np
 import pandas as pd
@@ -447,12 +448,23 @@ def download_tcga_file(file_id, filename, dest_folder):
 
 
 def download_all_tcga_files(manifest_path, dest_folder, max_threads):
-    """Downloads all tcga files in manifest in parallel."""
+    """Downloads all TCGA files in manifest in parallel."""
     manifest = pd.read_csv(manifest_path, sep="\t")
     total_files = len(manifest)
-    downloaded_files = 0
-    while downloaded_files < total_files:
-        remaining_files = manifest.iloc[downloaded_files:]
+    pending = [
+        item
+        for _, item in manifest.iterrows()
+        if not (dest_folder / item["filename"]).exists()
+    ]
+    attempt = 1
+    downloaded = total_files - len(pending)
+    MAX_ATTEMPTS = 10
+    lock = Lock()
+
+    while pending and attempt <= MAX_ATTEMPTS:
+        print(f"\n--- Attempt {attempt}: {len(pending)} files remaining ---")
+        next_round = []
+
         with ThreadPoolExecutor(max_workers=max_threads) as executor:
             futures = {
                 executor.submit(
@@ -461,19 +473,30 @@ def download_all_tcga_files(manifest_path, dest_folder, max_threads):
                     item["filename"],
                     dest_folder,
                 ): item
-                for _, item in remaining_files.iterrows()
+                for item in pending
             }
-            for i, future in enumerate(
-                as_completed(futures), start=downloaded_files + 1
-            ):
+
+            for future in as_completed(futures):
+                item = futures[future]
                 success = future.result()
-                file_info = futures[future]
                 if success:
-                    downloaded_files += 1
+                    with lock:
+                        downloaded += 1
                     print(
-                        f"Downloaded file {i}/{total_files}: "
-                        f"{file_info['filename']} "
+                        f"Downloaded file {downloaded}/{total_files}: "
+                        f"{item['filename']}"
                     )
+                else:
+                    next_round.append(item)
+
+        pending = next_round
+        attempt += 1
+
+    if not pending:
+        print("\n--- All files downloaded successfully ---")
+        tcga_downloaded_tag.touch()
+    else:
+        print("\n--- Some files failed to download. Retry limit reached. ---")
 
 
 # Check if the download is complete
@@ -487,8 +510,6 @@ if not tcga_downloaded_tag.exists():
     print(f"Downloading TCGA data from manifest file: {manifest_file}")
 
     download_all_tcga_files(manifest_file, tcga_dir, max_threads=8)
-    print("All TCGA files downloaded.")
-    tcga_downloaded_tag.touch()
 else:
     print("TCGA data already completely downloaded.")
 
