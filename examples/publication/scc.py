@@ -38,9 +38,7 @@
 #
 # ### Reference Publication (will follow)
 #
-# - *Title*: Mepylome: A User-Friendly Open-Source Toolkit for DNA-Methylation
-#   Analysis in Tumor Diagnostics
-# - *Author*: Jon Brugger et al.
+# - *Authors*: Jon Brugger et al.
 #
 #
 # ### Run This Notebook in Google Colab
@@ -80,19 +78,17 @@
 # ### Install Required Packages
 #
 # To run the analysis, install the following Python packages:
-# - `mepylome` - the main toolkit for DNA-methylation analysis.
-# - `ruptures` - used for segmentation calculations in CNV plots.
-# - `kaleido` for saving plots.
-# - `ipython` and `pillow` - supporting libraries for interactive and graphical
-#   functionality.
+# - `mepylome` for DNA-methylation analysis
+# - `ruptures` for segmentation in CNV plots
+# - `kaleido` for saving plots
+# - `ipython`, `pillow`, and `ipywidgets` for interactive and graphical
+#   functionality
 #
-#
-# Install these packages (may take 1 to 2 minutes) using the command below:
+# Install them (1-2 minutes) using:
 
 # %% language="bash"
 #
-# pip install mepylome ipython pillow ruptures ipywidgets
-# pip install -U kaleido
+# pip install mepylome ipython pillow ruptures ipywidgets kaleido
 
 
 # %% [markdown]
@@ -323,9 +319,10 @@ blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
 # %% [markdown]
 # ### CNV-Neutral Reference Samples
 #
-# To ensure accurate analysis, we utilize control probes from [Koelsche et
-# al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). These probes
-# are stored in the designated reference directory `reference_dir`.
+# For generating copy number variation (CNV) plots, a sufficiently large set of
+# CNV-neutral reference probes is required. Here, we use control probes from
+# [Koelsche et al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). These
+# probes are stored in the designated reference_dir.
 #
 # **Best Practices**:
 # - Include both fresh-frozen and FFPE (formalin-fixed paraffin-embedded)
@@ -371,7 +368,7 @@ download_geo_probes(reference_dir, cn_neutral_probes)
 # <a name="1.-Data-Loading"></a>
 # ## 1. Data Loading
 #
-# %% In this example, we aim to reproduce the pan-SCC classifier [markdown]
+# In this example, we aim to reproduce the pan-SCC classifier [markdown]
 # presented in the study by [Jurmeister et al.
 # (2019)](https://doi.org/10.1126/scitranslmed.aaw8513). Our goal is to gather
 # data for Squamous Cell Carcinoma (SCC) from multiple sources, as outlined in
@@ -391,7 +388,8 @@ analysis_dir.mkdir(parents=True, exist_ok=True)
 # %% [markdown]
 # ### Step 1: Download TCGA Data
 #
-# We download the complete TCGA dataset. **This may take several hours.**
+# We download all SCC probes from TCGA that contain IDAT files. **This may take
+# several hours.**
 #
 # **Important:** Downloading from TCGA can be unreliable. Connection resets and
 # server-side interruptions are common.
@@ -761,8 +759,10 @@ analysis = MethylAnalysis(
 # %% [markdown]
 # ### Load Beta Values
 #
-# Reads and processes beta values from the provided dataset. This step can also
-# be performed interactively within the GUI.
+# Reads and processes beta values from the provided dataset. This step is
+# optional and primarily demonstrates the time required for processing. If not
+# performed here, it will be automatically executed in the background when
+# needed.
 
 # %%
 analysis.set_betas()
@@ -841,10 +841,16 @@ clear_cache()
 
 # %% [markdown]
 # ***Preselect features (optional, recommended for low-memory systems)***:
-# To reduce memory usage during training, we preselect the top 25,000 most
-# variable CpG sites (used for UMAP above) as the feature matrix. This
-# dramatically lowers RAM requirements. If memory is not a concern, you can
-# remove this line to include all CpGs in the analysis.
+#
+# To optimize memory usage, we use a custom `feature_matrix` for training
+# instead of the full `betas_all`, which includes all CpG sites. When the beta
+# values are selected via `set_betas`, both `betas_sel` and `betas_all` are
+# produced. While `betas_all` contains all CpGs, `betas_sel` (in our case)
+# includes the top 25,000 most variable CpG sites.
+#
+# This step is crucial for low-memory systems (e.g., Google Colab) to reduce
+# memory consumption. If memory is not a concern, you can skip this step and
+# include all CpGs in the analysis.
 
 # %%
 # Preselect top 25,000 UMAP CpGs to reduce memory usage (optional)
@@ -976,11 +982,12 @@ import GEOparse
 
 geo_numbers = datasets["scc"]["geo_ids"] + datasets["scc_test"]["geo_ids"]
 
+raw_dir = geo_metadata_dir / "raw"
+os.makedirs(raw_dir, exist_ok=True)
+
 # Download and save metadata for each GEO series
 for geo_nr in geo_numbers:
-    gse = GEOparse.get_GEO(geo=geo_nr, destdir=geo_metadata_dir, how="brief")
+    gse = GEOparse.get_GEO(geo=geo_nr, destdir=raw_dir, how="brief")
     metadata = gse.phenotype_data
     print(metadata.head())
-    metadata.to_csv(
-        geo_metadata_dir / f"{geo_nr}_raw_metadata.csv", index=True
-    )
+    metadata.to_csv(raw_dir / f"{geo_nr}_raw_metadata.csv", index=True)

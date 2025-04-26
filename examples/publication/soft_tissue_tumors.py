@@ -38,9 +38,7 @@
 #
 # ### Reference Publication (will follow)
 #
-# - *Title*: Mepylome: A User-Friendly Open-Source Toolkit for DNA-Methylation
-#   Analysis in Tumor Diagnostics
-# - *Author*: Jon Brugger et al.
+# - *Authors*: Jon Brugger et al.
 #
 #
 # ### Run This Notebook in Google Colab
@@ -80,19 +78,17 @@
 # ### Install Required Packages
 #
 # To run the analysis, install the following Python packages:
-# - `mepylome` - the main toolkit for DNA-methylation analysis.
-# - `ruptures` - used for segmentation calculations in CNV plots.
-# - `kaleido` for saving plots.
-# - `ipython` and `pillow` - supporting libraries for interactive and graphical
-#   functionality.
+# - `mepylome` for DNA-methylation analysis
+# - `ruptures` for segmentation in CNV plots
+# - `kaleido` for saving plots
+# - `ipython`, `pillow`, and `ipywidgets` for interactive and graphical
+#   functionality
 #
-#
-# Install these packages (may take 1 to 2 minutes) using the command below:
+# Install them (1-2 minutes) using:
 
 # %% language="bash"
 #
-# pip install mepylome ipython pillow ruptures ipywidgets
-# pip install -U kaleido
+# pip install mepylome ipython pillow ruptures ipywidgets kaleido
 
 
 # %% [markdown]
@@ -307,9 +303,10 @@ blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
 # %% [markdown]
 # ### CNV-Neutral Reference Samples
 #
-# To ensure accurate analysis, we utilize control probes from [Koelsche et
-# al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). These probes
-# are stored in the designated reference directory `reference_dir`.
+# For generating copy number variation (CNV) plots, a sufficiently large set of
+# CNV-neutral reference probes is required. Here, we use control probes from
+# [Koelsche et al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). These
+# probes are stored in the designated reference_dir.
 #
 # **Best Practices**:
 # - Include both fresh-frozen and FFPE (formalin-fixed paraffin-embedded)
@@ -403,8 +400,10 @@ analysis = MethylAnalysis(
 # %% [markdown]
 # ### Load Beta Values
 #
-# Reads and processes beta values from the provided dataset. This step can also
-# be performed interactively within the GUI.
+# Reads and processes beta values from the provided dataset. This step is
+# optional and primarily demonstrates the time required for processing. If not
+# performed here, it will be automatically executed in the background when
+# needed.
 
 # %%
 analysis.set_betas()
