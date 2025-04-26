@@ -80,15 +80,15 @@
 # To run the analysis, install the following Python packages:
 # - `mepylome` for DNA-methylation analysis
 # - `ruptures` for segmentation in CNV plots
-# - `kaleido` for saving plots
 # - `ipython`, `pillow`, and `ipywidgets` for interactive and graphical
 #   functionality
+# - `kaleido` for saving plots
 #
 # Install them (1-2 minutes) using:
 
 # %% language="bash"
 #
-# pip install mepylome ipython pillow ruptures ipywidgets kaleido
+# pip install mepylome ruptures ipython pillow ipywidgets kaleido
 
 
 # %% [markdown]

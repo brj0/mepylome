@@ -80,15 +80,15 @@
 # To run the analysis, install the following Python packages:
 # - `mepylome` for DNA-methylation analysis
 # - `ruptures` for segmentation in CNV plots
-# - `kaleido` for saving plots
 # - `ipython`, `pillow`, and `ipywidgets` for interactive and graphical
 #   functionality
+# - `kaleido` for saving plots
 #
 # Install them (1-2 minutes) using:
 
 # %% language="bash"
 #
-# pip install mepylome ipython pillow ruptures ipywidgets kaleido
+# pip install mepylome ruptures ipython pillow ipywidgets kaleido
 
 
 # %% [markdown]
@@ -368,8 +368,8 @@ download_geo_probes(reference_dir, cn_neutral_probes)
 # <a name="1.-Data-Loading"></a>
 # ## 1. Data Loading
 #
-# In this example, we aim to reproduce the pan-SCC classifier [markdown]
-# presented in the study by [Jurmeister et al.
+# In this example, we aim to reproduce the pan-SCC classifier presented in the
+# study by [Jurmeister et al.
 # (2019)](https://doi.org/10.1126/scitranslmed.aaw8513). Our goal is to gather
 # data for Squamous Cell Carcinoma (SCC) from multiple sources, as outlined in
 # the publication, including datasets from The Cancer Genome Atlas (TCGA) and
