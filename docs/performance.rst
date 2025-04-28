@@ -22,7 +22,7 @@ Performance Comparison
 - **Data Extraction and CNV Analysis**: `mepylome` performs data extraction and
   CNV (Copy Number Variation) analysis multiple times faster than `minfi` and
   `conumee2.0`.
-- **Overall Speed**: On average, `mepylome` is >100 times faster than `minfi`
+- **Overall Speed**: On average, `mepylome` is >60 times faster than `minfi`
   and >10 times faster than `conumee2.0`.
 - **Memory Consumption**: `mepylome` uses >3 times less memory compared to
   `minfi` and `conumee2.0` together.
@@ -31,31 +31,31 @@ Performance Comparison
 Performance Test
 ~~~~~~~~~~~~~~~~
 
-| Tested on: Intel Core i5-6300U (4 cores) @ 3.00GHz, 16 GB RAM, 512 GB SSD,
-| Ubuntu 22.04 LTS
+| Tested on: 12th Gen Intel Core i5-12500, 12 cores at 3.0 GHz, 2 threads per
+| core, 250 GB SSD, 96 GB RAM , Ubuntu 22.04 LTS
 | Prepreparation method: `illumina`
 | No. of Cases: 250 cases for data extraction, 20 reference cases for CNV analysis
 
 | 1. **Import Time**:
-|    - `mepylome`: **0.47** seconds
-|    - `minfi`: 11.39 seconds
-|    - `conumee2.0`: 55.80 seconds
+|    - `mepylome`: **0.73** seconds
+|    - `minfi`: 10.51 seconds
+|    - `conumee2.0`: 39.48 seconds
 
 | 2. **Methylation Data Extraction Per Case**:
 |    - `mepylome`: **0.06** seconds
-|    - `minfi`: 7.24 seconds
+|    - `minfi`: 3.73 seconds
 
-| 3. **CNV Analysis**:
-|    - `mepylome`: **17.83** seconds
-|    - `conumee2.0`: 138.86 seconds
+| 3. **CNV Analysis Per Case**:
+|    - `mepylome`: **2.08** seconds
+|    - `conumee2.0`: 20.44 seconds
 
 | 4. **Memory Consumption Data Extraction**:
-|    - `mepylome`: **0.47** GB
-|    - `minfi`: 1.63 GB
+|    - `mepylome`: **0.39** GB
+|    - `minfi`: 1.49 GB
 
 | 5. **Memory Consumption CNV Analysis**:
-|    - `mepylome`: **1.92** GB
-|    - `conumee2.0`: 6.18 GB
+|    - `mepylome`: **2.29** GB
+|    - `conumee2.0`: 7.78 GB
 
 
 How It Works
