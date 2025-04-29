@@ -50,7 +50,7 @@
 # Colab. If using the free version, memory constraints may arise. Additionally,
 # long download operations  may face timeouts or interruptions.
 #
-# [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/publication/scc.ipynb)
+# [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/brj0/mepylome/blob/main/examples/publication/3_scc.ipynb)
 #
 #
 # This notebook was automatically generated from the corresponding py-file
