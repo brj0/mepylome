@@ -120,7 +120,7 @@ from mepylome.dtypes.manifests import (
 )
 from mepylome.utils.files import (
     download_file,
-    download_geo_probes,
+    download_geo_samples,
 )
 
 # Define output font size for plots
@@ -304,16 +304,16 @@ blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
 # ### CNV-Neutral Reference Samples
 #
 # For generating copy number variation (CNV) plots, a sufficiently large set of
-# CNV-neutral reference probes is required. Here, we use control probes from
+# CNV-neutral reference samples is required. Here, we use control samples from
 # [Koelsche et al. (2021)](https://doi.org/10.1038/s41467-020-20603-4). These
-# probes are stored in the designated reference_dir.
+# samples are stored in the designated reference_dir.
 #
 # **Best Practices**:
 # - Include both fresh-frozen and FFPE (formalin-fixed paraffin-embedded)
 #   samples in the copy-neutral reference set for optimal results.
 
 # %%
-cn_neutral_probes = [
+cn_neutral_samples = [
     "GSM4180453_201904410008_R06C01",
     "GSM4180454_201904410008_R05C01",
     "GSM4180455_201904410008_R04C01",
@@ -344,7 +344,7 @@ cn_neutral_probes = [
     "GSM4181517_203049640041_R08C01",
 ]
 
-download_geo_probes(reference_dir, cn_neutral_probes)
+download_geo_samples(reference_dir, cn_neutral_samples)
 
 
 # %% [markdown]

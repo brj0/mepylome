@@ -120,14 +120,14 @@ def download_geo_idat(probe_id, color_channel, output_dir):
     download_file(url, save_path, show_progress=False)
 
 
-def download_geo_probe(probe_info):
+def download_geo_idat_pair(probe_info):
     """Downloads both 'Grn' and 'Red' IDAT files for a single probe."""
     probe_id, output_dir = probe_info
     for color_channel in ["Grn", "Red"]:
         download_geo_idat(probe_id, color_channel, output_dir)
 
 
-def download_geo_probes(output_dir, probe_ids):
+def download_geo_samples(output_dir, probe_ids):
     """Downloads IDAT file pairs from GEO."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -135,7 +135,7 @@ def download_geo_probes(output_dir, probe_ids):
         list(
             tqdm(
                 pool.imap(
-                    download_geo_probe,
+                    download_geo_idat_pair,
                     zip(probe_ids, repeat(output_dir)),
                 ),
                 total=len(probe_ids),
@@ -197,14 +197,14 @@ def setup_tutorial_files(analysis_dir, reference_dir):
         analysis_dir, tutorial_df["Geo_File_ID"]
     )
     if missing_analysis_files:
-        download_geo_probes(analysis_dir, missing_analysis_files)
+        download_geo_samples(analysis_dir, missing_analysis_files)
         unzip_and_remove_gz_files(analysis_dir, use_sentrix_id=True)
 
     missing_reference_files = _missing_files(
         reference_dir, tutorial_df[is_control]["Geo_File_ID"]
     )
     if missing_reference_files:
-        download_geo_probes(reference_dir, missing_reference_files)
+        download_geo_samples(reference_dir, missing_reference_files)
         unzip_and_remove_gz_files(reference_dir, use_sentrix_id=True)
 
 
