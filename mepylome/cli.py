@@ -286,6 +286,18 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "-g",
+        "--use_gpu",
+        action="store_true",
+        help=(
+            "Whether to use GPU acceleration for UMAP via cuML and CuPy. "
+            "Select this to enable GPU-backed UMAP computations, which can "
+            "significantly speed up large datasets. This requires the `cuml` "
+            "and `cupy` libraries to be installed, along with appropriate "
+            "NVIDIA drivers and a working CUDA setup."
+        ),
+    )
+    parser.add_argument(
         "-H",
         "--host",
         type=str,

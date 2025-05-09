@@ -774,6 +774,12 @@ class MethylAnalysis:
         umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
             'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
+        use_gpu (bool): Whether to use GPU acceleration for UMAP via cuML and
+            CuPy (default: False). Set to True to enable GPU-backed UMAP
+            computations, which can significantly speed up large datasets. This
+            requires the `cuml` and `cupy` libraries to be installed, along
+            with appropriate NVIDIA drivers and a working CUDA setup.
+
         verbose (int): Sets the (global) logging verbosity level:
             - 0: Errors and warnings only.
             - 1: Info, warnings, and errors (default).
@@ -891,6 +897,12 @@ class MethylAnalysis:
         umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
             'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
+        use_gpu (bool): Whether to use GPU acceleration for UMAP via cuML and
+            CuPy (default: False). Set to True to enable GPU-backed UMAP
+            computations, which can significantly speed up large datasets. This
+            requires the `cuml` and `cupy` libraries to be installed, along
+            with appropriate NVIDIA drivers and a working CUDA setup.
+
         raw_umap_plot (plotly.Figure): Raw UMAP plot data, initially set to
             None.
 
@@ -957,6 +969,7 @@ class MethylAnalysis:
         port=8050,
         debug=False,
         umap_parms=None,
+        use_gpu=False,
         verbose=1,
         balancing_feature=None,
     ):
@@ -977,6 +990,7 @@ class MethylAnalysis:
         self.debug = debug
         self.dropdown_id = None
         self.feature_matrix = feature_matrix
+        self.use_gpu = use_gpu
         self.host = host
         self.ids = []
         self.ids_to_highlight = None
@@ -1440,14 +1454,21 @@ class MethylAnalysis:
         if self.betas_sel is None and self.feature_matrix is None:
             msg = "'betas_sel' is not set. First run 'set_betas'"
             raise AttributeError(msg)
-        logger.info("Importing umap library...")
-        import umap
+
+        if self.use_gpu:
+            logger.info("Using GPU backend: cuml.manifold.UMAP")
+            import cupy as cp
+            from cuml.manifold import UMAP
+        else:
+            logger.info("Using CPU backend: umap.UMAP")
+            from umap import UMAP
 
         matrix_to_use = (
             self.betas_sel
             if self.feature_matrix is None
             else self.feature_matrix
         )
+
         if len(self.idat_handler.ids) != len(matrix_to_use):
             if self.feature_matrix is not None:
                 msg = (
@@ -1461,11 +1482,21 @@ class MethylAnalysis:
                     f"Try to delete cached files in {self.output_dir}."
                 )
             raise AttributeError(msg)
+
+        if self.use_gpu:
+            logger.info("Transferring data to GPU...")
+            matrix_to_use = cp.asarray(matrix_to_use.values)
+
         logger.info(
             "Starting UMAP for matrix with shape %s...", matrix_to_use.shape
         )
+
         with DualOutput(LOG_FILE):
-            umap_2d = umap.UMAP(**self.umap_parms).fit_transform(matrix_to_use)
+            umap_2d = UMAP(**self.umap_parms).fit_transform(matrix_to_use)
+
+        if self.use_gpu:
+            umap_2d = cp.asnumpy(umap_2d)
+
         umap_df = pd.DataFrame(
             umap_2d,
             columns=["Umap_x", "Umap_y"],
@@ -1752,6 +1783,26 @@ class MethylAnalysis:
         return (None,) * len(extract)
 
     def cn_summary(self, ids):
+        """Create a copy number summary plot for the given samples.
+
+        This method generates an overview of CNV gain and loss patterns across
+        chromosomes for a list of sample IDs. It returns both the visual plot
+        and the data used to generate it.
+
+        Args:
+            ids (list of str): A list of sample IDs to include in the CNV
+            summary.
+
+        Returns:
+            plot (plotly.graph_objects.Figure): A Plotly figure showing CNV
+                summary results.
+            df_cn_summary (pd.DataFrame): A DataFrame containing the data
+                behind the plot.
+
+        Raises:
+            ValueError: If `do_seg` is not True. CNV summary plots require
+                segmentation to be enabled.
+        """
         if not self.do_seg:
             msg = "To use CN-summary plots you must set 'do_seg' to 'True'."
             raise ValueError(msg)
