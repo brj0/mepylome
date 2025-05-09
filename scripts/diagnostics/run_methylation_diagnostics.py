@@ -96,8 +96,6 @@ def unsupervised_classifier(analysis, dataset_name, dataset_config):
 
     def generate_and_save_umap(id_):
         """Generate and save UMAP plots for a given sample ID."""
-        analysis.cnv_id = id_
-        analysis.test_ids = [id_]
         basepath = analysis.idat_handler.test_id_to_path[id_].parent
         base_filename = f"{id_}_{dataset_name}"
 
@@ -108,6 +106,8 @@ def unsupervised_classifier(analysis, dataset_name, dataset_config):
             return
 
         # Save UMAP to disk
+        analysis.cnv_id = id_
+        analysis.test_ids = [id_]
         analysis.make_umap()
         analysis.umap_plot.write_image(
             jpg_path,
@@ -196,12 +196,15 @@ def run_single_diagnostics(dataset_name, dataset_config, default_blacklist):
         analysis.idat_handler.selected_columns = annotation_column
 
     if dataset_config.get("do_classify"):
+        logging.info("Starting supervised classifier")
         supervised_classifier(analysis, dataset_name, dataset_config)
 
     if dataset_config.get("do_cnv"):
+        logging.info("Starting CNV")
         make_cnv(analysis, dataset_name, dataset_config)
 
     if dataset_config.get("do_umap"):
+        logging.info("Starting UMAP")
         unsupervised_classifier(analysis, dataset_name, dataset_config)
 
 
@@ -248,5 +251,9 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(module)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
     main()
