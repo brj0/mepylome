@@ -93,21 +93,24 @@ def generate_default_blacklist(blacklist_path):
 
 def unsupervised_classifier(analysis, dataset_name, dataset_config):
     """Generate and save UMAP plots for all 'test_ids'."""
-
-    def generate_and_save_umap(id_):
-        """Generate and save UMAP plots for a given sample ID."""
+    # Collect only those IDs where outputs are missing
+    umap_jobs = []
+    for id_ in analysis.idat_handler.test_ids:
         basepath = analysis.idat_handler.test_id_to_path[id_].parent
         base_filename = f"{id_}_{dataset_name}"
 
         jpg_path = basepath / (base_filename + "_umap.jpg")
         html_path = basepath / (base_filename + "_umap.html")
 
-        if jpg_path.exists() and html_path.exists():
-            return
+        if not (jpg_path.exists() and html_path.exists()):
+            umap_jobs.append((id_, html_path, jpg_path))
 
-        # Save UMAP to disk
+    def generate_and_save_umap(id_, html_path, jpg_path):
+        """Generate and save UMAP plots for a given sample ID."""
         analysis.cnv_id = id_
         analysis.test_ids = [id_]
+
+        # Save UMAP to disk
         analysis.make_umap()
         analysis.umap_plot.write_image(
             jpg_path,
@@ -118,9 +121,8 @@ def unsupervised_classifier(analysis, dataset_name, dataset_config):
         )
         analysis.umap_plot.write_html(html_path)
 
-    ids = analysis.idat_handler.test_ids
-    for id_ in ids:
-        generate_and_save_umap(id_)
+    for job in umap_jobs:
+        generate_and_save_umap(*job)
 
 
 def supervised_classifier(analysis, dataset_name, dataset_config):
