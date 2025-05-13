@@ -9,6 +9,7 @@ Usage:
 
 import logging
 import socket
+import sys
 import tempfile
 import time
 from datetime import datetime
@@ -35,7 +36,14 @@ def get_app_version():
 logger = logging.getLogger(__name__)
 
 version_str = get_app_version().replace(".", "_")
-MEPYLOME_TMP_DIR = Path(tempfile.gettempdir()) / f"mepylome-{version_str}"
+py_version_str = (
+    f"{sys.version_info.major}_"
+    f"{sys.version_info.minor}_"
+    f"{sys.version_info.micro}"
+)
+MEPYLOME_TMP_DIR = (
+    Path(tempfile.gettempdir()) / f"mepylome-{version_str}-py{py_version_str}"
+)
 LOG_DIR = MEPYLOME_TMP_DIR / "log"
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)
