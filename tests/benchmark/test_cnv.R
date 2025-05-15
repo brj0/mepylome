@@ -26,7 +26,7 @@ if (!prep %in% preps) {
 
 HOME_DIR <- Sys.getenv("HOME")
 TEST_DIR <- file.path(HOME_DIR, "mepylome", "tests")
-GENES <- "../../mepylome/data/hg19_genes.tsv.gz"
+GENES <- "../../mepylome/data/gene_loci_epicv2.tsv.gz"
 ARRAY_TYPE_MAP <- c("IlluminaHumanMethylation450k"   = "450k",
                     "IlluminaHumanMethylationEPIC"   = "EPIC",
                     "IlluminaHumanMethylationEPICv2" = "EPICv2")

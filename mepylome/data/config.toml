@@ -29,7 +29,7 @@ cnv_zip = "_cnv.zip"
 
 [paths]
 gaps = "data/gaps.csv.gz"
-genes = "data/hg19_genes.tsv.gz"
+genes = "data/gene_loci_epicv2.tsv.gz"
 
 [genes]
 default_genes_list = [

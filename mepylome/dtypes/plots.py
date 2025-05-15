@@ -221,7 +221,7 @@ def add_genes(plot, genes):
         hovertemplate=(
             "<b> %{customdata[0]} </b> "
             "%{customdata[1]}:%{customdata[2]:,}-%{customdata[3]:,} "
-            "(hg19) <br>"
+            "(Illumina/UCSC) <br>"
             "Value = %{y}<br>"
             "Gene length: %{customdata[4]:,} base pairs <br>"
             "Number or probes: %{customdata[5]} <br>"
