@@ -17,6 +17,7 @@ import pandas as pd
 import requests
 import tomllib
 
+import mepylome
 from mepylome import ArrayType, Manifest
 from mepylome.analysis import MethylAnalysis
 from mepylome.analysis.methyl_clf import make_classifier_report_page
@@ -128,17 +129,29 @@ def unsupervised_classifier(analysis, dataset_name, dataset_config):
 def supervised_classifier(analysis, dataset_name, dataset_config):
     """Run supervised classifiers on test samples and save as HTML reports."""
     ids = analysis.idat_handler.test_ids
-    if not ids:
+
+    # Determine which IDs do not yet have reports
+    id_to_path = {}
+    for id_ in ids:
+        filename = f"{id_}_{dataset_name}_classifiers.html"
+        path = analysis.idat_handler.test_id_to_path[id_].parent / filename
+        if not path.exists():
+            id_to_path[id_] = path
+
+    if not id_to_path:
         return
+
+    uncalculated_ids = list(id_to_path.keys())
+
     clf_list = dataset_config["classifier_list"]
     clf_results = analysis.classify(
-        ids=ids,
+        ids=uncalculated_ids,
         clf_list=clf_list,
     )
-    id_to_report = {id_: [] for id_ in ids}
+    id_to_report = {id_: [] for id_ in uncalculated_ids}
 
     for clf_result in clf_results:
-        for id_, report in zip(ids, clf_result.reports["html"]):
+        for id_, report in zip(uncalculated_ids, clf_result.reports["html"]):
             id_to_report[id_].append(report)
 
     app_version = get_app_version()
@@ -147,11 +160,7 @@ def supervised_classifier(analysis, dataset_name, dataset_config):
     version_str += f"(Mepylome v{app_version})"
     clf_name = dataset_config.get("name", dataset_name)
 
-    for id_ in ids:
-        filename = f"{id_}_{dataset_name}_classifiers.html"
-        path = analysis.idat_handler.test_id_to_path[id_].parent / filename
-        if path.exists():
-            continue
+    for id_, path in id_to_path.items():
         html_str = make_classifier_report_page(
             reports=id_to_report[id_],
             title=f"{clf_name} Classifier {version_str}",
@@ -188,6 +197,8 @@ def make_cnv(analysis, dataset_name, dataset_config):
 
 def run_single_diagnostics(dataset_name, dataset_config, default_blacklist):
     """Run methylation analysis for a single dataset."""
+    print()
+    logging.info("--- Starting diagnostics for %s ---", dataset_name)
     init_params = dataset_config.get("methyl_analysis", {})
     init_params.setdefault("cpg_blacklist", default_blacklist)
 
@@ -198,16 +209,22 @@ def run_single_diagnostics(dataset_name, dataset_config, default_blacklist):
         analysis.idat_handler.selected_columns = annotation_column
 
     if dataset_config.get("do_classify"):
-        logging.info("Starting supervised classifier")
+        print()
+        logging.info("Starting supervised classifier for %s", dataset_name)
         supervised_classifier(analysis, dataset_name, dataset_config)
 
     if dataset_config.get("do_cnv"):
-        logging.info("Starting CNV")
+        print()
+        logging.info("Starting CNV for %s", dataset_name)
         make_cnv(analysis, dataset_name, dataset_config)
 
     if dataset_config.get("do_umap"):
-        logging.info("Starting UMAP")
+        print()
+        logging.info("Starting UMAP for %s", dataset_name)
         unsupervised_classifier(analysis, dataset_name, dataset_config)
+
+    del analysis
+    mepylome.clear_cache()
 
 
 def run_diagnostics(config_path):
