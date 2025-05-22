@@ -44,6 +44,8 @@ from mepylome.analysis.methyl_aux import (
     get_betas,
     guess_annotation_file,
     read_dataframe,
+    reordered_cpgs_by_variance,
+    reordered_cpgs_by_variance_online,
 )
 from mepylome.analysis.methyl_clf import (
     fit_and_evaluate_clf,
@@ -592,16 +594,6 @@ def get_balanced_indices(feature_labels, seed=None):
     return balanced_sample_indices
 
 
-def reordered_cpgs_by_variance(data_frame):
-    """Returns CpG and their variances, ordered by descending variance."""
-    logger.info("Reordering CpG's by variance...")
-    variances = np.var(data_frame.values, axis=0)
-    sorted_indices = np.argsort(-variances, kind="stable")
-    sorted_columns = data_frame.columns[sorted_indices]
-    sorted_variances = variances[sorted_indices]
-    return sorted_columns, sorted_variances
-
-
 def get_cpgs_from_file(input_path):
     """Reads CpG sites from a file and return a numpy array."""
     try:
@@ -1043,13 +1035,6 @@ class MethylAnalysis:
             )
             raise ValueError(msg)
 
-        if not self.load_full_betas and self.cpg_selection != "random":
-            msg = (
-                "If 'load_full_betas' is disabled, 'cpg_selection' must be "
-                " set to 'random'"
-            )
-            raise ValueError(msg)
-
         if self.annotation != INVALID_PATH and not self.annotation.exists():
             logger.warning(
                 "Warning: The provided annotation file '%s' does not exist",
@@ -1390,7 +1375,7 @@ class MethylAnalysis:
             self.analysis_dir,
             "clf",
             clf_label,
-            self.feature_matrix,
+            self.feature_matrix or self.load_full_betas or self.n_cpgs,
             self.prep,
             extra_hash=[
                 cur_vars["cpgs"],
@@ -1595,12 +1580,24 @@ class MethylAnalysis:
             )
 
         # Load all beta values if necessary
-        if self.betas_all is None and (
-            self.load_full_betas or self.cpg_selection in ["top", "balanced"]
-        ):
+        if self.betas_all is None and self.load_full_betas:
             self.betas_all = _get_betas(self.cpgs)
             self._sorted_cpgs, self._sorted_cpgs_var = (
                 reordered_cpgs_by_variance(self.betas_all)
+            )
+
+        # Load all ordered CpG's if load_full_betas if False
+        if self._sorted_cpgs is None and (
+            self.cpg_selection in ["top", "balanced"]
+        ):
+            self._sorted_cpgs, self._sorted_cpgs_var = (
+                reordered_cpgs_by_variance_online(
+                    idat_handler=self.idat_handler,
+                    cpgs=self.cpgs,
+                    prep=self.prep,
+                    betas_dir=self.betas_dir,
+                    pbar=self._prog_bar,
+                )
             )
 
         # Handle CpG selection
@@ -1614,18 +1611,44 @@ class MethylAnalysis:
 
         elif self.cpg_selection == "top":
             self.umap_cpgs = self._sorted_cpgs[: self.n_cpgs]
-            self.betas_sel = self.betas_all[self.umap_cpgs]
+            self.betas_sel = (
+                self.betas_all[self.umap_cpgs]
+                if self.betas_all is not None
+                else _get_betas(self.umap_cpgs)
+            )
 
         elif self.cpg_selection == "balanced":
             features = self.idat_handler.features(self.balancing_feature)
             balanced_indices = get_balanced_indices(features, seed=42)
-            self._balanced_sorted_cpgs, self._balanced_sorted_cpgs_var = (
-                reordered_cpgs_by_variance(
-                    self.betas_all.iloc[balanced_indices]
-                )
-            )
+            if self._balanced_sorted_cpgs is None:
+                if self.betas_all is not None:
+                    (
+                        self._balanced_sorted_cpgs,
+                        self._balanced_sorted_cpgs_var,
+                    ) = reordered_cpgs_by_variance(
+                        self.betas_all.iloc[balanced_indices]
+                    )
+                else:
+                    ids_subset = [
+                        self.idat_handler.ids[i] for i in balanced_indices
+                    ]
+                    (
+                        self._balanced_sorted_cpgs,
+                        self._balanced_sorted_cpgs_var,
+                    ) = reordered_cpgs_by_variance_online(
+                        idat_handler=self.idat_handler,
+                        cpgs=self.cpgs,
+                        prep=self.prep,
+                        betas_dir=self.betas_dir,
+                        pbar=self._prog_bar,
+                        ids=ids_subset,
+                    )
             self.umap_cpgs = self._balanced_sorted_cpgs[: self.n_cpgs]
-            self.betas_sel = self.betas_all[self.umap_cpgs]
+            self.betas_sel = (
+                self.betas_all[self.umap_cpgs]
+                if self.betas_all is not None
+                else _get_betas(self.umap_cpgs)
+            )
 
         else:
             msg = f"Invalid 'cpg_selection': {self.cpg_selection}"
@@ -1958,12 +1981,15 @@ class MethylAnalysis:
             X = pd.DataFrame(self.feature_matrix, index=self.betas_all.index)
         elif self.load_full_betas:
             X = self.betas_all
-        else:
-            msg = (
-                "For classification either all CpGs must be loaded into "
-                "memory (enable 'load_full_betas') or 'feature_matrix' "
-                "must be provided."
+        elif self.betas_sel is not None:
+            logger.info(
+                "Using only %d CpGs for supervised classification "
+                "(load_full_betas=False)",
+                self.betas_sel.shape[1],
             )
+            X = self.betas_sel
+        else:
+            msg = "No valid feature matrix could be selected."
             raise ValueError(msg)
 
         values = X.loc[ids] if ids else None

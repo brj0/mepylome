@@ -700,6 +700,81 @@ class BetasHandler:
                 process_beta_value(i, filename)
         return pd.DataFrame(beta_matrix, columns=cpgs, index=ids)
 
+    def columnwise_variance(
+        self, idat_handler, cpgs, ids=None, fill=NEUTRAL_BETA, parallel=True
+    ):
+        """Calculates the column-wise variance over all beta values.
+
+        This method is memory-efficient and uses Welford’s online algorithm,
+        which allows for accurate variance computation in a single pass over
+        the data. Suitable for large datasets that cannot fit entirely into
+        memory.
+        """
+        if ids is None:
+            filenames = [
+                filename
+                for filename in idat_handler.idat_basenames
+                if filename not in self.invalid_filenames
+            ]
+        else:
+            ids_set = {idat_handler.id_to_basename[id_] for id_ in ids}
+            filenames = [
+                filename
+                for filename in idat_handler.idat_basenames
+                if filename not in self.invalid_filenames
+                and filename in ids_set
+            ]
+        # Initialize running mean and M2 for Welford’s algorithm
+        count = 0
+        mean = np.zeros(len(cpgs), dtype=DTYPE)
+        M2 = np.zeros(len(cpgs), dtype=DTYPE)
+        left_idx = {}
+        right_idx = {}
+        for key, item in self.array_cpgs.items():
+            left_idx[key], right_idx[key] = _overlap_indices(cpgs, item)
+
+        def get_row(filename):
+            path = self.paths.get(filename)
+            if path is None:
+                return None
+            key = self.array_type_from_dir[path.parent]
+            betas = np.fromfile(path, dtype=DTYPE)
+            row = np.full(len(cpgs), fill, dtype=DTYPE)
+            row[left_idx[key]] = betas[right_idx[key]]
+            return row
+
+        def update_stats(row):
+            nonlocal count, mean, M2
+            count += 1
+            delta = row - mean
+            mean += delta / count
+            delta2 = row - mean
+            M2 += delta * delta2
+
+        if parallel:
+            lock = threading.Lock()
+            with ThreadPoolExecutor() as executor:
+                futures = [executor.submit(get_row, f) for f in filenames]
+                for future in tqdm(
+                    as_completed(futures),
+                    total=len(futures),
+                    desc="Streaming beta values for variance (parallel)",
+                ):
+                    row = future.result()
+                    if row is not None:
+                        with lock:
+                            update_stats(row)
+        else:
+            for filename in tqdm(
+                filenames, desc="Streaming beta values for variance (serial)"
+            ):
+                row = get_row(filename)
+                if row is not None:
+                    update_stats(row)
+        if count > 1:
+            return M2 / (count - 1)
+        return np.zeros(len(cpgs), dtype=DTYPE)
+
     def update(self):
         """Updates the paths if beta vales were added after initialization."""
         self.paths = {
@@ -725,6 +800,53 @@ def extract_beta(data):
         print(f"The following error occured for {idat_file.name}: {error}")
 
 
+def ensure_betas_exist(
+    idat_handler, cpgs, prep, betas_dir, ids=None, pbar=None
+):
+    """Ensures all beta files are extracted and available.
+
+    Args:
+        idat_handler (IdatHandler): Handler for IDAT file paths and metadata.
+        cpgs (list): List of CpGs to include in the output matrix.
+        prep (str): Prepreparation method for the MethylData.
+        betas_dir (Path): Path the directory to save/load the betas.
+        pbar (ProgressBar): Progress bar for tracking progress.
+        ids (list, optional): A list of IDs to retrieve. If not provided
+            (default), all IDs will be retrieved.
+
+    Returns:
+        BetasHandler: The corresponding BetasHandler object.
+    """
+    # Loading manifests here prevents race conditions
+    Manifest.load()
+    betas_handler = BetasHandler(betas_dir)
+    ids_found = {
+        idat_handler.idat_basename_to_id.get(x)
+        for x in betas_handler.filenames
+    }
+    missing_ids = list(set(idat_handler.ids) - ids_found)
+    if missing_ids:
+        args_list = [
+            (idat_handler.id_to_path[id_], prep, betas_handler)
+            for id_ in missing_ids
+        ]
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(extract_beta, args) for args in args_list
+            ]
+            with tqdm(
+                total=len(missing_ids), desc="Reading IDAT files"
+            ) as tqdm_bar:
+                for future in as_completed(futures):
+                    future.result()
+                    tqdm_bar.update(1)
+                    if pbar is not None:
+                        pbar.increment()
+        betas_handler.update()
+
+    return betas_handler
+
+
 def get_betas(idat_handler, cpgs, prep, betas_dir, ids=None, pbar=None):
     """Extracts and processes beta values from IDAT files.
 
@@ -745,30 +867,53 @@ def get_betas(idat_handler, cpgs, prep, betas_dir, ids=None, pbar=None):
         pd.DataFrame: DataFrame containing the beta values for the specified
             CpGs.
     """
-    # Loading manifests here prevents race conditions
-    Manifest.load()
-    betas_handler = BetasHandler(betas_dir)
-    ids_found = {
-        idat_handler.idat_basename_to_id.get(x)
-        for x in betas_handler.filenames
-    }
-    missing_ids = list(set(idat_handler.ids) - ids_found)
-    if len(missing_ids) > 0:
-        args_list = [
-            (idat_handler.id_to_path[id_], prep, betas_handler)
-            for id_ in missing_ids
-        ]
-        with ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(extract_beta, args) for args in args_list
-            ]
-            with tqdm(
-                total=len(missing_ids), desc="Reading IDAT files"
-            ) as tqdm_bar:
-                for future in as_completed(futures):
-                    future.result()
-                    tqdm_bar.update(1)
-                    if pbar is not None:
-                        pbar.increment()
-        betas_handler.update()
+    betas_handler = ensure_betas_exist(
+        idat_handler, cpgs, prep, betas_dir, pbar
+    )
     return betas_handler.get(idat_handler=idat_handler, cpgs=cpgs, ids=ids)
+
+
+def get_columnwise_variance(
+    idat_handler, cpgs, prep, betas_dir, pbar=None, ids=None, parallel=True
+):
+    """Computes column-wise variance of beta values for specified CpGs.
+
+    Returns:
+        numpy.ndarray: Variance per CpG.
+    """
+    betas_handler = ensure_betas_exist(
+        idat_handler, cpgs, prep, betas_dir, pbar
+    )
+    return betas_handler.columnwise_variance(
+        idat_handler=idat_handler, cpgs=cpgs, ids=ids, parallel=parallel
+    )
+
+
+def reordered_cpgs_by_variance(data_frame):
+    """Returns CpG and their variances, ordered by descending variance."""
+    logger.info("Reordering CpG's by variance...")
+    variances = np.var(data_frame.values, axis=0)
+    sorted_indices = np.argsort(-variances, kind="stable")
+    sorted_columns = data_frame.columns[sorted_indices]
+    sorted_variances = variances[sorted_indices]
+    return sorted_columns, sorted_variances
+
+
+def reordered_cpgs_by_variance_online(
+    idat_handler, cpgs, prep, betas_dir, pbar=None, ids=None, parallel=True
+):
+    """Returns CpG and their variances, ordered by descending variance."""
+    logger.info("Reordering CpG's by variance (low-memory)...")
+    variances = get_columnwise_variance(
+        idat_handler=idat_handler,
+        cpgs=cpgs,
+        prep=prep,
+        betas_dir=betas_dir,
+        pbar=pbar,
+        ids=ids,
+        parallel=parallel,
+    )
+    sorted_indices = np.argsort(-variances, kind="stable")
+    sorted_columns = cpgs[sorted_indices]
+    sorted_variances = variances[sorted_indices]
+    return sorted_columns, sorted_variances

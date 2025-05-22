@@ -352,14 +352,6 @@ def start_mepylome():
 
     print_welcome_message()
 
-    if not cli_args["load_full_betas"] and cli_args["cpg_selection"] == "top":
-        cli_args["cpg_selection"] = "random"
-        msg = (
-            "Warning: Since '-no_load_full_betas' is set, 'cpg_selection' has "
-            "been automatically changed to 'random'.\n"
-        )
-        print(msg)
-
     from mepylome.analysis.methyl import MethylAnalysis
 
     if cli_args["tutorial"]:
@@ -376,8 +368,6 @@ def start_mepylome():
             setup_tutorial_files(
                 cli_args["analysis_dir"], cli_args["reference_dir"]
             )
-        cli_args["load_full_betas"] = True
-        cli_args["cpgs"] = "epic"
 
     cli_args.pop("tutorial", None)
 
