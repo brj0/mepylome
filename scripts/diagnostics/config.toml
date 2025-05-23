@@ -1,4 +1,14 @@
-default_blacklist = "~/mepylome/data/cpg_blacklist.csv"
+# Default parameters
+[defaults]
+cpg_blacklist_path = "~/mepylome/data/cpg_blacklist.csv"
+classifier_list = [
+    "vtl-kbest(k=10000)-et",
+    "vtl-kbest(k=10000)-lr(max_iter=10000)",
+]
+[defaults.methyl_analysis]
+output_dir = "~/mepylome/outputs"
+n_cpgs = 25000
+overlap = true
 
 
 [diagnostic_config.salivary_gland_tumors]
@@ -7,21 +17,13 @@ do_umap = true
 do_classify = true
 do_cnv = true
 version = "0.0.0"
-classifier_list = [
-    "vtl-kbest(k=10000)-et",
-    "vtl-kbest(k=10000)-lr(max_iter=10000)",
-]
 annotation_diagnosis_column = ["Methylation class"]
-
-  [diagnostic_config.salivary_gland_tumors.methyl_analysis]
-  analysis_dir = "~/mepylome/data/salivary_gland_tumors"
-  reference_dir = "~/mepylome/data/cnv_references"
-  annotation = "~/mepylome/data/salivary_gland_tumors/salivary_gland_tumors.xlsx"
-  test_dir = "~/mepylome/data/new_cases"
-  output_dir = "~/mepylome/outputs"
-  cpgs = "epic+epicv2"
-  n_cpgs = 25000
-  overlap = true
+[diagnostic_config.salivary_gland_tumors.methyl_analysis]
+analysis_dir = "~/mepylome/data/salivary_gland_tumors"
+reference_dir = "~/mepylome/data/cnv_references"
+annotation = "~/mepylome/data/salivary_gland_tumors/salivary_gland_tumors.xlsx"
+test_dir = "~/mepylome/data/new_cases"
+cpgs = "epic+epicv2"
 
 
 [diagnostic_config.soft_tissue_tumors]
@@ -29,18 +31,10 @@ name = "Soft Tissue Tumors"
 do_umap = true
 do_classify = true
 version = "0.0.0"
-classifier_list = [
-    "vtl-kbest(k=10000)-et",
-    "vtl-kbest(k=10000)-lr(max_iter=10000)",
-]
 annotation_diagnosis_column = ["Methylation_class"]
-
-  [diagnostic_config.soft_tissue_tumors.methyl_analysis]
-  analysis_dir = "~/mepylome/data/soft_tissue_tumors"
-  reference_dir = "~/mepylome/data/cnv_references"
-  annotation = "~/mepylome/data/soft_tissue_tumors/soft_tissue_tumors.xlsx"
-  test_dir = "~/mepylome/data/new_cases"
-  output_dir = "~/mepylome/outputs"
-  cpgs = "450k+epic+epicv2"
-  n_cpgs = 25000
-  overlap = true
+[diagnostic_config.soft_tissue_tumors.methyl_analysis]
+analysis_dir = "~/mepylome/data/soft_tissue_tumors"
+reference_dir = "~/mepylome/data/cnv_references"
+annotation = "~/mepylome/data/soft_tissue_tumors/soft_tissue_tumors.xlsx"
+test_dir = "~/mepylome/data/new_cases"
+cpgs = "450k+epic+epicv2"

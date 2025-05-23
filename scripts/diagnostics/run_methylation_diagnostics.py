@@ -195,12 +195,18 @@ def make_cnv(analysis, dataset_name, dataset_config):
         cnv_plot.write_html(html_path)
 
 
-def run_single_diagnostics(dataset_name, dataset_config, default_blacklist):
+def run_single_diagnostics(dataset_name, dataset_config, defaults):
     """Run methylation analysis for a single dataset."""
     print()
-    logging.info("--- Starting diagnostics for %s ---", dataset_name)
+    logging.info("-- Starting diagnostics for %s --", dataset_name)
+
+    dataset_config = {**defaults, **dataset_config}
+    dataset_config["methyl_analysis"] = {
+        **defaults["methyl_analysis"],
+        **dataset_config["methyl_analysis"],
+    }
+
     init_params = dataset_config.get("methyl_analysis", {})
-    init_params.setdefault("cpg_blacklist", default_blacklist)
 
     analysis = MethylAnalysis(**init_params)
 
@@ -227,20 +233,28 @@ def run_single_diagnostics(dataset_name, dataset_config, default_blacklist):
     mepylome.clear_cache()
 
 
-def run_diagnostics(config_path):
+def run_diagnostics(config_path, test_dir=None):
     """Run diagnostics for each dataset based on the provided config."""
-    config_dict = load_config(config_path)
+    config_dict = load_config(Path(config_path))
 
-    # Choose default CpGs[methyl]  that should be blacklisted
-    blacklist_path = config_dict.get("default_blacklist")
-    default_blacklist = (
-        generate_default_blacklist(blacklist_path) if blacklist_path else None
-    )
+    defaults = config_dict.get("defaults", {})
+
+    # Inject test_dir if provided
+    if test_dir:
+        defaults.setdefault("methyl_analysis", {})["test_dir"] = test_dir
+
+    # Choose default CpGs  that should be blacklisted
+    blacklist_path = defaults.get("cpg_blacklist_path")
+    if blacklist_path:
+        defaults["methyl_analysis"]["cpg_blacklist"] = (
+            generate_default_blacklist(blacklist_path)
+        )
+    defaults.pop("cpg_blacklist_path", None)
 
     for dataset_name, dataset_config in config_dict[
         "diagnostic_config"
     ].items():
-        run_single_diagnostics(dataset_name, dataset_config, default_blacklist)
+        run_single_diagnostics(dataset_name, dataset_config, defaults)
 
 
 def main():
@@ -257,12 +271,19 @@ def main():
             "directory)",
         ),
     )
+    parser.add_argument(
+        "--test_dir",
+        type=Path,
+        required=True,
+        help="Path to the directory with the new IDAT cases",
+    )
     args = parser.parse_args()
 
     try:
         config_path = args.config
+        test_dir = args.test_dir
         logging.info("Starting diagnostics with config: %s", config_path)
-        run_diagnostics(config_path)
+        run_diagnostics(config_path, test_dir)
         logging.info("Diagnostics completed successfully.")
     except Exception as e:
         logging.error("An error occurred: %s", e)
