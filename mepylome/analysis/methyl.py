@@ -711,8 +711,15 @@ class MethylAnalysis:
             performance during runtime by reducing computation time. (default:
             False)
 
-        load_full_betas (bool): Flag to load beta values for all CpG sites
-            into memory (default: True).
+        load_full_betas (bool): If True, loads beta values for all CpG sites
+            into memory (when needed),  enabling fast random access to the full
+            methylation matrix. This can significantly increase  memory usage.
+
+            If False, only the specified `n_cpgs` CpG sites are loaded on
+            demand. For supervised  classifier training, the same reduced
+            matrix (`betas_sel`) used for UMAP visualization  is used. This
+            greatly reduces memory consumption and is typically sufficient,
+            though it may be slightly slower (default: True).
 
         feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
             user-provided feature matrix to be used for UMAP dimensionality
@@ -858,8 +865,15 @@ class MethylAnalysis:
         precalculate_cnv (bool): Flag to precalculate CNV information by
             invoking 'precompute_cnvs' (default: False).
 
-        load_full_betas (bool): Flag to load beta values for all CpG sites into
-            memory (default: True).
+        load_full_betas (bool): If True, loads beta values for all CpG sites
+            into memory (when needed),  enabling fast random access to the full
+            methylation matrix. This can significantly increase  memory usage.
+
+            If False, only the specified `n_cpgs` CpG sites are loaded on
+            demand. For supervised  classifier training, the same reduced
+            matrix (`betas_sel`) used for UMAP visualization  is used. This
+            greatly reduces memory consumption and is typically sufficient,
+            though it may be slightly slower (default: True).
 
         betas_sel (pandas.DataFrame): DataFrame containing a selected subset of
             beta values used for dimensionality reduction. Initially set to

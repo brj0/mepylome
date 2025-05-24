@@ -257,11 +257,14 @@ def parse_args():
         action="store_false",
         dest="load_full_betas",
         help=(
-            "Prevent loading betas for all CpGs into memory setting "
-            "`load_full_betas` to False. By default, betas are loaded to "
-            "speed up the generation of sequential UMAP plots. Use this "
-            "option only if you encounter memory overflow due to insufficient "
-            "available memory (3-4 MB per sample)."
+            "Disable loading of all CpG beta values into memory. By default, "
+            "all CpGs are loaded (when needed) to enable fast random access "
+            "to the full methylation matrix, which can significantly increase "
+            "memory usage (3-4 MB per sample). When disabled, only the "
+            "specified `n_cpgs` CpG sites are loaded on demand. For "
+            "supervised classifier training, the same reduced matrix "
+            "(`betas_sel`) used for UMAP visualization is used. This reduces "
+            "memory consumption and is typically sufficient, though slower."
         ),
     )
     parser.add_argument(
