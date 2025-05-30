@@ -428,7 +428,7 @@ def make_clf_pipeline(step_keys, X_shape=None, cv=None):
         "top": TopVarianceSelector,
         "vtl": VarianceThresholdLite,
     }
-    if X_shape and cv:
+    if X_shape is not None and cv:
         n_splits = cv if isinstance(cv, int) else cv.n_splits
         n_components_pca = min(((n_splits - 1) * X_shape[0] // n_splits), 50)
         selectors["pca_auto"] = lambda **kwargs: PCA(
@@ -445,16 +445,14 @@ def make_clf_pipeline(step_keys, X_shape=None, cv=None):
         "knn": KNeighborsClassifier,
         "lda": LinearDiscriminantAnalysis,
         "lr": LogisticRegression,
-        "mlp": lambda **kwargs: MLPClassifier(**{"verbose": True, **kwargs}),
+        "mlp": MLPClassifier,
         "nb": GaussianNB,
         "perceptron": Perceptron,
         "qda": QuadraticDiscriminantAnalysis,
         "rf": RandomForestClassifier,
         "ridge": RidgeClassifier,
         "sgd": SGDClassifier,
-        "svc": lambda **kwargs: SVC(
-            **{"probability": True, "verbose": True, **kwargs}
-        ),
+        "svc": lambda **kwargs: SVC(**{"probability": True, **kwargs}),
     }
     components = {
         **{key: ("scaler", val) for key, val in scalers.items()},

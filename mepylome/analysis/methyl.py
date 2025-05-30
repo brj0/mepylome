@@ -1907,9 +1907,7 @@ class MethylAnalysis:
             ids = [ids]
 
         # Clean the clf log file
-        with self._clf_log.open("w"):
-            pass
-
+        self._clf_log.write_text("")
         self._update_paths()
         ensure_directory_exists(self.clf_dir)
 
@@ -1919,33 +1917,14 @@ class MethylAnalysis:
             filename = input_args_id(clf["model"], clf["cv"]) + ".pkl"
             return self.clf_dir / filename
 
-        all_classifiers_trained = all(_clf_path(clf).exists() for clf in clfs)
-
         # Only load data to memory if training is needed
-        if all_classifiers_trained:
-            shape = (
-                (
-                    len(self.analysis_ids),
-                    len(self.cpgs),
-                )
-                if self.feature_matrix is None
-                else self.feature_matrix.shape
-            )
-            X = type("EmptyDataFrame", (), {"shape": shape})
-            y = None
-            if ids and len(ids):
-                values = get_betas(
-                    idat_handler=self.idat_handler,
-                    ids=ids,
-                    cpgs=self.cpgs,
-                    prep=self.prep,
-                    betas_dir=self.betas_dir,
-                    pbar=self._prog_bar,
-                )
+        if all(_clf_path(clf).exists() for clf in clfs):
+            X, y, _values = self._load_training_data(ids, shape_only=True)
 
         else:
             X, y, _values = self._load_training_data(ids)
-            values = _values if _values is not None else values
+
+        values = _values if _values is not None else values
 
         def _log(string):
             with self._clf_log.open("a") as f:
@@ -1962,6 +1941,7 @@ class MethylAnalysis:
             if logger.isEnabledFor(logging.INFO):
                 _log(f"Start training classifier {i + 1}/{len(clfs)}...\n")
             start_time = time.time()
+
             clf_result = fit_and_evaluate_clf(
                 X=X,
                 y=y,
@@ -1972,6 +1952,7 @@ class MethylAnalysis:
                 cv=clf["cv"],
                 n_jobs=self.n_jobs_clf,
             )
+
             elapsed_time = time.time() - start_time
             if logger.isEnabledFor(logging.INFO):
                 _log(f"Time used for classification: {elapsed_time:.2f} s\n\n")
@@ -1984,8 +1965,32 @@ class MethylAnalysis:
 
         return results
 
-    def _load_training_data(self, ids):
+    def _load_training_data(self, ids, shape_only=False):
         """Load training data for classification."""
+        shape_path = self.clf_dir / "shape.npy"
+        cpgs_path = self.clf_dir / "cpgs.npy"
+
+        if shape_only and shape_path.exists() and cpgs_path.exists():
+            shape = np.load(shape_path)
+            cpgs = np.load(cpgs_path)
+
+            X = type("EmptyDataFrame", (), {"shape": shape})
+            y = None
+
+            if ids and len(ids):
+                values = get_betas(
+                    idat_handler=self.idat_handler,
+                    ids=ids,
+                    cpgs=cpgs,
+                    prep=self.prep,
+                    betas_dir=self.betas_dir,
+                    pbar=self._prog_bar,
+                )
+            else:
+                values = None
+
+            return X, y, values
+
         self.set_betas()
 
         y = self.idat_handler.features()
@@ -2018,8 +2023,13 @@ class MethylAnalysis:
             for i, x in enumerate(y)
             if not _invalid_class(x) and i not in test_indices
         ]
+
         X = X.iloc[valid_indices]
         y = [y[i] for i in valid_indices]
+
+        # Save to file
+        np.save(shape_path, np.array(X.shape))
+        np.save(cpgs_path, np.array(X.columns, dtype=str))
 
         return X, y, values
 
