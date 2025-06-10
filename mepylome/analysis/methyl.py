@@ -1385,11 +1385,17 @@ class MethylAnalysis:
         clf_label = re.sub(
             r"\W+", "", "_".join(self.idat_handler.selected_columns)
         )
+        if self.feature_matrix is not None:
+            features = self.feature_matrix
+        elif self.load_full_betas:
+            features = self.load_full_betas
+        else:
+            features = self.n_cpgs
         clf_hash_key = input_args_id(
             self.analysis_dir,
             "clf",
             clf_label,
-            self.feature_matrix or self.load_full_betas or self.n_cpgs,
+            features,
             self.prep,
             extra_hash=[
                 cur_vars["cpgs"],
