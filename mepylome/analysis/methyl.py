@@ -1490,7 +1490,10 @@ class MethylAnalysis:
 
         if self.use_gpu:
             logger.info("Transferring data to GPU...")
-            matrix_to_use = cp.asarray(matrix_to_use.values)
+            if isinstance(matrix_to_use, pd.DataFrame):
+                matrix_to_use = cp.asarray(matrix_to_use.values)
+            else:
+                matrix_to_use = cp.asarray(matrix_to_use)
 
         logger.info(
             "Starting UMAP for matrix with shape %s...", matrix_to_use.shape
