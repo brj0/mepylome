@@ -88,7 +88,7 @@
 
 # %% language="bash"
 #
-# pip install mepylome ruptures ipython pillow ipywidgets kaleido
+# pip install mepylome ruptures ipython pillow ipywidgets kaleido==0.2.1
 
 
 # %% [markdown]
