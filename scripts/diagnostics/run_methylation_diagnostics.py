@@ -181,7 +181,7 @@ def make_cnv(analysis, dataset_name, dataset_config):
         analysis.make_cnv_plot(id_)
         cnv_plot = analysis.cnv_plot
         cnv_plot.update_layout(
-            yaxis_range=[-1.1, 1.1],
+            yaxis_range=[-2.0, 2.0],
             font={"size": FONTSIZE},
             margin={"t": 50},
         )
