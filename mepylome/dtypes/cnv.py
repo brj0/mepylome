@@ -42,8 +42,10 @@ def _get_cgsegment():
         import ruptures
 
         def function(bin_values):
-            algo = ruptures.KernelCPD("linear").fit(bin_values)
-            segments = algo.predict(pen=1)
+            algo = ruptures.KernelCPD("linear", min_size=5).fit(
+                bin_values
+            )
+            segments = algo.predict(pen=1.5)
             return [
                 [start, end] for start, end in zip([0] + segments, segments)
             ]
