@@ -10,6 +10,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
 import psutil
 from tqdm import tqdm
 
@@ -21,6 +23,9 @@ from mepylome.dtypes.beads import (
     idat_basepaths,
 )
 from mepylome.dtypes.manifests import Manifest
+from mepylome.utils import (
+    CONFIG,
+)
 from mepylome.utils.files import ensure_directory_exists
 from mepylome.utils.varia import MEPYLOME_TMP_DIR
 
@@ -30,6 +35,7 @@ DTYPE = np.float32
 INVALID_PATH = Path("None")
 TEST_CASE = "Test_Case"
 METHYLATION_CLASS = "Methylation_Class"
+MLH1_CPGS = CONFIG["genes"]["mlh1_promoter_cpgs"]
 
 
 class ProgressBar:
@@ -917,3 +923,159 @@ def reordered_cpgs_by_variance_online(
     sorted_columns = cpgs[sorted_indices]
     sorted_variances = variances[sorted_indices]
     return sorted_columns, sorted_variances
+
+
+def get_mlh1_report_template():
+    """Returns HTML template of the MLH1 report."""
+    return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLH1 Promoter Methylation Report: {id_}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            background: #f4f7f9;
+            color: #333;
+            margin: 0 auto;
+            max-width: 1000px;
+            line-height: 1.4;
+        }}
+        h1 {{
+            text-align: center;
+            margin-top: 10px;
+            font-size: 1.5em;
+        }}
+        h2 {{
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }}
+        table {{
+            width: 100%;
+            max-width: 500px;
+            margin: 10px auto;
+            border-collapse: collapse;
+        }}
+        hr {{
+            margin: 20px 0;
+            border: none;
+            height: 2px;
+            background-color: #ccc;
+        }}
+        th, td {{
+            padding: 3px 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            font-size: 0.9em;
+        }}
+        td.label {{
+            font-weight: bold;
+        }}
+        td.value {{
+            text-align: right;
+        }}
+        @media (max-width: 768px) {{
+            body {{
+                max-width: 95%;
+            }}
+            table {{
+                max-width: 100%;
+            }}
+        }}
+    </style>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>Sample Report: {id_}</h1>
+    <h2>Statistics</h2>
+    <table>
+        <tr><td class="label">Median</td><td class="value">{median}</td></tr>
+        <tr><td class="label">Mean</td><td class="value">{mean}</td></tr>
+        <tr><td class="label">Std Dev</td><td class="value">{std}</td></tr>
+        <tr><td class="label">Number of probes</td><td class="value">
+            {n_probes} / 43
+        </td></tr>
+        <tr><td class="label">Interpretation</td><td class="value">
+            {interpretation}
+        </td></tr>
+    </table>
+    <hr>
+    <h2>CpG Probe Values</h2>
+    {plot_html}
+    <hr />
+    <h2>Methods</h2>
+    <p>
+        Our analysis provides the MLH1 promoter methylation level (value
+        between 0 and 1; mean, median, standard deviation) of CpGs, based on
+        the 43 described probes from the Illumina Infinium EPIC Methylation
+        Arrays (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5348626/"
+        target="_blank" rel="noopener noreferrer">Sánchez-Vega F et al.,
+        <em>World Journal of Gastrointestinal Oncology</em>, 2017; 9(3):105–120
+        </a>).<br><br>
+        As part of an internal study using TCGA data, additional published
+        reference cohorts, and in-house datasets (n &gt; 14,000), the threshold
+        (based on the median) was defined as follows:
+    </p>
+    <ul>
+        <li>&lt; 0.2 is considered <strong>unmethylated</strong>,</li>
+        <li>≥ 0.2 to 0.4 is considered <strong>low methylation</strong>
+            (clinical significance unclear),</li>
+        <li>&gt; 0.4 is considered <strong>methylated</strong>.</li>
+    </ul>
+</body>
+</html>
+"""
+
+
+def interpret_methylation(median):
+    """Interpretation of median according to internal tests."""
+    if median < 0.2:
+        return "Unmethylated"
+    elif median > 0.4:
+        return "Methylated"
+    else:
+        return "Unclear"
+
+
+def make_single_mlh1_report_page(probes):
+    """Generate an HTML report for MLH1 promoter methylation of a sample.
+
+    Args:
+        probes (pd.Series): A pandas Series (row) containing CpG probe beta
+            values. The Series index should be probe names, and its `.name`
+            should be the sample ID.
+
+    Returns:
+        str: HTML string representing the methylation report with embedded
+            Plotly plot.
+    """
+    id_ = probes.name
+    mean = probes.mean().round(2)
+    median = probes.median().round(2)
+    std = probes.std().round(2)
+    cpg_names = probes.index
+    cpg_values = probes.values
+    n_probes = len(cpg_names)
+    interpretation = interpret_methylation(median)
+    fig = go.Figure(
+        [go.Bar(x=cpg_names, y=cpg_values, marker_color="steelblue")]
+    )
+    fig.update_layout(
+        xaxis_title=f"CpG Probes (n = {n_probes})",
+        yaxis=dict(range=[0, 1]),
+        yaxis_title="Beta Value",
+        margin=dict(t=40, b=100),
+        height=500,
+    )
+    plot_html = pio.to_html(fig, full_html=False, include_plotlyjs="cdn")
+    return get_mlh1_report_template().format(
+        id_=id_,
+        mean=str(mean),
+        median=str(median),
+        std=str(std),
+        n_probes=n_probes,
+        interpretation=interpretation,
+        plot_html=plot_html,
+    )

@@ -539,7 +539,7 @@ def make_classifier_report_page(reports, title=None):
     """Generates an HTML page for multiple classifier reports.
 
     Args:
-        report_sections (list of str): A list of HTML reports obtained from
+        reports (list of str): A list of HTML reports obtained from
             'MethylAnalysis.classify'.
         itle (str): Title of the report page. Defaults to 'None'.
 
@@ -560,7 +560,7 @@ def make_classifier_report_page(reports, title=None):
             background: #f4f7f9;
             color: #333;
             margin: 0 auto;
-            max-width: 700px;
+            max-width: 1000px;
             line-height: 1.4;
         }}
         h1 {{

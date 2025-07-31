@@ -43,6 +43,7 @@ from mepylome.analysis.methyl_aux import (
     ProgressBar,
     get_betas,
     guess_annotation_file,
+    make_single_mlh1_report_page,
     read_dataframe,
     reordered_cpgs_by_variance,
     reordered_cpgs_by_variance_online,
@@ -81,6 +82,7 @@ DEFAULT_OUTPUT_DIR = Path(MEPYLOME_TMP_DIR, "analysis")
 DEFAULT_N_CPGS = 25000
 ON = "on"
 OFF = "off"
+MLH1_CPGS = CONFIG["genes"]["mlh1_promoter_cpgs"]
 ZIP_ENDING = CONFIG["suffixes"]["cnv_zip"]
 UMAP_METRICS = [
     "manhattan",
@@ -2041,6 +2043,39 @@ class MethylAnalysis:
         np.save(cpgs_path, np.array(X.columns, dtype=str))
 
         return X, y, values
+
+    def mlh1_report_pages(self, ids):
+        """Generate MLH1 promoter methylation report HTML pages.
+
+        Parameters:
+            ids (list of str): Sample IDs.
+
+        Returns:
+            list of str: HTML reports, one per sample.
+        """
+        prev_cpg_blacklist = self.cpg_blacklist
+        prev_cpgs = self.cpgs
+        self.cpg_blacklist = set()
+        self.cpgs = list(MLH1_CPGS)
+        self.set_betas()
+        array_types = {
+            id_: str(ArrayType.from_idat(self.idat_handler.id_to_path[id_]))
+            for id_ in ids
+        }
+        mlh1_overlap = {
+            k: list(set(MLH1_CPGS).intersection(Manifest(k).data_frame.IlmnID))
+            for k in ["450k", "epic", "epicv2", "msa48"]
+        }
+        probes_df = self.betas_all.loc[ids]
+        result = []
+        for id_ in ids:
+            array_type = array_types[id_]
+            cpg_overlap = mlh1_overlap[array_type]
+            probes = probes_df.loc[id_][cpg_overlap]
+            result.append(make_single_mlh1_report_page(probes))
+        self.cpg_blacklist = prev_cpg_blacklist
+        self.cpgs = prev_cpgs
+        return result
 
     def get_app(self):
         """Returns a Dash application object for methylation analysis."""
