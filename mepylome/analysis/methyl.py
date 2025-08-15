@@ -1017,7 +1017,7 @@ class MethylAnalysis:
             None if analysis_ids is None else list(analysis_ids)
         )
         self.test_dir = Path(test_dir).expanduser()
-        self.test_ids = test_ids
+        self.test_ids = None if test_ids is None else list(test_ids)
         self.umap_cpgs = None
         self.umap_df = None
         self.umap_dir = None
