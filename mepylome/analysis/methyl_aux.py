@@ -658,12 +658,11 @@ class BetasHandler:
                 if filename not in self.invalid_filenames
             ]
         else:
-            ids_set = {idat_handler.id_to_basename[id_] for id_ in ids}
+            basenames = [idat_handler.id_to_basename[id_] for id_ in ids]
             filenames = [
-                filename
-                for filename in idat_handler.idat_basenames
-                if filename not in self.invalid_filenames
-                and filename in ids_set
+                basename
+                for basename in basenames
+                if basename not in self.invalid_filenames
             ]
         ids = [idat_handler.basename_to_id[x] for x in filenames]
 
@@ -721,12 +720,11 @@ class BetasHandler:
                 if filename not in self.invalid_filenames
             ]
         else:
-            ids_set = {idat_handler.id_to_basename[id_] for id_ in ids}
+            basenames = [idat_handler.id_to_basename[id_] for id_ in ids]
             filenames = [
-                filename
-                for filename in idat_handler.idat_basenames
-                if filename not in self.invalid_filenames
-                and filename in ids_set
+                basename
+                for basename in basenames
+                if basename not in self.invalid_filenames
             ]
         # Initialize running mean and M2 for Welford’s algorithm
         count = 0
