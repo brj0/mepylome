@@ -255,9 +255,7 @@ class IdatHandler:
 
         # Derived attributes
         self.id_to_path = {**self.analysis_id_to_path, **self.test_id_to_path}
-        self.basename_to_id = {
-            v.name: k for k, v in self.id_to_path.items()
-        }
+        self.basename_to_id = {v.name: k for k, v in self.id_to_path.items()}
         self.id_to_basename = {k: v.name for k, v in self.id_to_path.items()}
 
         # Set available annotation for all IDAT files
@@ -827,8 +825,7 @@ def ensure_betas_exist(
     Manifest.load()
     betas_handler = BetasHandler(betas_dir)
     ids_found = {
-        idat_handler.basename_to_id.get(x)
-        for x in betas_handler.filenames
+        idat_handler.basename_to_id.get(x) for x in betas_handler.filenames
     }
     missing_ids = list(set(idat_handler.ids) - ids_found)
     if missing_ids:
