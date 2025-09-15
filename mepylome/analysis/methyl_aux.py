@@ -255,7 +255,7 @@ class IdatHandler:
 
         # Derived attributes
         self.id_to_path = {**self.analysis_id_to_path, **self.test_id_to_path}
-        self.idat_basename_to_id = {
+        self.basename_to_id = {
             v.name: k for k, v in self.id_to_path.items()
         }
         self.id_to_basename = {k: v.name for k, v in self.id_to_path.items()}
@@ -475,7 +475,7 @@ class IdatHandler:
 
     @property
     def idat_basenames(self):
-        return list(self.idat_basename_to_id.keys())
+        return list(self.basename_to_id.keys())
 
     @property
     def paths(self):
@@ -667,7 +667,7 @@ class BetasHandler:
                 if filename not in self.invalid_filenames
                 and filename in ids_set
             ]
-        ids = [idat_handler.idat_basename_to_id[x] for x in filenames]
+        ids = [idat_handler.basename_to_id[x] for x in filenames]
 
         check_memory(len(filenames), len(cpgs), DTYPE)
         beta_matrix = np.full((len(filenames), len(cpgs)), fill, dtype=DTYPE)
@@ -827,7 +827,7 @@ def ensure_betas_exist(
     Manifest.load()
     betas_handler = BetasHandler(betas_dir)
     ids_found = {
-        idat_handler.idat_basename_to_id.get(x)
+        idat_handler.basename_to_id.get(x)
         for x in betas_handler.filenames
     }
     missing_ids = list(set(idat_handler.ids) - ids_found)
