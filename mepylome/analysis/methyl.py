@@ -1478,16 +1478,16 @@ class MethylAnalysis:
 
         if len(self.idat_handler.ids) != len(matrix_to_use):
             if self.feature_matrix is not None:
-                msg = (
-                    "Dimension mismatch 0: 'feature_matrix' has not the same "
-                    "number of rows as there are samples in "
-                    "'idat_handler.ids'."
-                )
+                source = "'feature_matrix'"
             else:
-                msg = (
-                    "Dimension mismatch 1: Analysis files may have changed. "
-                    f"Try to delete cached files in {self.output_dir}."
-                )
+                source = "'self.betas_sel'"
+
+            msg = (
+                f"Dimension mismatch 0: {source} does not have the same "
+                "number of rows as samples in 'idat_handler.ids'. This may "
+                f"occur due to invalid IDAT files. Check '{self.betas_dir}' "
+                "for erroneous files."
+            )
             raise AttributeError(msg)
 
         if self.use_gpu:
