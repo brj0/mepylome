@@ -6,6 +6,7 @@ miscellaneous operations.
 
 from .files import (
     download_file,
+    download_files,
     ensure_directory_exists,
     get_csv_file,
     get_file_object,
@@ -24,6 +25,7 @@ from .varia import (
 
 __all__ = [
     "download_file",
+    "download_files",
     "ensure_directory_exists",
     "get_file_object",
     "get_csv_file",

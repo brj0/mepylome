@@ -9,11 +9,14 @@ import gzip
 import logging
 import shutil
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import repeat
 from multiprocessing import Pool
 from pathlib import Path, PurePath
+from typing import Iterable, Union
 
 import pandas as pd
+import requests
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -26,6 +29,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = [
     "download_file",
+    "download_files",
     "ensure_directory_exists",
     "get_file_object",
     "get_resource_path",
@@ -50,7 +54,13 @@ def ensure_directory_exists(path_like):
     Path(path_like).mkdir(parents=True, exist_ok=True)
 
 
-def download_file(url, save_path, overwrite=False, show_progress=True):
+def download_file(
+    url: str,
+    save_path: Union[str, Path],
+    overwrite: bool = False,
+    show_progress: bool = True,
+    chunk_size: int = 8192,
+) -> None:
     """Download a file from a URL and save it to a destination directory.
 
     Args:
@@ -60,6 +70,7 @@ def download_file(url, save_path, overwrite=False, show_progress=True):
             exists. Defaults to False.
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
+        chunk_size (int): Size of chunks in bytes. Defaults to 8192.
     """
     save_path = Path(save_path)
     ensure_directory_exists(save_path.parent)
@@ -74,40 +85,102 @@ def download_file(url, save_path, overwrite=False, show_progress=True):
     if show_progress:
         logger.info("Downloading from %s to %s...", url, save_path)
 
+    temp_path = save_path.with_suffix(save_path.suffix + ".part")
+    if temp_path.exists() and not overwrite:
+        mode = "ab"  # append to resume
+        resume_size = temp_path.stat().st_size
+    else:
+        mode = "wb"
+        resume_size = 0
+
+    headers = {"Range": f"bytes={resume_size}-"} if resume_size > 0 else {}
+
     try:
-        import requests
+        with requests.get(
+            url, stream=True, headers=headers, timeout=10
+        ) as response:
+            response.raise_for_status()
 
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
-
-        total_size = int(response.headers.get("content-length", 0))
-        block_size = 8192
-        progress_bar = (
-            tqdm(
-                total=total_size,
-                unit="iB",
-                unit_scale=True,
-                desc="Downloading",
+            total_size = (
+                int(response.headers.get("content-length", 0)) + resume_size
             )
-            if show_progress and total_size > 0
-            else None
-        )
+            progress_bar = (
+                tqdm(
+                    total=total_size,
+                    initial=resume_size,
+                    unit="iB",
+                    unit_scale=True,
+                    desc="Downloading",
+                )
+                if show_progress
+                else None
+            )
 
-        with save_path.open("wb") as file:
-            for chunk in response.iter_content(chunk_size=block_size):
-                if chunk:
-                    file.write(chunk)
-                    if progress_bar:
-                        progress_bar.update(len(chunk))
-        if progress_bar:
-            progress_bar.close()
+            with temp_path.open(mode) as file:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        file.write(chunk)
+                        if progress_bar:
+                            progress_bar.update(len(chunk))
+            if progress_bar:
+                progress_bar.close()
+
+        temp_path.rename(save_path)
 
         if show_progress:
             logger.info("Download completed: %s", save_path)
 
-    except requests.RequestException as error:
-        msg = f"Failed to download file from {url}. Error: {error}"
-        raise requests.RequestException(msg) from error
+    except requests.RequestException as e:
+        if temp_path.exists():
+            logger.warning("Partial download saved: %s", temp_path)
+        raise RuntimeError(f"Failed to download {url}. Error: {e}") from e
+
+
+def download_files(
+    urls: Iterable[str],
+    save_paths: Iterable[str | Path],
+    overwrite: bool = False,
+    show_progress: bool = True,
+    max_workers: int | None = None,
+):
+    """Download multiple files in parallel with optional progress bar.
+
+    Args:
+        urls (Iterable[str]): URLs to download.
+        save_paths (Iterable[str | Path]): Corresponding save paths.
+        overwrite (bool): Overwrite existing files.
+        show_progress (bool): Show progress bars.
+        max_workers (int | None): Number of parallel downloads.
+    """
+    # Convert to list to allow len() and zip()
+    urls = list(urls)
+    save_paths = [Path(p) for p in save_paths]
+
+    if len(urls) != len(save_paths):
+        raise ValueError("urls and save_paths must have the same length")
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(download_file, url, path, overwrite, False): url
+            for url, path in zip(urls, save_paths)
+        }
+
+        progress = tqdm(
+            total=len(futures),
+            desc="Downloading (parallel)",
+            unit="file",
+            disable=not show_progress,
+        )
+        try:
+            for future in as_completed(futures):
+                error = future.exception()
+                if error is not None:
+                    logger.error(
+                        "Error downloading %s: %s", futures[future], error
+                    )
+                progress.update(1)
+        finally:
+            progress.close()
 
 
 def download_geo_idat(probe_id, color_channel, output_dir):
