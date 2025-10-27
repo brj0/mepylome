@@ -345,34 +345,156 @@ def parse_args():
         version=f"{get_app_version()}",
     )
 
+    # -------------------
+    # Download subcommand
+    # -------------------
+    subparsers = parser.add_subparsers(dest="command")
+
+    download_parser = subparsers.add_parser(
+        "download",
+        help=(
+            """
+            Download IDAT files and/or metadata from GEO, ArrayExpress, or TCGA datasets.
+            """
+        ),
+        description=(
+            """
+            Download IDAT files and/or metadata from GEO, ArrayExpress, or TCGA datasets.
+            """
+        ),
+        epilog=(
+            """
+            Example usage:
+            --------------
+
+            1. GEO or ArrayExpress:
+
+                mepylome download -d GSE12345 -s ./data
+                mepylome download -d E-MTAB-1234
+
+            2. TCGA (IDAT only):
+
+                mepylome download -c ~/data/cart.json -i
+
+            3. TCGA (metadata only):
+
+                mepylome download -c ~/data/cart.json -l ~/data/clinical.tsv -m
+
+            4. TCGA (both IDAT + metadata):
+
+                mepylome download -c ~/data/cart.json -l ~/data/clinical.tsv
+            """
+        ),
+        formatter_class=SmartFormatter,
+    )
+    download_parser.add_argument(
+        "-d",
+        "--dataset",
+        type=str,
+        nargs="+",
+        required=True,
+        help="Datasets to download (GSE..., E-MTAB-..., or GSM... path)",
+    )
+    download_parser.add_argument(
+        "-s",
+        "--save_dir",
+        type=absolute_path,
+        default=".",
+        help="Directory to save downloaded files (default: current folder)",
+    )
+    download_parser.add_argument(
+        "-i",
+        "--idat",
+        action="store_true",
+        help="Download IDAT files only",
+    )
+    download_parser.add_argument(
+        "-m",
+        "--metadata",
+        action="store_true",
+        help="Download metadata files only",
+    )
+    download_parser.add_argument(
+        "-c",
+        "--tcga_cart",
+        type=absolute_path,
+        help=(
+            "Path to TCGA metadata cart JSON file (required for TCGA "
+            "datasets)"
+        ),
+    )
+    download_parser.add_argument(
+        "-l",
+        "--tcga_clinical",
+        type=absolute_path,
+        help="Path to TCGA clinical TSV file (required for TCGA datasets)",
+    )
+
     return parser.parse_args()
 
 
 def start_mepylome():
     """Entry point to start mepylome methylation analysis from command line."""
     args = parse_args()
-    cli_args = {k: v for k, v in vars(args).items() if v is not None}
 
-    print_welcome_message()
+    if args.command == "download":
+        both_unspecified = not (args.idat or args.metadata)
+        download_idat = args.idat or both_unspecified
+        download_metadata = args.metadata or both_unspecified
 
-    from mepylome.analysis.methyl import MethylAnalysis
+        dataset = list(args.dataset)
 
-    if cli_args["tutorial"]:
-        from mepylome.utils import setup_tutorial_files
+        # If TCGA info is provided, validate and add dictionary
+        if args.tcga_cart or args.tcga_clinical:
+            if download_metadata and not (
+                args.tcga_cart and args.tcga_clinical
+            ):
+                raise ValueError(
+                    "For TCGA metadata download, both -c/--tcga_cart and "
+                    "-l/--tcga_clinical must be provided."
+                )
+            if download_idat and not args.tcga_cart:
+                raise ValueError(
+                    "For TCGA IDAT download, -c/--tcga_cart must be provided."
+                )
 
-        tutorial_dir = Path.home() / "mepylome" / "tutorial"
-        cli_args["analysis_dir"] = tutorial_dir / "tutorial_analysis"
-        cli_args["reference_dir"] = tutorial_dir / "tutorial_reference"
-        if (
-            not cli_args["analysis_dir"].exists()
-            and not cli_args["reference_dir"].exists()
-        ):
-            # Download Tutorial IDAT files
-            setup_tutorial_files(
-                cli_args["analysis_dir"], cli_args["reference_dir"]
-            )
+            # Add TCGA dataset dictionary
+            tcga_dict = {"source": "tcga", "metadata_cart": args.tcga_cart}
+            if download_metadata:
+                tcga_dict["metadata_clinical"] = args.tcga_clinical
+            dataset.append(tcga_dict)
 
-    cli_args.pop("tutorial", None)
+        from mepylome.utils.downloader import download_idats
 
-    methyl_analysis = MethylAnalysis(**cli_args)
-    methyl_analysis.run_app(open_tab=True)
+        download_idats(
+            dataset=dataset,
+            save_dir=args.save_dir,
+            idat=download_idat,
+            metadata=download_metadata,
+        )
+    else:
+        cli_args = {k: v for k, v in vars(args).items() if v is not None}
+
+        print_welcome_message()
+
+        from mepylome.analysis.methyl import MethylAnalysis
+
+        if cli_args["tutorial"]:
+            from mepylome.utils import setup_tutorial_files
+
+            tutorial_dir = Path.home() / "mepylome" / "tutorial"
+            cli_args["analysis_dir"] = tutorial_dir / "tutorial_analysis"
+            cli_args["reference_dir"] = tutorial_dir / "tutorial_reference"
+            if (
+                not cli_args["analysis_dir"].exists()
+                and not cli_args["reference_dir"].exists()
+            ):
+                # Download Tutorial IDAT files
+                setup_tutorial_files(
+                    cli_args["analysis_dir"], cli_args["reference_dir"]
+                )
+
+        cli_args.pop("tutorial", None)
+
+        methyl_analysis = MethylAnalysis(**cli_args)
+        methyl_analysis.run_app(open_tab=True)
