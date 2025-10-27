@@ -8,6 +8,7 @@ file-like objects and archives.
 import gzip
 import logging
 import shutil
+import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import repeat
@@ -60,17 +61,21 @@ def download_file(
     overwrite: bool = False,
     show_progress: bool = True,
     chunk_size: int = 8192,
+    max_attempts: int = 5,
+    retry_delay: float = 3.0,
 ) -> None:
     """Download a file from a URL and save it to a destination directory.
+
+    Retries the download up to `max_attempts` times if it fails.
 
     Args:
         url (str): The URL from which the file will be downloaded.
         save_path (path_like): The path where the file will be saved.
-        overwrite (bool, optional): If True, overwrite the file if it already
-            exists. Defaults to False.
-        show_progress (bool, optional): If True, displays logging messages and
-            progress bar during download. Defaults to True.
-        chunk_size (int): Size of chunks in bytes. Defaults to 8192.
+        overwrite (bool): If True, overwrite existing file. Defaults to False.
+        show_progress (bool): Display logs and progress bar. Defaults to True.
+        chunk_size (int): Chunk size in bytes. Defaults to 8192.
+        max_attempts (int): Number of times to retry on failure. Defaults to 3.
+        retry_delay (float): Seconds to wait between retries. Defaults to 3.0.
     """
     save_path = Path(save_path)
     ensure_directory_exists(save_path.parent)
@@ -82,20 +87,16 @@ def download_file(
             )
         return
 
-    if show_progress:
-        logger.info("Downloading from %s to %s...", url, save_path)
+    def _single_download(temp_path) -> None:
+        if temp_path.exists() and not overwrite:
+            mode = "ab"  # resume partial download
+            resume_size = temp_path.stat().st_size
+        else:
+            mode = "wb"
+            resume_size = 0
 
-    temp_path = save_path.with_suffix(save_path.suffix + ".part")
-    if temp_path.exists() and not overwrite:
-        mode = "ab"  # append to resume
-        resume_size = temp_path.stat().st_size
-    else:
-        mode = "wb"
-        resume_size = 0
+        headers = {"Range": f"bytes={resume_size}-"} if resume_size > 0 else {}
 
-    headers = {"Range": f"bytes={resume_size}-"} if resume_size > 0 else {}
-
-    try:
         with requests.get(
             url, stream=True, headers=headers, timeout=10
         ) as response:
@@ -125,15 +126,44 @@ def download_file(
             if progress_bar:
                 progress_bar.close()
 
-        temp_path.rename(save_path)
+    attempt = 0
+    success = False
 
-        if show_progress:
-            logger.info("Download completed: %s", save_path)
+    while attempt < max_attempts and not success:
+        attempt += 1
 
-    except requests.RequestException as e:
-        if temp_path.exists():
-            logger.warning("Partial download saved: %s", temp_path)
-        raise RuntimeError(f"Failed to download {url}. Error: {e}") from e
+        try:
+            if show_progress:
+                logger.info("Downloading from %s to %s...", url, save_path)
+
+            temp_path = save_path.with_suffix(save_path.suffix + ".part")
+            _single_download(temp_path)
+            temp_path.rename(save_path)
+
+            success = True
+
+            if show_progress:
+                logger.info("Download completed: %s", save_path)
+
+        except requests.RequestException as e:
+            logger.warning(
+                "Download attempt %d/%d failed: %s", attempt, max_attempts, e
+            )
+            if temp_path.exists():
+                logger.warning("Partial download saved: %s", temp_path)
+
+            if attempt < max_attempts:
+                logger.warning("Retrying in %.1f seconds...", retry_delay)
+                time.sleep(retry_delay)
+            else:
+                logger.warning(
+                    "All %d download attempts failed for %s", max_attempts, url
+                )
+
+    if not success:
+        raise RuntimeError(
+            f"Failed to download {url} after {max_attempts} attempts."
+        )
 
 
 def download_files(
