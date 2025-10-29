@@ -122,14 +122,25 @@ def read_dataframe(path, **kwargs):
     raise ValueError(msg)
 
 
-def guess_annotation_file(directory):
-    """Returns the first spreadsheat file recursively found."""
+def guess_annotation_file(directory: Path) -> Path:
+    """Return the first spreadsheet found (shallowest path first)."""
     logger.info("Searching for annotation file...")
-    supported_extensions = [".csv", ".tsv", ".ods", ".xls", ".xlsx"]
-    for file in directory.rglob("*"):
-        if file.suffix.lower() in supported_extensions:
-            logger.info("Found annotation file: %s", file)
-            return file
+    supported_extensions = {".csv", ".tsv", ".ods", ".xls", ".xlsx"}
+
+    # depth first, then name
+    files = sorted(
+        (
+            f
+            for f in directory.rglob("*")
+            if f.suffix.lower() in supported_extensions
+        ),
+        key=lambda f: (len(f.parts), f.name.lower()),
+    )
+
+    if files:
+        logger.info("Found annotation file: %s", files[0])
+        return files[0]
+
     logger.info("No annotation file found")
     return INVALID_PATH
 
