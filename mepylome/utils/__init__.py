@@ -4,6 +4,7 @@ This package provides utility functions and classes for file handling and
 miscellaneous operations.
 """
 
+from .downloader import download_idats, setup_tutorial_files
 from .files import (
     download_file,
     download_files,
@@ -12,7 +13,6 @@ from .files import (
     get_file_object,
     get_resource_path,
     reset_file,
-    setup_tutorial_files,
 )
 from .varia import (
     CONFIG,
@@ -26,6 +26,7 @@ from .varia import (
 __all__ = [
     "download_file",
     "download_files",
+    "download_idats",
     "ensure_directory_exists",
     "get_file_object",
     "get_csv_file",

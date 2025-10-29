@@ -101,7 +101,6 @@ import os
 import platform
 import re
 import sys
-import tarfile
 import zipfile
 from collections import Counter
 from pathlib import Path
@@ -119,10 +118,7 @@ from mepylome.dtypes.manifests import (
     MANIFEST_URL,
     REMOTE_FILENAME,
 )
-from mepylome.utils.files import (
-    download_file,
-    download_geo_samples,
-)
+from mepylome.utils import download_file, download_idats
 
 # Define output font size for plots
 FONTSIZE = 23
@@ -134,7 +130,7 @@ GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
 datasets = {
     "cns_tumors": {
         "xlsx": "https://static-content.springer.com/esm/art%3A10.1038%2Fnature26000/MediaObjects/41586_2018_BFnature26000_MOESM3_ESM.xlsx",
-        "geo_ids": ["GSE109381"],
+        "idat": ["GSE109381"],
     },
 }
 
@@ -172,31 +168,6 @@ print(f"Data will be stored in: {mepylome_dir}")
 
 
 # Main Functions
-
-
-def extract_tar(tar_path, output_directory):
-    """Extracts tar file under 'tar_path' to 'output_directory'."""
-    output_directory.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(tar_path, "r") as tar:
-        tar.extractall(path=output_directory, filter="data")
-        print(f"Extracted {tar_path} to {output_directory}")
-
-
-def download_from_geo_and_untar(analysis_dir, geo_ids):
-    """Downloads all missing GEO files and untars them."""
-    for geo_id in geo_ids:
-        idat_dir = analysis_dir / geo_id
-        if idat_dir.exists():
-            print(f"Data for GEO ID {geo_id} already exists, skipping.")
-            continue
-        try:
-            tar_path = analysis_dir / f"{geo_id}.tar"
-            geo_url = GEO_URL.format(acc=geo_id)
-            download_file(geo_url, tar_path)
-            extract_tar(tar_path, idat_dir)
-            tar_path.unlink()
-        except Exception as e:
-            print(f"Error processing GEO ID {geo_id}: {e}")
 
 
 def clean_filename(name):
@@ -345,7 +316,7 @@ cn_neutral_samples = [
     "GSM4181517_203049640041_R08C01",
 ]
 
-download_geo_samples(reference_dir, cn_neutral_samples)
+download_idats(dataset=cn_neutral_samples, save_dir=reference_dir)
 
 
 # %% [markdown]
@@ -373,7 +344,7 @@ if not (excel_path := analysis_dir / f"{tumor_site}.xlsx").exists():
     pd.read_excel(excel_path, skiprows=1).to_excel(excel_path, index=False)
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_ids"])
+download_idats(dataset=datasets[tumor_site]["idat"], save_dir=analysis_dir)
 
 
 # %% [markdown]

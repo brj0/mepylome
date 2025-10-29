@@ -392,7 +392,6 @@ def parse_args():
         "--dataset",
         type=str,
         nargs="+",
-        required=True,
         help="Datasets to download (GSE..., E-MTAB-..., or GSM... path)",
     )
     download_parser.add_argument(
@@ -419,8 +418,7 @@ def parse_args():
         "--tcga_cart",
         type=absolute_path,
         help=(
-            "Path to TCGA metadata cart JSON file (required for TCGA "
-            "datasets)"
+            "Path to TCGA metadata cart JSON file (required for TCGA datasets)"
         ),
     )
     download_parser.add_argument(
@@ -442,7 +440,7 @@ def start_mepylome():
         download_idat = args.idat or both_unspecified
         download_metadata = args.metadata or both_unspecified
 
-        dataset = list(args.dataset)
+        dataset = list(args.dataset or [])
 
         # If TCGA info is provided, validate and add dictionary
         if args.tcga_cart or args.tcga_clinical:

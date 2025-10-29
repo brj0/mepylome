@@ -96,7 +96,6 @@
 
 # %%
 import io
-import json
 import multiprocessing
 import os
 import platform
@@ -104,12 +103,7 @@ import re
 import sys
 import tarfile
 import zipfile
-from concurrent.futures import (
-    ThreadPoolExecutor,
-    as_completed,
-)
 from pathlib import Path
-from threading import Lock
 
 import numpy as np
 import pandas as pd
@@ -124,10 +118,7 @@ from mepylome.dtypes.manifests import (
     MANIFEST_URL,
     REMOTE_FILENAME,
 )
-from mepylome.utils.files import (
-    download_file,
-    download_geo_samples,
-)
+from mepylome.utils import download_file, download_idats
 
 # Define output font size for plots
 FONTSIZE = 23
@@ -142,7 +133,7 @@ datasets = {
         "geo_ids": [],
     },
     "scc_test": {
-        "geo_ids": [
+        "idat": [
             "GSE124052",  # HNSQ_CA, NSCLC_SC
             "GSE66836",  # NSCLC_AD, CONTR_LUNG
             "GSE79556",  # HNSQ_CA (oral tongue)
@@ -195,23 +186,6 @@ def extract_tar(tar_path, output_directory):
     with tarfile.open(tar_path, "r") as tar:
         tar.extractall(path=output_directory, filter="data")
         print(f"Extracted {tar_path} to {output_directory}")
-
-
-def download_from_geo_and_untar(analysis_dir, geo_ids):
-    """Downloads all missing GEO files and untars them."""
-    for geo_id in geo_ids:
-        idat_dir = analysis_dir / geo_id
-        if idat_dir.exists():
-            print(f"Data for GEO ID {geo_id} already exists, skipping.")
-            continue
-        try:
-            tar_path = analysis_dir / f"{geo_id}.tar"
-            geo_url = GEO_URL.format(acc=geo_id)
-            download_file(geo_url, tar_path)
-            extract_tar(tar_path, idat_dir)
-            tar_path.unlink()
-        except Exception as e:
-            print(f"Error processing GEO ID {geo_id}: {e}")
 
 
 def clean_filename(name):
@@ -360,7 +334,7 @@ cn_neutral_samples = [
     "GSM4181517_203049640041_R08C01",
 ]
 
-download_geo_samples(reference_dir, cn_neutral_samples)
+download_idats(dataset=cn_neutral_samples, save_dir=reference_dir)
 
 
 # %% [markdown]
@@ -419,88 +393,25 @@ if not tcga_metadata_dir.exists():
     print("Setting up TCGA annotation directory done.")
 
 
-def download_tcga_file(file_id, filename, dest_folder):
-    """Downloads a TCGA file safely, cleaning up incomplete downloads."""
-    final_path = dest_folder / filename
-    temp_path = final_path.with_suffix(final_path.suffix + ".part")
-    if final_path.exists():
-        print(f"File already exists: {filename}")
-        return True
-    url = f"https://api.gdc.cancer.gov/data/{file_id}"
-    dest_folder.mkdir(parents=True, exist_ok=True)
-    try:
-        with requests.get(url, stream=True, timeout=60) as r:
-            r.raise_for_status()
-            with temp_path.open("wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-        temp_path.rename(final_path)
-        return True
-    except Exception as e:
-        print(f"Failed: {filename} | Error: {e}")
-        if temp_path.exists():
-            temp_path.unlink()
-        return False
-
-
-def download_all_tcga_files(manifest_path, dest_folder, max_threads):
-    """Downloads all TCGA files in manifest in parallel."""
-    manifest = pd.read_csv(manifest_path, sep="\t")
-    total_files = len(manifest)
-    pending = [
-        item
-        for _, item in manifest.iterrows()
-        if not (dest_folder / item["filename"]).exists()
-    ]
-    attempt = 1
-    downloaded = total_files - len(pending)
-    MAX_ATTEMPTS = 10
-    lock = Lock()
-    while pending and attempt <= MAX_ATTEMPTS:
-        print(f"\n--- Attempt {attempt}: {len(pending)} files remaining ---")
-        next_round = []
-        with ThreadPoolExecutor(max_workers=max_threads) as executor:
-            futures = {
-                executor.submit(
-                    download_tcga_file,
-                    item["id"],
-                    item["filename"],
-                    dest_folder,
-                ): item
-                for item in pending
-            }
-            for future in as_completed(futures):
-                item = futures[future]
-                success = future.result()
-                if success:
-                    with lock:
-                        downloaded += 1
-                    print(
-                        f"Downloaded file {downloaded}/{total_files}: "
-                        f"{item['filename']}"
-                    )
-                else:
-                    next_round.append(item)
-        pending = next_round
-        attempt += 1
-    if not pending:
-        print("\n--- All files downloaded successfully ---")
-        tcga_downloaded_tag.touch()
-    else:
-        print("\n--- Some files failed to download. Retry limit reached. ---")
-
-
 # Check if the download is complete
 if not tcga_downloaded_tag.exists():
     print("Download has not been completed yet.")
     print("Downloading TCGA files. This may take several hours!")
-    manifest_file = next(tcga_metadata_dir.glob("gdc_manifest.*txt"))
-    if not manifest_file.exists():
-        msg = "No TCGA manifest file found."
+    metadata_cart = next(tcga_metadata_dir.glob("metadata.cart.*json"))
+    metadata_clinical = tcga_metadata_dir / "clinical.tsv"
+    if not metadata_cart.exists():
+        msg = "No TCGA metadata file found."
         raise FileNotFoundError(msg)
-    print(f"Downloading TCGA data from manifest file: {manifest_file}")
-    download_all_tcga_files(manifest_file, tcga_dir, max_threads=8)
+    print(f"Downloading TCGA data from metadata file: {metadata_cart}")
+    download_idats(
+        dataset={
+            "source": "tcga",
+            "metadata_cart": metadata_cart,
+            "metadata_clinical": metadata_clinical,
+        },
+        save_dir=tcga_dir,
+    )
+    tcga_downloaded_tag.touch()
 else:
     print("TCGA data already completely downloaded.")
 
@@ -529,31 +440,8 @@ remove_invalid_array_types(tcga_dir)
 
 
 # %%
-def extract_tcga_case_id_dict(json_path):
-    """Extracts a dictionary mapping from IDAT IDs to case IDs."""
-    with json_path.open() as f:
-        data = json.load(f)
-    case_id_mapping = {}
-    n_suffix = len("_Grn.idat")
-    for item in data:
-        file_name = item.get("file_name", "")[:-n_suffix]
-        case_id = item.get("associated_entities", [{}])[0].get("case_id", "")
-        if case_id and file_name:
-            case_id_mapping[case_id] = file_name
-    return case_id_mapping
-
-
-json_metadata = next(tcga_metadata_dir.glob("metadata.cart.*json"))
-case_id_to_sample_id = extract_tcga_case_id_dict(json_metadata)
-
-# Load the clinical data and map the case_id to the IDAT
-tcga_annotation = pd.read_csv(
-    tcga_metadata_dir / "clinical.tsv", delimiter="\t"
-)
-tcga_annotation["Sample_ID"] = tcga_annotation["case_id"].map(
-    case_id_to_sample_id
-)
-tcga_annotation = tcga_annotation.drop(columns="case_id")
+tcga_annotation_path = next(tcga_dir.rglob("*annotation.csv"))
+tcga_annotation = pd.read_csv(tcga_annotation_path)
 
 # Rename columns restrict to the useful ones
 columns_dict = {
@@ -672,7 +560,8 @@ for index, row in tcga_annotation.iterrows():
 tcga_annotation = tcga_annotation[tcga_annotation["Censor"] == 0]
 
 # %% [markdown]
-# ### Step 2: Download and unzip the GEO data
+# ### Step 2: Download and unzip the GEO data. The GEO annotation files were
+# downloaded and manually curated.
 
 # %%
 geo_metadata_dir_tar = analysis_dir / "geo_metadata.tar.gz"
@@ -686,13 +575,13 @@ if not geo_metadata_dir.exists():
     print("Setting up GEO annotation directory done.")
 
 # Download the IDAT files.
-download_from_geo_and_untar(analysis_dir, datasets[tumor_site]["geo_ids"])
-download_from_geo_and_untar(
-    test_dir, datasets[tumor_site + "_test"]["geo_ids"]
+download_idats(dataset=datasets[tumor_site]["idat"], save_dir=analysis_dir)
+download_idats(
+    dataset=datasets[tumor_site + "_test"]["idat"], save_dir=test_dir
 )
 
 
-# Download the annotation spreadsheet.
+# Merge the annotation spreadsheets
 def merge_csv(dir_path):
     """Reads all CSV files merges them."""
     dir_path = Path(dir_path)
@@ -963,31 +852,3 @@ cn_summary_path = calculate_cn_summary(analysis, "Diagnosis")
 
 # %%
 IPImage(filename=cn_summary_path)
-
-
-# %% [markdown]
-# -----------------------------------------------------------------------------
-#
-# ## Appendix
-#
-# The GEO annotation files were downloaded and manually curated. Below is the
-# code used to download the GEO datasets and save their associated metadata:
-
-# %% language="bash"
-# pip install geoparse
-
-
-# %%
-import GEOparse
-
-geo_numbers = datasets["scc"]["geo_ids"] + datasets["scc_test"]["geo_ids"]
-
-raw_dir = geo_metadata_dir / "raw"
-os.makedirs(raw_dir, exist_ok=True)
-
-# Download and save metadata for each GEO series
-for geo_nr in geo_numbers:
-    gse = GEOparse.get_GEO(geo=geo_nr, destdir=raw_dir, how="brief")
-    metadata = gse.phenotype_data
-    print(metadata.head())
-    metadata.to_csv(raw_dir / f"{geo_nr}_raw_metadata.csv", index=True)

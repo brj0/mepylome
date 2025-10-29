@@ -38,9 +38,11 @@ Examples:
     )
 """
 
+import gzip
 import hashlib
 import json
 import logging
+import shutil
 import sys
 import tarfile
 import xml.etree.ElementTree as ET
@@ -49,9 +51,13 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
 
-from mepylome.utils.files import download_file, download_files
+from mepylome.utils.files import (
+    download_file,
+    download_files,
+    get_resource_path,
+)
+from mepylome.utils.varia import MEPYLOME_TMP_DIR
 
 logger = logging.getLogger("mepylome")
 
@@ -446,6 +452,8 @@ def download_arrayexpress_idat(
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
     """
+    from bs4 import BeautifulSoup
+
     samples_dir = save_dir / series_id
     idat_dir = samples_dir / "idat"
     samples_dir.mkdir(parents=True, exist_ok=True)
@@ -821,3 +829,84 @@ def download_idats(
         _download_single_dataset(
             dataset=ds, save_dir=save_dir, idat=idat, metadata=metadata
         )
+
+
+def unzip_and_remove_gz_files(
+    directory: Path,
+    use_sentrix_id: bool = False,
+) -> None:
+    """Function to unzip .gz files and remove the original .gz files."""
+    for gz in directory.glob("*.gz"):
+        out = gz.with_suffix("")
+        if use_sentrix_id:
+            sentrix_name = out.name.split("_", 1)[1]
+            out = out.with_name(sentrix_name)
+        with gzip.open(gz, "rb") as fi, open(out, "wb") as fo:
+            shutil.copyfileobj(fi, fo)
+        gz.unlink()
+
+
+def setup_tutorial_files(
+    analysis_dir: Union[str, Path],
+    reference_dir: Union[str, Path],
+) -> None:
+    """Prepare the directory structure and files for the tutorial.
+
+    This function sets up the necessary directory structure, processes the
+    tutorial data, and downloads required IDAT files for both analysis and
+    reference.
+
+    Args:
+        analysis_dir (str or Path): Path to the directory for storing analysis
+            files.
+        reference_dir (str or Path): Path to the directory for storing
+            reference files.
+    """
+    tutorial_csv_path = get_resource_path("mepylome", "data/tutorial.csv.gz")
+
+    analysis_dir = Path(analysis_dir)
+    reference_dir = Path(reference_dir)
+    analysis_dir.mkdir(parents=True, exist_ok=True)
+    reference_dir.mkdir(parents=True, exist_ok=True)
+
+    tutorial_df = pd.read_csv(tutorial_csv_path)
+    tutorial_df.drop(columns=["Geo_File_ID"]).to_csv(
+        analysis_dir / "annotation.csv", index=False
+    )
+
+    def _missing_files(dir_path: Path, geo_ids: Iterable[str]):
+        return [
+            gid
+            for gid in geo_ids
+            if not (dir_path / f"{gid.split('_', 1)[1]}_Grn.idat").exists()
+            or not (dir_path / f"{gid.split('_', 1)[1]}_Red.idat").exists()
+        ]
+
+    def _fetch_and_place(missing_ids: Iterable, target_dir: Path):
+        tmp_idat_dir = MEPYLOME_TMP_DIR / "tutorial"
+        if not missing_ids:
+            return
+        download_idats(
+            dataset=missing_ids,
+            save_dir=tmp_idat_dir,
+            idat=True,
+            metadata=False,
+        )
+        matches = [
+            f
+            for f in tmp_idat_dir.rglob("*idat*")
+            if any(mid in f.name for mid in missing_ids)
+        ]
+        for f in matches:
+            shutil.copy2(f, target_dir / f.name)
+        unzip_and_remove_gz_files(target_dir, use_sentrix_id=True)
+
+    missing_analysis = _missing_files(analysis_dir, tutorial_df["Geo_File_ID"])
+    _fetch_and_place(missing_analysis, analysis_dir)
+
+    control = "Control (muscle tissue)"
+    is_control = tutorial_df["Diagnosis"] == control
+    missing_reference = _missing_files(
+        reference_dir, tutorial_df[is_control]["Geo_File_ID"]
+    )
+    _fetch_and_place(missing_reference, reference_dir)
