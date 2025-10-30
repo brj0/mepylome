@@ -59,7 +59,7 @@ from mepylome.utils.files import (
 )
 from mepylome.utils.varia import MEPYLOME_TMP_DIR
 
-logger = logging.getLogger("mepylome")
+logger = logging.getLogger(__name__)
 
 
 GEO_RAW_IDAT_URL = (
@@ -277,12 +277,15 @@ def download_geo_idat_all_files(
             tar.extractall(path=idat_dir, **kwargs)
 
         # Remove unwanted GPL*csv.gz manifest files if present
-        for file_path in idat_dir.rglob("GPL*csv.gz"):
-            try:
-                file_path.unlink()
-                logger.info("Deleted metadata file: %s", file_path)
-            except Exception as exc:
-                logger.debug("Could not delete %s: %s", file_path, exc)
+        for file_path in idat_dir.rglob("*"):
+            if file_path.is_file() and "idat" not in file_path.name.lower():
+                try:
+                    file_path.unlink()
+                    logger.info("Deleted non-IDAT file: %s", file_path)
+                except Exception as exc:
+                    logger.debug(
+                        "Could not delete non-IDAT file %s: %s", file_path, exc
+                    )
     finally:
         # remove the RAW tar if extraction succeeded
         try:
