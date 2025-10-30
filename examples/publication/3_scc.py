@@ -104,6 +104,7 @@ import sys
 import tarfile
 import zipfile
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -125,24 +126,6 @@ FONTSIZE = 23
 IMG_HEIGHT = 2000
 IMG_WIDTH = 1000
 GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
-
-# Define dataset URLs and filenames
-datasets = {
-    "scc": {
-        "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
-        "idat": [],
-    },
-    "scc_test": {
-        "idat": [
-            "GSE124052",  # HNSQ_CA, NSCLC_SC
-            "GSE66836",  # NSCLC_AD, CONTR_LUNG
-            "GSE79556",  # HNSQ_CA (oral tongue)
-            "GSE87053",  # HNSQ_CA, CONTR_OC
-            "GSE95036",  # HNSQ_CA
-            "GSE124052",  # HNSQ_CA, NSCLC_SC
-        ],
-    },
-}
 
 # Determine basic storage directory depending on platform
 if "COLAB_GPU" in os.environ:
@@ -180,7 +163,26 @@ print(f"Data will be stored in: {mepylome_dir}")
 # Main Functions
 
 
-def extract_tar(tar_path, output_directory):
+def valid_idat_basenames(root_dir: Path) -> List[str]:
+    """Returns all IDAT basenames that are of type 450k or epicv1."""
+    all_idat_files = list(root_dir.rglob("*.idat*"))
+    valid_array_types = {ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC}
+    invalid_idat_files = []
+    for idat_file in all_idat_files:
+        try:
+            array_type = ArrayType.from_idat(idat_file)
+        except Exception as e:
+            array_type = ArrayType.UNKNOWN
+        if array_type not in valid_array_types:
+            print(f"Invalid file: {idat_file.name} (Type: {array_type})")
+            invalid_idat_files.append(idat_file)
+    valid_basepaths = set(idat_basepaths(root_dir, only_valid=True)) - set(
+        idat_basepaths(invalid_idat_files)
+    )
+    return list(x.name for x in valid_basepaths)
+
+
+def extract_tar(tar_path: Path, output_directory: Path) -> None:
     """Extracts tar file under 'tar_path' to 'output_directory'."""
     output_directory.mkdir(parents=True, exist_ok=True)
     with tarfile.open(tar_path, "r") as tar:
@@ -188,12 +190,12 @@ def extract_tar(tar_path, output_directory):
         print(f"Extracted {tar_path} to {output_directory}")
 
 
-def clean_filename(name):
+def clean_filename(name: str):
     """Replace invalid characters with a single underscore."""
     return re.sub(r"[^\w\-]+", "_", name)
 
 
-def calculate_cn_summary(analysis, class_):
+def calculate_cn_summary(analysis: MethylAnalysis, class_: str) -> None:
     """Calculates and saves CN summary plots."""
     df_class = analysis.idat_handler.samples_annotated[class_]
     plot_list = []
@@ -287,9 +289,6 @@ def sex_chromosome_cpgs():
     return set(sex_cpgs_epic) | set(sex_cpgs_450k)
 
 
-# Choose CpG list that should be blacklisted
-blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
-
 # %% [markdown]
 # ### CNV-Neutral Reference Samples
 #
@@ -340,7 +339,7 @@ download_idats(dataset=cn_neutral_samples, save_dir=reference_dir)
 # %% [markdown]
 # -----------------------------------------------------------------------------
 # <a name="1.-Data-Loading"></a>
-# ## 1. Data Loading
+# ## 1. Data Downloading
 #
 # In this example, we aim to reproduce the pan-SCC classifier presented in the
 # study by [Jurmeister et al.
@@ -349,6 +348,11 @@ download_idats(dataset=cn_neutral_samples, save_dir=reference_dir)
 # the publication, including datasets from The Cancer Genome Atlas (TCGA) and
 # from the Gene Expression Omnibus (GEO) repository. Datasets without IDAT
 # files are omitted from the collection process.
+
+
+# %% [markdown]
+# ### Step 1: Download and unzip metadata for TCGA files and GEO series.
+# The GEO annotation files were downloaded and manually curated.
 
 # %%
 # Initialize directories.
@@ -359,30 +363,9 @@ test_dir = validation_dir / tumor_site
 test_dir.mkdir(parents=True, exist_ok=True)
 analysis_dir.mkdir(parents=True, exist_ok=True)
 
-# %% [markdown]
-# ### Step 1: Download TCGA Data
-#
-# We download all SCC samples from TCGA that contain IDAT files. **This may
-# take several hours.**
-#
-# **Important:** Downloading from TCGA can be unreliable. Connection resets and
-# server-side interruptions are common.
-#
-# This script is designed to be resilient: it automatically **retries failed
-# downloads** up to 5 times. After the final attempt, it will continue
-# regardless of whether some files failed. You can re-run this cell to try
-# downloading any remaining files.
-
-
-# %%
-tcga_dir = analysis_dir / "tcga_scc"
-tcga_downloaded_tag = tcga_dir / ".download_complete"
+# Download TCGA metadata
 tcga_metadata_dir_tar = analysis_dir / "tcga_metadata.tar.gz"
 tcga_metadata_dir = tcga_metadata_dir_tar.with_suffix("").with_suffix("")
-
-tcga_dir.mkdir(parents=True, exist_ok=True)
-
-geo_metadata_url = "https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/geo_metadata.tar.gz"
 tcga_metadata_url = "https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/tcga_metadata.tar.gz"
 
 # Check if the TCGA annotation tar file exists and extract
@@ -392,180 +375,11 @@ if not tcga_metadata_dir.exists():
     extract_tar(tcga_metadata_dir_tar, analysis_dir)
     print("Setting up TCGA annotation directory done.")
 
-
-# Check if the download is complete
-if not tcga_downloaded_tag.exists():
-    print("Download has not been completed yet.")
-    print("Downloading TCGA files. This may take several hours!")
-    metadata_cart = next(tcga_metadata_dir.glob("metadata.cart.*json"))
-    metadata_clinical = tcga_metadata_dir / "clinical.tsv"
-    if not metadata_cart.exists():
-        msg = "No TCGA metadata file found."
-        raise FileNotFoundError(msg)
-    print(f"Downloading TCGA data from metadata file: {metadata_cart}")
-    download_idats(
-        dataset={
-            "source": "tcga",
-            "metadata_cart": metadata_cart,
-            "metadata_clinical": metadata_clinical,
-        },
-        save_dir=tcga_dir,
-    )
-    tcga_downloaded_tag.touch()
-else:
-    print("TCGA data already completely downloaded.")
-
-
-# %% [markdown]
-# Clean up by removing array types other than `450k` and `epic`.
-
-
 # %%
-def remove_invalid_array_types(root_dir):
-    """Removes all IDAT files that are not of type 450k or epicv1."""
-    idat_files = root_dir.glob("*idat")
-    valid_array_types = {ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC}
-    for idat_file in idat_files:
-        array_type = ArrayType.from_idat(idat_file)
-        if array_type not in valid_array_types:
-            print(f"Removing {idat_file.name} (Type: {array_type})")
-            idat_file.unlink()
-
-
-remove_invalid_array_types(tcga_dir)
-
-
-# %% [markdown]
-# Next we extract the TCGA annotation.
-
-
-# %%
-tcga_annotation_path = next(tcga_dir.rglob("*annotation.csv"))
-tcga_annotation = pd.read_csv(tcga_annotation_path)
-
-# Rename columns restrict to the useful ones
-columns_dict = {
-    "gender": "Sex",
-    "age_at_index": "Age",
-    "tissue_or_organ_of_origin": "Tumor_site",
-    "site_of_resection_or_biopsy": "Site_of_resection_or_biopsy",
-    "tumor_grade": "Tumor_grade",
-    "morphology": "Morphology",
-    "primary_diagnosis": "Primary_diagnosis",
-    "Sample_ID": "Sample_ID",
-}
-tcga_annotation = tcga_annotation.rename(columns=columns_dict)
-tcga_annotation = tcga_annotation[columns_dict.values()].copy()
-
-# Standardize the 'Sex' column and convert 'Age' to numeric
-tcga_annotation["Sex"] = tcga_annotation["Sex"].replace(
-    {"female": "Female", "male": "Male"}
-)
-tcga_annotation["Age"] = pd.to_numeric(tcga_annotation["Age"], errors="coerce")
-
-# Mark the samples that to be censored
-diag_to_censor_stat = {
-    "Adenocarcinoma with mixed subtypes": 0,
-    "Adenocarcinoma, NOS": 0,
-    "Adenosquamous carcinoma": 1,
-    "Basaloid squamous cell carcinoma": 1,
-    "Lymphoepithelial carcinoma": 1,
-    "Papillary carcinoma, NOS": 1,
-    "Papillary squamous cell carcinoma": 1,
-    "Squamous cell carcinoma, NOS": 0,
-    "Squamous cell carcinoma, keratinizing, NOS": 0,
-    "Squamous cell carcinoma, large cell, nonkeratinizing, NOS": 1,
-    "Squamous cell carcinoma, nonkeratinizing, NOS": 0,
-    "Squamous cell carcinoma, small cell, nonkeratinizing": 1,
-    "Squamous cell carcinoma, spindle cell": 1,
-    "Warty carcinoma": 1,
-}
-
-tcga_annotation["Censor"] = tcga_annotation["Primary_diagnosis"].map(
-    diag_to_censor_stat
-)
-
-# Condense the primary tumor site.
-nsclc_sites = {
-    "Lower lobe, lung",
-    "Lung, NOS",
-    "Main bronchus",
-    "Middle lobe, lung",
-    "Overlapping lesion of lung",
-    "Upper lobe, lung",
-}
-hnsq_sites = {
-    "Anterior floor of mouth",
-    "Base of tongue, NOS",
-    "Border of tongue",
-    "Cheek mucosa",
-    "Floor of mouth, NOS",
-    "Gum, NOS",
-    "Hard palate",
-    "Head, face or neck, NOS",
-    "Hypopharynx, NOS",
-    "Larynx, NOS",
-    "Lip, NOS",
-    "Lower gum",
-    "Mandible",
-    "Mouth, NOS",
-    "Nasal cavity",
-    "Oropharynx, NOS",
-    "Overlapping lesion of lip, oral cavity and pharynx",
-    "Palate, NOS",
-    "Pharynx, NOS",
-    "Posterior wall of oropharynx",
-    "Retromolar area",
-    "Supraglottis",
-    "Tongue, NOS",
-    "Tonsil, NOS",
-    "Upper Gum",
-    "Ventral surface of tongue, NOS",
-}
-cervix_sites = {"Cervix uteri"}
-eso_sites = {
-    "Cardia, NOS",
-    "Esophagus, NOS",
-    "Lower third of esophagus",
-    "Middle third of esophagus",
-    "Thoracic esophagus",
-    "Upper third of esophagus",
-}
-censor_sites = {
-    "Breast, NOS",
-    "Bladder, NOS",
-}
-
-tcga_annotation["Diagnosis"] = None
-
-# Classify each row based on the tumor site
-for index, row in tcga_annotation.iterrows():
-    site = str(row["Tumor_site"]).strip()
-    diagnosis = row["Primary_diagnosis"]
-    if diagnosis.startswith("Adenocarcinoma") and site in nsclc_sites:
-        tcga_annotation.loc[index, "Diagnosis"] = "NSCLC_AD"
-    elif site in cervix_sites:
-        tcga_annotation.loc[index, "Diagnosis"] = "CERSQ_CA"
-    elif site in nsclc_sites:
-        tcga_annotation.loc[index, "Diagnosis"] = "NSCLC_SC"
-    elif site in hnsq_sites:
-        tcga_annotation.loc[index, "Diagnosis"] = "HNSQ_CA"
-    elif site in eso_sites:
-        tcga_annotation.loc[index, "Diagnosis"] = "ESO_CA_SQ"
-    else:
-        tcga_annotation.loc[index, "Censor"] = 1
-        print(f"Unmatched tumor site: {site} (index {index} - censored)")
-
-# Removed censored samples
-tcga_annotation = tcga_annotation[tcga_annotation["Censor"] == 0]
-
-# %% [markdown]
-# ### Step 2: Download and unzip the GEO data. The GEO annotation files were
-# downloaded and manually curated.
-
-# %%
+# Download GEO metadata
 geo_metadata_dir_tar = analysis_dir / "geo_metadata.tar.gz"
 geo_metadata_dir = geo_metadata_dir_tar.with_suffix("").with_suffix("")
+geo_metadata_url = "https://raw.githubusercontent.com/brj0/mepylome-data/main/examples/geo_metadata.tar.gz"
 
 # Check if the GEO annotation tar file exists and extract
 if not geo_metadata_dir.exists():
@@ -574,11 +388,174 @@ if not geo_metadata_dir.exists():
     extract_tar(geo_metadata_dir_tar, analysis_dir)
     print("Setting up GEO annotation directory done.")
 
+
+# %% [markdown]
+# ### Step 2: Download all IDAT files.
+#
+# We download all SCC samples from TCGA that contain IDAT files. **This may
+# take several hours.** Then we download GEO IDAT files.
+#
+# **Important:** Downloading from TCGA can be unreliable. Connection resets and
+# server-side interruptions are common.
+#
+# This script is designed to be resilient: it automatically **retries failed
+# downloads** up to 5 times. After the final attempt, it will continue
+# regardless of whether some files failed.
+
+# %%
+# Metadata for TCGA download
+metadata_cart = next(tcga_metadata_dir.glob("metadata.cart.*json"))
+metadata_clinical = tcga_metadata_dir / "clinical.tsv"
+
+# Define dataset to download both for training and validation data.
+datasets = {
+    "scc": {
+        "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
+        "idat": [
+            {
+                "source": "tcga",
+                "metadata_cart": metadata_cart,
+                "metadata_clinical": metadata_clinical,
+            },
+        ],
+    },
+    "scc_test": {
+        "idat": [
+            "GSE124052",  # HNSQ_CA, NSCLC_SC
+            "GSE66836",  # NSCLC_AD, CONTR_LUNG
+            "GSE79556",  # HNSQ_CA (oral tongue)
+            "GSE87053",  # HNSQ_CA, CONTR_OC
+            "GSE95036",  # HNSQ_CA
+            "GSE124052",  # HNSQ_CA, NSCLC_SC
+        ],
+    },
+}
+
 # Download the IDAT files.
-download_idats(dataset=datasets[tumor_site]["idat"], save_dir=analysis_dir)
-download_idats(
-    dataset=datasets[tumor_site + "_test"]["idat"], save_dir=test_dir
-)
+if not (download_completed := data_dir / "download_completed.txt").exists():
+    print("Downloading IDAT files. This may take several hours!")
+    download_idats(dataset=datasets["scc"]["idat"], save_dir=analysis_dir)
+    download_idats(dataset=datasets["scc_test"]["idat"], save_dir=test_dir)
+    download_completed.touch()
+
+
+# %% [markdown]
+# ### Step 3: Tidy up and merge annotation files
+
+
+# %%
+# Rename columns restrict to the useful ones
+def tidy_up_tcga_annotation(annotation_df: pd.DataFrame) -> pd.DataFrame:
+    """Clean and standardize TCGA annotation DataFrame."""
+    annotation_df = annotation_df.copy()
+    columns_dict = {
+        "gender": "Sex",
+        "age_at_index": "Age",
+        "tissue_or_organ_of_origin": "Tumor_site",
+        "site_of_resection_or_biopsy": "Site_of_resection_or_biopsy",
+        "tumor_grade": "Tumor_grade",
+        "morphology": "Morphology",
+        "primary_diagnosis": "Primary_diagnosis",
+        "Sample_ID": "Sample_ID",
+    }
+    annotation_df = annotation_df.rename(columns=columns_dict)
+    annotation_df = annotation_df[columns_dict.values()].copy()
+    # Standardize the 'Sex' column and convert 'Age' to numeric
+    annotation_df["Sex"] = annotation_df["Sex"].replace(
+        {"female": "Female", "male": "Male"}
+    )
+    annotation_df["Age"] = pd.to_numeric(annotation_df["Age"], errors="coerce")
+    # Mark the samples that to be censored
+    diag_to_censor_stat = {
+        "Adenocarcinoma with mixed subtypes": 0,
+        "Adenocarcinoma, NOS": 0,
+        "Adenosquamous carcinoma": 1,
+        "Basaloid squamous cell carcinoma": 1,
+        "Lymphoepithelial carcinoma": 1,
+        "Papillary carcinoma, NOS": 1,
+        "Papillary squamous cell carcinoma": 1,
+        "Squamous cell carcinoma, NOS": 0,
+        "Squamous cell carcinoma, keratinizing, NOS": 0,
+        "Squamous cell carcinoma, large cell, nonkeratinizing, NOS": 1,
+        "Squamous cell carcinoma, nonkeratinizing, NOS": 0,
+        "Squamous cell carcinoma, small cell, nonkeratinizing": 1,
+        "Squamous cell carcinoma, spindle cell": 1,
+        "Warty carcinoma": 1,
+    }
+    annotation_df["Censor"] = annotation_df["Primary_diagnosis"].map(
+        diag_to_censor_stat
+    )
+    # Condense the primary tumor site.
+    nsclc_sites = {
+        "Lower lobe, lung",
+        "Lung, NOS",
+        "Main bronchus",
+        "Middle lobe, lung",
+        "Overlapping lesion of lung",
+        "Upper lobe, lung",
+    }
+    hnsq_sites = {
+        "Anterior floor of mouth",
+        "Base of tongue, NOS",
+        "Border of tongue",
+        "Cheek mucosa",
+        "Floor of mouth, NOS",
+        "Gum, NOS",
+        "Hard palate",
+        "Head, face or neck, NOS",
+        "Hypopharynx, NOS",
+        "Larynx, NOS",
+        "Lip, NOS",
+        "Lower gum",
+        "Mandible",
+        "Mouth, NOS",
+        "Nasal cavity",
+        "Oropharynx, NOS",
+        "Overlapping lesion of lip, oral cavity and pharynx",
+        "Palate, NOS",
+        "Pharynx, NOS",
+        "Posterior wall of oropharynx",
+        "Retromolar area",
+        "Supraglottis",
+        "Tongue, NOS",
+        "Tonsil, NOS",
+        "Upper Gum",
+        "Ventral surface of tongue, NOS",
+    }
+    cervix_sites = {"Cervix uteri"}
+    eso_sites = {
+        "Cardia, NOS",
+        "Esophagus, NOS",
+        "Lower third of esophagus",
+        "Middle third of esophagus",
+        "Thoracic esophagus",
+        "Upper third of esophagus",
+    }
+    annotation_df["Diagnosis"] = None
+    # Classify each row based on the tumor site
+    for index, row in annotation_df.iterrows():
+        site = str(row["Tumor_site"]).strip()
+        diagnosis = row["Primary_diagnosis"]
+        if diagnosis.startswith("Adenocarcinoma") and site in nsclc_sites:
+            annotation_df.loc[index, "Diagnosis"] = "NSCLC_AD"
+        elif site in cervix_sites:
+            annotation_df.loc[index, "Diagnosis"] = "CERSQ_CA"
+        elif site in nsclc_sites:
+            annotation_df.loc[index, "Diagnosis"] = "NSCLC_SC"
+        elif site in hnsq_sites:
+            annotation_df.loc[index, "Diagnosis"] = "HNSQ_CA"
+        elif site in eso_sites:
+            annotation_df.loc[index, "Diagnosis"] = "ESO_CA_SQ"
+        else:
+            annotation_df.loc[index, "Censor"] = 1
+            print(f"Unmatched tumor site: {site} (index {index} - censored)")
+    # Removed censored samples
+    return annotation_df[annotation_df["Censor"] == 0]
+
+
+tcga_annotation_path = next(analysis_dir.rglob("TCGA*annotation.csv"))
+tcga_annotation = pd.read_csv(tcga_annotation_path)
+tcga_annotation = tidy_up_tcga_annotation(tcga_annotation)
 
 
 # Merge the annotation spreadsheets
@@ -593,17 +570,12 @@ def merge_csv(dir_path):
     return merged_df
 
 
-geo_annotation = merge_csv(geo_metadata_dir)
-
-# %% [markdown]
-# ### Step 3: Construct the annotation file of all data.
 # Join the TCGA and GEO annotation files
-
-# %%
 if (csv_path := analysis_dir / f"{tumor_site}.csv").exists():
     anno_df = pd.read_csv(csv_path)
     print("Merged annotation file allready exists.")
 else:
+    geo_annotation = merge_csv(geo_metadata_dir)
     anno_df = pd.concat([geo_annotation, tcga_annotation], ignore_index=True)
     # Remove Adenocarcinoma and normal oral cavity samples
     scc_types = {"HNSQ_CA", "NSCLC_SC", "ESO_CA_SQ", "CERSQ_CA"}
@@ -622,11 +594,19 @@ else:
 # %%
 # Only consider test files with annotation.
 test_ids = set(anno_df.Sample_ID).intersection(
-    x.name for x in idat_basepaths(test_dir)
+    x.name for x in idat_basepaths(test_dir, only_valid=True)
 )
+
+# Only consider valid 450k and epic files
+analysis_ids = valid_idat_basenames(analysis_dir)
+
+# Choose CpG list that should be blacklisted
+blacklist = generate_blacklist_cpgs() | sex_chromosome_cpgs()
+
 
 analysis = MethylAnalysis(
     analysis_dir=analysis_dir,
+    analysis_ids=analysis_ids,
     reference_dir=reference_dir,
     output_dir=output_dir,
     test_dir=test_dir,
