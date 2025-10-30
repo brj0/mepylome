@@ -130,7 +130,7 @@ GEO_URL = "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
 datasets = {
     "scc": {
         "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
-        "geo_ids": [],
+        "idat": [],
     },
     "scc_test": {
         "idat": [
@@ -369,7 +369,7 @@ analysis_dir.mkdir(parents=True, exist_ok=True)
 # server-side interruptions are common.
 #
 # This script is designed to be resilient: it automatically **retries failed
-# downloads** up to 10 times. After the final attempt, it will continue
+# downloads** up to 5 times. After the final attempt, it will continue
 # regardless of whether some files failed. You can re-run this cell to try
 # downloading any remaining files.
 
