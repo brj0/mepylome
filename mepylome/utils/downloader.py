@@ -230,14 +230,17 @@ def download_geo_metadata(
 
     # Extract the XML inside the tarball.
     try:
-        with tarfile.open(miniml_tar_path, "r:gz") as tar:
-            kwargs = {}
-            if sys.version_info >= (3, 12):
-                kwargs["filter"] = "data"  # only add for Python 3.12+
-            tar.extract(
-                member=f"{miniml_tar_path.stem}", path=samples_dir, **kwargs
-            )
-            miniml_tar_path.with_suffix("").rename(miniml_path)
+        if not miniml_path.exists():
+            with tarfile.open(miniml_tar_path, "r:gz") as tar:
+                kwargs = {}
+                if sys.version_info >= (3, 12):
+                    kwargs["filter"] = "data"  # only add for Python 3.12+
+                tar.extract(
+                    member=f"{miniml_tar_path.stem}",
+                    path=samples_dir,
+                    **kwargs,
+                )
+                miniml_tar_path.with_suffix("").rename(miniml_path)
     except Exception as exc:
         logger.debug("Could not unzip %s: %s", miniml_tar_path, exc)
 

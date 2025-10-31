@@ -434,11 +434,9 @@ datasets = {
 }
 
 # Download the IDAT files.
-if not (download_completed := data_dir / "download_completed.txt").exists():
-    print("Downloading IDAT files. This may take several hours!")
-    download_idats(dataset=datasets["scc"]["idat"], save_dir=analysis_dir)
-    download_idats(dataset=datasets["scc_test"]["idat"], save_dir=test_dir)
-    download_completed.touch()
+print("Downloading IDAT files. This may take several hours!")
+download_idats(dataset=datasets["scc"]["idat"], save_dir=analysis_dir)
+download_idats(dataset=datasets["scc_test"]["idat"], save_dir=test_dir)
 
 
 # %% [markdown]
