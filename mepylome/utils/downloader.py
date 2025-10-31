@@ -130,6 +130,7 @@ def parse_miniml_to_df(
     miniml_path: Path,
     series_id: str,
     samples: Optional[Iterable[str]] = None,
+    meta: Optional[str] = None,
 ) -> None:
     """Parse a GEO MINiML family XML and save as spreadsheet to disk."""
     tree = ET.parse(miniml_path)
@@ -181,7 +182,8 @@ def parse_miniml_to_df(
         )
         result_df = filtered
 
-    csv_path = miniml_path.parent / f"{miniml_path.stem}.csv"
+    annotation_name = meta or "annotation"
+    csv_path = miniml_path.parent / f"{annotation_name}.csv"
     result_df.to_csv(csv_path, index=False)
 
 
@@ -190,6 +192,8 @@ def download_geo_metadata(
     save_dir: Path,
     show_progress: bool = True,
     samples: Optional[Iterable[str]] = None,
+    subdir: Optional[str] = None,
+    meta: Optional[str] = None,
 ):
     """Download and extract the MINiML (family XML) for a GEO series.
 
@@ -202,6 +206,10 @@ def download_geo_metadata(
         samples (Iterable[str]): Optional iterable of Sample_ID bases (e.g.
             "GSM4429896_201503470062_R02C01"). If provided, restrict the CSV to
             those Sample_IDs only.
+        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+            the dataset folder. Defaults to "series_id" if None.
+        meta (Optional[str]): Optional base name for the output annotation file
+            (without extension). Defaults to "annotation" if None.
     """
     samples_dir = save_dir / series_id
     miniml_path = samples_dir / f"{series_id}.xml"
@@ -233,13 +241,14 @@ def download_geo_metadata(
     except Exception as exc:
         logger.debug("Could not unzip %s: %s", miniml_tar_path, exc)
 
-    parse_miniml_to_df(miniml_path, series_id, samples)
+    parse_miniml_to_df(miniml_path, series_id, samples, meta)
 
 
 def download_geo_idat_all_files(
     series_id: str,
     save_dir: Path,
     show_progress: bool = True,
+    subdir: Optional[str] = None,
 ) -> None:
     """Download and extract the RAW IDAT archive for a GEO series.
 
@@ -249,8 +258,11 @@ def download_geo_idat_all_files(
         save_dir (Path): Directory path where the metadata will be saved.
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
+        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+            the dataset folder. Defaults to "series_id" if None.
     """
-    samples_dir = save_dir / series_id
+    subdir = subdir or series_id
+    samples_dir = Path(save_dir) / subdir
     idat_dir = samples_dir / "idat"
     if idat_dir.exists():
         logger.info(
@@ -302,6 +314,7 @@ def download_geo_idat_single_files(
     save_dir: Path,
     samples: Iterable[str],
     show_progress: bool = True,
+    subdir: Optional[str] = None,
 ) -> None:
     """Download individual IDAT files for the provided samples.
 
@@ -311,8 +324,11 @@ def download_geo_idat_single_files(
         samples: iterable of sample base names like
             "GSM4180454_201904410008_R05C01".
         show_progress: whether to pass show_progress to download_files.
+        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+            the dataset folder. Defaults to "series_id" if None.
     """
-    samples_dir = Path(save_dir) / series_id
+    subdir = subdir or series_id
+    samples_dir = Path(save_dir) / subdir
     idat_dir = samples_dir / "idat"
 
     samples_dir.mkdir(parents=True, exist_ok=True)
@@ -341,6 +357,7 @@ def download_geo_idat(
     save_dir: Path,
     show_progress: bool = True,
     samples: Optional[Iterable[str]] = None,
+    subdir: Optional[str] = None,
 ) -> None:
     """Downloads IDAT files from geo.
 
@@ -357,12 +374,15 @@ def download_geo_idat(
             "GSM4429896_201503470062_R02C01"). If provided, restricts download
             to those Sample_IDs only (downloads per-sample Grn/Red idat .gz
             files).
+        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+            the dataset folder. Defaults to "series_id" if None.
     """
     if not samples or samples == "all":
         download_geo_idat_all_files(
             series_id=series_id,
             save_dir=save_dir,
             show_progress=show_progress,
+            subdir=subdir,
         )
     else:
         download_geo_idat_single_files(
@@ -370,6 +390,7 @@ def download_geo_idat(
             save_dir=save_dir,
             samples=samples,
             show_progress=show_progress,
+            subdir=subdir,
         )
 
 
@@ -378,6 +399,8 @@ def download_arrayexpress_metadata(
     save_dir: Path,
     samples: Optional[Iterable[str]] = None,
     show_progress: bool = True,
+    subdir: Optional[str] = None,
+    meta: Optional[str] = None,
 ) -> None:
     """Download the SDRF metadata file and save as simplified CSV.
 
@@ -390,9 +413,15 @@ def download_arrayexpress_metadata(
             Sample_IDs only.
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
+        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+            the dataset folder. Defaults to "series_id" if None.
+        meta (Optional[str]): Optional base name for the output annotation file
+            (without extension). Defaults to "annotation" if None.
     """
-    samples_dir = save_dir / series_id
-    csv_path = samples_dir / f"{series_id}.csv"
+    subdir = subdir or series_id
+    samples_dir = save_dir / subdir
+    annotation_name = meta or "annotation"
+    csv_path = samples_dir / f"{annotation_name}.csv"
     # if csv_path.exists():
     #     logger.info(
     #         "Meta data already exists: %s. Skipping download.", csv_path
@@ -442,6 +471,7 @@ def download_arrayexpress_idat(
     save_dir: Path,
     samples: Optional[Iterable[str]] = None,
     show_progress: bool = True,
+    subdir: Optional[str] = None,
 ) -> None:
     """Download all IDAT files for a given ArrayExpress ID.
 
@@ -454,10 +484,13 @@ def download_arrayexpress_idat(
             Sample_IDs only.
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
+        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+            the dataset folder. Defaults to "series_id" if None.
     """
     from bs4 import BeautifulSoup
 
-    samples_dir = save_dir / series_id
+    subdir = subdir or series_id
+    samples_dir = save_dir / subdir
     idat_dir = samples_dir / "idat"
     samples_dir.mkdir(parents=True, exist_ok=True)
     idat_dir.mkdir(parents=True, exist_ok=True)
@@ -513,6 +546,8 @@ def make_tcga_metadata(
     save_dir: Path,
     metadata_cart: Path,
     metadata_clinical: Path,
+    subdir: Optional[str] = None,
+    meta: Optional[str] = None,
 ) -> None:
     """Build merged TCGA annotation DataFrame and saves to disk.
 
@@ -521,10 +556,14 @@ def make_tcga_metadata(
             True).
         metadata_cart: path to metadata.cart JSON from GDC.
         metadata_clinical: path to clinical TSV (tab-separated).
+        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+            the dataset folder. Defaults to "TCGA_<hash>" if None.
+        meta (Optional[str]): Optional base name for the output annotation file
+            (without extension). Defaults to "annotation" if None.
     """
     save_dir = Path(save_dir).expanduser()
-    series_id = get_tcga_series(metadata_cart)
-    samples_dir = save_dir / series_id
+    subdir = subdir or get_tcga_series(metadata_cart)
+    samples_dir = save_dir / subdir
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     # local helper: extract dataframe from JSON content
@@ -568,9 +607,11 @@ def make_tcga_metadata(
     cols = ["Sample_ID"] + [c for c in annotation.columns if c != "Sample_ID"]
     annotation = annotation[cols]
 
-    download_csv_path = samples_dir / f"{series_id}_manifest.csv"
+    download_csv_path = samples_dir / "manifest.csv"
     download_df.to_csv(download_csv_path, index=False)
-    annotation_csv_path = samples_dir / f"{series_id}_annotation.csv"
+
+    annotation_name = meta or "annotation"
+    annotation_csv_path = samples_dir / f"{annotation_name}.csv"
     annotation.to_csv(annotation_csv_path, index=False)
 
 
@@ -579,6 +620,7 @@ def download_tcga_idat(
     metadata_cart: Path,
     show_progress: bool = True,
     wait_seconds: int = 5,
+    subdir: Optional[str] = None,
 ) -> None:
     """Download missing TCGA IDAT files listed in the manifest.
 
@@ -587,14 +629,16 @@ def download_tcga_idat(
         manifest_path: Path to CSV manifest listing 'id' and 'filename'.
         show_progress: Whether to show download progress.
         wait_seconds: Delay (in seconds) between download attempts.
+        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+            the dataset folder. Defaults to "TCGA_<hash>" if None.
     """
-    series_id = get_tcga_series(metadata_cart)
-    samples_dir = save_dir / series_id
+    subdir = subdir or get_tcga_series(metadata_cart)
+    samples_dir = save_dir / subdir
     idat_dir = samples_dir / "idat"
     idat_dir.mkdir(parents=True, exist_ok=True)
 
-    # Read manifest (auto-detect separator)
-    manifest_csv_path = samples_dir / f"{series_id}_manifest.csv"
+    # Read manifest
+    manifest_csv_path = samples_dir / "manifest.csv"
     manifest = pd.read_csv(manifest_csv_path, sep=None, engine="python")
 
     # Determine which files are missing
@@ -712,18 +756,23 @@ def _download_single_dataset(
     source = dataset["source"]
     series_id = dataset.get("series")
     samples = dataset.get("samples")
+    subdir = dataset.get("subdir")
+    meta = dataset.get("meta")
     if source == "ae":
         if metadata:
             download_arrayexpress_metadata(
                 save_dir=save_dir,
                 series_id=series_id,
                 samples=samples,
+                subdir=subdir,
+                meta=meta,
             )
         if idat:
             download_arrayexpress_idat(
                 save_dir=save_dir,
                 series_id=series_id,
                 samples=samples,
+                subdir=subdir,
             )
     elif source == "geo":
         if metadata:
@@ -736,26 +785,31 @@ def _download_single_dataset(
                     save_dir=save_dir,
                     series_id=series_id,
                     samples=samples,
+                    subdir=subdir,
+                    meta=meta,
                 )
         if idat:
             download_geo_idat(
                 save_dir=save_dir,
                 series_id=series_id,
                 samples=samples,
+                subdir=subdir,
             )
     elif source == "tcga":
         metadata_cart = to_path(dataset["metadata_cart"])
         metadata_clinical = to_path(dataset["metadata_clinical"])
-        if metadata:
-            make_tcga_metadata(
-                save_dir=save_dir,
-                metadata_cart=metadata_cart,
-                metadata_clinical=metadata_clinical,
-            )
+        make_tcga_metadata(
+            save_dir=save_dir,
+            metadata_cart=metadata_cart,
+            metadata_clinical=metadata_clinical,
+            subdir=subdir,
+            meta=meta,
+        )
         if idat:
             download_tcga_idat(
                 save_dir=save_dir,
                 metadata_cart=metadata_cart,
+                subdir=subdir,
             )
     else:
         raise ValueError(
@@ -769,46 +823,62 @@ def download_idats(
     idat: bool = True,
     metadata: bool = True,
 ) -> None:
-    """Download IDAT files and/or metadata for GEO, ArrayExpress, or TCGA.
+    """Download IDAT files and/or metadata from GEO, ArrayExpress, and TCGA.
 
-    This function accepts single datasets or lists of datasets, in flexible
+    This function accepts single datasets or lists of datasets, with flexible
     formats:
-    - Strings representing series IDs:
-        - GEO: "GSE1234"
-        - ArrayExpress: "E-MTAB-1234"
-    - Strings representing individual GEO samples: "GSM12345"
-    - Dictionaries for detailed datasets, including TCGA or specific subsets of
-      GEO/AE samples:
-        - GEO/AE dict: {"source": "geo"|"ae", "series": str, "samples":
-          "all"|List[str]}
-        - TCGA dict: {"source": "tcga", "metadata_cart": str,
-          "metadata_clinical": str}
 
-    All GSM sample IDs across strings or dicts are automatically grouped into a
-    single GEO dataset with series='GSE_MIXED'.
+    1. **Strings representing series IDs:**
+        - GEO: `"GSE1234"`
+        - ArrayExpress: `"E-MTAB-1234"`
+    2. **Strings representing individual GEO samples:** `"GSM12345"`
+    3. **Dictionaries describing a dataset**, which allow more control and
+        optional overrides (including folder and annotation names):
+
+       GEO / ArrayExpress dicts may include:
+         - source: "geo" or "ae" (required)
+         - series: series ID, e.g., "GSE1234" (required)
+         - samples: "all" or list of sample IDs (optional, default "all")
+         - subdir: output folder under save_dir (optional, default <series>)
+         - meta: annotation/metadata filename (optional, default "annotation")
+
+       TCGA dicts may include:
+         - source: "tcga" (required)
+         - metadata_cart: path to GDC metadata JSON (required)
+         - metadata_clinical: path to clinical TSV (required)
+         - subdir: output folder under save_dir (optional, default
+           "TCGA_<hash>")
+         - meta: annotation/metadata filename (optional, default "annotation")
+
+    Notes:
+        - All individual GEO sample IDs (`GSM*`) across strings or dicts are
+          automatically grouped into a single GEO dataset with series
+          `"GSE_MIXED"`.
+        - Optional `subdir` and `meta` parameters allow the user to control the
+          folder and annotation filename for each dataset.
 
     Args:
-        datasets: Dataset(s) to download. Can be:
+        dataset: Dataset(s) to download. Can be:
             - A single string (series or sample)
             - A dict describing a dataset
             - A list of strings and/or dicts
         save_dir: Directory where downloaded files and metadata will be saved.
         idat: If True, download IDAT files (default: True).
-        metadata: If True, download or generate metadata (default: True).
-
-    Raises:
-        TypeError: If input types are invalid.
-        ValueError: If a dataset has an unsupported source type.
+        metadata: If True, download or generate metadata/annotation files
+            (default: True).
 
     Examples:
         # Download a single GEO series
         >>> download_idats("GSE1234", "~/Downloads/geo_data")
 
-        # Download a single TCGA dataset
+        # Download a single TCGA dataset with custom folder and annotation
+        # names
         >>> download_idats({
         ...     "source": "tcga",
         ...     "metadata_cart": "cart.json",
-        ...     "metadata_clinical": "clinical.tsv"
+        ...     "metadata_clinical": "clinical.tsv",
+        ...     "subdir": "TCGA_NSCLC",
+        ...     "meta": "tcga_annotation"
         ... }, "./tcga")
 
         # Download mixed datasets: AE, GEO series, individual GSM samples, and

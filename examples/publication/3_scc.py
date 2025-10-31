@@ -416,6 +416,8 @@ datasets = {
                 "source": "tcga",
                 "metadata_cart": metadata_cart,
                 "metadata_clinical": metadata_clinical,
+                "subdir": "tcga_scc",
+                "meta": "tcga_annotation",
             },
         ],
     },
@@ -553,7 +555,7 @@ def tidy_up_tcga_annotation(annotation_df: pd.DataFrame) -> pd.DataFrame:
     return annotation_df[annotation_df["Censor"] == 0]
 
 
-tcga_annotation_path = next(analysis_dir.rglob("TCGA*annotation.csv"))
+tcga_annotation_path = next(analysis_dir.rglob("tcga_annotation.csv"))
 tcga_annotation = pd.read_csv(tcga_annotation_path)
 tcga_annotation = tidy_up_tcga_annotation(tcga_annotation)
 
