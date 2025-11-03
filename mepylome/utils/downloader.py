@@ -63,18 +63,18 @@ logger = logging.getLogger(__name__)
 
 
 GEO_RAW_IDAT_URL = (
-    "https://www.ncbi.nlm.nih.gov/geo/download/?acc={geo_id}&format=file"
+    "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
 )
 GEO_SINGLE_IDAT_URL = (
     "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
     "&file={filename}"
 )
 GEO_MINIML_URL = (
-    "https://ftp.ncbi.nlm.nih.gov/geo/series/{geo_group}/{geo_id}/miniml/"
-    "{geo_id}_family.xml.tgz"
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/{geo_group}/{acc}/miniml/"
+    "{acc}_family.xml.tgz"
 )
 ARRAY_EXPRESS_URL = (
-    "https://ftp.ebi.ac.uk/biostudies/fire/E-MTAB-/{ae_group}/{ae_id}/Files/"
+    "https://ftp.ebi.ac.uk/biostudies/fire/E-MTAB-/{ae_group}/{acc}/Files/"
 )
 TCGA_URL = "https://api.gdc.cancer.gov/data/{file_id}"
 
@@ -223,9 +223,7 @@ def download_geo_metadata(
 
     # Download the miniml tarball
     geo_group = _geo_group(series_id)
-    miniml_tar_url = GEO_MINIML_URL.format(
-        geo_group=geo_group, geo_id=series_id
-    )
+    miniml_tar_url = GEO_MINIML_URL.format(geo_group=geo_group, acc=series_id)
     download_file(miniml_tar_url, miniml_tar_path, show_progress=show_progress)
 
     # Extract the XML inside the tarball.
@@ -275,10 +273,7 @@ def download_geo_idat_all_files(
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     # Download the RAW tarball
-    geo_group = _geo_group(series_id)
-    tar_idat_url = GEO_RAW_IDAT_URL.format(
-        geo_group=geo_group, geo_id=series_id
-    )
+    tar_idat_url = GEO_RAW_IDAT_URL.format(acc=series_id)
     tar_idat_path = samples_dir / f"{series_id}_RAW.tar"
     download_file(tar_idat_url, tar_idat_path, show_progress=show_progress)
     idat_dir.mkdir(parents=True, exist_ok=True)
@@ -433,7 +428,7 @@ def download_arrayexpress_metadata(
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     # Download SDRF file
-    url = ARRAY_EXPRESS_URL.format(ae_group=series_id[-3:], ae_id=series_id)
+    url = ARRAY_EXPRESS_URL.format(ae_group=series_id[-3:], acc=series_id)
     sdrf_filename = f"{series_id}.sdrf.txt"
     sdrf_url = f"{url}{sdrf_filename}"
     sdrf_path = samples_dir / sdrf_filename
@@ -499,7 +494,7 @@ def download_arrayexpress_idat(
     idat_dir.mkdir(parents=True, exist_ok=True)
 
     # Fetch file listing from ArrayExpress
-    url = ARRAY_EXPRESS_URL.format(ae_group=series_id[-3:], ae_id=series_id)
+    url = ARRAY_EXPRESS_URL.format(ae_group=series_id[-3:], acc=series_id)
     response = requests.get(url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
