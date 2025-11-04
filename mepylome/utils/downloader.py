@@ -91,31 +91,31 @@ def _geo_group(geo_id: str) -> str:
     return f"{geo_id[:-3]}nnn"
 
 
-def strip_ns(elem: ET.Element) -> None:
+def _strip_ns(elem: ET.Element) -> None:
     """Remove namespace prefix in-place for an element tree."""
     for e in elem.iter():
         if "}" in e.tag:
             e.tag = e.tag.split("}", 1)[1]
 
 
-def text_of(el: ET.Element) -> str:
+def _text_of(el: ET.Element) -> str:
     """Return .text stripped or empty string."""
     return (el.text or "").strip()
 
 
-def first_attr_value(attrib: Optional[Dict[str, Any]]) -> str:
+def _first_attr_value(attrib: Optional[Dict[str, Any]]) -> str:
     """Return attribute values as string joined with ';'."""
     vals = [str(v).strip() for v in attrib.values()] if attrib else []
     return ";".join(vals)
 
 
-def get_val(node: ET.Element) -> str:
+def _get_val(node: ET.Element) -> str:
     """Returns value of a xml node."""
-    text = text_of(node)
-    return text or first_attr_value(node.attrib)
+    text = _text_of(node)
+    return text or _first_attr_value(node.attrib)
 
 
-def unique_add(key: str, value: Any, dictionary: Dict[str, Any]) -> None:
+def _unique_add(key: str, value: Any, dictionary: Dict[str, Any]) -> None:
     """Add a key–value pair, appending _1, _2... if the key already exists."""
     if key not in dictionary:
         dictionary[key] = value
@@ -135,7 +135,7 @@ def parse_miniml_to_df(
     """Parse a GEO MINiML family XML and save as spreadsheet to disk."""
     tree = ET.parse(miniml_path)
     root = tree.getroot()
-    strip_ns(root)
+    _strip_ns(root)
     sample_elements = root.findall(".//Sample")
     if not sample_elements:
         raise ValueError("No <Sample> elements found in the MINiML file.")
@@ -145,21 +145,21 @@ def parse_miniml_to_df(
         for child in list(s):
             tag = child.tag
             if tag == "Supplementary-Data" and "Sample_ID" not in row:
-                idat_filename = text_of(child).split("/")[-1]
+                idat_filename = _text_of(child).split("/")[-1]
                 sample_id = (
                     idat_filename.removesuffix(".idat.gz")
                     .removesuffix("_Grn")
                     .removesuffix("_Red")
                 )
-                unique_add("Sample_ID", sample_id, row)
+                _unique_add("Sample_ID", sample_id, row)
             if list(child):
                 for sub in child:
                     sub_tag = sub.tag
                     if sub_tag == "Characteristics":
                         sub_tag = sub.attrib.get("tag") or sub_tag
-                    unique_add(sub_tag, get_val(sub), row)
+                    _unique_add(sub_tag, _get_val(sub), row)
             else:
-                unique_add(tag, get_val(child), row)
+                _unique_add(tag, _get_val(child), row)
         rows.append(row)
     annotation = pd.DataFrame(rows)
 
@@ -211,14 +211,10 @@ def download_geo_metadata(
         meta (Optional[str]): Optional base name for the output annotation file
             (without extension). Defaults to "annotation" if None.
     """
-    samples_dir = save_dir / series_id
+    subdir = subdir or series_id
+    samples_dir = save_dir / subdir
     miniml_path = samples_dir / f"{series_id}.xml"
     miniml_tar_path = samples_dir / f"{series_id}_family.xml.tgz"
-    # if miniml_path.exists():
-    #     logger.info(
-    #         "Meta data already exists: %s. Skipping download.", miniml_path
-    #     )
-    #     return
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     # Download the miniml tarball
@@ -321,7 +317,8 @@ def download_geo_idat_single_files(
         save_dir: base directory where series folder will be created.
         samples: iterable of sample base names like
             "GSM4180454_201904410008_R05C01".
-        show_progress: whether to pass show_progress to download_files.
+        show_progress (bool, optional): If True, displays logging messages and
+            progress bar during download. Defaults to True.
         subdir (Optional[str]): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "series_id" if None.
     """
@@ -359,8 +356,8 @@ def download_geo_idat(
 ) -> None:
     """Downloads IDAT files from geo.
 
-    Either downloads the complete RAW tarball if samples is None or per-sample
-    download.
+    Either downloads the complete RAW tarball if samples is None or 'all' or
+    per-sample download.
 
     Args:
         series_id (str): The GEO accession ID of the dataset to download
@@ -420,11 +417,6 @@ def download_arrayexpress_metadata(
     samples_dir = save_dir / subdir
     annotation_name = meta or "annotation"
     csv_path = samples_dir / f"{annotation_name}.csv"
-    # if csv_path.exists():
-    #     logger.info(
-    #         "Meta data already exists: %s. Skipping download.", csv_path
-    #     )
-    #     return
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     # Download SDRF file
@@ -495,7 +487,7 @@ def download_arrayexpress_idat(
 
     # Fetch file listing from ArrayExpress
     url = ARRAY_EXPRESS_URL.format(ae_group=series_id[-3:], acc=series_id)
-    response = requests.get(url)
+    response = requests.get(url, timeout=20)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
     remote_idats = [
@@ -531,7 +523,7 @@ def download_arrayexpress_idat(
     )
 
 
-def get_tcga_series(path: Path) -> str:
+def _get_tcga_series(path: Path) -> str:
     """Return an 8-byte BLAKE2b hex digest for the file at `path`."""
     path = Path(path).expanduser()
     with open(path, "rb") as f:
@@ -550,17 +542,17 @@ def make_tcga_metadata(
     """Build merged TCGA annotation DataFrame and saves to disk.
 
     Args:
-        save_dir: directory where output CSV will be written (if write_csv
-            True).
-        metadata_cart: path to metadata.cart JSON from GDC.
-        metadata_clinical: path to clinical TSV (tab-separated).
+        save_dir (Path): directory where output CSV will be written (if
+            write_csv True).
+        metadata_cart (Path): path to metadata.cart JSON from GDC.
+        metadata_clinical (Path): path to clinical TSV (tab-separated).
         subdir (Optional[str]): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "TCGA_<hash>" if None.
         meta (Optional[str]): Optional base name for the output annotation file
             (without extension). Defaults to "annotation" if None.
     """
     save_dir = Path(save_dir).expanduser()
-    subdir = subdir or get_tcga_series(metadata_cart)
+    subdir = subdir or _get_tcga_series(metadata_cart)
     samples_dir = save_dir / subdir
     samples_dir.mkdir(parents=True, exist_ok=True)
 
@@ -617,26 +609,34 @@ def download_tcga_idat(
     save_dir: Path,
     metadata_cart: Path,
     show_progress: bool = True,
-    wait_seconds: int = 5,
     subdir: Optional[str] = None,
 ) -> None:
     """Download missing TCGA IDAT files listed in the manifest.
 
+    This function expects a `manifest.csv` file (generated by
+    `make_tcga_metadata`) to be located in the dataset directory (e.g.,
+    `<save_dir>/<subdir>/manifest.csv`). The manifest should list file IDs and
+    filenames required for download.
+
     Args:
-        idat_dir: Directory to store idat files.
-        manifest_path: Path to CSV manifest listing 'id' and 'filename'.
-        show_progress: Whether to show download progress.
-        wait_seconds: Delay (in seconds) between download attempts.
+        save_dir (Path): Directory to store idat files.
+        metadata_cart (Path): Path to CSV manifest listing 'id' and 'filename'.
+        show_progress (bool): Whether to show download progress.
         subdir (Optional[str]): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "TCGA_<hash>" if None.
     """
-    subdir = subdir or get_tcga_series(metadata_cart)
+    subdir = subdir or _get_tcga_series(metadata_cart)
     samples_dir = save_dir / subdir
     idat_dir = samples_dir / "idat"
     idat_dir.mkdir(parents=True, exist_ok=True)
 
     # Read manifest
     manifest_csv_path = samples_dir / "manifest.csv"
+    if not manifest_csv_path.exists():
+        raise FileNotFoundError(
+            f"Manifest file {manifest_csv_path} not found. Run "
+            "`make_tcga_metadata` first."
+        )
     manifest = pd.read_csv(manifest_csv_path, sep=None, engine="python")
 
     # Determine which files are missing
@@ -647,7 +647,7 @@ def download_tcga_idat(
     pending = manifest[pending_mask]
 
     if pending.empty:
-        logger.info("All files allready downloaded.")
+        logger.info("All files already downloaded.")
         return
 
     # Prepare download URLs and local paths
@@ -669,7 +669,7 @@ def download_tcga_idat(
         )
     else:
         logger.info(
-            "Sucessfully downloaded all %d files to %s",
+            "Successfully downloaded all %d files to %s",
             len(file_paths),
             idat_dir,
         )
@@ -732,8 +732,9 @@ def make_dataset(
 
     # Group all GSMs into a single dataset
     if geo_samples:
-        datasets.append(
-            {"source": "geo", "series": "GSE_MIXED", "samples": geo_samples}
+        datasets.insert(
+            0,
+            {"source": "geo", "series": "GSE_MIXED", "samples": geo_samples},
         )
 
     return datasets
@@ -860,10 +861,11 @@ def download_idats(
             - A single string (series or sample)
             - A dict describing a dataset
             - A list of strings and/or dicts
-        save_dir: Directory where downloaded files and metadata will be saved.
-        idat: If True, download IDAT files (default: True).
-        metadata: If True, download or generate metadata/annotation files
-            (default: True).
+        save_dir (str or Path): Directory where downloaded files and metadata
+            will be saved.
+        idat (bool): If True, download IDAT files (default: True).
+        metadata (bool): If True, download or generate metadata/annotation
+            files (default: True).
 
     Examples:
         # Download a single GEO series
