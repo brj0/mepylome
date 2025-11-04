@@ -42,6 +42,7 @@ import gzip
 import hashlib
 import json
 import logging
+import re
 import shutil
 import sys
 import tarfile
@@ -477,8 +478,6 @@ def download_arrayexpress_idat(
         subdir (Optional[str]): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "series_id" if None.
     """
-    from bs4 import BeautifulSoup
-
     subdir = subdir or series_id
     samples_dir = save_dir / subdir
     idat_dir = samples_dir / "idat"
@@ -489,12 +488,11 @@ def download_arrayexpress_idat(
     url = ARRAY_EXPRESS_URL.format(ae_group=series_id[-3:], acc=series_id)
     response = requests.get(url, timeout=20)
     response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
-    remote_idats = [
-        node.get("href")
-        for node in soup.find_all("a")
-        if ".idat" in node.get("href", "")
-    ]
+
+    # Find all hrefs that contain .idat
+    remote_idats = re.findall(
+        r'href=[\'"]?([^\'" >]+?\.idat[^\'" >]*)', response.text
+    )
 
     if not samples or samples == "all":
         idat_urls = sorted(url + filename for filename in remote_idats)
