@@ -8,6 +8,7 @@ import inspect
 import logging
 import re
 from pathlib import Path
+from typing import Any, Callable, Iterable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -16,7 +17,7 @@ import xxhash
 logger = logging.getLogger(__name__)
 
 
-def np_hash(array):
+def np_hash(array: np.ndarray) -> Union[bytes, tuple]:
     """Generates a hashable key for a NumPy array.
 
     This function creates a hashable key from a NumPy array by converting it to
@@ -50,12 +51,12 @@ def np_hash(array):
     )
 
 
-def pd_hash(data_frame):
+def pd_hash(data_frame: pd.DataFrame) -> tuple:
     """Generates a hashable key for a pandas DataFrame."""
     return (tuple(np_hash(data_frame[col].values) for col in data_frame),)
 
 
-def cache_key(*args):
+def cache_key(*args: Any) -> Union[Any, tuple[Any, ...]]:
     """Generates a cache key for arguments based on their type.
 
     Args:
@@ -89,7 +90,11 @@ def cache_key(*args):
     return keys[0] if len(args) == 1 else keys
 
 
-def get_id_tuple(f, args, kwargs):
+def get_id_tuple(
+    f: Callable,
+    args: Iterable[Any],
+    kwargs: dict[str, Any],
+) -> tuple:
     """Generates a identifier tuple for a class/function and its arguments.
 
     This function creates a tuple that uniquely identifies a function call
@@ -119,7 +124,7 @@ def get_id_tuple(f, args, kwargs):
     return tuple(id_list)
 
 
-def memoize(f):
+def memoize(f: Callable) -> Callable:
     """Memoization decorator for classes and functions.
 
     Description:
@@ -142,7 +147,7 @@ def memoize(f):
     """
 
     class Memoize:
-        def __init__(self, cls):
+        def __init__(self, cls: Union[type, Callable]) -> None:
             self.cls = cls
             self._cache = {}
             self.__name__ = cls.__name__
@@ -160,7 +165,7 @@ def memoize(f):
                 if isinstance(attr_value, staticmethod):
                     self.__dict__[attr_name] = attr_value.__func__
 
-        def __call__(self, *args, **kwargs):
+        def __call__(self, *args: Any, **kwargs: Any) -> Any:
             """Generate key."""
             complete_kwargs = {**self.init_defaults, **kwargs}
             key = get_id_tuple(self.cls, args, complete_kwargs)
@@ -168,19 +173,23 @@ def memoize(f):
                 self._cache[key] = self.cls(*args, **kwargs)
             return self._cache[key]
 
-        def __instancecheck__(self, other):
+        def __instancecheck__(self, other: Any) -> bool:
             """Make isinstance() work."""
             return isinstance(other, self.cls)
 
     return Memoize(f)
 
 
-def input_args_id(*args, extra_hash=None, suffix_limit=40):
+def input_args_id(
+    *args: Any,
+    extra_hash: Optional[Iterable[Any]] = None,
+    suffix_limit: Optional[int] = 40,
+) -> str:
     """Returns a unique identifier for a set of arguments."""
     components = []
     hasher = xxhash.xxh64()
 
-    def _encode_arg(arg):
+    def _encode_arg(arg: Any) -> bytes:
         if isinstance(arg, np.ndarray):
             return arg.tobytes()
         if isinstance(arg, pd.DataFrame):
@@ -210,7 +219,7 @@ def input_args_id(*args, extra_hash=None, suffix_limit=40):
     return re.sub(r"[^a-zA-Z0-9_-]", "", filename)
 
 
-def clear_cache():
+def clear_cache() -> None:
     """Clears caches of all imported/loaded functions and objects."""
     import sys
 

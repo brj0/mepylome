@@ -9,7 +9,7 @@ from mepylome.tests.helpers import TempManifest
 class TestManifests(unittest.TestCase):
     """Unittest for IDAT preprocessing."""
 
-    def test_manifest(self):
+    def test_manifest(self) -> None:
         tmp_manifest = TempManifest()
         manifest = Manifest(raw_path=tmp_manifest.path)
         self.assertIsNotNone(str(manifest))

@@ -11,6 +11,7 @@ import pickle
 import zipfile
 from functools import lru_cache
 from pathlib import Path
+from typing import Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -37,11 +38,11 @@ GAPS = PACKAGE_DIR / CONFIG["paths"]["gaps"]
 GENES = PACKAGE_DIR / CONFIG["paths"]["genes"]
 
 
-def _get_cgsegment():
+def _get_cgsegment() -> Optional[Callable[[list[float]], list[list[int]]]]:
     try:
         import ruptures
 
-        def function(bin_values):
+        def function(bin_values: list[float]) -> list[list[int]]:
             algo = ruptures.KernelCPD("linear", min_size=5).fit(bin_values)
             segments = algo.predict(pen=1.5)
             return [
@@ -54,7 +55,7 @@ def _get_cgsegment():
     try:
         import linear_segment
 
-        def function(bin_values):
+        def function(bin_values: list[float]) -> list[list[int]]:
             segments = linear_segment.segment(
                 bin_values, shuffles=1000, cutoff=0.3
             )
@@ -66,7 +67,7 @@ def _get_cgsegment():
     try:
         import cbseg
 
-        def function(bin_values):
+        def function(bin_values: list[float]) -> list[list[int]]:
             segments = cbseg.segment(bin_values, shuffles=1000, p=0.0001)
             return [[s.start, s.end] for s in segments]
 
@@ -114,13 +115,13 @@ class Annotation:
 
     def __new__(
         cls,
-        manifest=None,
-        array_type=None,
-        gap=None,
-        detail=None,
-        bin_size=50000,
-        min_probes_per_bin=15,
-    ):
+        manifest: Optional["Manifest"] = None,
+        array_type: Optional[Union[str, "ArrayType"]] = None,
+        gap: Optional[pr.PyRanges] = None,
+        detail: Optional[pr.PyRanges] = None,
+        bin_size: int = 50000,
+        min_probes_per_bin: int = 15,
+    ) -> "Annotation":
         key = cache_key(
             manifest,
             array_type,
@@ -138,7 +139,7 @@ class Annotation:
         cls._cache[key] = instance
         return instance
 
-    def __getnewargs__(self):
+    def __getnewargs__(self) -> tuple:
         # Necessary for pickle
         return (
             self._init_manifest,
@@ -151,13 +152,13 @@ class Annotation:
 
     def __init__(
         self,
-        manifest=None,
-        array_type=None,
-        gap=None,
-        detail=None,
-        bin_size=50000,
-        min_probes_per_bin=15,
-    ):
+        manifest: Optional["Manifest"] = None,
+        array_type: Optional[Union[str, "ArrayType"]] = None,
+        gap: Optional[pr.PyRanges] = None,
+        detail: Optional[pr.PyRanges] = None,
+        bin_size: int = 50000,
+        min_probes_per_bin: int = 15,
+    ) -> None:
         # Don't need to initialize if instance is cached.
         if hasattr(self, "_cached"):
             return
@@ -249,7 +250,7 @@ class Annotation:
 
     @staticmethod
     @lru_cache
-    def default_gaps():
+    def default_gaps() -> pr.PyRanges:
         """Default genomic gaps.
 
         Details:
@@ -262,7 +263,7 @@ class Annotation:
 
     @staticmethod
     @lru_cache
-    def default_genes():
+    def default_genes() -> pr.PyRanges:
         """Default PyRanges object including gene names with coordinates.
 
         Details:
@@ -273,7 +274,7 @@ class Annotation:
         genes_df.Start -= 1
         return pr.PyRanges(genes_df)
 
-    def make_bins(self):
+    def make_bins(self) -> pr.PyRanges:
         """Creates equidistant bins and then removes genomic gaps."""
         bins = pr.gf.tile_genome(self.chromsizes, int(self.bin_size))
         bins = bins[bins.Chromosome != "chrM"]
@@ -281,7 +282,7 @@ class Annotation:
             bins = bins.subtract(self.gap)
         return self.merge_bins(bins)
 
-    def merge_bins(self, bins):
+    def merge_bins(self, bins: pr.PyRanges) -> pr.PyRanges:
         """Merges adjacent bins until all contain a minimum of probes."""
         bins = bins.count_overlaps(
             self.adjusted_manifest[["IlmnID"]], overlap_col="N_probes"
@@ -294,7 +295,9 @@ class Annotation:
         )
 
     @staticmethod
-    def merge_bins_in_chromosome(bin_df, min_probes_per_bin):
+    def merge_bins_in_chromosome(
+        bin_df: pd.DataFrame, min_probes_per_bin: int
+    ) -> pd.DataFrame:
         """Merges adjacent bins until all contain a minimum of probes.
 
         Args:
@@ -325,7 +328,7 @@ class Annotation:
             ["Start", "End", "N_probes", "Left", "Right"]
         ].values.astype(np.int64)
 
-        def update_neighbors(left, mid, right):
+        def update_neighbors(left: int, mid: int, right: int) -> None:
             matrix[mid, I_N_PROBES] = INVALID
             if left > 0:
                 matrix[left, I_RIGHT] = matrix[mid, I_RIGHT]
@@ -397,7 +400,11 @@ class Annotation:
         return bin_df[["Chromosome", "Start", "End", "N_probes"]]
 
     @staticmethod
-    def load(array_types=None):
+    def load(
+        array_types: Optional[
+            Union[list[Union[str, "ArrayType"]], str, "ArrayType"]
+        ] = None,
+    ) -> None:
         """Loads specified annotation into memory.
 
         Args:
@@ -426,7 +433,7 @@ class Annotation:
         for array_type in array_types:
             _ = Annotation(array_type=array_type)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         title = "Annotation():"
         lines = [
             title + "\n" + "*" * len(title),
@@ -444,7 +451,7 @@ class Annotation:
 
 
 @memoize
-def cached_index(left_arr, right_arr):
+def cached_index(left_arr: pd.Index, right_arr: pd.Index) -> np.ndarray:
     """Cached indices to improve speed of pandas loc/iloc operations.
 
     Return the cached indices of elements in left_array based on their presence
@@ -453,7 +460,7 @@ def cached_index(left_arr, right_arr):
     return left_arr.get_indexer(right_arr)
 
 
-def _pd_loc(pd_df, pd_col):
+def _pd_loc(pd_df: pd.DataFrame, pd_col: pd.Series) -> pd.DataFrame:
     """Cached version of pd_df.loc[pd_col] to speed up computation."""
     return pd_df.iloc[cached_index(pd_df.index, pd_col.values)]
 
@@ -509,7 +516,12 @@ class CNV:
         https://doi.org/10.1093/bioinformatics/btae029
     """
 
-    def __init__(self, sample, reference, annotation=None):
+    def __init__(
+        self,
+        sample: "MethylData",
+        reference: Union["MethylData", "ReferenceMethylData"],
+        annotation: Optional["Annotation"] = None,
+    ) -> None:
         if len(sample.probes) != 1:
             msg = "sample must contain exactly 1 probe."
             raise ValueError(msg)
@@ -556,7 +568,14 @@ class CNV:
         self.fit()
 
     @classmethod
-    def set_all(cls, sample, reference, annotation=None, *, do_seg=True):
+    def set_all(
+        cls,
+        sample: "MethylData",
+        reference: Union["MethylData", "ReferenceMethylData"],
+        annotation: Optional["Annotation"] = None,
+        *,
+        do_seg: bool = True,
+    ) -> "CNV":
         """Create a CNV object and perform CNV analysis.
 
         Args:
@@ -595,7 +614,7 @@ class CNV:
             cnv.set_segments()
         return cnv
 
-    def set_itensity(self, methyl_data):
+    def set_itensity(self, methyl_data: "MethylData") -> None:
         """Calculates intensity values from methylation data."""
         if hasattr(methyl_data, "intensity"):
             return
@@ -633,7 +652,7 @@ class CNV:
             index=methyl_data.methyl_ilmnid,
         )
 
-    def fit(self):
+    def fit(self) -> None:
         """Fits linear regression model to calculate CNV at every CpG site.
 
         This method fits a linear regression model to the intensity data of the
@@ -668,7 +687,7 @@ class CNV:
             np.mean((self._ratio[1:] - self._ratio[:-1]) ** 2)
         )
 
-    def set_bins(self):
+    def set_bins(self) -> None:
         """Calculates CNV within each bin based on the results of 'fit'.
 
         This method calculates copy number variation (CNV) within each bin
@@ -687,7 +706,7 @@ class CNV:
         bins_df.loc[result.index, ["Median", "Var"]] = result.values
         self.bins = pr.PyRanges(bins_df)
 
-    def set_detail(self):
+    def set_detail(self) -> None:
         """Calculates CNV for the detail object based on the results of 'fit'.
 
         This method calculates copy number variation (CNV) for the detail
@@ -717,7 +736,7 @@ class CNV:
         self.detail = pr.PyRanges(detail_df)
 
     @staticmethod
-    def _get_segments(df):
+    def _get_segments(df: pd.DataFrame) -> pd.DataFrame:
         """Performs circular binary segmentation to identify CNV segments.
 
         This method applies the circular binary segmentation (CBS) algorithm
@@ -744,7 +763,7 @@ class CNV:
             columns=["Chromosome", "Start", "End"],
         )
 
-    def set_segments(self):
+    def set_segments(self) -> None:
         """Sets CNV segments based on circular binary segmentation.
 
         This method applies the circular binary segmentation (CBS) algorithm
@@ -776,7 +795,11 @@ class CNV:
         self.segments = pr.PyRanges(result)
         self.segments = self.segments.sort()
 
-    def write(self, path, data="all"):
+    def write(
+        self,
+        path: str,
+        data: Union[str, list[str]] = "all",
+    ) -> None:
         """Writes CNV data to disk as a zip file.
 
         This method writes the CNV data to disk as a zip file containing
@@ -834,7 +857,7 @@ class CNV:
         with base_path.with_suffix(".zip").open("wb") as f:
             f.write(buffer.read())
 
-    def plot(self):
+    def plot(self) -> None:
         """Generates and displays a plot of the CNV data."""
         logger.info("%s Plotting...", self.probe)
         cnv_dir = Path(MEPYLOME_TMP_DIR, "cnv_zips")
@@ -849,7 +872,7 @@ class CNV:
         cnv_plot = CNVPlot(cnv_dir, cnv_file)
         cnv_plot.run_app()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         title = "CNV():"
         lines = [
             title + "\n" + "*" * len(title),

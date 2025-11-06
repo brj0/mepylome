@@ -1,6 +1,7 @@
 """Unittest for IDAT parser."""
 
 import unittest
+from typing import Any
 
 import numpy as np
 
@@ -11,7 +12,11 @@ from mepylome.tests.helpers import TempIdatFile
 class TestIdatParser(unittest.TestCase):
     """Unittest for IDAT parser."""
 
-    def _check_idat_parser(self, test_data, gzipped):
+    def _check_idat_parser(
+        self,
+        test_data: dict[str, Any],
+        gzipped: bool,
+    ) -> None:
         """Check the data consistency between writer and parser."""
         tmp_idat = TempIdatFile(test_data, gzipped)
         idat_file = IdatParser(tmp_idat.path)
@@ -30,7 +35,7 @@ class TestIdatParser(unittest.TestCase):
                     f"Values for key '{key}' do not match.",
                 )
 
-    def test_idat_parser(self):
+    def test_idat_parser(self) -> None:
         test_data_list = [
             {},
             {"illumina_ids": np.array([1, 10, 1000, 10000], dtype="<i4")},

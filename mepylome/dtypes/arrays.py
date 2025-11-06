@@ -2,11 +2,12 @@
 
 from enum import Enum, unique
 from pathlib import Path
+from typing import Union
 
 from mepylome.dtypes.idat import IdatParser
 
 
-def _find_valid_path(path):
+def _find_valid_path(path: Union[str, Path]) -> Path:
     """Tries to find a valid IDAT file associated with the given path."""
     base_path = Path(path)
     if base_path.exists():
@@ -37,11 +38,11 @@ class ArrayType(Enum):
     ILLUMINA_MOUSE = "mouse"
     UNKNOWN = "unknown"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @classmethod
-    def from_probe_count(cls, probe_count):
+    def from_probe_count(cls, probe_count: int) -> "ArrayType":
         """Infers array type based on the number of probes in an idat file."""
         if 622000 <= probe_count <= 623000:
             return cls.ILLUMINA_450K
@@ -67,7 +68,7 @@ class ArrayType(Enum):
         return cls.UNKNOWN
 
     @classmethod
-    def from_idat(cls, path):
+    def from_idat(cls, path: Union[str, Path]) -> "ArrayType":
         """Infers array type from idat_file."""
         valid_path = _find_valid_path(path)
         probe_count = IdatParser(valid_path, array_type_only=True).n_snps_read

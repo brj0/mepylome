@@ -48,7 +48,7 @@ import sys
 import tarfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
 import pandas as pd
 import requests
@@ -104,7 +104,7 @@ def _text_of(el: ET.Element) -> str:
     return (el.text or "").strip()
 
 
-def _first_attr_value(attrib: Optional[Dict[str, Any]]) -> str:
+def _first_attr_value(attrib: Optional[dict[str, Any]]) -> str:
     """Return attribute values as string joined with ';'."""
     vals = [str(v).strip() for v in attrib.values()] if attrib else []
     return ";".join(vals)
@@ -116,7 +116,7 @@ def _get_val(node: ET.Element) -> str:
     return text or _first_attr_value(node.attrib)
 
 
-def _unique_add(key: str, value: Any, dictionary: Dict[str, Any]) -> None:
+def _unique_add(key: str, value: str, dictionary: dict[str, Any]) -> None:
     """Add a key–value pair, appending _1, _2... if the key already exists."""
     if key not in dictionary:
         dictionary[key] = value
@@ -195,7 +195,7 @@ def download_geo_metadata(
     samples: Optional[Iterable[str]] = None,
     subdir: Optional[str] = None,
     meta: Optional[str] = None,
-):
+) -> None:
     """Download and extract the MINiML (family XML) for a GEO series.
 
     Args:
@@ -674,8 +674,8 @@ def download_tcga_idat(
 
 
 def make_dataset(
-    dataset: Union[Dict[str, Union[str, List[str]]], Iterable[str], str],
-) -> List[Dict[str, Union[str, List[str]]]]:
+    dataset: Union[dict[str, Union[str, list[str]]], Iterable[str], str],
+) -> list[dict[str, Union[str, list[str]]]]:
     """Normalize dataset input into a list of standardized dictionaries.
 
     Accepts E-MTAB*, GSE*, or GSM* identifiers.
@@ -739,14 +739,14 @@ def make_dataset(
 
 
 def _download_single_dataset(
-    dataset: Dict[str, Union[str, List[str]]],
+    dataset: dict[str, Union[str, list[str]]],
     save_dir: Union[str, Path],
     idat: bool = True,
     metadata: bool = True,
 ) -> None:
     """Helper: download IDAT/metadata for a single normalized dataset dict."""
 
-    def to_path(p: Union[str, Path]):
+    def to_path(p: Union[str, Path]) -> Path:
         return Path(p).expanduser()
 
     save_dir = to_path(save_dir)
@@ -815,7 +815,7 @@ def _download_single_dataset(
 
 
 def download_idats(
-    dataset: Union[str, Dict, List[Union[str, Dict]]],
+    dataset: Union[str, dict, list[Union[str, dict]]],
     save_dir: Union[str, Path],
     idat: bool = True,
     metadata: bool = True,
@@ -892,7 +892,7 @@ def download_idats(
         ... ], "~/Downloads/mixed_data")
     """
     save_dir = Path(save_dir).expanduser()
-    dataset_list: List[Dict[str, Union[str, List[str]]]] = make_dataset(
+    dataset_list: list[dict[str, Union[str, list[str]]]] = make_dataset(
         dataset
     )
 
@@ -945,7 +945,7 @@ def setup_tutorial_files(
         analysis_dir / "annotation.csv", index=False
     )
 
-    def _missing_files(dir_path: Path, geo_ids: Iterable[str]):
+    def _missing_files(dir_path: Path, geo_ids: Iterable[str]) -> list:
         return [
             gid
             for gid in geo_ids
@@ -953,7 +953,7 @@ def setup_tutorial_files(
             or not (dir_path / f"{gid.split('_', 1)[1]}_Red.idat").exists()
         ]
 
-    def _fetch_and_place(missing_ids: Iterable, target_dir: Path):
+    def _fetch_and_place(missing_ids: Iterable, target_dir: Path) -> None:
         tmp_idat_dir = MEPYLOME_TMP_DIR / "tutorial"
         if not missing_ids:
             return

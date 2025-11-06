@@ -12,6 +12,8 @@ Usage:
 
 from enum import IntEnum, unique
 
+import pandas as pd
+
 
 @unique
 class Chromosome(IntEnum):
@@ -61,12 +63,12 @@ class Chromosome(IntEnum):
     INVALID = -1
 
     @staticmethod
-    def is_valid_chromosome(chrom):
+    def is_valid_chromosome(chrom: "Chromosome") -> bool:
         """Checks if the given chromosome is valid."""
         return (chrom >= Chromosome.CHR1) & (chrom <= Chromosome.CHRY)
 
     @staticmethod
-    def pd_from_string(col):
+    def pd_from_string(col: pd.Series) -> pd.Series:
         """Converts chromosome strings to Chromosome enum values."""
         chrom_map = {
             **{str(i): Chromosome(i) for i in range(23)},
@@ -87,7 +89,7 @@ class Chromosome(IntEnum):
         return col.map(chrom_map).fillna(Chromosome.INVALID).astype(int)
 
     @staticmethod
-    def pd_to_string(col):
+    def pd_to_string(col: pd.Series) -> pd.Series:
         """Converts Chromosome enum values to chromosome strings."""
         chrom_map = {
             **{Chromosome(i): "chr" + str(i) for i in range(23)},

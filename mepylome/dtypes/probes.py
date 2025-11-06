@@ -5,6 +5,7 @@ Usage:
 """
 
 from enum import IntEnum, unique
+from typing import Union
 
 
 @unique
@@ -14,8 +15,8 @@ class Channel(IntEnum):
     GRN = 0
     RED = 1
 
-    def __str__(self):
-        return self.value
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 @unique
@@ -41,11 +42,14 @@ class ProbeType(IntEnum):
     SNP_TWO = 4
     CONTROL = 5
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @staticmethod
-    def from_manifest_values(name, infinium_type):
+    def from_manifest_values(
+        name: str,
+        infinium_type: Union[str, "InfiniumDesignType"],
+    ) -> "ProbeType":
         """Method to determine ProbeType based on name and design type.
 
         Args:

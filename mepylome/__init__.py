@@ -27,7 +27,7 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 LOG_FILE = make_log_file("stdout")
 
 
-def setup_logging():
+def setup_logging() -> None:
     logger = logging.getLogger("mepylome")
 
     if logger.hasHandlers():

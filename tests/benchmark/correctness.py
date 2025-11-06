@@ -17,7 +17,7 @@ HOME_DIR = Path.home()
 TEST_OUTPUT_DIR = Path(HOME_DIR, "mepylome", "output_tests")
 
 
-def difference(path_py, path_r):
+def difference(path_py: Path, path_r: Path) -> None:
     """Compares mepylome output with minfi output."""
     title = f"{path_py.with_suffix('').name} vs. {path_r.with_suffix('').name}"
     print("\n\n" + title)

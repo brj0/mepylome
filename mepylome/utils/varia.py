@@ -15,17 +15,19 @@ import time
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import Any, Optional
 from uuid import uuid4
 
 import numpy as np
 import toml
+from numpy.typing import ArrayLike
 
 from mepylome.utils.files import get_resource_path
 
 __all__ = ["Timer", "normexp_get_xs", "MEPYLOME_TMP_DIR"]
 
 
-def get_app_version():
+def get_app_version() -> str:
     """Retrieve the app version from the package metadata."""
     try:
         return version("mepylome")
@@ -49,10 +51,10 @@ LOG_DIR = MEPYLOME_TMP_DIR / "log"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def make_log_file(suffix):
+def make_log_file(prefix: str) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_id = uuid4().hex[:8]
-    log_file = LOG_DIR / f"{suffix}-{timestamp}-{unique_id}.log"
+    log_file = LOG_DIR / f"{prefix}-{timestamp}-{unique_id}.log"
     log_file.touch(exist_ok=True)
     return log_file
 
@@ -60,14 +62,14 @@ def make_log_file(suffix):
 class Timer:
     """Measures the time elapsed in milliseconds."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.time0 = time.time()
 
-    def start(self):
+    def start(self) -> None:
         """Resets timer."""
         self.time0 = time.time()
 
-    def stop(self, text=None):
+    def stop(self, text: Optional[str] = None) -> float:
         """Resets timer and return elapsed time."""
         delta_time = 1000 * (time.time() - self.time0)
         comment = "" if text is None else "(" + text + ")"
@@ -76,7 +78,11 @@ class Timer:
         return delta_time
 
 
-def huber(y, k=1.5, tol=1.0e-6):
+def huber(
+    y: ArrayLike,
+    k: float = 1.5,
+    tol: float = 1.0e-6,
+) -> tuple[float, float]:
     """Compute Huber's M-estimator of location with MAD scale.
 
     Code adapted from
@@ -119,7 +125,7 @@ def huber(y, k=1.5, tol=1.0e-6):
     return mu, s
 
 
-def normexp_signal(par, x):
+def normexp_signal(par: ArrayLike, x: ArrayLike) -> np.ndarray:
     """Expected Signal Given Observed Foreground Under Normal+Exp Model.
 
     Adjust foreground intensities for observed background using Normal+Exp
@@ -185,7 +191,12 @@ def normexp_signal(par, x):
     return signal
 
 
-def normexp_get_xs(xf, controls=None, offset=50, param=None):
+def normexp_get_xs(
+    xf: np.ndarray,
+    controls: Optional[np.ndarray] = None,
+    offset: int = 50,
+    param: Optional[np.ndarray] = None,
+) -> dict[str, np.ndarray]:
     """Used in NOOB.
 
     Adapted from
@@ -212,7 +223,7 @@ def normexp_get_xs(xf, controls=None, offset=50, param=None):
     }
 
 
-def get_free_port(start_port):
+def get_free_port(start_port: int) -> int:
     """Returns the first free port from start position."""
     port = start_port
     while True:
@@ -222,7 +233,7 @@ def get_free_port(start_port):
             port += 1
 
 
-def load_config():
+def load_config() -> dict[str, Any]:
     """Loads the configuration from the package's config.toml."""
     config_path = get_resource_path("mepylome", "data/config.toml")
     return toml.load(config_path)

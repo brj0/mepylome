@@ -9,6 +9,13 @@ import os
 import pickle
 from functools import reduce
 from pathlib import Path
+from typing import (
+    Iterator,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+)
 
 import numpy as np
 import pandas as pd
@@ -29,7 +36,9 @@ ENDING_SUFFIXES = ("_Grn.idat", "_Red.idat", "_Grn.idat.gz", "_Red.idat.gz")
 NEUTRAL_BETA = 0.5
 
 
-def is_valid_idat_basepath(basepath):
+def is_valid_idat_basepath(
+    basepath: Union[str, Path, Sequence[Union[str, Path]]],
+) -> bool:
     """Checks if the given basepath(s) point to valid IDAT files."""
     if not isinstance(basepath, list):
         basepath = [basepath]
@@ -47,7 +56,10 @@ def is_valid_idat_basepath(basepath):
     )
 
 
-def idat_basepaths(files, only_valid=False):
+def idat_basepaths(
+    files: Union[str, Path, Sequence[Union[str, Path]]],
+    only_valid: bool = False,
+) -> list[Path]:
     """Returns unique basepaths from IDAT files or directory.
 
     This function processes a list of IDAT files or a directory containing IDAT
@@ -76,7 +88,7 @@ def idat_basepaths(files, only_valid=False):
         [PosixPath('/path/to/idat/file')]
     """
 
-    def get_idat_files(file_or_dir):
+    def get_idat_files(file_or_dir: Union[str, Path]) -> Iterator[str]:
         path = os.path.expanduser(file_or_dir)
         # If path is dir take all files in it
         if os.path.isdir(path):
@@ -87,7 +99,7 @@ def idat_basepaths(files, only_valid=False):
         else:
             yield path
 
-    def strip_suffix(file_path):
+    def strip_suffix(file_path: str) -> str:
         for suffix in ENDING_SUFFIXES:
             if file_path.endswith(suffix):
                 return file_path[: -len(suffix)]
@@ -111,7 +123,9 @@ def idat_basepaths(files, only_valid=False):
     return [Path(base) for base in unique_basepaths_dict]
 
 
-def idat_paths_from_basenames(basenames):
+def idat_paths_from_basenames(
+    basenames: Sequence[Union[str, Path]],
+) -> tuple[np.ndarray, np.ndarray]:
     """Returns paths to green and red IDAT files.
 
     Args:
@@ -130,7 +144,7 @@ def idat_paths_from_basenames(basenames):
         [Path(str(name) + ENDING_RED) for name in basenames]
     )
 
-    def check_and_fix(files):
+    def check_and_fix(files: np.ndarray) -> Optional[Path]:
         not_existing = [i for i, path in enumerate(files) if not path.exists()]
         files[not_existing] = [
             x.parent / (x.name + ENDING_GZ) for x in files[not_existing]
@@ -173,7 +187,12 @@ class RawData:
         >>> raw_data = RawData([idat_basepath0, idat_basepath1])
     """
 
-    def __init__(self, basenames, *, manifest=None):
+    def __init__(
+        self,
+        basenames: Sequence[Union[str, Path]],
+        *,
+        manifest: Optional[Manifest] = None,
+    ) -> None:
         self.manifest = manifest
         _basenames = idat_basepaths(basenames)
 
@@ -243,7 +262,7 @@ class RawData:
         self.unmethylated = None
 
     @property
-    def grn(self):
+    def grn(self) -> pd.DataFrame:
         """DataFrame: Green channel raw intensity indexed by probe IDs."""
         if self._grn_df is None:
             self._grn_df = pd.DataFrame(
@@ -252,7 +271,7 @@ class RawData:
         return self._grn_df
 
     @property
-    def red(self):
+    def red(self) -> pd.DataFrame:
         """DataFrame: Red channel raw intensity indexed by probe IDs."""
         if self._red_df is None:
             self._red_df = pd.DataFrame(
@@ -260,7 +279,7 @@ class RawData:
             )
         return self._red_df
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         title = "RawData():"
         lines = [
             title + "\n" + "*" * len(title),
@@ -277,7 +296,10 @@ class RawData:
 
 
 @memoize
-def _overlap_indices(left_arr, right_arr):
+def _overlap_indices(
+    left_arr: Union[Sequence, pd.Index],
+    right_arr: Union[Sequence, pd.Index],
+) -> tuple[np.ndarray, np.ndarray]:
     """Compute the indices of overlapping elements between two arrays.
 
     This function finds the common elements (indices) between two input arrays
@@ -331,7 +353,13 @@ class MethylData:
         >>> methyl_data = MethylData(file=file_path, prep="swan")
     """
 
-    def __init__(self, data=None, file=None, prep="illumina", seed=None):
+    def __init__(
+        self,
+        data: Optional["RawData"] = None,
+        file: Sequence[Union[str, Path]] = None,
+        prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
+        seed: Optional[int] = None,
+    ) -> None:
         if data is None and file is None:
             msg = "'data' or 'file' must be given."
             raise ValueError(msg)
@@ -365,7 +393,7 @@ class MethylData:
             raise ValueError(msg)
 
     @property
-    def grn(self):
+    def grn(self) -> pd.DataFrame:
         """DataFrame: Normalized green intensity by probe ID."""
         if self._grn_df is None:
             self._grn_df = pd.DataFrame(
@@ -377,7 +405,7 @@ class MethylData:
         return self._grn_df
 
     @property
-    def red(self):
+    def red(self) -> pd.DataFrame:
         """DataFrame: Normalized red intensity by probe ID."""
         if self._red_df is None:
             self._red_df = pd.DataFrame(
@@ -389,7 +417,7 @@ class MethylData:
         return self._red_df
 
     @property
-    def methylated(self):
+    def methylated(self) -> pd.DataFrame:
         """DataFrame: Methylated intensity values indexed by IlmnID."""
         if self._methylated_df is None:
             self._methylated_df = pd.DataFrame(
@@ -402,7 +430,7 @@ class MethylData:
         return self._methylated_df
 
     @property
-    def unmethylated(self):
+    def unmethylated(self) -> pd.DataFrame:
         """DataFrame: Unmethylated intensity values indexed by IlmnID."""
         if self._unmethylated_df is None:
             self._unmethylated_df = pd.DataFrame(
@@ -414,7 +442,7 @@ class MethylData:
             self._unmethylated_df.index.name = "IlmnID"
         return self._unmethylated_df
 
-    def preprocess_illumina(self):
+    def preprocess_illumina(self) -> None:
         """Performs preprocessing usings Illuminas method.
 
         This function implements preprocessing for Illumina methylation
@@ -431,7 +459,11 @@ class MethylData:
         self._illumina_bg_correction(ci)
         self._preprocess_raw(ci)
 
-    def _illumina_control_normalization(self, ci, reference=0):
+    def _illumina_control_normalization(
+        self,
+        ci: dict,
+        reference: int = 0,
+    ) -> None:
         """Performs normalization using control probes."""
         grn_average = np.mean(
             self._grn[:, ci["ids_cg_cont"]],
@@ -449,7 +481,7 @@ class MethylData:
         self._grn = grn_factor[:, np.newaxis] * self._grn
         self._red = red_factor[:, np.newaxis] * self._red
 
-    def _illumina_bg_correction(self, ci):
+    def _illumina_bg_correction(self, ci: dict) -> None:
         """Performs background normalization using negative control probes."""
         if len(ci["ids_ng_cont"]) <= 30:
             return
@@ -465,7 +497,7 @@ class MethylData:
         np.subtract(self._red, red_bg[:, np.newaxis], out=self._red)
         np.maximum(self._red, 0, out=self._red)
 
-    def _preprocess_raw_uncached(self):
+    def _preprocess_raw_uncached(self) -> None:
         """Calculates methylated/unmethylated arrays without preprocessing.
 
         Converts the Red/Green channel for an Illumina methylation array
@@ -493,7 +525,13 @@ class MethylData:
             man_idx_np, type_1_grn, type_1_red, type_2
         )
 
-    def _preprocess_raw_methylated(self, man_idx_np, t1_grn, t1_red, t2):
+    def _preprocess_raw_methylated(
+        self,
+        man_idx_np: np.ndarray,
+        t1_grn: pd.DataFrame,
+        t1_red: pd.DataFrame,
+        t2: pd.DataFrame,
+    ) -> None:
         """Calculates methylated data frame without preprocessing."""
         red = self.red
         grn = self.grn
@@ -509,7 +547,13 @@ class MethylData:
         result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
         self._methylated_df = result.set_index("IlmnID")
 
-    def _preprocess_raw_unmethylated(self, man_idx_np, t1_grn, t1_red, t2):
+    def _preprocess_raw_unmethylated(
+        self,
+        man_idx_np: np.ndarray,
+        t1_grn: pd.DataFrame,
+        t1_red: pd.DataFrame,
+        t2: pd.DataFrame,
+    ) -> None:
         """Calculates unmethylated data frame without preprocessing."""
         red = self.red
         grn = self.grn
@@ -526,7 +570,11 @@ class MethylData:
         self._unmethylated_df = result.set_index("IlmnID")
 
     @memoize
-    def _cached_indices(manifest, illumina_ids, prep):
+    def _cached_indices(
+        manifest: Manifest,
+        illumina_ids: np.ndarray,
+        prep: Literal["illumina", "swan", "noob", "raw"],
+    ) -> dict[str, np.ndarray]:
         """Cache the indices required for data processing.
 
         Args:
@@ -570,7 +618,7 @@ class MethylData:
             ng_controls = manifest.control_address("NEGATIVE")
             cg_controls = manifest.control_address(["NORM_C", "NORM_G"])
 
-            def valid_ids(indices):
+            def valid_ids(indices: np.ndarray) -> np.ndarray:
                 return indices[indices != -1]
 
             ci["ids_at_cont"] = valid_ids(ids.get_indexer(at_controls))
@@ -580,7 +628,7 @@ class MethylData:
         if prep == "swan":
             ng_controls = manifest.control_address("NEGATIVE")
 
-            def valid_ids(indices):
+            def valid_ids(indices: np.ndarray) -> np.ndarray:
                 return indices[indices != -1]
 
             ci["ids_ng_cont"] = valid_ids(ids.get_indexer(ng_controls))
@@ -600,7 +648,7 @@ class MethylData:
 
         return ci
 
-    def preprocess_raw(self):
+    def preprocess_raw(self) -> None:
         """Calculates methylated/unmethylated arrays without preprocessing.
 
         Converts the Red/Green channel for an Illumina methylation array
@@ -609,7 +657,7 @@ class MethylData:
         ci = MethylData._cached_indices(self.manifest, self.ids, "raw")
         self._preprocess_raw(ci)
 
-    def _preprocess_raw_old(self, ci):
+    def _preprocess_raw_old(self, ci: dict) -> None:
         """Same as _preprocess_raw just slower and cleaner."""
         self.methyl = np.full((len(self.probes), len(ci["idx"])), np.nan)
         self.methyl[:, ci["idx_1_red__"]] = self._red[:, ci["ids_1_red_b"]]
@@ -622,7 +670,7 @@ class MethylData:
         self.methyl_index = ci["idx"]
         self.methyl_ilmnid = ci["ilmnid"]
 
-    def _preprocess_raw(self, ci):
+    def _preprocess_raw(self, ci: dict) -> None:
         """Internal preprocess logic."""
         methyl_shape = (len(self.probes), len(ci["idx"]))
         self.methyl = np.full(methyl_shape, np.nan)
@@ -648,7 +696,7 @@ class MethylData:
         self.methyl_index = ci["idx"]
         self.methyl_ilmnid = ci["ilmnid"]
 
-    def _swan_bg_intensity(self, ci):
+    def _swan_bg_intensity(self, ci: dict) -> np.ndarray:
         """Intensity background normalization used for SWAN preprocessing."""
         grn_med = np.median(
             self._grn[:, ci["ids_ng_cont"]],
@@ -661,7 +709,11 @@ class MethylData:
         return np.mean([grn_med, red_med], axis=0)
 
     @staticmethod
-    def _swan_indices(manifest, methyl_index, seed=None):
+    def _swan_indices(
+        manifest: Manifest,
+        methyl_index: np.ndarray,
+        seed: Optional[int] = None,
+    ) -> tuple[dict, dict]:
         rng = np.random.default_rng(seed)
         all_ncpgs = (
             manifest.data_frame[["Probe_Type", "N_CpG"]]
@@ -692,7 +744,7 @@ class MethylData:
             )
         return all_indices, random_subset_indices
 
-    def preprocess_swan(self):
+    def preprocess_swan(self) -> None:
         """Subset-quantile Within Array Normalization (SWAN).
 
         Details:
@@ -740,8 +792,11 @@ class MethylData:
 
     @staticmethod
     def _preprocess_swan_main(
-        intensity, bg_intensity, all_indices, random_subset_indices
-    ):
+        intensity: np.ndarray,
+        bg_intensity: np.ndarray,
+        all_indices: dict,
+        random_subset_indices: dict,
+    ) -> np.ndarray:
         """Main function for preprocess_swan."""
         from scipy.stats import rankdata
 
@@ -779,7 +834,11 @@ class MethylData:
                 swan[i, all_indices[probe_type]] = interp
         return swan
 
-    def preprocess_noob(self, offset=15, dye_method="single"):
+    def preprocess_noob(
+        self,
+        offset: float = 15,
+        dye_method: str = "single",
+    ) -> None:
         """The Noob preprocessing method.
 
         Description:
@@ -899,14 +958,16 @@ class MethylData:
         self.unmethyl = unmethyl
 
     @property
-    def betas(self):
+    def betas(self) -> pd.DataFrame:
         """Returns beta values."""
         betas = self._get_beta(self.methyl, self.unmethyl)
         return pd.DataFrame(
             betas.T, columns=self.probes, index=self.methyl_ilmnid
         )
 
-    def betas_at(self, cpgs=None, fill=NEUTRAL_BETA):
+    def betas_at(
+        self, cpgs: Optional[list[str]] = None, fill: float = NEUTRAL_BETA
+    ) -> pd.DataFrame:
         """Calculates beta values for specified CpG sites.
 
         Args:
@@ -932,8 +993,13 @@ class MethylData:
 
     @staticmethod
     def _get_beta(
-        methylated, unmethylated, offset=0, beta_threshold=0, *, min_zero=True
-    ):
+        methylated: np.ndarray,
+        unmethylated: np.ndarray,
+        offset: float = 0,
+        beta_threshold: float = 0,
+        *,
+        min_zero: bool = True,
+    ) -> np.ndarray:
         if offset < 0:
             msg = "'offset' must be non-negative"
             raise ValueError(msg)
@@ -957,7 +1023,7 @@ class MethylData:
 
         return betas
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         title = "MethylData():"
         lines = [
             title + "\n" + "*" * len(title),
@@ -1010,7 +1076,12 @@ class ReferenceMethylData:
 
     _cache = {}
 
-    def __new__(cls, file, prep="illumina", save_to_disk=False):
+    def __new__(
+        cls,
+        file: Sequence[Union[str, Path]] = None,
+        prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
+        save_to_disk: bool = False,
+    ) -> "ReferenceMethylData":
         key = cache_key(file, prep)
         if key in cls._cache:
             return cls._cache[key]
@@ -1021,11 +1092,16 @@ class ReferenceMethylData:
         cls._cache[key] = instance
         return instance
 
-    def __getnewargs__(self):
+    def __getnewargs__(self) -> tuple[Sequence[Union[str, Path]], str, bool]:
         # Necessary for pickle
         return self.file, self.prep, self.save_to_disk
 
-    def __init__(self, file, prep="illumina", save_to_disk=False):
+    def __init__(
+        self,
+        file: Sequence[Union[str, Path]] = None,
+        prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
+        save_to_disk: bool = False,
+    ) -> None:
         # Don't need to initialize if instance is cached.
         if hasattr(self, "_cached"):
             return
@@ -1065,12 +1141,15 @@ class ReferenceMethylData:
                 pickle.dump(self, f)
 
     @staticmethod
-    def pickle_filename(prep, idat_files):
+    def pickle_filename(
+        prep: Literal["illumina", "swan", "noob", "raw"],
+        idat_files: list[Path],
+    ) -> Path:
         return MEPYLOME_TMP_DIR / input_args_id(
             "Ref", prep, sorted(str(x) for x in idat_files)
         )
 
-    def __getitem__(self, array_type):
+    def __getitem__(self, array_type: ArrayType) -> MethylData:
         if array_type not in self._methyl_data:
             msg = (
                 f"No copy number neutral reference files found for "

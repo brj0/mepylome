@@ -7,6 +7,7 @@ import webbrowser
 import zipfile
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, Iterable, Iterator, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -31,7 +32,7 @@ CNV_GRID = Path(MEPYLOME_TMP_DIR, f"cnv_grid_v{plotly.__version__}.json")
 class Genome:
     """Data container for reference genome data."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.chrom = pd.DataFrame(CHROMOSOME_DATA)
         self.chrom["offset"] = [0] + np.cumsum(self.chrom["len"]).tolist()[:-1]
         self.chrom["center"] = self.chrom["offset"] + self.chrom["len"] // 2
@@ -44,14 +45,14 @@ class Genome:
             self.chrom["offset"].iloc[-1] + self.chrom["len"].iloc[-1]
         )
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         """Enables looping over chromosomes."""
         return self.chrom.itertuples()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.length
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Prints overview of object for debugging purposes."""
         lines = [
             "Genome object:",
@@ -60,7 +61,7 @@ class Genome:
         ]
         return "\n".join(lines)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
 
@@ -69,7 +70,10 @@ reference_genome = Genome()
 offset = {i.name: i.offset for i in reference_genome}
 
 
-def get_df_from_zip(zip_file_path, extract=None):
+def get_df_from_zip(
+    zip_file_path: Union[str, Path],
+    extract: Optional[list[str]] = None,
+) -> list[Optional[pd.DataFrame]]:
     """Reads the CNV data from a zip file without extraxtion on disk."""
     extract = extract or ["bins", "detail", "segments"]
     zip_file_path = Path(zip_file_path).expanduser()
@@ -86,18 +90,18 @@ def get_df_from_zip(zip_file_path, extract=None):
     return extracted_dfs
 
 
-def add_offset(df, chrom_nm, col):
+def add_offset(df: pd.DataFrame, chrom_nm: str, col: str) -> pd.Series:
     """Calculates x-values of the CNV-plot."""
     return df[col] + df[chrom_nm].map(offset)
 
 
-def get_x_mid(df):
+def get_x_mid(df: pd.DataFrame) -> pd.Series:
     """Calculates the midpoint x-values of all chromosomes."""
     return df["Chromosome"].map(offset) + (df["Start"] + df["End"]) // 2
 
 
 @lru_cache
-def cnv_grid():
+def cnv_grid() -> go.Figure:
     """Returns chromosome grid for CNV Plot as a cached plotly object."""
     from plotly.io import from_json
 
@@ -144,7 +148,11 @@ def cnv_grid():
     return grid
 
 
-def cnv_bins_plot(data_frame, title, labels):
+def cnv_bins_plot(
+    data_frame: pd.DataFrame,
+    title: str,
+    labels: tuple[str, str],
+) -> go.Figure:
     """Create CNV plot from CNV data.
 
     Args:
@@ -179,7 +187,7 @@ def cnv_bins_plot(data_frame, title, labels):
     return plot
 
 
-def add_segments(plot, seg_df):
+def add_segments(plot: go.Figure, seg_df: Optional[pd.DataFrame]) -> go.Figure:
     """Adds segments calculated by Circular Binary Segmentation (CBG)."""
     if seg_df is None:
         return plot
@@ -198,12 +206,12 @@ def add_segments(plot, seg_df):
     return plot
 
 
-def add_genes(plot, genes):
+def add_genes(plot: go.Figure, genes: pd.DataFrame) -> go.Figure:
     """Add genes to the plot as bars with central crosses.
 
     Args:
         plot: The plot to which genes will be added.
-        genes (list): A list of genes to be added to the plot.
+        genes (DataFrame): A DataFrame of genes to be added to the plot.
     """
     # Draw NaN's with value 0
     genes["Median"] = genes["Median"].fillna(0)
@@ -247,7 +255,10 @@ def add_genes(plot, genes):
     return plot
 
 
-def add_highlited_bins(plot, highlighted_bins):
+def add_highlited_bins(
+    plot: go.Figure,
+    highlighted_bins: pd.DataFrame,
+) -> go.Figure:
     """Changes the color of the specified bins."""
     highlighted_bins_scatter = go.Scattergl(
         x=highlighted_bins.X_mid,
@@ -261,7 +272,10 @@ def add_highlited_bins(plot, highlighted_bins):
 
 
 @memoize
-def find_genes_within_bins(bins, detail):
+def find_genes_within_bins(
+    bins: pd.DataFrame,
+    detail: pd.DataFrame,
+) -> tuple[pd.DataFrame, list[np.ndarray]]:
     """Determine genes overlapping with each bin and add them as a column.
 
     Args:
@@ -315,7 +329,7 @@ def find_genes_within_bins(bins, detail):
     return bins_Genes, detail_Range
 
 
-def _find_genes_within_bins(bins, detail):
+def _find_genes_within_bins(bins: pd.DataFrame, detail: pd.DataFrame) -> None:
     """Does (almost) the same as find_genes_within_bins (but 20x slower).
 
     Function is used for debugging as it is much easier to read.
@@ -340,7 +354,11 @@ def _find_genes_within_bins(bins, detail):
     )
 
 
-def read_cnv_data_from_disk(cnv_dir, sample_id, extract=None):
+def read_cnv_data_from_disk(
+    cnv_dir: Union[str, Path],
+    sample_id: str,
+    extract: Optional[Iterable[str]] = None,
+) -> Union[list[pd.DataFrame], pd.DataFrame]:
     """Reads the components of a zip-file generated by CNV.write."""
     extract = extract or ["bins", "detail", "segments"]
     if isinstance(extract, str):
@@ -375,8 +393,13 @@ def read_cnv_data_from_disk(cnv_dir, sample_id, extract=None):
 
 
 def cnv_plot_from_data(
-    sample_id, bins, detail, segments, genes_fix, genes_sel
-):
+    sample_id: str,
+    bins: pd.DataFrame,
+    detail: pd.DataFrame,
+    segments: Optional[pd.DataFrame],
+    genes_fix: list[str],
+    genes_sel: list[str],
+) -> go.Figure:
     """Generate a CNV plot from data calculated by the class CNV.
 
     Args:
@@ -462,12 +485,12 @@ class CNVPlot:
 
     def __init__(
         self,
-        cnv_dir,
-        cnv_file,
-        genes=CONFIG["genes"]["default_genes_list"],
-        host="localhost",
-        port=8050,
-    ):
+        cnv_dir: Union[str, Path],
+        cnv_file: str,
+        genes: Optional[list[str]] = CONFIG["genes"]["default_genes_list"],
+        host: str = "localhost",
+        port: int = 8050,
+    ) -> None:
         """Initializes a CNVPlot object.
 
         Args:
@@ -487,7 +510,7 @@ class CNVPlot:
         self.port = port
         self.app = self.get_app()
 
-    def get_app(self):
+    def get_app(self) -> Any:
         """Generates the dash app."""
         from dash import Dash, Input, Output, callback, dcc, html, no_update
 
@@ -535,7 +558,10 @@ class CNVPlot:
                 Input("url", "pathname"),
             ],
         )
-        def update_graph(genes_sel, url_path):
+        def update_graph(
+            genes_sel: Optional[list[str]],
+            url_path: str,
+        ) -> tuple[Union[go.Figure, Any], Union[pd.DataFrame, Any], str]:
             sample_id = url_path[1:]
             try:
                 bins, detail, segments = read_cnv_data_from_disk(
@@ -555,12 +581,12 @@ class CNVPlot:
 
         return app
 
-    def run_app(self):
+    def run_app(self) -> None:
         """Opens new tab and runs app in browser."""
         init_sample_id = self.cnv_file.replace(ZIP_ENDING, "")
         free_port = get_free_port(self.port)
 
-        def open_browser_tab():
+        def open_browser_tab() -> None:
             webbrowser.open_new_tab(
                 f"http://{self.host}:{free_port}/{init_sample_id}"
             )
@@ -571,7 +597,10 @@ class CNVPlot:
         )
 
 
-def _cn_summary_per_chrom(df_seg, threshold=0.1):
+def _cn_summary_per_chrom(
+    df_seg: pd.DataFrame,
+    threshold: float = 0.1,
+) -> pd.DataFrame:
     """Generates a CN summary on disjoint intervals for a single chromosome."""
     df_seg["Gain"] = df_seg["Median"] > threshold
     df_seg["Loss"] = df_seg["Median"] < -threshold
@@ -601,7 +630,10 @@ def _cn_summary_per_chrom(df_seg, threshold=0.1):
     return pd.DataFrame(result_intervals)
 
 
-def get_cn_summary(cnv_dir, sample_ids):
+def get_cn_summary(
+    cnv_dir: Union[str, Path],
+    sample_ids: list[str],
+) -> tuple[go.Figure, pd.DataFrame]:
     """Generate a CNV summary plot for a given set of samples.
 
     This function reads CNV segment data from disk for a list of sample IDs,

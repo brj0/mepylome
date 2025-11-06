@@ -1,6 +1,8 @@
 """Writes idat files to disk or to buffer."""
 
 import io
+from pathlib import Path
+from typing import Any, BinaryIO, Optional, Union
 
 import numpy as np
 
@@ -11,27 +13,33 @@ from mepylome.dtypes.idat import (
 )
 
 
-def write_byte(outfile, value):
+def write_byte(outfile: BinaryIO, value: int) -> None:
+    """Write 1 byte."""
     outfile.write(value.to_bytes(1, byteorder="little", signed=False))
 
 
-def write_short(outfile, value):
+def write_short(outfile: BinaryIO, value: int) -> None:
+    """Write 2 bytes."""
     outfile.write(value.to_bytes(2, byteorder="little", signed=False))
 
 
-def write_int(outfile, value):
+def write_int(outfile: BinaryIO, value: int) -> None:
+    """Write 4 bytes."""
     outfile.write(value.to_bytes(4, byteorder="little", signed=True))
 
 
-def write_long(outfile, value):
+def write_long(outfile: BinaryIO, value: int) -> None:
+    """Write 8 bytes."""
     outfile.write(value.to_bytes(8, byteorder="little", signed=True))
 
 
-def write_char(outfile, value):
+def write_char(outfile: BinaryIO, value: str) -> None:
+    """Write single char."""
     outfile.write(value.encode("utf-8"))
 
 
-def write_string(outfile, value):
+def write_string(outfile: BinaryIO, value: str) -> None:
+    """Write string."""
     encoded_value = value.encode("utf-8")
     num_chars = len(encoded_value)
     num_bytes = num_chars
@@ -43,14 +51,19 @@ def write_string(outfile, value):
     outfile.write(encoded_value)
 
 
-def write_array(outfile, array):
+def write_array(outfile: BinaryIO, array: np.ndarray) -> None:
+    """Write numpy array."""
     outfile.write(array.tobytes())
 
 
 class IdatWriter:
     """Writes data to an IDAT file with dummy values for missing data."""
 
-    def __init__(self, file=None, data=None):
+    def __init__(
+        self,
+        file: Optional[Union[str, Path]] = None,
+        data: Optional[dict[str, Any]] = None,
+    ) -> None:
         """Initializes and writes data to the IDAT file or buffer."""
         self.file = file
         self.data = data
@@ -65,7 +78,7 @@ class IdatWriter:
             self._write_body(self.buffer)
             self.buffer.seek(0)  # Rewind buffer to the beginning
 
-    def _write_header(self, outfile):
+    def _write_header(self, outfile: BinaryIO) -> None:
         # Write IDAT header
         write_char(outfile, DEFAULT_IDAT_FILE_ID)
         write_long(outfile, DEFAULT_IDAT_VERSION)
@@ -77,7 +90,7 @@ class IdatWriter:
             write_short(outfile, 0)
             write_long(outfile, 0)
 
-    def _get_default(self, n_snps_read):
+    def _get_default(self, n_snps_read: int) -> dict[str, Any]:
         return {
             "n_snps_read": n_snps_read,
             "illumina_ids": np.arange(0, n_snps_read, dtype="<i4"),
@@ -115,7 +128,7 @@ class IdatWriter:
             "unknown_7": "unknown_7",
         }
 
-    def _write_body(self, outfile):
+    def _write_body(self, outfile: BinaryIO) -> None:
         # Ensure data is available or use defaults
         illumina_ids = self.data.get("illumina_ids", None)
         n_snps_read = 10 if illumina_ids is None else len(illumina_ids)
@@ -126,7 +139,7 @@ class IdatWriter:
             **{k: v for k, v in default.items() if k not in self.data},
         }
 
-        def check_type(key, dtype):
+        def check_type(key: str, dtype: str) -> None:
             if self.data[key].dtype != dtype:
                 expected = np.dtype(dtype)
                 msg = f"Invalid type: {key} must be of type {expected}."
@@ -138,7 +151,7 @@ class IdatWriter:
         check_type("n_beads", "<u1")
         check_type("mid_block", "<i4")
 
-        def get_data(key):
+        def get_data(key: str) -> Union[np.ndarray, str, int]:
             return self.data[key]
 
         offsets = {}
@@ -231,7 +244,11 @@ class IdatWriter:
             write_long(outfile, offsets[code])
 
 
-def write_idat(data=None, file=None):
+def write_idat(
+    data: Optional[dict[str, Any]] = None,
+    file: Optional[Union[str, Path]] = None,
+) -> Optional[io.BytesIO]:
+    """Write IDAT data to file or return in-memory buffer."""
     writer = IdatWriter(file=file, data=data)
     if file is None:
         return writer.buffer

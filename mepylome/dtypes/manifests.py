@@ -8,6 +8,7 @@ characteristics.
 import logging
 import pickle
 from pathlib import Path
+from typing import Any, BinaryIO, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -114,11 +115,11 @@ class Manifest:
 
     def __new__(
         cls,
-        array_type=None,
-        raw_path=None,
-        proc_path=None,
-        download_proc=True,
-    ):
+        array_type: Optional[Union[str, ArrayType]] = None,
+        raw_path: Optional[Union[str, Path]] = None,
+        proc_path: Optional[Union[str, Path]] = None,
+        download_proc: bool = True,
+    ) -> "Manifest":
         key = cache_key(array_type, raw_path, proc_path)
         if key in cls._cache:
             return cls._cache[key]
@@ -129,7 +130,7 @@ class Manifest:
         cls._cache[key] = instance
         return instance
 
-    def __getnewargs__(self):
+    def __getnewargs__(self) -> tuple:
         # Necessary for pickle
         return (
             self._init_array_type,
@@ -140,11 +141,11 @@ class Manifest:
 
     def __init__(
         self,
-        array_type=None,
-        raw_path=None,
-        proc_path=None,
-        download_proc=True,
-    ):
+        array_type: Optional[Union[str, ArrayType]] = None,
+        raw_path: Optional[Union[str, Path]] = None,
+        proc_path: Optional[Union[str, Path]] = None,
+        download_proc: bool = True,
+    ) -> None:
         if hasattr(self, "_cached"):
             return
         self._cached = True
@@ -154,7 +155,7 @@ class Manifest:
         self._init_proc_path = proc_path
         self._init_download_proc = download_proc
 
-        def to_path(x):
+        def to_path(x: Optional[Union[str, Path]]) -> Optional[Path]:
             return x if x is None else Path(x)
 
         self.array_type = ArrayType(array_type) if array_type else None
@@ -228,22 +229,22 @@ class Manifest:
             pickle.dump(self, file)
 
     @property
-    def data_frame(self):
+    def data_frame(self) -> pd.DataFrame:
         """Pandas data frame of all manifest probes."""
         return self._data_frame
 
     @property
-    def control_data_frame(self):
+    def control_data_frame(self) -> pd.DataFrame:
         """Pandas data frame of all manifest control probes."""
         return self._control_data_frame
 
     @property
-    def snp_data_frame(self):
+    def snp_data_frame(self) -> pd.DataFrame:
         """SNP probes from the manifest data frame."""
         return self._snp_data_frame
 
     @property
-    def methylation_probes(self):
+    def methylation_probes(self) -> np.ndarray:
         """All type I and II probes."""
         if self._methyl_probes is None:
             type_1 = self.probe_info(ProbeType.ONE)
@@ -259,7 +260,10 @@ class Manifest:
             self._methyl_probes = self._data_frame.iloc[idx]["IlmnID"].values
         return self._methyl_probes
 
-    def control_address(self, control_type=None):
+    def control_address(
+        self,
+        control_type: Optional[Union[str, tuple[str], list[str]]] = None,
+    ) -> pd.Series:
         """Returns address IDs of all control probes of the specified type."""
         if control_type is None:
             return self._control_data_frame.Address_ID
@@ -272,7 +276,11 @@ class Manifest:
         ].Address_ID
 
     @staticmethod
-    def load(array_types=None):
+    def load(
+        array_types: Optional[
+            Union[list[Union[str, ArrayType]], str, ArrayType]
+        ] = None,
+    ) -> None:
         """Loads specified manifests into memory.
 
         Args:
@@ -303,7 +311,7 @@ class Manifest:
 
     def _download_manifest(
         self,
-    ):
+    ) -> None:
         """Downloads the appropriate manifest file.
 
         This method downloads the manifest file based on the `array_type`
@@ -321,7 +329,7 @@ class Manifest:
         self.raw_path = DOWNLOAD_DIR / source_filename
         download_file(source_url, self.raw_path)
 
-    def _download_processed_manifest(self):
+    def _download_processed_manifest(self) -> bool:
         """Download processed manifest file and return true if successful."""
         logger.info("Downloading processed %s manifest", self.array_type)
         try:
@@ -334,13 +342,13 @@ class Manifest:
             return False
 
     @staticmethod
-    def _get_control_path(probes_path):
+    def _get_control_path(probes_path: Path) -> Path:
         """Converts probes path to the control probes path."""
         split_filename = probes_path.name.split(".")
         split_filename[0] += ENDING_CONTROL_PROBES
         return Path(probes_path.parent, ".".join(split_filename))
 
-    def _process_manifest(self, csv_filename=None):
+    def _process_manifest(self, csv_filename: Optional[str] = None) -> None:
         """Process the manifest file and save it locally to disk.
 
         This method processes the raw manifest file by extracting the necessary
@@ -395,7 +403,7 @@ class Manifest:
             controls_df.to_csv(self.ctrl_path, index=False)
 
     @staticmethod
-    def _process_probes(data_frame):
+    def _process_probes(data_frame: pd.DataFrame) -> pd.DataFrame:
         """Transforms manifest probes to a more efficient internal format."""
         rename_map = {
             "MAPINFO": "Start",
@@ -483,7 +491,9 @@ class Manifest:
         ]
         data_frame = data_frame.drop(columns=existing_drop_cols)
 
-        def get_probe_type(name, infinium_type):
+        def get_probe_type(
+            name: str, infinium_type: InfiniumDesignType
+        ) -> str:
             """Determines the probe type (I, II, SnpI, SnpII or Control)."""
             probe_type = ProbeType.from_manifest_values(name, infinium_type)
             return probe_type.value
@@ -506,7 +516,7 @@ class Manifest:
         return probes_ranges.df
 
     @staticmethod
-    def _seek_to_start(manifest_file):
+    def _seek_to_start(manifest_file: BinaryIO) -> None:
         """Move the manifest file pointer to the start of the data section.
 
         Details:
@@ -533,7 +543,7 @@ class Manifest:
         else:
             manifest_file.seek(current_pos - 1)
 
-    def _read_probes(self, probes_file):
+    def _read_probes(self, probes_file: Union[str, Path]) -> pd.DataFrame:
         """Reads and returns probes from local file `probes_file`."""
         data_frame = pd.read_csv(
             probes_file,
@@ -545,7 +555,10 @@ class Manifest:
         )
         return data_frame.reset_index(drop=True)
 
-    def _read_control_probes(self, control_file):
+    def _read_control_probes(
+        self,
+        control_file: Union[str, Path],
+    ) -> pd.DataFrame:
         """Reads and returns control probes from local file `control_file`."""
         data_frame = pd.read_csv(
             control_file,
@@ -562,12 +575,12 @@ class Manifest:
             )
         return data_frame
 
-    def _read_snp_probes(self):
+    def _read_snp_probes(self) -> pd.DataFrame:
         """Extracts SNP probes from the manifest data frame."""
         snp_df = self.data_frame.copy()
         return snp_df[snp_df.IlmnID.str.match("rs", na=False)]
 
-    def _get_data_types(self):
+    def _get_data_types(self) -> dict[str, Any]:
         """Returns data types for the manifest columns."""
         return {
             "IlmnID": np.dtype(object),
@@ -584,7 +597,11 @@ class Manifest:
             "Probe_Type": np.int8,
         }
 
-    def probe_info(self, probe_type, channel=None):
+    def probe_info(
+        self,
+        probe_type: ProbeType,
+        channel: Optional[Channel] = None,
+    ) -> pd.DataFrame:
         """Retrieves information about probes of a specified type and channel.
 
         Args:
@@ -618,7 +635,7 @@ class Manifest:
         channel_mask = data_frame["Color_Channel"].values == channel.value
         return data_frame[probe_type_mask & channel_mask]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         title = f"Manifest({self.array_type}):"
         lines = [
             title + "\n" + "*" * len(title),

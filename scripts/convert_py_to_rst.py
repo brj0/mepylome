@@ -1,11 +1,13 @@
 """This script translates the commented rtd_tutorial.py file to rst format."""
 
 from importlib.resources import files
+from pathlib import Path
 
 PACKAGE_DIR = files("mepylome")
 
 
-def parse_print_block(lines):
+def parse_print_block(lines: list[str]) -> list[str]:
+    """Format a Python docstring block for rst output."""
     result = []
     while lines[0] != '"""\n':
         line = lines.pop(0)
@@ -15,7 +17,7 @@ def parse_print_block(lines):
     return result
 
 
-def convert_py_to_rst(py_path, rst_path):
+def convert_py_to_rst(py_path: Path, rst_path: Path) -> None:
     """Converts a python file with comments to a rst file."""
     with open(py_path) as py_file:
         py_lines = py_file.readlines()

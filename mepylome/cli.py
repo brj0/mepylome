@@ -15,9 +15,10 @@ import re
 import textwrap
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import Union
 
 
-def get_app_version():
+def get_app_version() -> str:
     """Retrieve the app version from the package metadata."""
     try:
         return version("mepylome")
@@ -25,7 +26,7 @@ def get_app_version():
         return "unknown"
 
 
-def print_welcome_message():
+def print_welcome_message() -> None:
     """Prints ASCII art welcome message."""
     app_version = get_app_version()
     welcome_message = rf"""
@@ -45,7 +46,7 @@ Starting Methylation Analysis...
     print(welcome_message)
 
 
-def absolute_path(path):
+def absolute_path(path: Union[str, Path]) -> Path:
     """Converts a relative path to an absolute path."""
     return Path(path).absolute()
 
@@ -56,7 +57,7 @@ class SmartFormatter(argparse.ArgumentDefaultsHelpFormatter):
     Source: https://gist.github.com/panzi/b4a51b3968f67b9ff4c99459fb9c5b3d
     """
 
-    def _split_lines(self, text, width):
+    def _split_lines(self, text: str, width: int) -> list[str]:
         lines = []
         for line in textwrap.dedent(text).strip().split("\n"):
             ident = re.match(r"^\s*", line).group(0)
@@ -72,18 +73,18 @@ class SmartFormatter(argparse.ArgumentDefaultsHelpFormatter):
             lines.append(" ".join(curr_line))
         return lines
 
-    def _fill_text(self, text, width, indent):
+    def _fill_text(self, text: str, width: int, indent: str) -> str:
         return "\n".join(
             indent + line
             for line in self._split_lines(text, width - len(indent))
         )
 
-    def _format_action(self, action):
+    def _format_action(self, action: argparse.Action) -> str:
         """Adds an extra newline after each option."""
         return super()._format_action(action) + "\n"
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """Parses command line arguments."""
     parser = argparse.ArgumentParser(
         description=(
@@ -431,7 +432,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def start_mepylome():
+def start_mepylome() -> None:
     """Entry point to start mepylome methylation analysis from command line."""
     args = parse_args()
 

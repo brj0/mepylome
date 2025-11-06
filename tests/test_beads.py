@@ -12,7 +12,7 @@ from mepylome.tests.helpers import TempIdatFilePair, TempManifest
 class TestIdatPreprocessing(unittest.TestCase):
     """Unittest for IDAT preprocessing."""
 
-    def test_raw_data(self):
+    def test_raw_data(self) -> None:
         tmp_manifest = TempManifest()
         manifest = Manifest(raw_path=tmp_manifest.path)
         manifest.array_type = ArrayType.UNKNOWN
@@ -27,7 +27,12 @@ class TestIdatPreprocessing(unittest.TestCase):
         manifest.ctrl_path.unlink()
         manifest._pickle_path.unlink()
 
-    def _test_raw_data(self, n_cpgs, manifest, n_probes):
+    def _test_raw_data(
+        self,
+        n_cpgs: int,
+        manifest: Manifest,
+        n_probes: int,
+    ) -> None:
         id_list = sorted(
             (
                 set(manifest.data_frame.AddressA_ID)
@@ -104,7 +109,7 @@ class TestIdatPreprocessing(unittest.TestCase):
             for prep in ["raw", "illumina", "swan", "noob"]:
                 self.assertIsNotNone(MethylData(raw_data, prep=prep))
 
-    def _test_methyl_data_raw(self, raw_data):
+    def _test_methyl_data_raw(self, raw_data: RawData) -> None:
         """Test MethylData with raw preparation."""
         methyl_data = MethylData(raw_data, prep="raw")
 
@@ -124,7 +129,7 @@ class TestIdatPreprocessing(unittest.TestCase):
         )
         npt.assert_array_equal(methyl_data.unmethyl, expected_unmethyl)
 
-    def _test_methyl_data_illumina(self, raw_data):
+    def _test_methyl_data_illumina(self, raw_data: RawData) -> None:
         """Test MethylData with illumina preparation."""
         methyl_data = MethylData(raw_data, prep="illumina")
 
@@ -148,7 +153,7 @@ class TestIdatPreprocessing(unittest.TestCase):
             methyl_data.unmethyl[:, [1, 5, 7, 13]], expected_unmethyl
         )
 
-    def _test_methyl_data_noob(self, raw_data):
+    def _test_methyl_data_noob(self, raw_data: RawData) -> None:
         """Test MethylData with noob preparation."""
         methyl_data = MethylData(raw_data, prep="noob")
 
@@ -172,7 +177,7 @@ class TestIdatPreprocessing(unittest.TestCase):
             methyl_data.unmethyl[:, [1, 5, 7, 13]], expected_unmethyl
         )
 
-    def _test_methyl_data_swan(self, raw_data):
+    def _test_methyl_data_swan(self, raw_data: RawData) -> None:
         """Test MethylData with swan preparation."""
         methyl_data = MethylData(raw_data, prep="swan", seed=1234)
 

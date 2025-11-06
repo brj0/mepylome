@@ -4,6 +4,8 @@ import gzip
 import io
 import os
 from enum import IntEnum, unique
+from pathlib import Path
+from typing import BinaryIO, Union
 
 import numpy as np
 
@@ -15,27 +17,27 @@ DEFAULT_IDAT_VERSION = 3
 DEFAULT_IDAT_FILE_ID = "IDAT"
 
 
-def read_byte(infile):
+def read_byte(infile: BinaryIO) -> int:
     return int.from_bytes(infile.read(1), byteorder="little", signed=False)
 
 
-def read_short(infile):
+def read_short(infile: BinaryIO) -> int:
     return int.from_bytes(infile.read(2), byteorder="little", signed=False)
 
 
-def read_int(infile):
+def read_int(infile: BinaryIO) -> int:
     return int.from_bytes(infile.read(4), byteorder="little", signed=True)
 
 
-def read_long(infile):
+def read_long(infile: BinaryIO) -> int:
     return int.from_bytes(infile.read(8), byteorder="little", signed=True)
 
 
-def read_char(infile, num_bytes):
+def read_char(infile: BinaryIO, num_bytes: int) -> str:
     return infile.read(num_bytes).decode("utf-8")
 
 
-def read_string(infile):
+def read_string(infile: BinaryIO) -> str:
     num_bytes = read_byte(infile)
     num_chars = num_bytes % 128
     shift = 0
@@ -47,7 +49,11 @@ def read_string(infile):
     return read_char(infile, num_chars)
 
 
-def read_array(infile, dtype, n):
+def read_array(
+    infile: BinaryIO,
+    dtype: Union[str, np.dtype],
+    n: int,
+) -> np.ndarray:
     dtype = np.dtype(dtype)
     total_size = dtype.itemsize * n
     alldata = infile.read(total_size)
@@ -84,7 +90,9 @@ class IdatSectionCode(IntEnum):
     NUM_SNPS_READ = 1000
 
 
-def _get_file_size(file_like):
+def _get_file_size(
+    file_like: Union[io.BufferedReader, gzip.GzipFile, io.BytesIO],
+) -> int:
     """Get the size of a file-like object."""
     # Check if the file-like object has a fileno method
     if isinstance(file_like, (io.BufferedReader, gzip.GzipFile)):
@@ -121,11 +129,11 @@ class IdatParser:
 
     def __init__(
         self,
-        file,
+        file: Union[str, Path, BinaryIO],
         *,
-        intensity_only=False,
-        array_type_only=False,
-    ):
+        intensity_only: bool = False,
+        array_type_only: bool = False,
+    ) -> None:
         """Reads and parses the IDAT file."""
         self.intensity_only = intensity_only
         self.array_type_only = array_type_only
@@ -136,7 +144,7 @@ class IdatParser:
             self._parse_header(idat_file)
             self._parse_body(idat_file)
 
-    def _parse_header(self, idat_file):
+    def _parse_header(self, idat_file: BinaryIO) -> None:
         file_type = read_char(idat_file, len(DEFAULT_IDAT_FILE_ID))
         # Assert file is indeed IDAT format
         if file_type != DEFAULT_IDAT_FILE_ID:
@@ -163,8 +171,8 @@ class IdatParser:
             for _ in range(self.num_fields)
         }
 
-    def _parse_body(self, idat_file):
-        def seek_to_section(section_code):
+    def _parse_body(self, idat_file: BinaryIO) -> None:
+        def seek_to_section(section_code: "IdatSectionCode") -> None:
             idat_file.seek(self.offsets[section_code.value])
 
         seek_to_section(IdatSectionCode.NUM_SNPS_READ)
@@ -241,7 +249,7 @@ class IdatParser:
         seek_to_section(IdatSectionCode.UNKNOWN_7)
         self.unknown_7 = read_string(idat_file)
 
-    def __repr__(self):
+    def __repr__(self) -> None:
         with np.printoptions(edgeitems=2):
             result = (
                 f"IdatParser(\n"

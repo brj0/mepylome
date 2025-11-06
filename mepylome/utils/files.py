@@ -83,7 +83,7 @@ def download_file(
             )
         return
 
-    def _single_download(temp_path) -> None:
+    def _single_download(temp_path: Path) -> None:
         if temp_path.exists() and not overwrite:
             mode = "ab"  # resume partial download
             resume_size = temp_path.stat().st_size
@@ -168,7 +168,7 @@ def download_files(
     overwrite: bool = False,
     show_progress: bool = True,
     max_workers: Union[int, None] = None,
-):
+) -> None:
     """Download multiple files in parallel with optional progress bar.
 
     Args:

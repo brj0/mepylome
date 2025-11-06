@@ -2,6 +2,7 @@
 
 import gzip
 import uuid
+from pathlib import Path
 
 from mepylome.tests.write_idat import IdatWriter
 from mepylome.utils.files import (
@@ -14,7 +15,7 @@ TEST_DIR = MEPYLOME_TMP_DIR / "tests"
 ensure_directory_exists(TEST_DIR)
 
 
-def _write_binary(path, value):
+def _write_binary(path: Path, value: bytes) -> None:
     if path.suffix == ".gz":
         with gzip.open(path, "wb") as gz_file:
             gz_file.write(value)
@@ -26,7 +27,7 @@ def _write_binary(path, value):
 class TempIdatFile:
     """Creates a temporary IDAT file."""
 
-    def __init__(self, data, gzipped=False):
+    def __init__(self, data: dict, gzipped: bool = False) -> None:
         suffix = "idat.gz" if gzipped else ".idat"
         basename = str(uuid.uuid4())
         self.path = TEST_DIR / (basename + suffix)
@@ -37,14 +38,19 @@ class TempIdatFile:
         # Write the IDAT data to the file
         _write_binary(self.path, idat_writer.buffer.getvalue())
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.path.unlink()
 
 
 class TempIdatFilePair:
     """Creates a temporary IDAT file pair."""
 
-    def __init__(self, data_grn, data_red, gzipped=False):
+    def __init__(
+        self,
+        data_grn: dict,
+        data_red: dict,
+        gzipped: bool = False,
+    ) -> None:
         basename = str(uuid.uuid4())
         suffix = "idat.gz" if gzipped else ".idat"
         self.basepath = TEST_DIR / basename
@@ -61,7 +67,7 @@ class TempIdatFilePair:
         _write_binary(self.path_grn, idat_writer_grn.buffer.getvalue())
         _write_binary(self.path_red, idat_writer_red.buffer.getvalue())
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.path_grn.unlink()
         self.path_red.unlink()
 
@@ -122,10 +128,10 @@ rs715359,rs715359,18796328,TTATTAAACTCTCACCACTAACTTTCTACTTCTCTCAAAATCAAAACCTC,48
 class TempManifest:
     """Creates a temporary manifest file."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         basename = str(uuid.uuid4())
         self.path = TEST_DIR / ("tmp_manifest_" + basename + ".csv")
         _write_binary(self.path, TEST_MANIFEST_CSV)
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.path.unlink()
