@@ -45,7 +45,7 @@ class ProbeType(IntEnum):
     CONTROL = 5
 
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
     @staticmethod
     def from_manifest_values(
