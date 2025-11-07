@@ -7,7 +7,9 @@ import traceback
 from functools import lru_cache, partial
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
+from typing import Any, Optional, Sequence, Union
 
+import pandas as pd
 import plotly.colors
 import plotly.express as px
 import plotly.graph_objects as go
@@ -41,13 +43,18 @@ ZIP_ENDING = CONFIG["suffixes"]["cnv_zip"]
 logger = logging.getLogger(__name__)
 
 
-def hash_from_str(string):
+def hash_from_str(string: str) -> int:
     """Calculates a pseudorandom int from a string."""
     hash_str = hashlib.blake2b(string.encode(), digest_size=16).hexdigest()
     return int(hash_str, 16)
 
 
-def random_color(string, i, n_strings, rand):
+def random_color(
+    string: str,
+    i: int,
+    n_strings: int,
+    rand: int,
+) -> tuple[int, int, int]:
     """Generate a random RGB color for a given string-name.
 
     Ensures the color is unique and distributed across the hue spectrum.
@@ -73,7 +80,7 @@ def random_color(string, i, n_strings, rand):
     return tuple(int(255 * x) for x in rgb_frac)
 
 
-def discrete_colors(names):
+def discrete_colors(names: Sequence[str]) -> dict[str, str]:
     """Returns a colorscheme for all methylation classes."""
     sorted_names = sorted(names, key=hash_from_str)
     n_names = len(sorted_names)
@@ -84,7 +91,7 @@ def discrete_colors(names):
     }
 
 
-def continuous_colors(names):
+def continuous_colors(names: Sequence[str]) -> dict[str, str]:
     """Returns a continuous colorscheme for all methylation classes."""
     n_names = len(names)
     color_scale = plotly.colors.get_colorscale("Plasma")
@@ -98,7 +105,7 @@ def continuous_colors(names):
     return colors
 
 
-def _mixed_sort_key(s):
+def _mixed_sort_key(s: Union[str, float]) -> tuple[int, Union[float, str]]:
     """Sorts numeric if input is a number, else alphanumeric."""
     try:
         return (0, float(s))
@@ -106,7 +113,10 @@ def _mixed_sort_key(s):
         return (1, s)
 
 
-def umap_plot_from_data(umap_df, use_discrete_colors=True):
+def umap_plot_from_data(
+    umap_df: pd.DataFrame,
+    use_discrete_colors: bool = True,
+) -> go.Figure:
     """Create and return umap plot from UMAP data.
 
     Args:
@@ -159,7 +169,10 @@ def umap_plot_from_data(umap_df, use_discrete_colors=True):
     return umap_plot
 
 
-def get_reference_methyl_data(reference_dir, prep):
+def get_reference_methyl_data(
+    reference_dir: Union[str, Path],
+    prep: str,
+) -> ReferenceMethylData:
     """Loads and caches CNV-neutral reference data."""
     try:
         reference = ReferenceMethylData(
@@ -172,8 +185,12 @@ def get_reference_methyl_data(reference_dir, prep):
 
 
 def write_single_cnv_to_disk(
-    idat_basepath, reference_dir, cnv_dir, prep, do_seg
-):
+    idat_basepath: Path,
+    reference_dir: Union[str, Path],
+    cnv_dir: Union[str, Path],
+    prep: str,
+    do_seg: bool,
+) -> None:
     """Performs CNV analysis on a single sample and writes results to disk."""
     sample_id = idat_basepath.name
     try:
@@ -205,7 +222,7 @@ def write_single_cnv_to_disk(
             f.write(error_message)
 
 
-def get_optimal_core_count(reserve_mem_gb=1.0):
+def get_optimal_core_count(reserve_mem_gb: float = 1.0) -> int:
     """Determine optimal core count based on CPU and memory constraints."""
     process = psutil.Process()
     current_proc_mem_gb = process.memory_info().rss / 1e9
@@ -222,8 +239,14 @@ def get_optimal_core_count(reserve_mem_gb=1.0):
 
 
 def write_cnv_to_disk(
-    sample_path, reference_dir, cnv_dir, prep, do_seg, pbar=None, n_cores=None
-):
+    sample_path: Sequence[Path],
+    reference_dir: Union[str, Path],
+    cnv_dir: Union[str, Path],
+    prep: str,
+    do_seg: bool,
+    pbar: Optional[Any] = None,
+    n_cores: Optional[int] = None,
+) -> None:
     """Generate and save CNV-analysis output files for given samples.
 
     Saves CNV data with a ZIP_ENDING extension, or an error message with an
@@ -290,7 +313,14 @@ def write_cnv_to_disk(
 
 
 @lru_cache
-def get_cnv_plot(sample_path, reference_dir, prep, cnv_dir, genes_sel, do_seg):
+def get_cnv_plot(
+    sample_path: Path,
+    reference_dir: Union[str, Path],
+    prep: str,
+    cnv_dir: Union[str, Path],
+    genes_sel: Sequence[str],
+    do_seg: bool,
+) -> go.Figure:
     """Generate and return a CNV plot for a given sample.
 
     Args:

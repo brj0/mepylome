@@ -7,6 +7,7 @@ import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -48,29 +49,34 @@ class ProgressBar:
         lock (threading.Lock): A lock to ensure thread safety.
     """
 
-    def __init__(self, max_value=100, text=""):
+    def __init__(self, max_value: int = 100, text: str = "") -> None:
         self.cur_value = 0
         self.max_value = int(max_value)
         self.text = str(text)
         self.lock = threading.Lock()
 
-    def reset(self, max_value=100, cur_value=0, text=""):
+    def reset(
+        self,
+        max_value: int = 100,
+        cur_value: int = 0,
+        text: str = "",
+    ) -> None:
         with self.lock:
             self.cur_value = cur_value
             self.max_value = int(max_value)
             self.text = str(text)
 
-    def increment(self, n=1):
+    def increment(self, n: int = 1) -> None:
         with self.lock:
             self.cur_value = min(self.cur_value + n, self.max_value)
 
-    def get_progress(self):
+    def get_progress(self) -> int:
         with self.lock:
             if self.max_value == 0:
                 return 100
             return self.cur_value * 100 // self.max_value
 
-    def get_text(self):
+    def get_text(self) -> str:
         with self.lock:
             if self.cur_value == self.max_value:
                 out_str = "100 %"
@@ -80,7 +86,7 @@ class ProgressBar:
                 )
             return out_str
 
-    def __str__(self):
+    def __str__(self) -> str:
         lines = [
             "ProgressBar(",
             f"    cur_value: {self.cur_value}",
@@ -90,11 +96,11 @@ class ProgressBar:
         ]
         return "\n".join(lines)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
 
-def read_dataframe(path, **kwargs):
+def read_dataframe(path: Union[str, Path], **kwargs: Any) -> pd.DataFrame:
     """Reads a DataFrame from the specified file path.
 
     Supports ods, xlsx, xls, csv (comma-separated), csv (column-separated), and
@@ -145,13 +151,15 @@ def guess_annotation_file(directory: Path) -> Path:
     return INVALID_PATH
 
 
-def extract_sentrix_id(text):
+def extract_sentrix_id(text: Any) -> str:
     """Extracts the Sentrix ID from a given text if found."""
     matches = re.findall(r"\d+_R\d{2}C\d{2}", str(text))
     return matches[-1] if matches else text
 
 
-def convert_to_sentrix_ids(data):
+def convert_to_sentrix_ids(
+    data: Optional[Union[dict, set, list]],
+) -> Optional[Union[dict, set, list]]:
     """Tries to convert every ID in 'data' to a Sentrix ID."""
     if data is None:
         return None
@@ -229,14 +237,14 @@ class IdatHandler:
 
     def __init__(
         self,
-        analysis_dir,
+        analysis_dir: Union[str, Path],
         *,
-        annotation=None,
-        test_dir=None,
-        test_ids=None,
-        overlap=False,
-        analysis_ids=None,
-    ):
+        annotation: Optional[Union[str, Path]] = None,
+        test_dir: Optional[Union[str, Path]] = None,
+        test_ids: Optional[Sequence[str]] = None,
+        overlap: bool = False,
+        analysis_ids: Optional[Sequence[str]] = None,
+    ) -> None:
         # Initialize paths and attributes
         self.analysis_dir = Path(analysis_dir)
         self.annotation = (
@@ -276,7 +284,7 @@ class IdatHandler:
         # Validation
         self._warn_on_sample_overlap()
 
-    def parameters(self):
+    def parameters(self) -> dict[str, Any]:
         """Returns the initialization attributes, potentially modified."""
         return {
             "analysis_dir": self.analysis_dir,
@@ -287,7 +295,10 @@ class IdatHandler:
             "analysis_ids": self.analysis_ids,
         }
 
-    def _get_id_to_path(self, directory):
+    def _get_id_to_path(
+        self,
+        directory: Optional[Union[str, Path]],
+    ) -> dict[str, Path]:
         """Retrieve valid IDAT sample IDs and paths from a directory."""
         if not directory or not Path(directory).exists():
             return {}
@@ -296,7 +307,7 @@ class IdatHandler:
             for path in idat_basepaths(directory, only_valid=True)
         }
 
-    def _read_annotation_file(self):
+    def _read_annotation_file(self) -> pd.DataFrame:
         try:
             return read_dataframe(self.annotation)
         except (FileNotFoundError, ValueError):
@@ -305,7 +316,7 @@ class IdatHandler:
             )
             return pd.DataFrame()
 
-    def _identify_annotation_index(self):
+    def _identify_annotation_index(self) -> tuple[bool, Optional[str]]:
         """Identify the appropriate annotation column.
 
         This method checks the columns of `self.annotation_df` to determine
@@ -376,7 +387,11 @@ class IdatHandler:
 
         return is_sentrix, best_col
 
-    def _set_annotation_index_and_convert_ids(self, id_missmatch, col_name):
+    def _set_annotation_index_and_convert_ids(
+        self,
+        id_missmatch: bool,
+        col_name: Optional[str],
+    ) -> None:
         """Set annotation index and convert IDs to Sentrix format if needed."""
         if col_name is None:
             logger.info(
@@ -402,7 +417,7 @@ class IdatHandler:
         self.test_ids = convert_to_sentrix_ids(self.test_ids)
         logger.info("Extracted Sentrix IDs from column '%s'", col_name)
 
-    def _get_samples_annotated(self):
+    def _get_samples_annotated(self) -> pd.DataFrame:
         result_df = pd.DataFrame(index=self.id_to_path.keys())
 
         # Remove duplicate rows
@@ -420,11 +435,15 @@ class IdatHandler:
 
         return result_df
 
-    def _restrict_sample_ids(self):
+    def _restrict_sample_ids(self) -> None:
         """Restricts samples to the ones in 'analysis_ids' and 'test_ids'."""
         # NOTE: This must be after _set_annotation_index_and_convert_ids
 
-        def restrict_and_validate(ids, id_to_path, id_type):
+        def restrict_and_validate(
+            ids: Optional[list[str]],
+            id_to_path: dict[str, Path],
+            id_type: str,
+        ) -> dict[str, Path]:
             if not ids:
                 return id_to_path
 
@@ -448,7 +467,7 @@ class IdatHandler:
             self.test_ids, self.test_id_to_path, "test"
         )
 
-    def _apply_overlap_filter(self):
+    def _apply_overlap_filter(self) -> None:
         """Filter samples to include only those IDATs present in annotation."""
         if not self.overlap:
             return
@@ -462,7 +481,7 @@ class IdatHandler:
             if x in valid_ids
         }
 
-    def _warn_on_sample_overlap(self):
+    def _warn_on_sample_overlap(self) -> None:
         """Warn about overlapping samples between analysis and test samples."""
         n_inters = len(
             set(self.analysis_id_to_path.keys()).intersection(self.test_ids)
@@ -475,26 +494,30 @@ class IdatHandler:
                 stacklevel=2,
             )
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.id_to_path)
 
     @property
-    def ids(self):
+    def ids(self) -> list[str]:
         return list(self.id_to_path.keys())
 
     @property
-    def idat_basenames(self):
+    def idat_basenames(self) -> list[str]:
         return list(self.basename_to_id.keys())
 
     @property
-    def paths(self):
+    def paths(self) -> list[Path]:
         return list(self.id_to_path.values())
 
     @property
-    def columns(self):
+    def columns(self) -> list[str]:
         return self.samples_annotated.columns.tolist()
 
-    def features(self, columns=None, separator="|"):
+    def features(
+        self,
+        columns: Optional[Union[str, Sequence[str]]] = None,
+        separator: str = "|",
+    ) -> list[str]:
         """Combines specified columns into a single label per sample.
 
         If `columns` is not provided, it defaults to the first column in
@@ -531,12 +554,12 @@ class IdatHandler:
             .tolist()
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         title = f"{self.__class__.__name__}()"
         header = title + "\n" + "*" * len(title)
         lines = [header]
 
-        def format_value(value):
+        def format_value(value: object) -> tuple[str, str]:
             length_info = ""
             if isinstance(value, (pd.DataFrame, pd.Series, pd.Index)):
                 display_value = str(value)
@@ -560,11 +583,11 @@ class IdatHandler:
             lines.append(f"{attr}:\n{display_value}{length_info}")
         return "\n\n".join(lines)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
 
-def check_memory(nrows, ncols, dtype):
+def check_memory(nrows: int, ncols: int, dtype: Union[type, np.dtype]) -> None:
     """Checks if sufficient free memory is available for a given numpy array.
 
     Raises:
@@ -585,7 +608,7 @@ def check_memory(nrows, ncols, dtype):
         raise MemoryError(msg)
 
 
-def get_array_cpgs():
+def get_array_cpgs() -> dict[ArrayType, np.ndarray]:
     """Returns all CpG sites for all array types."""
     path = MEPYLOME_TMP_DIR / "all_cpgs.pkl"
     if not path.exists():
@@ -622,7 +645,11 @@ class BetasHandler:
 
     """
 
-    def __init__(self, directory, array_cpgs=None):
+    def __init__(
+        self,
+        directory: Union[str, Path],
+        array_cpgs: Optional[dict[ArrayType, np.ndarray]] = None,
+    ) -> None:
         self.basedir = Path(directory).expanduser()
         self.array_cpgs = array_cpgs
         if self.array_cpgs is None:
@@ -640,27 +667,41 @@ class BetasHandler:
         self.update()
 
     @property
-    def filenames(self):
+    def filenames(self) -> list[str]:
         """Returns all idat basenames."""
         return list(self.paths.keys())
 
     @property
-    def invalid_filenames(self):
+    def invalid_filenames(self) -> list[str]:
         """Returns all invalid invalid basenames."""
         return list(self.invalid_paths.keys())
 
-    def add(self, betas, filename, array_type):
+    def add(
+        self,
+        betas: np.ndarray,
+        filename: str,
+        array_type: ArrayType,
+    ) -> None:
         """Adds beta values to the file system on disk."""
         betas.astype(DTYPE).tofile(self.dir[array_type] / filename)
 
-    def add_error(self, filename, msg):
+    def add_error(
+        self,
+        filename: str,
+        msg: Any,
+    ) -> None:
         """Adds error message to the file system on disk."""
         with (self.dir["error"] / filename).open("w") as f:
             f.write(str(msg))
 
     def get(
-        self, idat_handler, cpgs, ids=None, fill=NEUTRAL_BETA, parallel=True
-    ):
+        self,
+        idat_handler: IdatHandler,
+        cpgs: Sequence[str],
+        ids: Optional[Sequence[str]] = None,
+        fill: float = NEUTRAL_BETA,
+        parallel: bool = True,
+    ) -> pd.DataFrame:
         """Retrieves beta values for specified IDs and CpGs."""
         if ids is None:
             filenames = [
@@ -686,7 +727,7 @@ class BetasHandler:
         for key, item in self.array_cpgs.items():
             left_idx[key], right_idx[key] = _overlap_indices(cpgs, item)
 
-        def process_beta_value(i, filename):
+        def process_beta_value(i: int, filename: str) -> None:
             path = self.paths.get(filename)
             if path is not None:
                 key = self.array_type_from_dir[path.parent]
@@ -715,8 +756,13 @@ class BetasHandler:
         return pd.DataFrame(beta_matrix, columns=cpgs, index=ids)
 
     def columnwise_variance(
-        self, idat_handler, cpgs, ids=None, fill=NEUTRAL_BETA, parallel=True
-    ):
+        self,
+        idat_handler: IdatHandler,
+        cpgs: Sequence[str],
+        ids: Optional[Sequence[str]] = None,
+        fill: float = NEUTRAL_BETA,
+        parallel: bool = True,
+    ) -> np.ndarray:
         """Calculates the column-wise variance over all beta values.
 
         This method is memory-efficient and uses Welford’s online algorithm,
@@ -746,7 +792,7 @@ class BetasHandler:
         for key, item in self.array_cpgs.items():
             left_idx[key], right_idx[key] = _overlap_indices(cpgs, item)
 
-        def get_row(filename):
+        def get_row(filename: str) -> Optional[np.ndarray]:
             path = self.paths.get(filename)
             if path is None:
                 return None
@@ -756,7 +802,7 @@ class BetasHandler:
             row[left_idx[key]] = betas[right_idx[key]]
             return row
 
-        def update_stats(row):
+        def update_stats(row: np.ndarray) -> None:
             nonlocal count, mean, M2
             count += 1
             delta = row - mean
@@ -788,7 +834,7 @@ class BetasHandler:
             return M2 / (count - 1)
         return np.zeros(len(cpgs), dtype=DTYPE)
 
-    def update(self):
+    def update(self) -> None:
         """Updates the paths if beta vales were added after initialization."""
         self.paths = {
             path.name: path
@@ -800,7 +846,7 @@ class BetasHandler:
         }
 
 
-def extract_beta(data):
+def extract_beta(data: tuple[Path, str, BetasHandler]) -> None:
     """Extracts and saves beta values for specified CpGs from an IDAT file."""
     idat_file, prep, betas_handler = data
     try:
@@ -814,8 +860,13 @@ def extract_beta(data):
 
 
 def ensure_betas_exist(
-    idat_handler, cpgs, prep, betas_dir, ids=None, pbar=None
-):
+    idat_handler: IdatHandler,
+    cpgs: Sequence[str],
+    prep: str,
+    betas_dir: Path,
+    ids: Optional[Sequence[str]] = None,
+    pbar: Optional[ProgressBar] = None,
+) -> BetasHandler:
     """Ensures all beta files are extracted and available.
 
     Args:
@@ -859,7 +910,14 @@ def ensure_betas_exist(
     return betas_handler
 
 
-def get_betas(idat_handler, cpgs, prep, betas_dir, ids=None, pbar=None):
+def get_betas(
+    idat_handler: IdatHandler,
+    cpgs: Sequence[str],
+    prep: str,
+    betas_dir: Path,
+    ids: Optional[Sequence[str]] = None,
+    pbar: Optional[ProgressBar] = None,
+) -> pd.DataFrame:
     """Extracts and processes beta values from IDAT files.
 
     This function processes IDAT files to extract beta values for specified
@@ -886,8 +944,14 @@ def get_betas(idat_handler, cpgs, prep, betas_dir, ids=None, pbar=None):
 
 
 def get_columnwise_variance(
-    idat_handler, cpgs, prep, betas_dir, pbar=None, ids=None, parallel=True
-):
+    idat_handler: IdatHandler,
+    cpgs: Sequence[str],
+    prep: str,
+    betas_dir: Path,
+    pbar: Optional[ProgressBar] = None,
+    ids: Optional[Sequence[str]] = None,
+    parallel: bool = True,
+) -> np.ndarray:
     """Computes column-wise variance of beta values for specified CpGs.
 
     Returns:
@@ -901,7 +965,9 @@ def get_columnwise_variance(
     )
 
 
-def reordered_cpgs_by_variance(data_frame):
+def reordered_cpgs_by_variance(
+    data_frame: pd.DataFrame,
+) -> tuple[pd.Index, np.ndarray]:
     """Returns CpG and their variances, ordered by descending variance."""
     logger.info("Reordering CpG's by variance...")
     variances = np.var(data_frame.values, axis=0)
@@ -912,8 +978,14 @@ def reordered_cpgs_by_variance(data_frame):
 
 
 def reordered_cpgs_by_variance_online(
-    idat_handler, cpgs, prep, betas_dir, pbar=None, ids=None, parallel=True
-):
+    idat_handler: IdatHandler,
+    cpgs: Sequence[str],
+    prep: str,
+    betas_dir: Path,
+    pbar: Optional[ProgressBar] = None,
+    ids: Optional[Sequence[str]] = None,
+    parallel: bool = True,
+) -> tuple[Sequence[str], np.ndarray]:
     """Returns CpG and their variances, ordered by descending variance."""
     logger.info("Reordering CpG's by variance (low-memory)...")
     variances = get_columnwise_variance(
@@ -931,7 +1003,7 @@ def reordered_cpgs_by_variance_online(
     return sorted_columns, sorted_variances
 
 
-def get_mlh1_report_template():
+def get_mlh1_report_template() -> str:
     """Returns HTML template of the MLH1 report."""
     return """
 <!DOCTYPE html>
@@ -1035,7 +1107,7 @@ def get_mlh1_report_template():
 """
 
 
-def interpret_methylation(median):
+def interpret_methylation(median: float) -> str:
     """Interpretation of median according to internal tests."""
     if median < 0.2:
         return "Unmethylated"
@@ -1045,7 +1117,7 @@ def interpret_methylation(median):
         return "Unclear"
 
 
-def make_single_mlh1_report_page(probes):
+def make_single_mlh1_report_page(probes: pd.Series) -> str:
     """Generate an HTML report for MLH1 promoter methylation of a sample.
 
     Args:

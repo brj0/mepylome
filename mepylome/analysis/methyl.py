@@ -16,6 +16,7 @@ import time
 import webbrowser
 from collections import Counter
 from pathlib import Path
+from typing import Any, Optional, Sequence, Union
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -49,6 +50,7 @@ from mepylome.analysis.methyl_aux import (
     reordered_cpgs_by_variance_online,
 )
 from mepylome.analysis.methyl_clf import (
+    ClassifierResult,
     fit_and_evaluate_clf,
 )
 from mepylome.analysis.methyl_plots import (
@@ -117,28 +119,33 @@ class DualOutput:
     jupyter notebooks.
     """
 
-    def __init__(self, filename):
+    def __init__(self, filename: Union[str, Path]) -> None:
         self.terminal = sys.stdout
         self.log = open(filename, "a")
 
-    def write(self, message):
+    def write(self, message: str) -> None:
         self.terminal.write(message)
         self.log.write(message)
         self.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         self.terminal.flush()
         self.log.flush()
 
-    def close(self):
+    def close(self) -> None:
         self.log.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "DualOutput":
         self.original_stdout = sys.stdout
         sys.stdout = self
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
         sys.stdout = self.original_stdout
         self.close()
 
@@ -148,12 +155,12 @@ ensure_directory_exists(MEPYLOME_TMP_DIR)
 ensure_directory_exists(LOG_DIR)
 
 
-def get_all_genes():
+def get_all_genes() -> list[str]:
     """Returns a list of names for all genes."""
     return Annotation.default_genes().df.Name.tolist()
 
 
-def get_navbar():
+def get_navbar() -> dbc.Navbar:
     """Returns a navigation bar with a logo and title."""
     logo = html.Img(src="/assets/mepylome.svg", height="30px")
     title = dbc.NavbarBrand("Methylation Analysis", className="ms-2")
@@ -183,24 +190,24 @@ def get_navbar():
 
 def get_side_navigation(
     *,
-    sample_ids,
-    ids_to_highlight,
-    annotation_columns,
-    analysis_dir,
-    annotation,
-    reference_dir,
-    output_dir,
-    cpgs,
-    n_cpgs,
-    prep,
-    precalculate,
-    cpg_selection,
-    n_neighbors,
-    metric,
-    min_dist,
-    use_discrete_colors,
-    custom_clfs,
-):
+    sample_ids: Sequence[str],
+    ids_to_highlight: Sequence[str],
+    annotation_columns: Sequence[str],
+    analysis_dir: Path,
+    annotation: Path,
+    reference_dir: Path,
+    output_dir: Path,
+    cpgs: Sequence[str],
+    n_cpgs: int,
+    prep: str,
+    precalculate: bool,
+    cpg_selection: str,
+    n_neighbors: int,
+    metric: str,
+    min_dist: float,
+    use_discrete_colors: bool,
+    custom_clfs: Sequence[dict[str, Any]],
+) -> Any:
     """Generates a side navigation panel for setting up parameters."""
     n_cpgs_max = np.inf if len(cpgs) == 0 else len(cpgs)
     n_cpgs_max_str = "" if n_cpgs_max == np.inf else f" (max. {n_cpgs_max})"
@@ -543,7 +550,11 @@ def get_side_navigation(
     return dbc.Col([dbc.Tabs(tabs)], width={"size": 2})
 
 
-def extract_sub_dataframe(data_frame, columns, fill=0.49):
+def extract_sub_dataframe(
+    data_frame: pd.DataFrame,
+    columns: Sequence[str],
+    fill: float = 0.49,
+) -> pd.DataFrame:
     """Extracts a sub-dataframe based on the intersection of provided columns.
 
     Args:
@@ -561,7 +572,10 @@ def extract_sub_dataframe(data_frame, columns, fill=0.49):
     return pd.DataFrame(result_np, columns=columns, index=data_frame.index)
 
 
-def get_balanced_indices(feature_labels, seed=None):
+def get_balanced_indices(
+    feature_labels: Sequence[str],
+    seed: Optional[int] = None,
+) -> np.ndarray:
     """Returns indices of a balanced selection of feature labels.
 
     Args:
@@ -596,7 +610,9 @@ def get_balanced_indices(feature_labels, seed=None):
     return balanced_sample_indices
 
 
-def get_cpgs_from_file(input_path):
+def get_cpgs_from_file(
+    input_path: Union[str, Path],
+) -> Optional[np.ndarray]:
     """Reads CpG sites from a file and return a numpy array."""
     try:
         path = Path(input_path).expanduser()
@@ -951,36 +967,40 @@ class MethylAnalysis:
 
     def __init__(
         self,
-        analysis_dir=INVALID_PATH,
+        analysis_dir: Union[str, Path] = INVALID_PATH,
         *,
-        annotation=INVALID_PATH,
-        reference_dir=INVALID_PATH,
-        output_dir=DEFAULT_OUTPUT_DIR,
-        test_dir=INVALID_PATH,
-        prep="illumina",
-        cpgs="auto",
-        cpg_blacklist=None,
-        n_cpgs=DEFAULT_N_CPGS,
-        classifiers=None,
-        cv_default=5,
-        n_jobs_clf=1,
-        n_jobs_cnv=None,
-        precalculate_cnv=False,
-        load_full_betas=True,
-        feature_matrix=None,
-        overlap=False,
-        analysis_ids=None,
-        test_ids=None,
-        cpg_selection="top",
-        do_seg=False,
-        host="localhost",
-        port=8050,
-        debug=False,
-        umap_parms=None,
-        use_gpu=False,
-        verbose=1,
-        balancing_feature=None,
-    ):
+        annotation: Union[str, Path] = INVALID_PATH,
+        reference_dir: Union[str, Path] = INVALID_PATH,
+        output_dir: Union[str, Path] = DEFAULT_OUTPUT_DIR,
+        test_dir: Union[str, Path] = INVALID_PATH,
+        prep: str = "illumina",
+        cpgs: Union[str, Sequence[str], set[str], np.ndarray] = "auto",
+        cpg_blacklist: Optional[
+            Union[Sequence[str], set[str], np.ndarray]
+        ] = None,
+        n_cpgs: int = DEFAULT_N_CPGS,
+        classifiers: Optional[list[dict[str, Any]]] = None,
+        cv_default: Union[int, Any] = 5,
+        n_jobs_clf: int = 1,
+        n_jobs_cnv: Optional[int] = None,
+        precalculate_cnv: bool = False,
+        load_full_betas: bool = True,
+        feature_matrix: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        overlap: bool = False,
+        analysis_ids: Optional[
+            Union[Sequence[str], set[str], np.ndarray]
+        ] = None,
+        test_ids: Optional[Union[Sequence[str], set[str], np.ndarray]] = None,
+        cpg_selection: str = "top",
+        do_seg: bool = False,
+        host: str = "localhost",
+        port: int = 8050,
+        debug: bool = False,
+        umap_parms: Optional[dict[str, Any]] = None,
+        use_gpu: bool = False,
+        verbose: int = 1,
+        balancing_feature: Optional[str] = None,
+    ) -> None:
         self.analysis_dir = Path(analysis_dir).expanduser()
         self.annotation = Path(annotation).expanduser()
         self.app = None
@@ -1076,7 +1096,7 @@ class MethylAnalysis:
         logger.info("Initialization completed")
 
     @property
-    def cpgs(self):
+    def cpgs(self) -> np.ndarray:
         """Array of CpG sites to analyze, sorted in order.
 
         When setting, the input should be the same as the `cpgs` argument in
@@ -1089,12 +1109,15 @@ class MethylAnalysis:
         return self._cpgs
 
     @cpgs.setter
-    def cpgs(self, cpgs):
+    def cpgs(
+        self,
+        cpgs: Union[str, Sequence[str], set[str], np.ndarray],
+    ) -> None:
         """Set the CpG sites for analysis."""
         self._cpgs = self._get_cpgs(cpgs)
 
     @property
-    def idat_handler(self):
+    def idat_handler(self) -> IdatHandler:
         """Handles the management of IDAT files and associated metadata.
 
         Returns:
@@ -1136,12 +1159,8 @@ class MethylAnalysis:
 
         return self._idat_handler
 
-    @idat_handler.setter
-    def idat_handler(self, value):
-        self._idat_handler = value
-
     @property
-    def classifiers(self):
+    def classifiers(self) -> list[dict[str, Any]]:
         """Retrieves the configuration for classifiers.
 
         This property returns a list of dictionaries, where each dictionary
@@ -1159,7 +1178,7 @@ class MethylAnalysis:
         return self._get_classifiers(self._classifiers)
 
     @classifiers.setter
-    def classifiers(self, classifiers):
+    def classifiers(self, classifiers: Union[Any, list[Any], None]) -> None:
         """Sets the configuration for classifiers.
 
         This setter accepts either a single classifier model or a list of
@@ -1190,7 +1209,10 @@ class MethylAnalysis:
         """
         self._classifiers = classifiers
 
-    def _get_classifiers(self, classifiers):
+    def _get_classifiers(
+        self,
+        classifiers: Optional[Union[Any, list[Any]]],
+    ) -> list[dict[str, Any]]:
         if classifiers is None:
             return []
 
@@ -1214,7 +1236,9 @@ class MethylAnalysis:
         return result
 
     @staticmethod
-    def _get_umap_parms(umap_parms):
+    def _get_umap_parms(
+        umap_parms: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Returns UMAP parameters with defaults if not provided."""
         umap_parms = {} if umap_parms is None else umap_parms
         default = {
@@ -1225,13 +1249,13 @@ class MethylAnalysis:
         }
         return {**default, **umap_parms}
 
-    def _get_cpgs_hash(self):
+    def _get_cpgs_hash(self) -> str:
         """Returns or computes and caches the hash of the CpG array."""
         if self._internal_cpgs_hash is None:
             self._internal_cpgs_hash = input_args_id(self.cpgs)
         return self._internal_cpgs_hash
 
-    def _get_test_files_hash(self):
+    def _get_test_files_hash(self) -> str:
         """Returns the hash of the test files."""
         if not self.test_dir.exists():
             return ""
@@ -1239,7 +1263,7 @@ class MethylAnalysis:
             extra_hash=sorted(str(x) for x in self.test_dir.iterdir())
         )
 
-    def _get_vars_or_hashes(self):
+    def _get_vars_or_hashes(self) -> dict[str, Any]:
         """Returns current variables and hashes."""
         return {
             "analysis_dir": self.analysis_dir,
@@ -1252,11 +1276,16 @@ class MethylAnalysis:
             "test_ids": self.test_ids,
         }
 
-    def _get_cpgs(self, input_var="auto"):
+    def _get_cpgs(
+        self,
+        input_var: Union[str, Sequence[str], set[str], np.ndarray] = "auto",
+    ) -> np.ndarray:
         """Returns CpG sites based on the provided input variable."""
         self._internal_cpgs_hash = None
 
-        def exclude_blacklist(cpgs):
+        def exclude_blacklist(
+            cpgs: Union[np.ndarray, list, set],
+        ) -> np.ndarray:
             return np.sort(np.array(list(set(cpgs) - self.cpg_blacklist)))
 
         logger.info("Determine CpG sites...")
@@ -1315,7 +1344,7 @@ class MethylAnalysis:
         )
         raise ValueError(msg)
 
-    def _set_test_dir(self):
+    def _set_test_dir(self) -> None:
         if self._testdir_provided:
             ensure_directory_exists(self.test_dir)
             return
@@ -1326,7 +1355,7 @@ class MethylAnalysis:
         self.test_dir = self.output_dir / f"{test_hash_key}"
         ensure_directory_exists(self.test_dir)
 
-    def _update_paths(self):
+    def _update_paths(self) -> None:
         """Update file paths and directories based on current settings.
 
         This method recalculates and updates various internal paths and
@@ -1436,7 +1465,7 @@ class MethylAnalysis:
         # Update variables/hashes
         self._prev_vars = cur_vars
 
-    def make_umap(self):
+    def make_umap(self) -> None:
         """Generates the UMAP plot.
 
         This method extracts the beta values required for UMAP computation,
@@ -1449,7 +1478,7 @@ class MethylAnalysis:
         self.compute_umap()
         self.make_umap_plot()
 
-    def compute_umap(self):
+    def compute_umap(self) -> None:
         """Applies the UMAP algorithm on 'betas_sel'.
 
         Saves the 2D embedding in 'umap_df' and and on disk.
@@ -1521,7 +1550,7 @@ class MethylAnalysis:
         )
         self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
 
-    def make_umap_plot(self):
+    def make_umap_plot(self) -> None:
         """Generates a UMAP plot from the given 2D embedding.
 
         Generates the UMAP plot from the data provided in 'umap_df'. The
@@ -1555,7 +1584,7 @@ class MethylAnalysis:
         self.dropdown_id = None
         self._umap_plot_highlight()
 
-    def read_umap_plot_from_disk(self):
+    def read_umap_plot_from_disk(self) -> None:
         """Reads UMAP plot from disk if available from previous analysis."""
         if self.umap_plot_path is not None and self.umap_plot_path.exists():
             logger.info("Read umap plot from disk...")
@@ -1568,7 +1597,7 @@ class MethylAnalysis:
             except AttributeError:
                 logger.info("Probable dimension mismatch")
 
-    def set_betas(self):
+    def set_betas(self) -> None:
         """Sets the beta values DataFrame ('betas_sel') for further analysis.
 
         This method reads the IDAT files located in 'analysis_dir', extracts
@@ -1586,7 +1615,7 @@ class MethylAnalysis:
 
         self._update_paths()
 
-        def get_random_cpgs():
+        def get_random_cpgs() -> np.ndarray:
             logger.info("Selecting random CpG's...")
             return np.sort(
                 np.random.default_rng().choice(
@@ -1594,7 +1623,7 @@ class MethylAnalysis:
                 )
             )
 
-        def _get_betas(cpgs):
+        def _get_betas(cpgs: np.ndarray) -> pd.DataFrame:
             logger.info("Retrieving beta values...")
             return get_betas(
                 idat_handler=self.idat_handler,
@@ -1679,13 +1708,13 @@ class MethylAnalysis:
             msg = f"Invalid 'cpg_selection': {self.cpg_selection}"
             raise ValueError(msg)
 
-    def _get_coordinates(self, sample_id):
+    def _get_coordinates(self, sample_id: str) -> pd.Series:
         """Returns UMAP 2D embedding coordinates."""
         return self.umap_df[self.umap_df.index == sample_id].iloc[0][
             ["Umap_x", "Umap_y"]
         ]
 
-    def _umap_plot_highlight(self, cnv_id=None):
+    def _umap_plot_highlight(self, cnv_id: Optional[str] = None) -> None:
         """Highlights the selected samples and the sample selected for CNV."""
         if cnv_id is not None:
             self.cnv_id = cnv_id
@@ -1714,12 +1743,16 @@ class MethylAnalysis:
                 arrowhead=2,
             )
 
-    def _retrieve_zoom(self, current_plot):
+    def _retrieve_zoom(self, current_plot: go.Figure) -> None:
         """Retrieves and applies the zoom level to the UMAP plot."""
         self.umap_plot.layout.xaxis = current_plot["layout"]["xaxis"]
         self.umap_plot.layout.yaxis = current_plot["layout"]["yaxis"]
 
-    def make_cnv_plot(self, sample_id, genes_sel=None):
+    def make_cnv_plot(
+        self,
+        sample_id: str,
+        genes_sel: Optional[Sequence[str]] = None,
+    ) -> None:
         """Generates a copy number variation (CNV) plot for a specific sample.
 
         This method generates a CNV plot for the specified sample and
@@ -1753,7 +1786,7 @@ class MethylAnalysis:
             do_seg=self.do_seg,
         )
 
-    def precompute_cnvs(self, ids=None):
+    def precompute_cnvs(self, ids: Optional[Sequence[str]] = None) -> None:
         """Precalculates CNVs for all samples and saves them to disk.
 
         This method performs CNV analysis, and writes the output to the
@@ -1785,7 +1818,11 @@ class MethylAnalysis:
         )
         self._prog_bar.reset(1, 1)
 
-    def get_cnv(self, sample_id, extract=None):
+    def get_cnv(
+        self,
+        sample_id: str,
+        extract: Optional[Sequence[str]] = None,
+    ) -> tuple[Optional[pd.DataFrame], ...]:
         """Retrieves the CNV information for a specified sample.
 
         This method locates the IDAT file corresponding to the provided
@@ -1830,7 +1867,7 @@ class MethylAnalysis:
             )
         return (None,) * len(extract)
 
-    def cn_summary(self, ids):
+    def cn_summary(self, ids: Sequence[str]) -> tuple[go.Figure, pd.DataFrame]:
         """Create a copy number summary plot for the given samples.
 
         This method generates an overview of CNV gain and loss patterns across
@@ -1859,7 +1896,13 @@ class MethylAnalysis:
         plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
         return plot, df_cn_summary
 
-    def classify(self, *, ids=None, values=None, clf_list):
+    def classify(
+        self,
+        *,
+        ids: Optional[Union[Sequence[str], np.ndarray]] = None,
+        values: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        clf_list: Any,
+    ) -> list[ClassifierResult]:
         """Classify samples using specified classifiers.
 
         This method performs classification on given samples, defined either by
@@ -1924,7 +1967,7 @@ class MethylAnalysis:
 
         clfs = self._get_classifiers(clf_list)
 
-        def _clf_path(clf):
+        def _clf_path(clf: dict[str, Any]) -> Path:
             filename = input_args_id(clf["model"], clf["cv"]) + ".pkl"
             return self.clf_dir / filename
 
@@ -1937,7 +1980,7 @@ class MethylAnalysis:
 
         values = _values if _values is not None else values
 
-        def _log(string):
+        def _log(string: str) -> None:
             with self._clf_log.open("a") as f:
                 f.write(string)
             print(string, end="")
@@ -1976,7 +2019,11 @@ class MethylAnalysis:
 
         return results
 
-    def _load_training_data(self, ids, shape_only=False):
+    def _load_training_data(
+        self,
+        ids: Sequence[str],
+        shape_only: bool = False,
+    ) -> tuple[Any, Optional[list[Any]], Optional[pd.DataFrame]]:
         """Load training data for classification."""
         shape_path = self.clf_dir / "shape.npy"
         cpgs_path = self.clf_dir / "cpgs.npy"
@@ -2024,7 +2071,7 @@ class MethylAnalysis:
 
         values = X.loc[ids] if ids else None
 
-        def _invalid_class(cls):
+        def _invalid_class(cls: Any) -> bool:
             return isinstance(cls, str) and cls.strip("|") == ""
 
         # Remove all test samples and samples with unknown classification.
@@ -2044,7 +2091,7 @@ class MethylAnalysis:
 
         return X, y, values
 
-    def mlh1_report_pages(self, ids):
+    def mlh1_report_pages(self, ids: Sequence[str]) -> list[str]:
         """Generate MLH1 promoter methylation report HTML pages.
 
         Parameters:
@@ -2077,7 +2124,7 @@ class MethylAnalysis:
         self.cpgs = prev_cpgs
         return result
 
-    def get_app(self):
+    def get_app(self) -> Dash:
         """Returns a Dash application object for methylation analysis."""
         current_dir = Path(__file__).resolve().parent
         assets_folder = current_dir.parent / "data" / "assets"
@@ -2166,14 +2213,14 @@ class MethylAnalysis:
             State("umap-plot", "figure"),
         )
         def update_plots(
-            click_data,
-            ids_to_highlight,
-            umap_color_columns,
-            umap_color_scheme,
-            genes_sel,
-            curr_umap_plot,
-        ):
-            def update_umap_plot():
+            click_data: Optional[dict[str, Any]],
+            ids_to_highlight: Optional[Sequence[str]],
+            umap_color_columns: Optional[Sequence[str]],
+            umap_color_scheme: Optional[str],
+            genes_sel: Optional[Sequence[str]],
+            curr_umap_plot: Optional[dict[str, Any]],
+        ) -> tuple[Any, Any, Any]:
+            def update_umap_plot() -> tuple[Any, Any, Any]:
                 try:
                     self.make_umap_plot()
                     self._umap_plot_highlight(cnv_id=self.cnv_id)
@@ -2252,7 +2299,7 @@ class MethylAnalysis:
             [Input("analysis-dir", "value")],
             prevent_initial_call=False,
         )
-        def validate_analysis_path(input_path):
+        def validate_analysis_path(input_path: str) -> tuple[bool, str, Any]:
             try:
                 path = Path(input_path).expanduser()
                 if path.is_dir() and not os.access(path, os.W_OK):
@@ -2275,7 +2322,9 @@ class MethylAnalysis:
             [Input("annotation-file", "value")],
             prevent_initial_call=False,
         )
-        def validate_annotation_file(input_path):
+        def validate_annotation_file(
+            input_path: str,
+        ) -> tuple[bool, str, Any, Any]:
             selection = self.idat_handler.selected_columns
             try:
                 path = Path(input_path).expanduser()
@@ -2301,7 +2350,7 @@ class MethylAnalysis:
             [Input("reference-dir", "value")],
             prevent_initial_call=False,
         )
-        def validate_reference_path(input_path):
+        def validate_reference_path(input_path: str) -> tuple[bool, str]:
             try:
                 path = Path(input_path).expanduser()
                 if path.is_dir() and not os.access(path, os.W_OK):
@@ -2324,7 +2373,7 @@ class MethylAnalysis:
             [Input("output-dir", "value")],
             prevent_initial_call=False,
         )
-        def validate_output_path(input_path):
+        def validate_output_path(input_path: str) -> tuple[bool, str]:
             try:
                 path = Path(input_path).expanduser()
                 if path == DEFAULT_OUTPUT_DIR:
@@ -2371,19 +2420,19 @@ class MethylAnalysis:
             ],
         )
         def on_umap_start_button_click(
-            n_clicks,
-            n_cpgs,
-            analysis_dir,
-            annotation,
-            reference_dir,
-            output_dir,
-            prep,
-            analysis_dir_valid,
-            output_dir_valid,
-            precalculate_cnv,
-            cpg_selection,
-            balancing_feature,
-        ):
+            n_clicks: Optional[int],
+            n_cpgs: Optional[int],
+            analysis_dir: str,
+            annotation: str,
+            reference_dir: str,
+            output_dir: str,
+            prep: Optional[str],
+            analysis_dir_valid: Optional[bool],
+            output_dir_valid: Optional[bool],
+            precalculate_cnv: Optional[Any],
+            cpg_selection: Optional[str],
+            balancing_feature: Optional[Any],
+        ) -> tuple[Any, Any, Any, dict[str, str]]:
             if not n_clicks:
                 return no_update, no_update, "", {}
 
@@ -2438,7 +2487,10 @@ class MethylAnalysis:
             [Input("toggle-button-setting", "n_clicks")],
             [State("console-out-setting", "style")],
         )
-        def toggle_console_out(n_clicks, current_style):
+        def toggle_console_out(
+            n_clicks: int,
+            current_style: dict[str, Any],
+        ) -> dict[str, Any]:
             return {
                 **current_style,
                 "display": "flex" if n_clicks % 2 == 0 else "none",
@@ -2448,7 +2500,9 @@ class MethylAnalysis:
             Output("balancing-column-container", "style"),
             Input("cpg-selection", "value"),
         )
-        def toggle_column_dropdown(selected_method):
+        def toggle_column_dropdown(
+            selected_method: Optional[str],
+        ) -> dict[str, str]:
             """Show column dropdown only if 'balanced' is selected."""
             if selected_method == "balanced":
                 return {"display": "block"}
@@ -2463,10 +2517,10 @@ class MethylAnalysis:
             prevent_initial_call=True,
         )
         def update_umap_parms(
-            n_neighbors,
-            metric,
-            min_dist,
-        ):
+            n_neighbors: int,
+            metric: str,
+            min_dist: float,
+        ) -> None:
             self.umap_parms["n_neighbors"] = n_neighbors
             self.umap_parms["metric"] = metric
             self.umap_parms["min_dist"] = min_dist
@@ -2482,7 +2536,9 @@ class MethylAnalysis:
                 (Output("start-button", "disabled"), True, False),
             ],
         )
-        def precalculate_cnv_wrapper(state):
+        def precalculate_cnv_wrapper(
+            state: Optional[dict[str, Any]],
+        ) -> list[bool]:
             if (
                 state
                 and state.get("status") == "umap_done"
@@ -2501,7 +2557,7 @@ class MethylAnalysis:
             ],
             [Input("clock", "n_intervals")],
         )
-        def update_progress(n):
+        def update_progress(n: int) -> tuple[int, str, str, str, list[str]]:
             progress = self._prog_bar.get_progress()
             out_str = self._prog_bar.get_text()
             with LOG_FILE.open("r") as file:
@@ -2521,10 +2577,16 @@ class MethylAnalysis:
             State("upload-idat", "filename"),
             State("upload-idat", "last_modified"),
         )
-        def update_output(list_of_contents, list_of_names, list_of_dates):
+        def update_output(
+            list_of_contents: Optional[list[str]],
+            list_of_names: Optional[list[str]],
+            list_of_dates: Optional[list[Any]],
+        ) -> Optional[list[html.Div]]:
             logger.info("Uploading files...")
 
-            def parse_contents(contents, filename, date):
+            def parse_contents(
+                contents: str, filename: str, date: Any
+            ) -> html.Div:
                 file_path = self.test_dir / filename
                 content_string = contents.split(",")[1]
                 decoded = base64.b64decode(content_string)
@@ -2543,7 +2605,7 @@ class MethylAnalysis:
                     list_of_contents, list_of_names, list_of_dates
                 ):
                     children.append(parse_contents(c, n, d))
-                self.idat_handler = None
+                self._idat_handler = None
                 self._update_paths()
                 self.cpgs = self._get_cpgs()
                 return children
@@ -2562,9 +2624,9 @@ class MethylAnalysis:
             ],
         )
         def on_clf_start_button_click(
-            n_clicks,
-            clf_list,
-        ):
+            n_clicks: Optional[int],
+            clf_list: Optional[Sequence[str]],
+        ) -> Optional[str]:
             if not n_clicks:
                 return no_update
 
@@ -2589,7 +2651,7 @@ class MethylAnalysis:
 
         return app
 
-    def run_app(self, *, open_tab=False):
+    def run_app(self, *, open_tab: bool = False) -> None:
         """Runs the mepylome Dash application.
 
         Args:
@@ -2600,7 +2662,7 @@ class MethylAnalysis:
         free_port = get_free_port(self.port)
         if open_tab:
 
-            def open_browser_tab():
+            def open_browser_tab() -> None:
                 webbrowser.open_new_tab(f"http://{self.host}:{free_port}")
 
             threading.Timer(1, open_browser_tab).start()
@@ -2612,12 +2674,12 @@ class MethylAnalysis:
             port=free_port,
         )
 
-    def __repr__(self):
+    def __repr__(self) -> None:
         title = f"{self.__class__.__name__}()"
         header = title + "\n" + "*" * len(title)
         lines = [header]
 
-        def format_value(value):
+        def format_value(value: object) -> tuple[str, str]:
             length_info = ""
             if isinstance(value, (pd.DataFrame, pd.Series, pd.Index)):
                 display_value = str(value)

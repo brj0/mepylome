@@ -11,9 +11,12 @@ import pickle
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
 from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import (
@@ -70,26 +73,35 @@ class TrainedClassifier(ABC):
     """Abstract base class for a trained classifier."""
 
     @abstractmethod
-    def predict_proba(self, betas, id_=None):
+    def predict_proba(
+        self,
+        betas: ArrayLike,
+        id_: Optional[Sequence[str]] = None,
+    ) -> ArrayLike:
         """Predicts the probability of the given input samples (betas).
+
+        If `id_` is provided, identifiers corresponding to samples seen during
+        cross-validation are matched to cached probabilities. Probabilities for
+        new samples are computed using the trained classifier.
 
         Args:
             betas (array-like): Input samples to predict probabilities.
-            id_ (string, optional): Identifier of the input samples.
+            id_ (sequence of str, optional): Sample identifiers used to reuse
+                cross-validation probabilities when available.
 
         Returns:
             array-like: Predicted probabilities for each sample.
         """
 
     @abstractmethod
-    def classes(self):
+    def classes(self) -> ArrayLike:
         """Returns the list of classes for which predictions can be made.
 
         Returns:
             array-like: The classes the classifier can predict.
         """
 
-    def info(self, output_format="txt"):
+    def info(self, output_format: str = "txt") -> str:
         """Provides additional information of the classifier or its pipeline.
 
         The info will be printed on the top of the classifiers report. Should
@@ -100,28 +112,28 @@ class TrainedClassifier(ABC):
         """
         return ""
 
-    def model(self):
+    def model(self) -> Any:
         """Returns the classifier model (usually sklearn object)."""
         return
 
-    def metrics(self):
+    def metrics(self) -> dict[str, Any]:
         """Returns the metric statistics (usually sklearn object)."""
         return {}
 
-    def __str__(self):
+    def __str__(self) -> str:
         hash_str = hashlib.blake2b(
             self.info().encode(), digest_size=16
         ).hexdigest()
         return f"TrainedClassifier_{hash_str}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
 
-def _get_pipeline_description(clf, output_format="txt"):
+def _get_pipeline_description(clf: Any, output_format: str = "txt") -> str:
     """Generates a detailed summary string of the pipeline structure."""
 
-    def format_non_default_params(step):
+    def format_non_default_params(step: Any) -> list[str]:
         """Formats non-default parameters for a given step or classifier."""
         default_params = step.__class__().get_params()
         current_params = step.get_params()
@@ -180,10 +192,10 @@ def _get_pipeline_description(clf, output_format="txt"):
     return "\n".join(lines)
 
 
-def _format_metrics(metrics):
+def _format_metrics(metrics: dict[str, Any]) -> dict[str, str]:
     """Transforms classifier metrics to readable text."""
 
-    def format_metric_scores(scores):
+    def format_metric_scores(scores: Any) -> str:
         if isinstance(scores, (list, np.ndarray)):
             return f"{np.mean(scores):.4f} (SD {np.std(scores):.4f})"
         return str(scores)
@@ -216,7 +228,12 @@ def _format_metrics(metrics):
 class TrainedSklearnClassifier(TrainedClassifier):
     """Trained classifier implementation using fitted scikit-learn objecs."""
 
-    def __init__(self, clf, X=None, metrics=None):
+    def __init__(
+        self,
+        clf: Any,
+        X: Optional[pd.DataFrame] = None,
+        metrics: Optional[dict[str, Any]] = None,
+    ) -> None:
         self.clf = clf
         self._classes = clf.classes_
         self.ids = [] if X is None else X.index
@@ -225,13 +242,17 @@ class TrainedSklearnClassifier(TrainedClassifier):
             "n_samples": X.shape[0] if X is not None else 0,
         }
 
-    def predict_proba(self, betas, id_=None):
+    def predict_proba(
+        self,
+        betas: ArrayLike,
+        id_: Optional[Sequence[str]] = None,
+    ) -> ArrayLike:
         return self.clf.predict_proba(betas)
 
-    def classes(self):
+    def classes(self) -> ArrayLike:
         return self._classes
 
-    def info(self, output_format="txt"):
+    def info(self, output_format: str = "txt") -> str:
         description = _get_pipeline_description(self.clf, output_format)
         formatted_stats = _format_metrics(self._metrics)
 
@@ -253,10 +274,10 @@ class TrainedSklearnClassifier(TrainedClassifier):
 
         return "\n".join(result)
 
-    def metrics(self):
+    def metrics(self) -> dict[str, Any]:
         return self._metrics
 
-    def model(self):
+    def model(self) -> Any:
         return self.clf
 
 
@@ -268,14 +289,24 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
     provides additional statistics about the classifier.
     """
 
-    def __init__(self, clf, probabilities_cv, X, metrics=None):
+    def __init__(
+        self,
+        clf: Any,
+        probabilities_cv: ArrayLike,
+        X: pd.DataFrame,
+        metrics: Optional[dict[str, Any]] = None,
+    ) -> None:
         self.clf = clf
         self.probabilities_cv = pd.DataFrame(probabilities_cv, index=X.index)
         self.ids = X.index
         self._metrics = metrics or {}
         self._classes = clf.classes_
 
-    def predict_proba(self, betas, id_=None):
+    def predict_proba(
+        self,
+        betas: ArrayLike,
+        id_: Optional[Sequence[str]] = None,
+    ) -> ArrayLike:
         if id_ is not None:
             id_ = np.ravel(id_)
             probabilities = np.zeros((len(betas), len(self._classes)))
@@ -298,10 +329,10 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
 
         return self.clf.predict_proba(betas)
 
-    def classes(self):
+    def classes(self) -> ArrayLike:
         return self._classes
 
-    def info(self, output_format="txt"):
+    def info(self, output_format: str = "txt") -> str:
         description = _get_pipeline_description(self.clf, output_format)
         formatted_stats = _format_metrics(self._metrics)
 
@@ -323,20 +354,24 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
 
         return "\n".join(result)
 
-    def metrics(self):
+    def metrics(self) -> dict[str, Any]:
         return self._metrics
 
-    def model(self):
+    def model(self) -> Any:
         return self.clf
 
 
 class VarianceThresholdLite(BaseEstimator, TransformerMixin):
     """low memory version of sklearn.feature_selection.VarianceThreshold."""
 
-    def __init__(self, threshold=1e-4):
+    def __init__(self, threshold: float = 1e-4) -> None:
         self.threshold = threshold
 
-    def fit(self, X, y=None):
+    def fit(
+        self,
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Optional[ArrayLike] = None,
+    ) -> "VarianceThresholdLite":
         X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         if X_array.ndim != 2:
             msg = "Input X must be 2D."
@@ -348,21 +383,25 @@ class VarianceThresholdLite(BaseEstimator, TransformerMixin):
             raise ValueError(msg)
         return self
 
-    def transform(self, X):
+    def transform(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
         X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         return X_array[:, self.support_mask_]
 
-    def _get_support_mask(self):
+    def _get_support_mask(self) -> np.ndarray:
         return self.variances_ > self.threshold
 
 
 class TopVarianceSelector(BaseEstimator, TransformerMixin):
     """Low-memory selector for top-N features by variance."""
 
-    def __init__(self, n_top=30000):
+    def __init__(self, n_top: int = 30000) -> None:
         self.n_top = n_top
 
-    def fit(self, X, y=None):
+    def fit(
+        self,
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Optional[ArrayLike] = None,
+    ) -> "TopVarianceSelector":
         X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         if X_array.ndim != 2:
             msg = "Input X must be 2D."
@@ -382,11 +421,14 @@ class TopVarianceSelector(BaseEstimator, TransformerMixin):
 
         return self
 
-    def transform(self, X):
+    def transform(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
         X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         return X_array[:, self.top_indices_]
 
-    def get_support(self, indices=False):
+    def get_support(
+        self,
+        indices: bool = False,
+    ) -> np.ndarray:
         if indices:
             return self.top_indices_
         mask = np.zeros_like(self.variances_, dtype=bool)
@@ -394,7 +436,7 @@ class TopVarianceSelector(BaseEstimator, TransformerMixin):
         return mask
 
 
-def parse_component_key(key):
+def parse_component_key(key: str) -> tuple[str, list[Any], dict[str, Any]]:
     """Parse component name and kwargs like 'lr(n_iter=200)'."""
     match = re.match(r"^(\w+)(?:\((.*)\))?$", key)
     if not match:
@@ -413,7 +455,11 @@ def parse_component_key(key):
     return name, args, kwargs
 
 
-def make_clf_pipeline(step_keys, X_shape=None, cv=None):
+def make_clf_pipeline(
+    step_keys: Union[str, list[str]],
+    X_shape: Optional[tuple[int, int]] = None,
+    cv: Optional[Union[int, Any]] = None,
+) -> Pipeline:
     """Sklearn pipeline with scaling, feature selection, and classifier."""
     scalers = {
         "minmax": MinMaxScaler,
@@ -479,7 +525,11 @@ def make_clf_pipeline(step_keys, X_shape=None, cv=None):
     return Pipeline(pipeline_components)
 
 
-def make_reports(prediction, info, output_format="txt"):
+def make_reports(
+    prediction: pd.DataFrame,
+    info: str,
+    output_format: str = "txt",
+) -> list[str]:
     """Generates detailed reports from classifier predictions.
 
     Args:
@@ -535,7 +585,10 @@ def make_reports(prediction, info, output_format="txt"):
     return reports
 
 
-def make_classifier_report_page(reports, title=None):
+def make_classifier_report_page(
+    reports: Sequence[str],
+    title: Optional[str] = None,
+) -> str:
     """Generates an HTML page for multiple classifier reports.
 
     Args:
@@ -621,7 +674,7 @@ def make_classifier_report_page(reports, title=None):
 </html>"""
 
 
-def _is_ovr_or_ovo(clf):
+def _is_ovr_or_ovo(clf: Any) -> str:
     """Check if classifier is using One-vs-Rest (OvR) or One-vs-One (OvO)."""
     if isinstance(clf, OneVsRestClassifier):
         return "ovr"
@@ -636,7 +689,13 @@ def _is_ovr_or_ovo(clf):
     return "ovr"
 
 
-def cross_val_metrics(clf, X, y, probabilities_cv, cv):
+def cross_val_metrics(
+    clf: Any,
+    X: Union[pd.DataFrame, np.ndarray],
+    y: Union[pd.Series, np.ndarray, Sequence],
+    probabilities_cv: ArrayLike,
+    cv: Union[int, Any],
+) -> dict[str, Any]:
     """Calculates cross-validation statistics for a classifier."""
     y_pred_cv = np.array(
         [clf.classes_[i] for i in np.argmax(probabilities_cv, axis=1)]
@@ -690,7 +749,7 @@ def cross_val_metrics(clf, X, y, probabilities_cv, cv):
     }
 
 
-def is_trained(clf):
+def is_trained(clf: Any) -> bool:
     """Checks if the given classifier has already been trained."""
     clf_ = clf
     if hasattr(clf, "steps"):
@@ -699,7 +758,14 @@ def is_trained(clf):
     return all(hasattr(clf_, attr) for attr in trained_attributes)
 
 
-def train_clf(clf, X, y, save_path, cv, n_jobs=1):
+def train_clf(
+    clf: Any,
+    X: pd.DataFrame,
+    y: ArrayLike,
+    save_path: Path,
+    cv: Union[int, Any],
+    n_jobs: int = 1,
+) -> Union["TrainedSklearnClassifier", "TrainedSklearnCVClassifier"]:
     """Trains a classifier and stores the trained model to disk.
 
     If the classifier has already been trained (and saved), it loads the
@@ -772,7 +838,16 @@ class ClassifierResult:
     reports: dict
 
 
-def fit_and_evaluate_clf(X, y, X_test, id_test, save_path, clf, cv, n_jobs=1):
+def fit_and_evaluate_clf(
+    X: pd.DataFrame,
+    y: ArrayLike,
+    X_test: Union[pd.DataFrame, np.ndarray],
+    id_test: Sequence[str],
+    save_path: Path,
+    clf: Any,
+    cv: Union[int, Any],
+    n_jobs: int = 1,
+) -> ClassifierResult:
     """Predicts the methylation class by supervised learning classifier.
 
     Uses supervised machine learning classifiers (Random Forest, K-Nearest
