@@ -171,7 +171,7 @@ def valid_idat_basenames(root_dir: Path) -> List[str]:
     for idat_file in all_idat_files:
         try:
             array_type = ArrayType.from_idat(idat_file)
-        except Exception as e:
+        except Exception:
             array_type = ArrayType.UNKNOWN
         if array_type not in valid_array_types:
             print(f"Invalid file: {idat_file.name} (Type: {array_type})")

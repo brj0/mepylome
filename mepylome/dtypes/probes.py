@@ -1,7 +1,9 @@
 """Module for handling probe types and probe channels.
 
 Usage:
-    pt = ProbeType.from_manifest_values("cg13869341", InfiniumDesignType.I)
+    pt = ProbeType.from_manifest_values(
+        "cg13869341", InfiniumDesignType.TYPE_I
+    )
 """
 
 from enum import IntEnum, unique
@@ -23,8 +25,8 @@ class Channel(IntEnum):
 class InfiniumDesignType(IntEnum):
     """The EPIC chip uses two array-designs."""
 
-    I = 1
-    II = 2
+    TYPE_I = 1
+    TYPE_II = 2
 
 
 @unique
@@ -60,9 +62,9 @@ class ProbeType(IntEnum):
             str: Probe type.
         """
         if name.startswith("rs"):
-            if infinium_type == InfiniumDesignType.I:
+            if infinium_type == InfiniumDesignType.TYPE_I:
                 return ProbeType.SNP_ONE
-            if infinium_type == InfiniumDesignType.II:
+            if infinium_type == InfiniumDesignType.TYPE_II:
                 return ProbeType.SNP_TWO
             return ProbeType.CONTROL
         if any(
@@ -75,10 +77,10 @@ class ProbeType(IntEnum):
         ):
             return ProbeType.CONTROL
 
-        if infinium_type == InfiniumDesignType.I:
+        if infinium_type == InfiniumDesignType.TYPE_I:
             return ProbeType.ONE
 
-        if infinium_type == InfiniumDesignType.II:
+        if infinium_type == InfiniumDesignType.TYPE_II:
             return ProbeType.TWO
 
         # Mouse only - not tested

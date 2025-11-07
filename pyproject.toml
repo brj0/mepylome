@@ -62,6 +62,8 @@ line-length = 79
 
 [tool.ruff.lint]
 select = [
+    # Annotation
+    "ANN",
     # pycodestyle - missing docstring
     "D",
     # pycodestyle
@@ -84,6 +86,8 @@ select = [
     "W",
 ]
 ignore = [
+    # Dynamically typed expressions (typing.Any) are disallowed in `*args`
+    "ANN401",
     # Relax the convention by _not_ requiring documentation for every function
     # parameter.
     "D417",
@@ -95,8 +99,6 @@ ignore = [
     "D105",
     # Use `.to_numpy()` instead of `.values`
     "PD011",
-    # Annotation
-    "ANN",
     # `print` found
     "T201",
     # Trailing comma missing
@@ -112,6 +114,11 @@ ignore = [
     # Too many statements
     "PLR0915",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**" = ["ANN", "B018", "D100", "D101", "E402", "E501"]
+"scripts/**" = ["ANN", "D103"]
+"tests/**" = ["E402"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

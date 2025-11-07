@@ -84,6 +84,7 @@ class SmartFormatter(argparse.ArgumentDefaultsHelpFormatter):
         return super()._format_action(action) + "\n"
 
 
+# ruff: noqa: E501
 def parse_args() -> argparse.Namespace:
     """Parses command line arguments."""
     parser = argparse.ArgumentParser(
@@ -146,10 +147,9 @@ def parse_args() -> argparse.Namespace:
         "--test_dir",
         type=absolute_path,
         help=(
-            "Directory for test files, including new cases for analysis or "
-            "validation. Files uploaded via the GUI will be placed here. If "
-            "set to None, the application will automatically use a temporary "
-            "directory."
+            """
+            Directory for test files, including new cases for analysis or validation. Files uploaded via the GUI will be placed here. If set to None, the application will automatically use a temporary directory.
+            """
         ),
     )
     parser.add_argument(
@@ -157,13 +157,9 @@ def parse_args() -> argparse.Namespace:
         "--annotation",
         type=str,
         help=(
-            "Path to an annotation spreadsheet used to map sample files "
-            "located in both `analysis_dir` and `test_dir`. One of the "
-            "columns must contain the ID corresponding to the IDAT files "
-            "(such as SentrixID or ID from files downloaded from GEO). If not "
-            "provided, the system will attempt to identify the correct column "
-            "automatically. If the annotation file is missing, it will search "
-            "for a spreadsheet within the `analysis_dir` if available."
+            """
+            Path to an annotation spreadsheet used to map sample files located in both `analysis_dir` and `test_dir`. One of the columns must contain the ID corresponding to the IDAT files (such as SentrixID or ID from files downloaded from GEO). If not provided, the system will attempt to identify the correct column automatically. If the annotation file is missing, it will search for a spreadsheet within the `analysis_dir` if available.
+            """
         ),
     )
     parser.add_argument(
@@ -171,8 +167,9 @@ def parse_args() -> argparse.Namespace:
         "--reference_dir",
         type=absolute_path,
         help=(
-            "Directory containing CNV neutral reference IDAT files. Must be "
-            "provided if you wanna generate CNV plots."
+            """
+            Directory containing CNV neutral reference IDAT files. Must be provided if you wanna generate CNV plots.
+            """
         ),
     )
     parser.add_argument(
@@ -180,9 +177,9 @@ def parse_args() -> argparse.Namespace:
         "--output_dir",
         type=absolute_path,
         help=(
-            "Path to the directory where output files will be saved. If not "
-            "provided, the default directory '/tmp/mepylome/analysis' will be "
-            "used."
+            """
+            Path to the directory where output files will be saved. If not provided, the default directory '/tmp/mepylome/analysis' will be used.
+            """
         ),
     )
     parser.add_argument(
@@ -192,8 +189,9 @@ def parse_args() -> argparse.Namespace:
         choices=["illumina", "swan", "noob"],
         default="illumina",
         help=(
-            "Prepreparation method used for methylation microarrays: "
-            "'illumina', 'swan', or 'noob'."
+            """
+            Prepreparation method used for methylation microarrays: 'illumina', 'swan', or 'noob'.
+            """
         ),
     )
     parser.add_argument(
@@ -236,9 +234,9 @@ def parse_args() -> argparse.Namespace:
         default=None,
         type=int,
         help=(
-            "Number of parallel processes to use for CNV precalculation. If "
-            "None, a reasonable number of cores will be automatically chosen "
-            "based on the system and workload."
+            """
+            Number of parallel processes to use for CNV precalculation. If None, a reasonable number of cores will be automatically chosen based on the system and workload.
+            """
         ),
     )
     parser.add_argument(
@@ -246,10 +244,9 @@ def parse_args() -> argparse.Namespace:
         "--precalculate_cnv",
         action="store_true",
         help=(
-            "If set, CNV data will be precalculated before the main analysis. "
-            "This process takes approximately 2-5 seconds per case initially, "
-            "but it will improve performance during runtime by reducing "
-            "computation time."
+            """
+            If set, CNV data will be precalculated before the main analysis. This process takes approximately 2-5 seconds per case initially, but it will improve performance during runtime by reducing computation time.
+            """
         ),
     )
     parser.add_argument(
@@ -258,14 +255,9 @@ def parse_args() -> argparse.Namespace:
         action="store_false",
         dest="load_full_betas",
         help=(
-            "Disable loading of all CpG beta values into memory. By default, "
-            "all CpGs are loaded (when needed) to enable fast random access "
-            "to the full methylation matrix, which can significantly increase "
-            "memory usage (3-4 MB per sample). When disabled, only the "
-            "specified `n_cpgs` CpG sites are loaded on demand. For "
-            "supervised classifier training, the same reduced matrix "
-            "(`betas_sel`) used for UMAP visualization is used. This reduces "
-            "memory consumption and is typically sufficient, though slower."
+            """
+            Disable loading of all CpG beta values into memory. By default, all CpGs are loaded (when needed) to enable fast random access to the full methylation matrix, which can significantly increase memory usage (3-4 MB per sample). When disabled, only the specified `n_cpgs` CpG sites are loaded on demand. For supervised classifier training, the same reduced matrix (`betas_sel`) used for UMAP visualization is used. This reduces memory consumption and is typically sufficient, though slower.
+            """
         ),
     )
     parser.add_argument(
@@ -273,8 +265,9 @@ def parse_args() -> argparse.Namespace:
         "--overlap",
         action="store_true",
         help=(
-            "Only select IDAT files in the analysis directory that are also "
-            "present in the annotation."
+            """
+            Only select IDAT files in the analysis directory that are also present in the annotation.
+            """
         ),
     )
     parser.add_argument(
@@ -284,9 +277,9 @@ def parse_args() -> argparse.Namespace:
         choices=["top", "random"],
         default="top",
         help=(
-            "Method to select CpG sites ('top' or 'random'). For 'top', CpG "
-            "sites are selected based on their variation, taking the most "
-            "varying ones. For 'random', CpG sites are randomly selected."
+            """
+            Method to select CpG sites ('top' or 'random'). For 'top', CpG sites are selected based on their variation, taking the most varying ones. For 'random', CpG sites are randomly selected.
+            """
         ),
     )
     parser.add_argument(
@@ -294,11 +287,9 @@ def parse_args() -> argparse.Namespace:
         "--use_gpu",
         action="store_true",
         help=(
-            "Whether to use GPU acceleration for UMAP via cuML and CuPy. "
-            "Select this to enable GPU-backed UMAP computations, which can "
-            "significantly speed up large datasets. This requires the `cuml` "
-            "and `cupy` libraries to be installed, along with appropriate "
-            "NVIDIA drivers and a working CUDA setup."
+            """
+            Whether to use GPU acceleration for UMAP via cuML and CuPy. Select this to enable GPU-backed UMAP computations, which can significantly speed up large datasets. This requires the `cuml` and `cupy` libraries to be installed, along with appropriate NVIDIA drivers and a working CUDA setup.
+            """
         ),
     )
     parser.add_argument(
@@ -326,18 +317,18 @@ def parse_args() -> argparse.Namespace:
         "--do_seg",
         action="store_true",
         help=(
-            "If set, enables segmentation analysis on CNV data and adds "
-            "horizontal segmentation lines to the CNV plot. This will take an "
-            "additional 2-5 seconds per sample."
+            """
+            If set, enables segmentation analysis on CNV data and adds horizontal segmentation lines to the CNV plot. This will take an additional 2-5 seconds per sample.
+            """
         ),
     )
     parser.add_argument(
         "--tutorial",
         action="store_true",
         help=(
-            "Downloads test IDAT files used in the tutorial and then launches "
-            "the mepylome GUI session. Use this for a quick demonstration of "
-            "how this package works."
+            """
+            Downloads test IDAT files used in the tutorial and then launches the mepylome GUI session. Use this for a quick demonstration of how this package works.
+            """
         ),
     )
     parser.add_argument(
@@ -429,7 +420,7 @@ def parse_args() -> argparse.Namespace:
         help="Path to TCGA clinical TSV file (required for TCGA datasets)",
     )
 
-    return parser.parse_args()
+    return parser.parse_args()  # noqa: E501
 
 
 def start_mepylome() -> None:

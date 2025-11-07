@@ -197,7 +197,19 @@ class Manifest:
 
         self.ctrl_path = Manifest._get_control_path(self.proc_path)
 
-        # Create processed manifest files if they do not exist
+        self._create_processed_manifest_files()
+
+        self._data_frame = self._read_probes(self.proc_path)
+        self._control_data_frame = self._read_control_probes(self.ctrl_path)
+        self._snp_data_frame = self._read_snp_probes()
+        self._methyl_probes = None
+
+        # Save to disk
+        with self._pickle_path.open("wb") as file:
+            pickle.dump(self, file)
+
+    def _create_processed_manifest_files(self) -> None:
+        """Create processed manifest files if they do not exist."""
         if not (self.proc_path.exists() and self.ctrl_path.exists()):
             # If array type is given, download the files
             if self.array_type is not None:
@@ -218,15 +230,6 @@ class Manifest:
             else:
                 msg = "Provide either array_type or proc_path or raw_path"
                 raise ValueError(msg)
-
-        self._data_frame = self._read_probes(self.proc_path)
-        self._control_data_frame = self._read_control_probes(self.ctrl_path)
-        self._snp_data_frame = self._read_snp_probes()
-        self._methyl_probes = None
-
-        # Save to disk
-        with self._pickle_path.open("wb") as file:
-            pickle.dump(self, file)
 
     @property
     def data_frame(self) -> pd.DataFrame:
@@ -419,8 +422,8 @@ class Manifest:
         data_frame = data_frame.drop(columns=["Name"])
         channel_to_int = {"Grn": Channel.GRN, "Red": Channel.RED}
         design_type_map = {
-            "I": InfiniumDesignType.I,
-            "II": InfiniumDesignType.II,
+            "I": InfiniumDesignType.TYPE_I,
+            "II": InfiniumDesignType.TYPE_II,
         }
         with pd.option_context("future.no_silent_downcasting", True):
             if "Color_Channel" in data_frame.columns:
@@ -455,10 +458,11 @@ class Manifest:
         data_frame["N_CpG"] = NONE
         if "Infinium_Design_Type" in data_frame.columns:
             is_type_I = (
-                data_frame["Infinium_Design_Type"] == InfiniumDesignType.I
+                data_frame["Infinium_Design_Type"] == InfiniumDesignType.TYPE_I
             )
             is_type_II = (
-                data_frame["Infinium_Design_Type"] == InfiniumDesignType.II
+                data_frame["Infinium_Design_Type"]
+                == InfiniumDesignType.TYPE_II
             )
 
             data_frame.loc[is_type_I, "N_CpG"] = data_frame.loc[
