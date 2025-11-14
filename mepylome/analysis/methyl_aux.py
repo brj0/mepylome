@@ -197,12 +197,20 @@ class IdatHandler:
 
             Defaults to None.
 
+            **Note:** The IDs may be converted to Sentrix format during
+            initialization if the IDs in the annotation and IDs in analysis_dir
+            do not match directly.
+
         test_ids (list, optional): A list of sample IDs within `test_dir`.
 
             - If provided, only these samples will be used.
 
             - If `None`, all available IDAT files in `test_dir` will be used.
               Defaults to None.
+
+            **Note:** The IDs may be converted to Sentrix format during
+            initialization if the IDs in the annotation and IDs in analysis_dir
+            do not match directly.
 
     Attributes:
         analysis_dir (Path): The directory path where the IDAT files are
@@ -224,10 +232,11 @@ class IdatHandler:
             the samples as index and the annotation in the columns.
         selected_columns (list): A list of selected columns from the annotated
             samples, initialized with the first column.
-        analysis_ids (list): A list of sample IDs in 'analysis_dir'
-            that will be used.
-        test_ids (list): A list of sample IDs in 'test_dir' that will
-            be used if provided.
+        analysis_ids (list): A list of sample IDs from `analysis_dir` that are
+            actually used after filtering and optional conversion to Sentrix
+            IDs.
+        test_ids (list): A list of sample IDs from `test_dir` that are actually
+            used after filtering and optional conversion to Sentrix IDs.
 
     Raises:
         ValueError:
@@ -257,6 +266,13 @@ class IdatHandler:
         self.analysis_ids = analysis_ids
         self.test_ids = test_ids
 
+        # Track initialization parameters
+        self._init_analysis_dir = analysis_dir
+        self._init_annotation = annotation
+        self._init_test_dir = test_dir
+        self._init_test_ids = test_ids
+        self._init_analysis_ids = analysis_ids
+
         # Load IDAT paths and annotation data
         self.analysis_id_to_path = self._get_id_to_path(self.analysis_dir)
         self.test_id_to_path = self._get_id_to_path(self.test_dir)
@@ -284,15 +300,15 @@ class IdatHandler:
         # Validation
         self._warn_on_sample_overlap()
 
-    def parameters(self) -> dict[str, Any]:
-        """Returns the initialization attributes, potentially modified."""
+    def init_parameters(self) -> dict[str, Any]:
+        """Returns the initialization attributes."""
         return {
-            "analysis_dir": self.analysis_dir,
-            "annotation": self.annotation,
-            "test_dir": self.test_dir,
+            "analysis_dir": self._init_analysis_dir,
+            "annotation": self._init_annotation,
+            "test_dir": self._init_test_dir,
             "overlap": self.overlap,
-            "test_ids": self.test_ids,
-            "analysis_ids": self.analysis_ids,
+            "test_ids": self._init_test_ids,
+            "analysis_ids": self._init_analysis_ids,
         }
 
     def _get_id_to_path(

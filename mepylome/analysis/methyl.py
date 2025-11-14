@@ -196,6 +196,7 @@ def get_side_navigation(
     analysis_dir: Path,
     annotation: Path,
     reference_dir: Path,
+    test_dir: Path,
     output_dir: Path,
     cpgs: Sequence[str],
     n_cpgs: int,
@@ -308,6 +309,14 @@ def get_side_navigation(
                     type="text",
                 ),
                 html.Div(id="reference-path-validation"),
+                html.Br(),
+                html.H6("Test directory (new cases for analysis)"),
+                dbc.Input(
+                    id="test-dir",
+                    value=str(test_dir),
+                    type="text",
+                ),
+                html.Div(id="test-path-validation"),
                 html.Br(),
                 html.H6("Output directory"),
                 dbc.Input(
@@ -1127,7 +1136,7 @@ class MethylAnalysis:
         if self._idat_handler is not None:
             self._old_selected_columns = self._idat_handler.selected_columns
 
-        new_parameters = {
+        self_parameters = {
             "analysis_dir": self.analysis_dir,
             "annotation": self.annotation,
             "overlap": self.overlap,
@@ -1139,16 +1148,9 @@ class MethylAnalysis:
         # Reinitialize IdatHandler if values have changed
         if (
             self._idat_handler is None
-            or self._idat_handler.parameters() != new_parameters
+            or self._idat_handler.init_parameters() != self_parameters
         ):
-            self._idat_handler = IdatHandler(**new_parameters)
-
-            # Update the attributes and log changes.
-            for attr, current in new_parameters.items():
-                new = getattr(self._idat_handler, attr)
-                if current != new:
-                    logger.info("Updating '%s'", attr)
-                    setattr(self, attr, new)
+            self._idat_handler = IdatHandler(**self_parameters)
 
         # Restore old selected columns if they are still valid
         if self._old_selected_columns and all(
@@ -2143,6 +2145,7 @@ class MethylAnalysis:
             analysis_dir=self.analysis_dir,
             annotation=self.idat_handler.annotation,
             reference_dir=self.reference_dir,
+            test_dir=self.test_dir,
             output_dir=self.output_dir,
             cpgs=self.cpgs,
             n_cpgs=self.n_cpgs,
@@ -2302,14 +2305,29 @@ class MethylAnalysis:
         def validate_analysis_path(input_path: str) -> tuple[bool, str, Any]:
             try:
                 path = Path(input_path).expanduser()
+
+                # Directory exists but not writable
                 if path.is_dir() and not os.access(path, os.W_OK):
                     return False, f"Protected directory: {path}", no_update
+
+                # Directory exists and writable
                 if path.is_dir():
                     self.analysis_dir = path
-                    return True, "", str(self.idat_handler.annotation)
+                    try:
+                        annotation_str = str(self.idat_handler.annotation)
+                    except Exception:
+                        self._idat_handler = None
+                        self.annotation = INVALID_PATH
+                        annotation_str = str(INVALID_PATH)
+
+                    return True, "", annotation_str
+
                 return False, f"Not a directory: {path}", no_update
 
-            except Exception:
+            except Exception as exc:
+                logger.info(
+                    "An error occurred (1) (validate_analysis_path): %s", exc
+                )
                 return False, "Invalid path format", no_update
 
         @app.callback(
@@ -2339,7 +2357,10 @@ class MethylAnalysis:
                     self.annotation = path
                     return True, "", self.idat_handler.columns, selection
                 return False, f"Not a file: {path}", no_update, selection
-            except Exception:
+            except Exception as exc:
+                logger.info(
+                    "An error occured (1) (validate_annotation_file): %s", exc
+                )
                 return False, "Invalid path format", no_update, selection
 
         @app.callback(
@@ -2362,6 +2383,29 @@ class MethylAnalysis:
             except Exception as exc:
                 logger.info(
                     "An error occured (1) (validate_reference_path): %s", exc
+                )
+                return False, "Invalid path format"
+
+        @app.callback(
+            [
+                Output("test-dir", "valid"),
+                Output("test-path-validation", "children"),
+            ],
+            [Input("test-dir", "value")],
+            prevent_initial_call=False,
+        )
+        def validate_test_path(input_path: str) -> tuple[bool, str]:
+            try:
+                path = Path(input_path).expanduser()
+                if path.is_dir() and not os.access(path, os.W_OK):
+                    return False, f"Protected directory: {path}"
+                if path.is_dir():
+                    self.test_dir = path
+                    return True, ""
+                return False, f"Not a directory: {path}"
+            except Exception as exc:
+                logger.info(
+                    "An error occured (1) (validate_test_path): %s", exc
                 )
                 return False, "Invalid path format"
 
@@ -2406,9 +2450,11 @@ class MethylAnalysis:
                 State("analysis-dir", "value"),
                 State("annotation-file", "value"),
                 State("reference-dir", "value"),
+                State("test-dir", "value"),
                 State("output-dir", "value"),
                 State("preprocessing-method", "value"),
                 State("analysis-dir", "valid"),
+                State("test-dir", "valid"),
                 State("output-dir", "valid"),
                 State("precalculate-cnv", "value"),
                 State("cpg-selection", "value"),
@@ -2425,9 +2471,11 @@ class MethylAnalysis:
             analysis_dir: str,
             annotation: str,
             reference_dir: str,
+            test_dir: str,
             output_dir: str,
             prep: Optional[str],
             analysis_dir_valid: Optional[bool],
+            test_dir_valid: Optional[bool],
             output_dir_valid: Optional[bool],
             precalculate_cnv: Optional[Any],
             cpg_selection: Optional[str],
@@ -2440,6 +2488,10 @@ class MethylAnalysis:
 
             if n_cpgs is None:
                 error_message = "Invalid no. of CpGs."
+            elif not analysis_dir_valid:
+                error_message = "Invalid Analysis path."
+            elif not test_dir_valid:
+                error_message = "Invalid Test path."
             elif not output_dir_valid:
                 error_message = "Invalid Output path."
             elif prep is None:
@@ -2455,6 +2507,7 @@ class MethylAnalysis:
             self.n_cpgs = n_cpgs
             self.output_dir = Path(output_dir).expanduser()
             self.reference_dir = Path(reference_dir).expanduser()
+            self.test_dir = Path(test_dir).expanduser()
             self.prep = prep
             self.precalculate_cnv = precalculate_cnv == ON
             self.cpg_selection = cpg_selection
@@ -2605,8 +2658,10 @@ class MethylAnalysis:
                     list_of_contents, list_of_names, list_of_dates
                 ):
                     children.append(parse_contents(c, n, d))
+                # Reload idat handler now that there are new files
                 self._idat_handler = None
                 self._update_paths()
+                # Update cpgs as uploaded files may have different array types
                 self.cpgs = self._get_cpgs()
                 return children
 
