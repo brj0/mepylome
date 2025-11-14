@@ -227,7 +227,7 @@ class IdatHandler:
         analysis_ids (list): A list of sample IDs in 'analysis_dir'
             that will be used.
         test_ids (list): A list of sample IDs in 'test_dir' that will
-            be used.
+            be used if provided.
 
     Raises:
         ValueError:
@@ -864,7 +864,6 @@ def ensure_betas_exist(
     cpgs: Sequence[str],
     prep: str,
     betas_dir: Path,
-    ids: Optional[Sequence[str]] = None,
     pbar: Optional[ProgressBar] = None,
 ) -> BetasHandler:
     """Ensures all beta files are extracted and available.
@@ -875,8 +874,6 @@ def ensure_betas_exist(
         prep (str): Prepreparation method for the MethylData.
         betas_dir (Path): Path the directory to save/load the betas.
         pbar (ProgressBar): Progress bar for tracking progress.
-        ids (list, optional): A list of IDs to retrieve. If not provided
-            (default), all IDs will be retrieved.
 
     Returns:
         BetasHandler: The corresponding BetasHandler object.
@@ -938,7 +935,11 @@ def get_betas(
             CpGs.
     """
     betas_handler = ensure_betas_exist(
-        idat_handler, cpgs, prep, betas_dir, pbar
+        idat_handler=idat_handler,
+        cpgs=cpgs,
+        prep=prep,
+        betas_dir=betas_dir,
+        pbar=pbar,
     )
     return betas_handler.get(idat_handler=idat_handler, cpgs=cpgs, ids=ids)
 
@@ -958,7 +959,11 @@ def get_columnwise_variance(
         numpy.ndarray: Variance per CpG.
     """
     betas_handler = ensure_betas_exist(
-        idat_handler, cpgs, prep, betas_dir, pbar
+        idat_handler=idat_handler,
+        cpgs=cpgs,
+        prep=prep,
+        betas_dir=betas_dir,
+        pbar=pbar,
     )
     return betas_handler.columnwise_variance(
         idat_handler=idat_handler, cpgs=cpgs, ids=ids, parallel=parallel
