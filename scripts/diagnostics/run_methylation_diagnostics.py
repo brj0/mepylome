@@ -268,7 +268,7 @@ def main():
         default=Path(__file__).parent / "config.toml",
         help=(
             "Path to the config file (default: 'config.toml' in the current "
-            "directory)",
+            "directory)"
         ),
     )
     parser.add_argument(
