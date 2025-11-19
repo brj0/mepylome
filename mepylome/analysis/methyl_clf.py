@@ -797,30 +797,37 @@ def train_clf(
 
     logger.info("Start training...")
 
-    clf.fit(X, y)
-    counts_per_class = np.unique(y, return_counts=True)[1]
+    counts = np.unique(y, return_counts=True)
+    unique_classes, counts_per_class = counts
 
     if min(counts_per_class) < n_splits:
         # Find the class with the minimum count
-        min_class_index = np.argmin(counts_per_class)
-        min_class_label = np.unique(y)[min_class_index]
-        min_class_count = counts_per_class[min_class_index]
-        logger.warning(
-            "Warning: Class '%s' has %d samples, less than 'n_splits' (=%d). "
-            "Some cross-validation metrics won't be computed.",
-            min_class_label,
-            min_class_count,
-            n_splits,
+        insufficient_idx = np.where(counts_per_class < n_splits)[0]
+        insufficient_list = [
+            f"  - {unique_classes[i]} (n={counts_per_class[i]})"
+            for i in insufficient_idx
+        ]
+        insufficient_str = "\n".join(insufficient_list)
+
+        raise ValueError(
+            f"The following classes have fewer samples than cross-validation "
+            f"splits (n={n_splits}):\n{insufficient_str}\n\n Please check "
+            "both your annotation file and that the corresponding samples "
+            "exist on disk.\n You can reduce 'cv' (e.g., set cv=1 to train "
+            "without cross-validation), or provide more samples for these "
+            "classes."
         )
-    else:
-        logger.info("Start cross-validation...")
-        probabilities_cv = cross_val_predict(
-            clf, X, y, cv=cv, method="predict_proba", n_jobs=n_jobs
-        )
-        metrics = cross_val_metrics(clf, X, y, probabilities_cv, cv)
-        trained_clf = TrainedSklearnCVClassifier(
-            clf=clf, probabilities_cv=probabilities_cv, X=X, metrics=metrics
-        )
+
+    clf.fit(X, y)
+
+    logger.info("Start cross-validation...")
+    probabilities_cv = cross_val_predict(
+        clf, X, y, cv=cv, method="predict_proba", n_jobs=n_jobs
+    )
+    metrics = cross_val_metrics(clf, X, y, probabilities_cv, cv)
+    trained_clf = TrainedSklearnCVClassifier(
+        clf=clf, probabilities_cv=probabilities_cv, X=X, metrics=metrics
+    )
 
     with save_path.open("wb") as file:
         pickle.dump(trained_clf, file)
