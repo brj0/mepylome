@@ -387,8 +387,6 @@ def read_cnv_data_from_disk(
             results["segments"], "Chromosome", "End"
         )
 
-    if len(results) == 1:
-        return next(iter(results.values()))
     return tuple(results.values())
 
 
@@ -655,7 +653,7 @@ def get_cn_summary(
     for sample_id in sample_ids:
         segment = read_cnv_data_from_disk(
             cnv_dir, sample_id, extract="segments"
-        )
+        )[0]
         if segment is None:
             msg = f"CNV for {sample_id} does not contain 'segments'."
             raise ValueError(msg)
