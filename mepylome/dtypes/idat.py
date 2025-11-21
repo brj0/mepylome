@@ -249,7 +249,7 @@ class IdatParser:
         seek_to_section(IdatSectionCode.UNKNOWN_7)
         self.unknown_7 = read_string(idat_file)
 
-    def __repr__(self) -> None:
+    def __repr__(self) -> str:
         with np.printoptions(edgeitems=2):
             result = (
                 f"IdatParser(\n"

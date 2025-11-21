@@ -35,6 +35,8 @@ ENDING_SUFFIXES = ("_Grn.idat", "_Red.idat", "_Grn.idat.gz", "_Red.idat.gz")
 
 NEUTRAL_BETA = 0.5
 
+PrepType = Literal["raw", "illumina", "swan", "noob"]
+
 
 def is_valid_idat_basepath(
     basepath: Union[str, Path, Sequence[Union[str, Path]]],
@@ -193,7 +195,6 @@ class RawData:
         *,
         manifest: Optional[Manifest] = None,
     ) -> None:
-        self.manifest = manifest
         _basenames = idat_basepaths(basenames)
 
         self.probes = [path.name.replace(ENDING_GZ, "") for path in _basenames]
@@ -219,6 +220,10 @@ class RawData:
             raise ValueError(msg)
 
         self.array_type = array_types[0]
+
+        self.manifest = (
+            Manifest(self.array_type) if manifest is None else manifest
+        )
 
         all_illumina_ids = [idat.illumina_ids for idat in grn_idat + red_idat]
 
@@ -253,8 +258,6 @@ class RawData:
                     for idat in red_idat
                 ]
             )
-        if self.manifest is None:
-            self.manifest = Manifest(self.array_type)
 
         self._grn_df = None
         self._red_df = None
@@ -356,12 +359,12 @@ class MethylData:
     def __init__(
         self,
         data: Optional["RawData"] = None,
-        file: Sequence[Union[str, Path]] = None,
+        file: Optional[Union[str, Path, Sequence[Union[str, Path]]]] = None,
         prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
         seed: Optional[int] = None,
     ) -> None:
-        if data is None and file is None:
-            msg = "'data' or 'file' must be given."
+        if (data is None) == (file is None):
+            msg = "Exactly one of 'data' or 'file' must be provided."
             raise ValueError(msg)
         if data is None:
             data = RawData(file)
@@ -966,7 +969,9 @@ class MethylData:
         )
 
     def betas_at(
-        self, cpgs: Optional[list[str]] = None, fill: float = NEUTRAL_BETA
+        self,
+        cpgs: Optional[Union[Sequence, np.ndarray]] = None,
+        fill: float = NEUTRAL_BETA,
     ) -> pd.DataFrame:
         """Calculates beta values for specified CpG sites.
 
@@ -1074,11 +1079,11 @@ class ReferenceMethylData:
         >>> cnv_epicv2 = CNV(sample_epicv2, reference)
     """
 
-    _cache = {}
+    _cache: dict = {}
 
     def __new__(
         cls,
-        file: Sequence[Union[str, Path]] = None,
+        file: Union[str, Path, Sequence[Union[str, Path]]],
         prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
         save_to_disk: bool = False,
     ) -> "ReferenceMethylData":
@@ -1098,7 +1103,7 @@ class ReferenceMethylData:
 
     def __init__(
         self,
-        file: Sequence[Union[str, Path]] = None,
+        file: Union[str, Path, Sequence[Union[str, Path]]],
         prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
         save_to_disk: bool = False,
     ) -> None:

@@ -19,6 +19,7 @@ from tqdm import tqdm
 from mepylome.dtypes import (
     CNV,
     MethylData,
+    PrepType,
     ReferenceMethylData,
     cnv_plot_from_data,
     read_cnv_data_from_disk,
@@ -77,7 +78,8 @@ def random_color(
     rgb_frac = colorsys.hls_to_rgb(
         hue / 360, lightness / 100, saturation / 100
     )
-    return tuple(int(255 * x) for x in rgb_frac)
+    r, g, b = (int(255 * x) for x in rgb_frac)
+    return r, g, b
 
 
 def discrete_colors(names: Sequence[str]) -> dict[str, str]:
@@ -171,7 +173,7 @@ def umap_plot_from_data(
 
 def get_reference_methyl_data(
     reference_dir: Union[str, Path],
-    prep: str,
+    prep: PrepType,
 ) -> ReferenceMethylData:
     """Loads and caches CNV-neutral reference data."""
     try:
@@ -188,7 +190,7 @@ def write_single_cnv_to_disk(
     idat_basepath: Path,
     reference_dir: Union[str, Path],
     cnv_dir: Union[str, Path],
-    prep: str,
+    prep: PrepType,
     do_seg: bool,
 ) -> None:
     """Performs CNV analysis on a single sample and writes results to disk."""
@@ -242,7 +244,7 @@ def write_cnv_to_disk(
     sample_path: Sequence[Path],
     reference_dir: Union[str, Path],
     cnv_dir: Union[str, Path],
-    prep: str,
+    prep: PrepType,
     do_seg: bool,
     pbar: Optional[Any] = None,
     n_cores: Optional[int] = None,
@@ -316,7 +318,7 @@ def write_cnv_to_disk(
 def get_cnv_plot(
     sample_path: Path,
     reference_dir: Union[str, Path],
-    prep: str,
+    prep: PrepType,
     cnv_dir: Union[str, Path],
     genes_sel: Sequence[str],
     do_seg: bool,

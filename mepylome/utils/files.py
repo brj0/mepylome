@@ -11,7 +11,7 @@ import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path, PurePath
-from typing import IO, Any, Iterable, Union
+from typing import IO, Any, BinaryIO, Iterable, Union
 
 import requests
 from tqdm import tqdm
@@ -232,7 +232,9 @@ def is_file_like(obj: Any) -> bool:
     return all(hasattr(obj, attr) for attr in ("read", "write", "__iter__"))
 
 
-def get_file_object(filepath_or_buffer: Union[str, Path, IO]) -> IO:
+def get_file_object(
+    filepath_or_buffer: Union[str, Path, IO],
+) -> Union[IO, gzip.GzipFile]:
     """Returns a file-like object for the given input.
 
     Args:
@@ -251,9 +253,7 @@ def get_file_object(filepath_or_buffer: Union[str, Path, IO]) -> IO:
     return open(filepath_or_buffer, "rb")
 
 
-def get_csv_file(
-    file_or_archive: Union[str, Path], filename: str
-) -> IO[bytes]:
+def get_csv_file(file_or_archive: Union[str, Path], filename: str) -> BinaryIO:
     """Retrieve a CSV file from a regular file or a ZIP archive.
 
     This function extracts a specific CSV file from either a regular CSV file

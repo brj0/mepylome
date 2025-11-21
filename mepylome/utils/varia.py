@@ -20,7 +20,6 @@ from uuid import uuid4
 
 import numpy as np
 import toml
-from numpy.typing import ArrayLike
 
 from mepylome.utils.files import get_resource_path
 
@@ -79,7 +78,7 @@ class Timer:
 
 
 def huber(
-    y: ArrayLike,
+    y: np.ndarray,
     k: float = 1.5,
     tol: float = 1.0e-6,
 ) -> tuple[float, float]:
@@ -125,7 +124,7 @@ def huber(
     return mu, s
 
 
-def normexp_signal(par: ArrayLike, x: ArrayLike) -> np.ndarray:
+def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     """Expected Signal Given Observed Foreground Under Normal+Exp Model.
 
     Adjust foreground intensities for observed background using Normal+Exp
@@ -194,7 +193,7 @@ def normexp_signal(par: ArrayLike, x: ArrayLike) -> np.ndarray:
 def normexp_get_xs(
     xf: np.ndarray,
     controls: Optional[np.ndarray] = None,
-    offset: int = 50,
+    offset: float = 50,
     param: Optional[np.ndarray] = None,
 ) -> dict[str, np.ndarray]:
     """Used in NOOB.

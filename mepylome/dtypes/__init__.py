@@ -4,6 +4,7 @@ from .arrays import ArrayType
 from .beads import (
     NEUTRAL_BETA,
     MethylData,
+    PrepType,
     RawData,
     ReferenceMethylData,
     _overlap_indices,
@@ -27,6 +28,7 @@ __all__ = [
     "Annotation",
     "ArrayType",
     "CNV",
+    "PrepType",
     "CNVPlot",
     "NEUTRAL_BETA",
     "input_args_id",

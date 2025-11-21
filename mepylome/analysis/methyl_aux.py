@@ -7,7 +7,7 @@ import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Sequence, TypeVar, Union, overload
 
 import numpy as np
 import pandas as pd
@@ -37,6 +37,8 @@ INVALID_PATH = Path("None")
 TEST_CASE = "Test_Case"
 METHYLATION_CLASS = "Methylation_Class"
 MLH1_CPGS = CONFIG["genes"]["mlh1_promoter_cpgs"]
+
+T = TypeVar("T", dict, set, list)
 
 
 class ProgressBar:
@@ -157,9 +159,25 @@ def extract_sentrix_id(text: Any) -> str:
     return matches[-1] if matches else text
 
 
+@overload
+def convert_to_sentrix_ids(data: None) -> None: ...
+
+
+@overload
+def convert_to_sentrix_ids(data: set) -> set: ...
+
+
+@overload
+def convert_to_sentrix_ids(data: dict) -> dict: ...
+
+
+@overload
+def convert_to_sentrix_ids(data: list) -> list: ...
+
+
 def convert_to_sentrix_ids(
-    data: Optional[Union[dict, set, list]],
-) -> Optional[Union[dict, set, list]]:
+    data: Optional[Union[set, dict, list]],
+) -> Optional[Union[set, dict, list]]:
     """Tries to convert every ID in 'data' to a Sentrix ID."""
     if data is None:
         return None
@@ -670,7 +688,7 @@ class BetasHandler:
         self.array_cpgs = array_cpgs
         if self.array_cpgs is None:
             self.array_cpgs = get_array_cpgs()
-        self.dir = {}
+        self.dir: dict = {}
         for key in self.array_cpgs:
             self.dir[key] = self.basedir / f"{key}"
             ensure_directory_exists(self.dir[key])

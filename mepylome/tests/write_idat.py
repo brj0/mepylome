@@ -66,7 +66,7 @@ class IdatWriter:
     ) -> None:
         """Initializes and writes data to the IDAT file or buffer."""
         self.file = file
-        self.data = data
+        self.data = data or {}
         self.buffer = None
         if self.file:
             with open(self.file, "wb") as outfile:

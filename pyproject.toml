@@ -107,8 +107,10 @@ ignore = [
     "PLR2004",
     # Too many return statements
     "PLR0911",
-    # Use a context manager for opening files
+    # `import` should be at the top-level of a file
     "SIM115",
+    # Too many arguments in function definition
+    "PLC0415",
     # Too many arguments in function definition
     "PLR0913",
     # Too many statements
@@ -130,3 +132,5 @@ disallow_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 exclude = ["trash/"]
+show_column_numbers = true
+pretty = true

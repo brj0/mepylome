@@ -797,7 +797,7 @@ class CNV:
 
     def write(
         self,
-        path: str,
+        path: Union[str, Path],
         data: Union[str, list[str]] = "all",
     ) -> None:
         """Writes CNV data to disk as a zip file.

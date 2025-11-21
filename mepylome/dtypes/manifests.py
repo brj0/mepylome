@@ -111,7 +111,7 @@ class Manifest:
         >>> Manifest.load()
     """
 
-    _cache = {}
+    _cache: dict = {}
 
     def __new__(
         cls,
@@ -497,7 +497,7 @@ class Manifest:
 
         def get_probe_type(
             name: str, infinium_type: InfiniumDesignType
-        ) -> str:
+        ) -> int:
             """Determines the probe type (I, II, SnpI, SnpII or Control)."""
             probe_type = ProbeType.from_manifest_values(name, infinium_type)
             return probe_type.value

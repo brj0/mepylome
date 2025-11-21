@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import numpy.testing as npt
 
-from mepylome.dtypes import ArrayType, Manifest, MethylData, RawData
+from mepylome.dtypes import ArrayType, Manifest, MethylData, PrepType, RawData
 from mepylome.tests.helpers import TempIdatFilePair, TempManifest
 
 
@@ -106,7 +106,9 @@ class TestIdatPreprocessing(unittest.TestCase):
             self._test_methyl_data_noob(raw_data)
             self._test_methyl_data_swan(raw_data)
         else:
-            for prep in ["raw", "illumina", "swan", "noob"]:
+            prep_values: list[PrepType] = ["raw", "illumina", "swan", "noob"]
+
+            for prep in prep_values:
                 self.assertIsNotNone(MethylData(raw_data, prep=prep))
 
     def _test_methyl_data_raw(self, raw_data: RawData) -> None:

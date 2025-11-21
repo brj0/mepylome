@@ -149,7 +149,7 @@ def memoize(f: Callable) -> Callable:
     class Memoize:
         def __init__(self, cls: Union[type, Callable]) -> None:
             self.cls = cls
-            self._cache = {}
+            self._cache: dict = {}
             self.__name__ = cls.__name__
             self.__doc__ = cls.__doc__
             self.__module__ = cls.__module__

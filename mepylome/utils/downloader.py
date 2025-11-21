@@ -142,7 +142,7 @@ def parse_miniml_to_df(
         raise ValueError("No <Sample> elements found in the MINiML file.")
     rows = []
     for s in sample_elements:
-        row = {}
+        row: dict = {}
         for child in list(s):
             tag = child.tag
             if tag == "Supplementary-Data" and "Sample_ID" not in row:
@@ -739,7 +739,7 @@ def make_dataset(
 
 
 def _download_single_dataset(
-    dataset: dict[str, Union[str, list[str]]],
+    dataset: dict[str, Any],
     save_dir: Union[str, Path],
     idat: bool = True,
     metadata: bool = True,
@@ -750,28 +750,30 @@ def _download_single_dataset(
         return Path(p).expanduser()
 
     save_dir = to_path(save_dir)
-    source = dataset["source"]
     series_id = dataset.get("series")
+    source = dataset["source"]
     samples = dataset.get("samples")
     subdir = dataset.get("subdir")
     meta = dataset.get("meta")
     if source == "ae":
+        assert isinstance(series_id, str)
         if metadata:
             download_arrayexpress_metadata(
-                save_dir=save_dir,
                 series_id=series_id,
+                save_dir=save_dir,
                 samples=samples,
                 subdir=subdir,
                 meta=meta,
             )
         if idat:
             download_arrayexpress_idat(
-                save_dir=save_dir,
                 series_id=series_id,
+                save_dir=save_dir,
                 samples=samples,
                 subdir=subdir,
             )
     elif source == "geo":
+        assert isinstance(series_id, str)
         if metadata:
             if series_id == "GSE_MIXED":
                 logger.info(
@@ -779,16 +781,16 @@ def _download_single_dataset(
                 )
             else:
                 download_geo_metadata(
-                    save_dir=save_dir,
                     series_id=series_id,
+                    save_dir=save_dir,
                     samples=samples,
                     subdir=subdir,
                     meta=meta,
                 )
         if idat:
             download_geo_idat(
-                save_dir=save_dir,
                 series_id=series_id,
+                save_dir=save_dir,
                 samples=samples,
                 subdir=subdir,
             )
@@ -815,7 +817,7 @@ def _download_single_dataset(
 
 
 def download_idats(
-    dataset: Union[str, dict, list[Union[str, dict]]],
+    dataset: Union[dict[str, Union[str, list[str]]], Iterable[str], str],
     save_dir: Union[str, Path],
     idat: bool = True,
     metadata: bool = True,

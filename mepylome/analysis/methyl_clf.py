@@ -75,9 +75,9 @@ class TrainedClassifier(ABC):
     @abstractmethod
     def predict_proba(
         self,
-        betas: ArrayLike,
-        id_: Optional[Sequence[str]] = None,
-    ) -> ArrayLike:
+        betas: Union[np.ndarray, pd.DataFrame],
+        id_: Optional[Union[pd.Series, np.ndarray, Sequence]] = None,
+    ) -> np.ndarray:
         """Predicts the probability of the given input samples (betas).
 
         If `id_` is provided, identifiers corresponding to samples seen during
@@ -90,11 +90,11 @@ class TrainedClassifier(ABC):
                 cross-validation probabilities when available.
 
         Returns:
-            array-like: Predicted probabilities for each sample.
+            np.ndarray: Predicted probabilities for each sample.
         """
 
     @abstractmethod
-    def classes(self) -> ArrayLike:
+    def classes(self) -> np.ndarray:
         """Returns the list of classes for which predictions can be made.
 
         Returns:
@@ -244,12 +244,12 @@ class TrainedSklearnClassifier(TrainedClassifier):
 
     def predict_proba(
         self,
-        betas: ArrayLike,
-        id_: Optional[Sequence[str]] = None,
-    ) -> ArrayLike:
+        betas: Union[np.ndarray, pd.DataFrame],
+        id_: Optional[Union[pd.Series, np.ndarray, Sequence]] = None,
+    ) -> np.ndarray:
         return self.clf.predict_proba(betas)
 
-    def classes(self) -> ArrayLike:
+    def classes(self) -> np.ndarray:
         return self._classes
 
     def info(self, output_format: str = "txt") -> str:
@@ -292,7 +292,7 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
     def __init__(
         self,
         clf: Any,
-        probabilities_cv: ArrayLike,
+        probabilities_cv: np.ndarray,
         X: pd.DataFrame,
         metrics: Optional[dict[str, Any]] = None,
     ) -> None:
@@ -304,9 +304,9 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
 
     def predict_proba(
         self,
-        betas: ArrayLike,
-        id_: Optional[Sequence[str]] = None,
-    ) -> ArrayLike:
+        betas: Union[np.ndarray, pd.DataFrame],
+        id_: Optional[Union[pd.Series, np.ndarray, Sequence]] = None,
+    ) -> np.ndarray:
         if id_ is not None:
             id_ = np.ravel(id_)
             probabilities = np.zeros((len(betas), len(self._classes)))
@@ -329,7 +329,7 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
 
         return self.clf.predict_proba(betas)
 
-    def classes(self) -> ArrayLike:
+    def classes(self) -> np.ndarray:
         return self._classes
 
     def info(self, output_format: str = "txt") -> str:
@@ -442,6 +442,7 @@ def parse_component_key(key: str) -> tuple[str, list[Any], dict[str, Any]]:
     if not match:
         raise ValueError(f"Invalid component key format: {key}")
     name, kwargs_str = match.groups()
+    assert name is not None
     args = []
     kwargs = {}
     if kwargs_str:
@@ -450,7 +451,9 @@ def parse_component_key(key: str) -> tuple[str, list[Any], dict[str, Any]]:
             raise ValueError(f"Malformed kwargs in: {key}")
         args = [ast.literal_eval(arg) for arg in tree.body.args]
         kwargs = {
-            kw.arg: ast.literal_eval(kw.value) for kw in tree.body.keywords
+            kw.arg: ast.literal_eval(kw.value)
+            for kw in tree.body.keywords
+            if kw.arg is not None
         }
     return name, args, kwargs
 
@@ -693,8 +696,8 @@ def cross_val_metrics(
     clf: Any,
     X: Union[pd.DataFrame, np.ndarray],
     y: Union[pd.Series, np.ndarray, Sequence],
-    probabilities_cv: ArrayLike,
-    cv: Union[int, Any],
+    probabilities_cv: np.ndarray,
+    cv: Any,
 ) -> dict[str, Any]:
     """Calculates cross-validation statistics for a classifier."""
     y_pred_cv = np.array(
@@ -839,8 +842,8 @@ def train_clf(
 class ClassifierResult:
     """Data container for evaluation of classifier."""
 
-    prediction: any
-    model: any
+    prediction: Any
+    model: Any
     metrics: dict
     reports: dict
 
