@@ -227,14 +227,15 @@ def download_geo_metadata(
     try:
         if not miniml_path.exists():
             with tarfile.open(miniml_tar_path, "r:gz") as tar:
-                kwargs = {}
+                member_name = miniml_tar_path.stem
                 if sys.version_info >= (3, 12):
-                    kwargs["filter"] = "data"  # only add for Python 3.12+
-                tar.extract(
-                    member=f"{miniml_tar_path.stem}",
-                    path=samples_dir,
-                    **kwargs,
-                )
+                    # Python 3.12+ needs the `filter` argument
+                    tar.extract(
+                        member=member_name, path=samples_dir, filter="data"
+                    )
+                else:
+                    # Older Python versions: don't pass `filter`
+                    tar.extract(member=member_name, path=samples_dir)
                 miniml_tar_path.with_suffix("").rename(miniml_path)
     except Exception as exc:
         logger.debug("Could not unzip %s: %s", miniml_tar_path, exc)
@@ -278,10 +279,12 @@ def download_geo_idat_all_files(
     # Extract idat files
     try:
         with tarfile.open(tar_idat_path, "r:*") as tar:
-            kwargs = {}
             if sys.version_info >= (3, 12):
-                kwargs["filter"] = "data"  # only add for Python 3.12+
-            tar.extractall(path=idat_dir, **kwargs)
+                # Python 3.12+ supports the `filter` kwarg
+                tar.extractall(path=idat_dir, filter="data")
+            else:
+                # Older Python versions: no filter argument
+                tar.extractall(path=idat_dir)
 
         # Remove unwanted GPL*csv.gz manifest files if present
         for file_path in idat_dir.rglob("*"):
