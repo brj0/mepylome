@@ -5,6 +5,7 @@ import pickle
 import re
 import threading
 import warnings
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Optional, Sequence, TypeVar, Union, overload
@@ -20,6 +21,7 @@ from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.beads import (
     NEUTRAL_BETA,
     MethylData,
+    PrepType,
     _overlap_indices,
     idat_basepaths,
 )
@@ -124,8 +126,10 @@ def read_dataframe(path: Union[str, Path], **kwargs: Any) -> pd.DataFrame:
         return pd.read_excel(path, **kwargs)
     if path.suffix == ".ods":
         return pd.read_excel(path, engine="odf", **kwargs)
-    if path.suffix in [".csv", ".tsv"]:
-        return pd.read_csv(path, sep=None, **kwargs, engine="python")
+    if path.suffix == ".csv":
+        return pd.read_csv(path, sep=",", **kwargs)
+    if path.suffix == ".tsv":
+        return pd.read_csv(path, sep="\t", **kwargs)
     msg = "Unsupported file format. Supported: ods, xlsx, xls, csv, tsv."
     raise ValueError(msg)
 
@@ -176,7 +180,7 @@ def convert_to_sentrix_ids(data: list) -> list: ...
 
 
 def convert_to_sentrix_ids(
-    data: Optional[Union[set, dict, list]],
+    data: Optional[Union[set, dict, list, Iterable]],
 ) -> Optional[Union[set, dict, list]]:
     """Tries to convert every ID in 'data' to a Sentrix ID."""
     if data is None:
@@ -268,9 +272,9 @@ class IdatHandler:
         *,
         annotation: Optional[Union[str, Path]] = None,
         test_dir: Optional[Union[str, Path]] = None,
-        test_ids: Optional[Sequence[str]] = None,
+        test_ids: Optional[Iterable[str]] = None,
         overlap: bool = False,
-        analysis_ids: Optional[Sequence[str]] = None,
+        analysis_ids: Optional[Iterable[str]] = None,
     ) -> None:
         # Initialize paths and attributes
         self.analysis_dir = Path(analysis_dir)
@@ -474,7 +478,7 @@ class IdatHandler:
         # NOTE: This must be after _set_annotation_index_and_convert_ids
 
         def restrict_and_validate(
-            ids: Optional[list[str]],
+            ids: Optional[Iterable],
             id_to_path: dict[str, Path],
             id_type: str,
         ) -> dict[str, Path]:
@@ -549,7 +553,7 @@ class IdatHandler:
 
     def features(
         self,
-        columns: Optional[Union[str, Sequence[str]]] = None,
+        columns: Optional[Union[str, Iterable[str]]] = None,
         separator: str = "|",
     ) -> list[str]:
         """Combines specified columns into a single label per sample.
@@ -697,7 +701,7 @@ class BetasHandler:
         self.array_type_from_dir = {
             item: key for key, item in self.dir.items()
         }
-        self.paths = None
+        self.paths: dict = {}
         self.update()
 
     @property
@@ -731,7 +735,7 @@ class BetasHandler:
     def get(
         self,
         idat_handler: IdatHandler,
-        cpgs: Sequence[str],
+        cpgs: np.ndarray,
         ids: Optional[Sequence[str]] = None,
         fill: float = NEUTRAL_BETA,
         parallel: bool = True,
@@ -792,7 +796,7 @@ class BetasHandler:
     def columnwise_variance(
         self,
         idat_handler: IdatHandler,
-        cpgs: Sequence[str],
+        cpgs: np.ndarray,
         ids: Optional[Sequence[str]] = None,
         fill: float = NEUTRAL_BETA,
         parallel: bool = True,
@@ -880,7 +884,7 @@ class BetasHandler:
         }
 
 
-def extract_beta(data: tuple[Path, str, BetasHandler]) -> None:
+def extract_beta(data: tuple[Path, PrepType, BetasHandler]) -> None:
     """Extracts and saves beta values for specified CpGs from an IDAT file."""
     idat_file, prep, betas_handler = data
     try:
@@ -895,8 +899,8 @@ def extract_beta(data: tuple[Path, str, BetasHandler]) -> None:
 
 def ensure_betas_exist(
     idat_handler: IdatHandler,
-    cpgs: Sequence[str],
-    prep: str,
+    cpgs: np.ndarray,
+    prep: PrepType,
     betas_dir: Path,
     pbar: Optional[ProgressBar] = None,
 ) -> BetasHandler:
@@ -943,8 +947,8 @@ def ensure_betas_exist(
 
 def get_betas(
     idat_handler: IdatHandler,
-    cpgs: Sequence[str],
-    prep: str,
+    cpgs: np.ndarray,
+    prep: PrepType,
     betas_dir: Path,
     ids: Optional[Sequence[str]] = None,
     pbar: Optional[ProgressBar] = None,
@@ -980,8 +984,8 @@ def get_betas(
 
 def get_columnwise_variance(
     idat_handler: IdatHandler,
-    cpgs: Sequence[str],
-    prep: str,
+    cpgs: np.ndarray,
+    prep: PrepType,
     betas_dir: Path,
     pbar: Optional[ProgressBar] = None,
     ids: Optional[Sequence[str]] = None,
@@ -1018,13 +1022,13 @@ def reordered_cpgs_by_variance(
 
 def reordered_cpgs_by_variance_online(
     idat_handler: IdatHandler,
-    cpgs: Sequence[str],
-    prep: str,
+    cpgs: np.ndarray,
+    prep: PrepType,
     betas_dir: Path,
     pbar: Optional[ProgressBar] = None,
     ids: Optional[Sequence[str]] = None,
     parallel: bool = True,
-) -> tuple[Sequence[str], np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Returns CpG and their variances, ordered by descending variance."""
     logger.info("Reordering CpG's by variance (low-memory)...")
     variances = get_columnwise_variance(

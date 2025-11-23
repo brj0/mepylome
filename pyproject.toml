@@ -131,6 +131,6 @@ ignore_missing_imports = true
 disallow_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
-exclude = ["trash/"]
+exclude = ["trash/", "examples/"]
 show_column_numbers = true
 pretty = true

@@ -191,7 +191,7 @@ class RawData:
 
     def __init__(
         self,
-        basenames: Sequence[Union[str, Path]],
+        basenames: Union[str, Path, Sequence[Union[str, Path]]],
         *,
         manifest: Optional[Manifest] = None,
     ) -> None:

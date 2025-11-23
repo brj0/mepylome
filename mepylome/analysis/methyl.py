@@ -63,6 +63,7 @@ from mepylome.dtypes import (
     Annotation,
     ArrayType,
     Manifest,
+    PrepType,
     _get_cgsegment,
     _overlap_indices,
     get_cn_summary,
@@ -198,9 +199,9 @@ def get_side_navigation(
     reference_dir: Path,
     test_dir: Path,
     output_dir: Path,
-    cpgs: Sequence[str],
+    cpgs: np.ndarray,
     n_cpgs: int,
-    prep: str,
+    prep: PrepType,
     precalculate: bool,
     cpg_selection: str,
     n_neighbors: int,
@@ -561,7 +562,7 @@ def get_side_navigation(
 
 def extract_sub_dataframe(
     data_frame: pd.DataFrame,
-    columns: Sequence[str],
+    columns: np.ndarray,
     fill: float = 0.49,
 ) -> pd.DataFrame:
     """Extracts a sub-dataframe based on the intersection of provided columns.
@@ -594,8 +595,8 @@ def get_balanced_indices(
     Returns:
         np.ndarray: Sorted indices of the balanced selection.
     """
-    feature_labels = np.array(feature_labels)
-    class_frequencies = Counter(feature_labels)
+    feature_labels_array = np.array(feature_labels)
+    class_frequencies = Counter(feature_labels_array)
     min_class_size = min(class_frequencies.values())
     if min_class_size <= 1:
         problematic_classes = [
@@ -604,7 +605,7 @@ def get_balanced_indices(
         msg = f"Only 1 sample for the following classes: {problematic_classes}"
         raise ValueError(msg)
     class_to_indices = {
-        label: np.where(feature_labels == label)[0]
+        label: np.where(feature_labels_array == label)[0]
         for label in class_frequencies
     }
     rng = np.random.default_rng(seed)
@@ -620,16 +621,23 @@ def get_balanced_indices(
 
 
 def get_cpgs_from_file(
-    input_path: Union[str, Path],
+    input_path: Union[str, Path, Any],
 ) -> Optional[np.ndarray]:
     """Reads CpG sites from a file and return a numpy array."""
+    if not isinstance(input_path, (str, Path)):
+        return None
+
+    path = Path(input_path).expanduser()
+
+    if isinstance(input_path, str) and not path.exists():
+        return None
     try:
-        path = Path(input_path).expanduser()
         cpgs_df = read_dataframe(path, header=None)
         cpgs = [cpg for cpg in cpgs_df.values.flatten() if not pd.isna(cpg)]
         return np.array(cpgs)
-    except Exception:
-        return None
+
+    except Exception as exc:
+        raise ValueError(f"Failed to read CpGs from file {path}") from exc
 
 
 class MethylAnalysis:
@@ -925,7 +933,7 @@ class MethylAnalysis:
             plot data, initially set to None.
 
         umap_df (pandas.DataFrame): Dataframe containing UMAP data, initially
-            set to None.
+            set to empty data frame.
 
         umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
             'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
@@ -951,7 +959,7 @@ class MethylAnalysis:
         ids (list): List of IDs, initially empty.
 
         ids_to_highlight (list): IDs to highlight in the plot, initially
-            set to None.
+            set to empty list.
 
         app (dash.dash.Dash): Dash application object, initially set to None.
 
@@ -974,6 +982,62 @@ class MethylAnalysis:
         >>> analysis1.run_app()
     """
 
+    analysis_dir: Path
+    analysis_ids: Optional[list[str]]
+    annotation: Path
+    app: Optional[Dash]
+    balancing_feature: Union[str, list[str]]
+    betas_all: Optional[pd.DataFrame]
+    betas_dir: Path
+    betas_sel: Optional[pd.DataFrame]
+    clf_dir: Path
+    cnv_dir: Path
+    cnv_id: Optional[str]
+    cnv_plot: go.Figure
+    cpg_blacklist: set[str]
+    cpg_selection: str
+    cv_default: Any
+    debug: bool
+    do_seg: bool
+    dropdown_id: Optional[Sequence[str]]
+    feature_matrix: Optional[Union[pd.DataFrame, np.ndarray]]
+    host: str
+    ids: Sequence[str]
+    ids_to_highlight: list
+    load_full_betas: bool
+    n_cpgs: int
+    n_jobs_clf: int
+    n_jobs_cnv: Optional[int]
+    output_dir: Path
+    overlap: bool
+    port: int
+    precalculate_cnv: bool
+    prep: PrepType
+    raw_umap_plot: Optional[go.Figure]
+    reference_dir: Path
+    test_dir: Path
+    test_ids: Optional[list[str]]
+    umap_cpgs: Optional[np.ndarray]
+    umap_df: pd.DataFrame
+    umap_dir: Path
+    umap_parms: dict[str, Any]
+    umap_plot: go.Figure
+    umap_plot_path: Path
+    use_gpu: bool
+
+    _balanced_sorted_cpgs: Optional[pd.Index]
+    _classifiers: Optional[list[dict[str, Any]]]
+    _clf_log: Path
+    _cpgs: np.ndarray
+    _idat_handler: Optional[IdatHandler]
+    _internal_cpgs_hash: Optional[str]
+    _old_selected_columns: Optional[list[str]]
+    _prev_vars: dict[str, Any]
+    _prog_bar: ProgressBar
+    _sorted_cpgs: Optional[np.ndarray]
+    _testdir_provided: bool
+    _use_discrete_colors: bool
+
     def __init__(
         self,
         analysis_dir: Union[str, Path] = INVALID_PATH,
@@ -982,7 +1046,7 @@ class MethylAnalysis:
         reference_dir: Union[str, Path] = INVALID_PATH,
         output_dir: Union[str, Path] = DEFAULT_OUTPUT_DIR,
         test_dir: Union[str, Path] = INVALID_PATH,
-        prep: str = "illumina",
+        prep: PrepType = "illumina",
         cpgs: Union[str, Sequence[str], set[str], np.ndarray] = "auto",
         cpg_blacklist: Optional[
             Union[Sequence[str], set[str], np.ndarray]
@@ -1011,14 +1075,14 @@ class MethylAnalysis:
         balancing_feature: Optional[str] = None,
     ) -> None:
         self.analysis_dir = Path(analysis_dir).expanduser()
+        self.analysis_ids = (
+            None if analysis_ids is None else list(analysis_ids)
+        )
         self.annotation = Path(annotation).expanduser()
         self.app = None
         self.balancing_feature = balancing_feature or []
         self.betas_all = None
-        self.betas_dir = None
         self.betas_sel = None
-        self.clf_dir = None
-        self.cnv_dir = None
         self.cnv_id = None
         self.cnv_plot = EMPTY_FIGURE
         self.cpg_blacklist = set(cpg_blacklist or [])
@@ -1027,10 +1091,9 @@ class MethylAnalysis:
         self.debug = debug
         self.dropdown_id = None
         self.feature_matrix = feature_matrix
-        self.use_gpu = use_gpu
         self.host = host
         self.ids = []
-        self.ids_to_highlight = None
+        self.ids_to_highlight = []
         self.load_full_betas = load_full_betas
         self.n_cpgs = n_cpgs
         self.n_jobs_clf = n_jobs_clf
@@ -1042,17 +1105,13 @@ class MethylAnalysis:
         self.prep = prep
         self.raw_umap_plot = None
         self.reference_dir = Path(reference_dir).expanduser()
-        self.analysis_ids = (
-            None if analysis_ids is None else list(analysis_ids)
-        )
         self.test_dir = Path(test_dir).expanduser()
         self.test_ids = None if test_ids is None else list(test_ids)
         self.umap_cpgs = None
-        self.umap_df = None
-        self.umap_dir = None
+        self.umap_df = pd.DataFrame()
         self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
         self.umap_plot = EMPTY_FIGURE
-        self.umap_plot_path = None
+        self.use_gpu = use_gpu
 
         self._balanced_sorted_cpgs = None
         self._classifiers = classifiers
@@ -1150,7 +1209,14 @@ class MethylAnalysis:
             self._idat_handler is None
             or self._idat_handler.init_parameters() != self_parameters
         ):
-            self._idat_handler = IdatHandler(**self_parameters)
+            self._idat_handler = IdatHandler(
+                analysis_dir=self.analysis_dir,
+                annotation=self.annotation,
+                overlap=self.overlap,
+                test_dir=self.test_dir,
+                analysis_ids=self.analysis_ids,
+                test_ids=self.test_ids,
+            )
 
         # Restore old selected columns if they are still valid
         if self._old_selected_columns and all(
@@ -1255,6 +1321,7 @@ class MethylAnalysis:
         """Returns or computes and caches the hash of the CpG array."""
         if self._internal_cpgs_hash is None:
             self._internal_cpgs_hash = input_args_id(self.cpgs)
+        assert self._internal_cpgs_hash is not None  # for mypy
         return self._internal_cpgs_hash
 
     def _get_test_files_hash(self) -> str:
@@ -1301,29 +1368,29 @@ class MethylAnalysis:
 
         if input_var == "auto":
             logger.info("Automatically determine array types...")
-            input_var = {
+            detected = {
                 str(ArrayType.from_idat(path))
                 for path in self.idat_handler.paths
             }
             logger.info(
                 "The following array types were detected: %s",
-                ", ".join(input_var),
+                ", ".join(detected),
             )
-            input_var = input_var - {str(ArrayType.UNKNOWN)}
+            input_var_set = detected - {str(ArrayType.UNKNOWN)}
 
         elif isinstance(input_var, str):
-            input_var = set(input_var.split("+"))
+            input_var_set = set(input_var.split("+"))
             logger.info(
                 "The following array types were provided: %s",
-                ", ".join(input_var),
+                ", ".join(input_var_set),
             )
 
         supported_types = {str(x) for x in ArrayType} - {
             str(ArrayType.UNKNOWN),
             str(ArrayType.ILLUMINA_27K),
         }
-        if input_var.issubset(supported_types):
-            if not input_var:
+        if input_var_set.issubset(supported_types):
+            if not input_var_set:
                 return np.array([])
 
             logger.info("Load manifests and calculate CpG overlap...")
@@ -1331,12 +1398,12 @@ class MethylAnalysis:
             cpg_sets = [
                 set(Manifest(array_type).methylation_probes)
                 for array_type in supported_types
-                if array_type in input_var
+                if array_type in input_var_set
             ]
             cpgs = set.intersection(*cpg_sets)
             return exclude_blacklist(cpgs)
 
-        mismatches = ", ".join(input_var - supported_types)
+        mismatches = ", ".join(input_var_set - supported_types)
         types_str = ", ".join(supported_types)
         msg = (
             "'cpgs' must be one of the following:\n"
@@ -1506,6 +1573,7 @@ class MethylAnalysis:
             if self.feature_matrix is None
             else self.feature_matrix
         )
+        assert matrix_to_use is not None # for mypy
 
         if len(self.idat_handler.ids) != len(matrix_to_use):
             if self.feature_matrix is not None:
@@ -1616,6 +1684,7 @@ class MethylAnalysis:
             raise ValueError(msg)
 
         self._update_paths()
+        assert self.betas_dir is not None # for mypy
 
         def get_random_cpgs() -> np.ndarray:
             logger.info("Selecting random CpG's...")
@@ -1627,6 +1696,7 @@ class MethylAnalysis:
 
         def _get_betas(cpgs: np.ndarray) -> pd.DataFrame:
             logger.info("Retrieving beta values...")
+            assert self.betas_dir is not None  # for mypy
             return get_betas(
                 idat_handler=self.idat_handler,
                 cpgs=cpgs,
@@ -1646,6 +1716,7 @@ class MethylAnalysis:
         if self._sorted_cpgs is None and (
             self.cpg_selection in ["top", "balanced"]
         ):
+            assert self.betas_dir is not None  # for mypy
             self._sorted_cpgs, self._sorted_cpgs_var = (
                 reordered_cpgs_by_variance_online(
                     idat_handler=self.idat_handler,
@@ -1666,6 +1737,7 @@ class MethylAnalysis:
             )
 
         elif self.cpg_selection == "top":
+            assert self._sorted_cpgs is not None # for mypy
             self.umap_cpgs = self._sorted_cpgs[: self.n_cpgs]
             self.betas_sel = (
                 self.betas_all[self.umap_cpgs]
@@ -1720,9 +1792,7 @@ class MethylAnalysis:
         """Highlights the selected samples and the sample selected for CNV."""
         if cnv_id is not None:
             self.cnv_id = cnv_id
-        self.dropdown_id = (
-            [] if self.ids_to_highlight is None else self.ids_to_highlight
-        )
+        self.dropdown_id = self.ids_to_highlight
         self.umap_plot = go.Figure(self.raw_umap_plot)
         for id_ in self.dropdown_id:
             x, y = self._get_coordinates(id_)
@@ -1901,7 +1971,7 @@ class MethylAnalysis:
     def classify(
         self,
         *,
-        ids: Optional[Union[Sequence[str], np.ndarray]] = None,
+        ids: Optional[Union[str, Sequence[str], np.ndarray]] = None,
         values: Optional[Union[pd.DataFrame, np.ndarray]] = None,
         clf_list: Any,
     ) -> list[ClassifierResult]:
@@ -1919,7 +1989,7 @@ class MethylAnalysis:
         predictions and performance reports.
 
         Args:
-            ids (list, tuple, np.ndarray, or None): Sample IDs for
+            ids (str, list, tuple, np.ndarray, or None): Sample IDs for
                 prediction/classification. If `values` is provided, `ids` must
                 be `None`.
             values (pd.DataFrame, np.ndarray, or None): Feature matrix for
@@ -1959,7 +2029,7 @@ class MethylAnalysis:
             msg = "Provide exactly one of 'ids' or 'values'."
             raise ValueError(msg)
 
-        if ids and not isinstance(ids, (list, tuple, np.ndarray)):
+        if ids and isinstance(ids, str):
             ids = [ids]
 
         # Clean the clf log file
@@ -2023,7 +2093,7 @@ class MethylAnalysis:
 
     def _load_training_data(
         self,
-        ids: Sequence[str],
+        ids: Optional[Union[np.ndarray, Sequence[str]]],
         shape_only: bool = False,
     ) -> tuple[Any, Optional[list[Any]], Optional[pd.DataFrame]]:
         """Load training data for classification."""
@@ -2132,8 +2202,8 @@ class MethylAnalysis:
         assets_folder = current_dir.parent / "data" / "assets"
         app = Dash(
             __name__,
-            update_title=None,
-            assets_folder=assets_folder,
+            update_title="",
+            assets_folder=str(assets_folder),
             external_stylesheets=[dbc.themes.BOOTSTRAP],
         )
         app._favicon = "favicon.svg"
@@ -2217,10 +2287,10 @@ class MethylAnalysis:
         )
         def update_plots(
             click_data: Optional[dict[str, Any]],
-            ids_to_highlight: Optional[Sequence[str]],
-            umap_color_columns: Optional[Sequence[str]],
+            ids_to_highlight: Optional[list[str]],
+            umap_color_columns: Optional[list[str]],
             umap_color_scheme: Optional[str],
-            genes_sel: Optional[Sequence[str]],
+            genes_sel: Optional[list[str]],
             curr_umap_plot: Optional[dict[str, Any]],
         ) -> tuple[Any, Any, Any]:
             def update_umap_plot() -> tuple[Any, Any, Any]:
@@ -2232,10 +2302,10 @@ class MethylAnalysis:
                 except AttributeError:
                     return no_update, no_update, no_update
 
-            genes_sel = tuple(genes_sel) if genes_sel else ()
+            genes_sel = genes_sel or []
             trigger = callback_context.triggered[0]["prop_id"].split(".")[0]
-            self.ids_to_highlight = ids_to_highlight
-            if trigger == "ids-to-highlight" and ids_to_highlight is not None:
+            self.ids_to_highlight = ids_to_highlight or []
+            if trigger == "ids-to-highlight":
                 self._umap_plot_highlight()
                 self._retrieve_zoom(curr_umap_plot)
                 return self.umap_plot, no_update, ""
@@ -2473,7 +2543,7 @@ class MethylAnalysis:
             reference_dir: str,
             test_dir: str,
             output_dir: str,
-            prep: Optional[str],
+            prep: Optional[PrepType],
             analysis_dir_valid: Optional[bool],
             test_dir_valid: Optional[bool],
             output_dir_valid: Optional[bool],

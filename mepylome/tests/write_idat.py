@@ -151,7 +151,7 @@ class IdatWriter:
         check_type("n_beads", "<u1")
         check_type("mid_block", "<i4")
 
-        def get_data(key: str) -> Union[np.ndarray, str, int]:
+        def get_data(key: str) -> Any:
             return self.data[key]
 
         offsets = {}
@@ -252,3 +252,4 @@ def write_idat(
     writer = IdatWriter(file=file, data=data)
     if file is None:
         return writer.buffer
+    return None
