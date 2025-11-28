@@ -1556,45 +1556,66 @@ class MethylAnalysis:
             AttributeError: If a dimension mismatch occurs, or if 'betas_sel'
                 is not set.
         """
-        if self.betas_sel is None and self.feature_matrix is None:
-            msg = "'betas_sel' is not set. First run 'set_betas'"
-            raise AttributeError(msg)
-
-        if self.use_gpu:
-            logger.info("Using GPU backend: cuml.manifold.UMAP")
-            import cupy as cp
-            from cuml.manifold import UMAP
-        else:
-            logger.info("Using CPU backend: umap.UMAP")
-            from umap import UMAP
-
         matrix_to_use = (
             self.betas_sel
             if self.feature_matrix is None
             else self.feature_matrix
         )
-        assert matrix_to_use is not None
 
-        if len(self.idat_handler.ids) != len(matrix_to_use):
-            if self.feature_matrix is not None:
-                source = "'feature_matrix'"
-            else:
-                source = "'self.betas_sel'"
+        if matrix_to_use is None:
+            msg = "'betas_sel' is not set. First run 'set_betas'"
+            raise AttributeError(msg)
 
+        n_rows = len(matrix_to_use)
+
+        if self.betas_sel is not None:
+            chosen_index = self.betas_sel.index
+            source_name = "self.betas_sel"
+        elif isinstance(self.feature_matrix, pd.DataFrame):
+            chosen_index = self.feature_matrix.index
+            source_name = "self.feature_matrix"
+
+            # Ensure all feature_matrix samples exist in idat_handler.ids
+            missing = set(chosen_index) - set(self.idat_handler.ids)
+            if missing:
+                raise ValueError(
+                    "Invalid sample IDs in feature_matrix index: "
+                    f"{list(missing)}. All samples must exist in "
+                    "self.idat_handler.ids."
+                )
+        else:
+            chosen_index = self.idat_handler.ids
+            source_name = "self.feature_matrix"
+
+        # Warn if row counts mismatch and we are not using idat_handler.ids
+        if n_rows != len(self.idat_handler.ids):
             msg = (
-                f"Dimension mismatch 0: {source} does not have the same "
-                "number of rows as samples in 'idat_handler.ids'. This may "
+                f"Dimension mismatch 0: '{source_name}' has {n_rows} rows but "
+                f"idat_handler.ids has {len(self.idat_handler.ids)}. This may "
                 f"occur due to invalid IDAT files. Check '{self.betas_dir}' "
                 "for erroneous files."
             )
-            raise AttributeError(msg)
+
+            if n_rows != len(chosen_index):
+                raise ValueError(msg)
+
+            logger.warning(msg)
 
         if self.use_gpu:
+            logger.info("Using GPU backend: cuml.manifold.UMAP")
+            import cupy as cp
+            from cuml.manifold import UMAP
+
             logger.info("Transferring data to GPU...")
             if isinstance(matrix_to_use, pd.DataFrame):
                 matrix_to_use = cp.asarray(matrix_to_use.values)
             else:
                 matrix_to_use = cp.asarray(matrix_to_use)
+        else:
+            logger.info("Using CPU backend: umap.UMAP")
+            from umap import UMAP
+
+        assert matrix_to_use is not None
 
         logger.info(
             "Starting UMAP for matrix with shape %s...", matrix_to_use.shape
@@ -1607,9 +1628,7 @@ class MethylAnalysis:
             umap_2d = cp.asnumpy(umap_2d)
 
         umap_df = pd.DataFrame(
-            umap_2d,
-            columns=["Umap_x", "Umap_y"],
-            index=self.idat_handler.ids,
+            umap_2d, columns=["Umap_x", "Umap_y"], index=chosen_index
         )
         self.umap_df = pd.concat(
             [
