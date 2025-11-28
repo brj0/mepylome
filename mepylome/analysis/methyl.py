@@ -986,7 +986,7 @@ class MethylAnalysis:
     analysis_ids: Optional[list[str]]
     annotation: Path
     app: Optional[Dash]
-    balancing_feature: Union[str, list[str]]
+    balancing_feature: Optional[str]
     betas_all: Optional[pd.DataFrame]
     betas_dir: Path
     betas_sel: Optional[pd.DataFrame]
@@ -1080,7 +1080,7 @@ class MethylAnalysis:
         )
         self.annotation = Path(annotation).expanduser()
         self.app = None
-        self.balancing_feature = balancing_feature or []
+        self.balancing_feature = balancing_feature
         self.betas_all = None
         self.betas_sel = None
         self.cnv_id = None
@@ -1321,7 +1321,7 @@ class MethylAnalysis:
         """Returns or computes and caches the hash of the CpG array."""
         if self._internal_cpgs_hash is None:
             self._internal_cpgs_hash = input_args_id(self.cpgs)
-        assert self._internal_cpgs_hash is not None  # for mypy
+        assert self._internal_cpgs_hash is not None
         return self._internal_cpgs_hash
 
     def _get_test_files_hash(self) -> str:
@@ -1573,7 +1573,7 @@ class MethylAnalysis:
             if self.feature_matrix is None
             else self.feature_matrix
         )
-        assert matrix_to_use is not None # for mypy
+        assert matrix_to_use is not None
 
         if len(self.idat_handler.ids) != len(matrix_to_use):
             if self.feature_matrix is not None:
@@ -1684,7 +1684,7 @@ class MethylAnalysis:
             raise ValueError(msg)
 
         self._update_paths()
-        assert self.betas_dir is not None # for mypy
+        assert self.betas_dir is not None
 
         def get_random_cpgs() -> np.ndarray:
             logger.info("Selecting random CpG's...")
@@ -1696,7 +1696,7 @@ class MethylAnalysis:
 
         def _get_betas(cpgs: np.ndarray) -> pd.DataFrame:
             logger.info("Retrieving beta values...")
-            assert self.betas_dir is not None  # for mypy
+            assert self.betas_dir is not None
             return get_betas(
                 idat_handler=self.idat_handler,
                 cpgs=cpgs,
@@ -1716,7 +1716,7 @@ class MethylAnalysis:
         if self._sorted_cpgs is None and (
             self.cpg_selection in ["top", "balanced"]
         ):
-            assert self.betas_dir is not None  # for mypy
+            assert self.betas_dir is not None
             self._sorted_cpgs, self._sorted_cpgs_var = (
                 reordered_cpgs_by_variance_online(
                     idat_handler=self.idat_handler,
@@ -1737,7 +1737,7 @@ class MethylAnalysis:
             )
 
         elif self.cpg_selection == "top":
-            assert self._sorted_cpgs is not None # for mypy
+            assert self._sorted_cpgs is not None
             self.umap_cpgs = self._sorted_cpgs[: self.n_cpgs]
             self.betas_sel = (
                 self.betas_all[self.umap_cpgs]
@@ -1746,7 +1746,7 @@ class MethylAnalysis:
             )
 
         elif self.cpg_selection == "balanced":
-            features = self.idat_handler.features(self.balancing_feature)
+            features = self.idat_handler.features(self.balancing_feature or [])
             balanced_indices = get_balanced_indices(features, seed=42)
             if self._balanced_sorted_cpgs is None:
                 if self.betas_all is not None:
@@ -2354,6 +2354,7 @@ class MethylAnalysis:
                         return self.umap_plot, EMPTY_FIGURE, str(exc)
             if trigger == "selected-genes" and genes_sel is not None:
                 try:
+                    assert self.cnv_id is not None
                     self.make_cnv_plot(self.cnv_id, genes_sel)
                     return no_update, self.cnv_plot, ""
                 except Exception as exc:
@@ -2547,9 +2548,9 @@ class MethylAnalysis:
             analysis_dir_valid: Optional[bool],
             test_dir_valid: Optional[bool],
             output_dir_valid: Optional[bool],
-            precalculate_cnv: Optional[Any],
+            precalculate_cnv: Optional[bool],
             cpg_selection: Optional[str],
-            balancing_feature: Optional[Any],
+            balancing_feature: Optional[str],
         ) -> tuple[Any, Any, Any, dict[str, str]]:
             if not n_clicks:
                 return no_update, no_update, "", {}
@@ -2570,9 +2571,17 @@ class MethylAnalysis:
                 error_message = "Invalid precalculation method."
             elif cpg_selection is None:
                 error_message = "Invalid CpG selection method."
+            elif balancing_feature is None:
+                error_message = "Invalid balancing features."
 
             if error_message:
                 return no_update, no_update, error_message, {}
+
+            assert n_cpgs is not None
+            assert prep is not None
+            assert precalculate_cnv is not None
+            assert cpg_selection is not None
+            assert balancing_feature is not None
 
             self.n_cpgs = n_cpgs
             self.output_dir = Path(output_dir).expanduser()
@@ -2584,7 +2593,7 @@ class MethylAnalysis:
             self.analysis_dir = Path(analysis_dir).expanduser()
             self.annotation = Path(annotation).expanduser()
             self.balancing_feature = (
-                balancing_feature if cpg_selection == "balanced" else []
+                balancing_feature if cpg_selection == "balanced" else None
             )
 
             try:
@@ -2698,18 +2707,14 @@ class MethylAnalysis:
             Output("output-idat-upload", "children"),
             Input("upload-idat", "contents"),
             State("upload-idat", "filename"),
-            State("upload-idat", "last_modified"),
         )
         def update_output(
-            list_of_contents: Optional[list[str]],
-            list_of_names: Optional[list[str]],
-            list_of_dates: Optional[list[Any]],
+            list_of_contents: list[str],
+            list_of_names: list[str],
         ) -> Optional[list[html.Div]]:
             logger.info("Uploading files...")
 
-            def parse_contents(
-                contents: str, filename: str, date: Any
-            ) -> html.Div:
+            def parse_contents(contents: str, filename: str) -> html.Div:
                 file_path = self.test_dir / filename
                 content_string = contents.split(",")[1]
                 decoded = base64.b64decode(content_string)
@@ -2724,16 +2729,16 @@ class MethylAnalysis:
 
             if list_of_contents is not None:
                 children = []
-                for c, n, d in zip(
-                    list_of_contents, list_of_names, list_of_dates
-                ):
-                    children.append(parse_contents(c, n, d))
+                for c, n in zip(list_of_contents, list_of_names):
+                    children.append(parse_contents(c, n))
                 # Reload idat handler now that there are new files
                 self._idat_handler = None
                 self._update_paths()
                 # Update cpgs as uploaded files may have different array types
                 self.cpgs = self._get_cpgs()
                 return children
+
+            return no_update
 
         @app.callback(
             Output("clf-error-out", "children"),
@@ -2764,6 +2769,7 @@ class MethylAnalysis:
                 return error_message
 
             try:
+                assert clf_list is not None
                 parsed_clf_list = [
                     self.classifiers[int(x)] if x.isdigit() else x
                     for x in clf_list
@@ -2799,7 +2805,7 @@ class MethylAnalysis:
             port=free_port,
         )
 
-    def __repr__(self) -> None:
+    def __repr__(self) -> str:
         title = f"{self.__class__.__name__}()"
         header = title + "\n" + "*" * len(title)
         lines = [header]

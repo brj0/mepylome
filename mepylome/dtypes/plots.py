@@ -370,22 +370,27 @@ def read_cnv_data_from_disk(
         extract=extract,
     )
 
-    results = dict(zip(extract, unzipped))
-    # Calculate some plot x-values
-    if results.get("bins") is not None:
-        results["bins"]["X_mid"] = get_x_mid(results["bins"])
-    if results.get("detail") is not None:
-        results["detail"]["X_mid"] = get_x_mid(results["detail"])
-        results["detail"]["Len"] = (
-            results["detail"]["End"] - results["detail"]["Start"]
-        )
-    if results.get("segments") is not None:
-        results["segments"]["X_start"] = add_offset(
-            results["segments"], "Chromosome", "Start"
-        )
-        results["segments"]["X_end"] = add_offset(
-            results["segments"], "Chromosome", "End"
-        )
+    results: dict[str, Optional[pd.DataFrame]] = dict(zip(extract, unzipped))
+
+    # Process bins
+    bins_df = results.get("bins")
+    if bins_df is not None:
+        bins_df["X_mid"] = get_x_mid(bins_df)
+        results["bins"] = bins_df
+
+    # Process detail
+    detail_df = results.get("detail")
+    if detail_df is not None:
+        detail_df["X_mid"] = get_x_mid(detail_df)
+        detail_df["Len"] = detail_df["End"] - detail_df["Start"]
+        results["detail"] = detail_df
+
+    # Process segments
+    segments_df = results.get("segments")
+    if segments_df is not None:
+        segments_df["X_start"] = add_offset(segments_df, "Chromosome", "Start")
+        segments_df["X_end"] = add_offset(segments_df, "Chromosome", "End")
+        results["segments"] = segments_df
 
     return tuple(results.values())
 

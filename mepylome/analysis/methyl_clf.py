@@ -792,6 +792,7 @@ def train_clf(
     n_splits = cv if isinstance(cv, int) else cv.n_splits
 
     if save_path.exists():
+        logger.info("Reading trained and cached classifier.")
         with save_path.open("rb") as file:
             return pickle.load(file)
 

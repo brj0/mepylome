@@ -10,6 +10,7 @@ import pickle
 from functools import reduce
 from pathlib import Path
 from typing import (
+    Any,
     Iterator,
     Literal,
     Optional,
@@ -42,9 +43,11 @@ def is_valid_idat_basepath(
     basepath: Union[str, Path, Sequence[Union[str, Path]]],
 ) -> bool:
     """Checks if the given basepath(s) point to valid IDAT files."""
-    if not isinstance(basepath, list):
-        basepath = [basepath]
-    basepath = [str(x) for x in basepath]
+    if isinstance(basepath, (str, Path)):
+        basepaths = [str(basepath)]
+    else:
+        basepaths = [str(x) for x in basepath]
+
     return all(
         (
             os.path.exists(x + ENDING_GRN)
@@ -54,7 +57,7 @@ def is_valid_idat_basepath(
             os.path.exists(x + ENDING_RED)
             or os.path.exists(x + ENDING_RED + ENDING_GZ)
         )
-        for x in basepath
+        for x in basepaths
     )
 
 
@@ -107,8 +110,9 @@ def idat_basepaths(
                 return file_path[: -len(suffix)]
         return file_path
 
-    if not isinstance(files, list):
+    if isinstance(files, (str, Path)):
         files = [files]
+
     _files = [
         strip_suffix(idat_file)
         for file_or_dir in files
@@ -189,6 +193,16 @@ class RawData:
         >>> raw_data = RawData([idat_basepath0, idat_basepath1])
     """
 
+    array_type: ArrayType
+    ids: np.ndarray
+    manifest: Manifest
+    probes: list[str]
+
+    _grn: np.ndarray
+    _grn_df: Optional[pd.DataFrame]
+    _red: np.ndarray
+    _red_df: Optional[pd.DataFrame]
+
     def __init__(
         self,
         basenames: Union[str, Path, Sequence[Union[str, Path]]],
@@ -261,8 +275,6 @@ class RawData:
 
         self._grn_df = None
         self._red_df = None
-        self.methylated = None
-        self.unmethylated = None
 
     @property
     def grn(self) -> pd.DataFrame:
@@ -356,17 +368,37 @@ class MethylData:
         >>> methyl_data = MethylData(file=file_path, prep="swan")
     """
 
+    array_type: ArrayType
+    data: RawData
+    ids: np.ndarray
+    manifest: Manifest
+    methyl: np.ndarray
+    methyl_ilmnid: np.ndarray
+    methyl_index: np.ndarray
+    probes: list[str]
+    seed: Optional[int]
+    unmethyl: np.ndarray
+    intensity: Optional[np.ndarray]
+
+    _grn: np.ndarray
+    _grn_df: Optional[pd.DataFrame]
+    _methylated_df: Optional[pd.DataFrame]
+    _red: np.ndarray
+    _red_df: Optional[pd.DataFrame]
+    _unmethylated_df: Optional[pd.DataFrame]
+
     def __init__(
         self,
         data: Optional["RawData"] = None,
         file: Optional[Union[str, Path, Sequence[Union[str, Path]]]] = None,
-        prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
+        prep: PrepType = "illumina",
         seed: Optional[int] = None,
     ) -> None:
         if (data is None) == (file is None):
             msg = "Exactly one of 'data' or 'file' must be provided."
             raise ValueError(msg)
         if data is None:
+            assert file is not None
             data = RawData(file)
         elif not isinstance(data, RawData):
             msg = "'data' is not of type 'RawData'."
@@ -379,6 +411,7 @@ class MethylData:
         self.manifest = data.manifest
         self.probes = data.probes
         self.data = data
+        self.intensity = None
         self._grn_df = None
         self._red_df = None
         self._methylated_df = None
@@ -576,7 +609,7 @@ class MethylData:
     def _cached_indices(
         manifest: Manifest,
         illumina_ids: np.ndarray,
-        prep: Literal["illumina", "swan", "noob", "raw"],
+        prep: PrepType = "illumina",
     ) -> dict[str, np.ndarray]:
         """Cache the indices required for data processing.
 
@@ -1079,12 +1112,19 @@ class ReferenceMethylData:
         >>> cnv_epicv2 = CNV(sample_epicv2, reference)
     """
 
-    _cache: dict = {}
+    _cache: dict[Any, "ReferenceMethylData"] = {}
+
+    file: Union[str, Path, Sequence[Union[str, Path]]]
+    prep: PrepType
+    save_to_disk: bool
+
+    _methyl_data: dict[ArrayType, MethylData]
+    _cached: bool
 
     def __new__(
         cls,
         file: Union[str, Path, Sequence[Union[str, Path]]],
-        prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
+        prep: PrepType = "illumina",
         save_to_disk: bool = False,
     ) -> "ReferenceMethylData":
         key = cache_key(file, prep)
@@ -1097,14 +1137,16 @@ class ReferenceMethylData:
         cls._cache[key] = instance
         return instance
 
-    def __getnewargs__(self) -> tuple[Sequence[Union[str, Path]], str, bool]:
+    def __getnewargs__(
+        self,
+    ) -> tuple[Union[str, Path, Sequence[Union[str, Path]]], PrepType, bool]:
         # Necessary for pickle
         return self.file, self.prep, self.save_to_disk
 
     def __init__(
         self,
         file: Union[str, Path, Sequence[Union[str, Path]]],
-        prep: Literal["illumina", "swan", "noob", "raw"] = "illumina",
+        prep: PrepType = "illumina",
         save_to_disk: bool = False,
     ) -> None:
         # Don't need to initialize if instance is cached.
@@ -1147,7 +1189,7 @@ class ReferenceMethylData:
 
     @staticmethod
     def pickle_filename(
-        prep: Literal["illumina", "swan", "noob", "raw"],
+        prep: PrepType,
         idat_files: list[Path],
     ) -> Path:
         return MEPYLOME_TMP_DIR / input_args_id(

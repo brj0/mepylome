@@ -11,7 +11,7 @@ import pickle
 import zipfile
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -111,12 +111,33 @@ class Annotation:
         chromsizes (dict): Dictionary containing chromosome sizes.
     """
 
-    _cache = {}
+    _cache: dict[Any, "Annotation"] = {}
+
+    manifest: Manifest
+    array_type: ArrayType
+    probes: np.ndarray
+    bins: pr.PyRanges
+    gap: pr.PyRanges
+    detail: pr.PyRanges
+    bin_size: int
+    min_probes_per_bin: int
+    chromsizes: dict[str, int]
+    adjusted_manifest: pr.PyRanges
+    _cpg_bins: pd.DataFrame
+    _cpg_detail: pd.DataFrame
+    _init_manifest: Optional[Manifest]
+    _init_array_type: Optional[Union[str, ArrayType]]
+    _init_gap: Optional[pr.PyRanges]
+    _init_detail: Optional[pr.PyRanges]
+    _init_bin_size: int
+    _init_min_probes_per_bin: int
+    _cached: bool
+    _pickle_path: Path
 
     def __new__(
         cls,
-        manifest: Optional["Manifest"] = None,
-        array_type: Optional[Union[str, "ArrayType"]] = None,
+        manifest: Optional[Manifest] = None,
+        array_type: Optional[Union[str, ArrayType]] = None,
         gap: Optional[pr.PyRanges] = None,
         detail: Optional[pr.PyRanges] = None,
         bin_size: int = 50000,
@@ -189,8 +210,16 @@ class Annotation:
 
         logger.info("Constructing annotation...")
         if manifest is None and array_type is None:
-            msg = "'manifest' or 'array_type' must be given"
-            raise ValueError(msg)
+            raise ValueError("Either array_type or manifest must be provided")
+
+        if array_type is None:
+            assert manifest is not None
+            self.array_type = ArrayType(manifest.array_type)
+        else:
+            self.array_type = ArrayType(array_type)
+
+        self.manifest = manifest or Manifest(self.array_type)
+
         self.bin_size = bin_size
         self.min_probes_per_bin = min_probes_per_bin
 
@@ -203,15 +232,6 @@ class Annotation:
             self.detail = self.detail.sort()
 
         self.chromsizes = pr.data.chromsizes()
-
-        if array_type is None:
-            self.array_type = manifest.array_type
-        else:
-            self.array_type = ArrayType(array_type)
-
-        self.manifest = manifest
-        if manifest is None:
-            self.manifest = Manifest(self.array_type)
 
         manifest_df = self.manifest.data_frame.copy()
         manifest_df = manifest_df[
@@ -516,6 +536,20 @@ class CNV:
         https://doi.org/10.1093/bioinformatics/btae029
     """
 
+    annotation: "Annotation"
+    bins: pr.PyRanges
+    coef: Optional[np.ndarray]
+    detail: Optional[pr.PyRanges]
+    noise: Optional[float]
+    probe: str # TODO: Change this variable name (sample_id?)
+    probes: pd.Index
+    ratio: Optional[pd.DataFrame]
+    reference: "MethylData"
+    sample: "MethylData"
+    segments: Optional[pd.DataFrame]
+
+    _ratio: Optional[np.ndarray]
+
     def __init__(
         self,
         sample: "MethylData",
@@ -537,11 +571,9 @@ class CNV:
                 "or 'ReferenceMethylData'"
             )
             raise TypeError(msg)
-        self.annotation = annotation
-        if annotation is None:
-            self.annotation = Annotation(
-                array_type=sample.array_type,
-            )
+        self.annotation = annotation or Annotation(
+            array_type=sample.array_type
+        )
         if not (
             self.sample.array_type
             == self.annotation.array_type
@@ -616,7 +648,7 @@ class CNV:
 
     def set_itensity(self, methyl_data: "MethylData") -> None:
         """Calculates intensity values from methylation data."""
-        if hasattr(methyl_data, "intensity"):
+        if getattr(methyl_data, "intensity", None) is not None:
             return
         logger.debug("%s Setting intensity...", self.probe)
         intensity = methyl_data.methyl + methyl_data.unmethyl
@@ -755,6 +787,7 @@ class CNV:
 
         """
         cbsegment = _get_cgsegment()
+        assert cbsegment is not None
         bin_values = df["Median"].values
         chrom = df["Chromosome"].iloc[0]
         seg = cbsegment(bin_values)
@@ -776,6 +809,7 @@ class CNV:
         logger.info("%s Setting segments...", self.probe)
         segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
+        assert self.ratio is not None
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
         result = (
             overlap.df.groupby(["Chromosome", "Start", "End"], dropna=False)[
@@ -819,10 +853,10 @@ class CNV:
         default = {"all", "bins", "detail", "segments", "metadata"}
         if not isinstance(data, list):
             data = [data]
-        data = set(data)
-        if "all" in data:
-            data = default
-        invalid = data - default
+        data_set = set(data)
+        if "all" in data_set:
+            data_set = default
+        invalid = data_set - default
         if invalid:
             msg = (
                 f"Invalid file(s) specified: {invalid}. "
@@ -830,13 +864,13 @@ class CNV:
             )
             raise ValueError(msg)
         dfs_to_write = []
-        if "bins" in data and self.bins is not None:
+        if "bins" in data_set and self.bins is not None:
             dfs_to_write.append(("bins.csv", self.bins.df))
-        if "detail" in data and self.detail is not None:
+        if "detail" in data_set and self.detail is not None:
             dfs_to_write.append(("detail.csv", self.detail.df))
-        if "segments" in data and self.segments is not None:
+        if "segments" in data_set and self.segments is not None:
             dfs_to_write.append(("segments.csv", self.segments.df))
-        if "metadata" in data:
+        if "metadata" in data_set:
             metadata_df = pd.DataFrame(
                 {
                     "Array_type": [str(self.annotation.array_type)],

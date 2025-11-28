@@ -179,6 +179,10 @@ def convert_to_sentrix_ids(data: dict) -> dict: ...
 def convert_to_sentrix_ids(data: list) -> list: ...
 
 
+@overload
+def convert_to_sentrix_ids(data: Iterable[str]) -> list[str]: ...
+
+
 def convert_to_sentrix_ids(
     data: Optional[Union[set, dict, list, Iterable]],
 ) -> Optional[Union[set, dict, list]]:
@@ -265,6 +269,28 @@ class IdatHandler:
             - If any sample in `analysis_ids` is not found in `analysis_dir`.
             - If any sample in in `test_ids` is not found in `test_dir`.
     """
+
+    analysis_dir: Path
+    analysis_id_to_path: dict[str, Path]
+    analysis_ids: Optional[Iterable[str]]
+    annotation: Path
+    annotation_df: pd.DataFrame
+    basename_to_id: dict[str, str]
+    id_to_basename: dict[str, str]
+    id_to_path: dict[str, Path]
+    overlap: bool
+    samples_annotated: pd.DataFrame
+    selected_columns: list[str]
+    test_dir: Optional[Path]
+    test_id_to_path: dict[str, Path]
+    test_ids: Optional[Iterable[str]]
+
+    _init_analysis_dir: Union[str, Path]
+    _init_analysis_ids: Optional[Iterable[str]]
+    _init_annotation: Optional[Union[str, Path]]
+    _init_test_dir: Optional[Union[str, Path]]
+    _init_test_ids: Optional[Iterable[str]]
+    _some_private_cache: dict[str, Any]
 
     def __init__(
         self,
@@ -521,6 +547,7 @@ class IdatHandler:
 
     def _warn_on_sample_overlap(self) -> None:
         """Warn about overlapping samples between analysis and test samples."""
+        assert self.test_ids is not None
         n_inters = len(
             set(self.analysis_id_to_path.keys()).intersection(self.test_ids)
         )
@@ -584,8 +611,7 @@ class IdatHandler:
                 columns = self.selected_columns
             else:
                 columns = [self.samples_annotated.columns[0]]
-        if not isinstance(columns, list):
-            columns = [columns]
+        columns = [columns] if isinstance(columns, str) else columns
         return (
             self.samples_annotated[columns]
             .apply(lambda row: separator.join(row.values.astype(str)), axis=1)
@@ -689,9 +715,9 @@ class BetasHandler:
         array_cpgs: Optional[dict[ArrayType, np.ndarray]] = None,
     ) -> None:
         self.basedir = Path(directory).expanduser()
-        self.array_cpgs = array_cpgs
-        if self.array_cpgs is None:
-            self.array_cpgs = get_array_cpgs()
+        self.array_cpgs = (
+            get_array_cpgs() if array_cpgs is None else array_cpgs
+        )
         self.dir: dict = {}
         for key in self.array_cpgs:
             self.dir[key] = self.basedir / f"{key}"

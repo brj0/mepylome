@@ -111,7 +111,23 @@ class Manifest:
         >>> Manifest.load()
     """
 
-    _cache: dict = {}
+    _cache: dict[Any, "Manifest"] = {}
+
+    array_type: Optional["ArrayType"]
+    ctrl_path: Path
+    download_proc: bool
+    proc_path: Path
+    raw_path: Optional[Path]
+
+    _control_data_frame: pd.DataFrame
+    _data_frame: pd.DataFrame
+    _init_array_type: Optional[Union[str, "ArrayType"]]
+    _init_download_proc: bool
+    _init_proc_path: Optional[Union[str, Path]]
+    _init_raw_path: Optional[Union[str, Path]]
+    _methyl_probes: Optional[np.ndarray]
+    _pickle_path: Path
+    _snp_data_frame: pd.DataFrame
 
     def __new__(
         cls,
@@ -160,17 +176,17 @@ class Manifest:
 
         self.array_type = ArrayType(array_type) if array_type else None
         self.raw_path = to_path(raw_path)
-        self.proc_path = to_path(proc_path)
+        proc_path = to_path(proc_path)
         self.download_proc = download_proc
 
         # Load cached data from disk
         pickle_hash = input_args_id(
-            "manifest", self.array_type, self.raw_path, self.proc_path
+            "manifest", self.array_type, self.raw_path, proc_path
         )
         self._pickle_path = MEPYLOME_TMP_DIR / f"{pickle_hash}.pkl"
         if self._pickle_path.exists():
-            with self._pickle_path.open("rb") as file:
-                saved_instance = pickle.load(file)
+            with self._pickle_path.open("rb") as file_read:
+                saved_instance = pickle.load(file_read)
                 self.__dict__.update(saved_instance.__dict__)
                 return
 
@@ -182,7 +198,7 @@ class Manifest:
             return
 
         # Set processed manifest path
-        if self.proc_path is None:
+        if proc_path is None:
             if self.array_type is not None:
                 self.proc_path = MANIFEST_DIR / LOCAL_FILENAME[self.array_type]
             elif self.raw_path is not None:
@@ -194,6 +210,8 @@ class Manifest:
             else:
                 msg = "Provide either array_type or proc_path or raw_path"
                 raise ValueError(msg)
+        else:
+            self.proc_path = proc_path
 
         self.ctrl_path = Manifest._get_control_path(self.proc_path)
 
@@ -205,12 +223,16 @@ class Manifest:
         self._methyl_probes = None
 
         # Save to disk
-        with self._pickle_path.open("wb") as file:
-            pickle.dump(self, file)
+        with self._pickle_path.open("wb") as file_write:
+            pickle.dump(self, file_write)
 
     def _create_processed_manifest_files(self) -> None:
         """Create processed manifest files if they do not exist."""
-        if not (self.proc_path.exists() and self.ctrl_path.exists()):
+        if (
+            self.proc_path is None
+            or self.ctrl_path is None
+            or not (self.proc_path.exists() and self.ctrl_path.exists())
+        ):
             # If array type is given, download the files
             if self.array_type is not None:
                 if (
@@ -324,6 +346,7 @@ class Manifest:
         Raises:
             KeyError: If the array type is not found in MANIFEST_URL.
         """
+        assert self.array_type is not None
         source_url = MANIFEST_URL[self.array_type]
         source_filename = Path(source_url).name
 
@@ -337,6 +360,7 @@ class Manifest:
         logger.info("Downloading processed %s manifest", self.array_type)
         try:
             for path in [self.proc_path, self.ctrl_path]:
+                assert path is not None
                 ensure_directory_exists(path.parent)
                 url = PROCESSED_MANIFEST_URL + path.name
                 download_file(url, path)
@@ -364,6 +388,8 @@ class Manifest:
                 raw_path file.
         """
         logger.info("Process raw manifest %s", self.raw_path)
+        assert self.proc_path is not None
+        assert self.raw_path is not None
         if csv_filename is None:
             csv_filename = self.raw_path.name
         ensure_directory_exists(self.proc_path.parent)

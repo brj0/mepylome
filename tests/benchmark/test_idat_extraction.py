@@ -19,17 +19,19 @@ Usage:
 import sys
 import time
 from pathlib import Path
+from typing import get_args
 
 time0 = time.time()
 
 from mepylome import MethylData, idat_basepaths
+from mepylome.dtypes import PrepType
 from mepylome.utils import ensure_directory_exists
 
 time1 = time.time()
 
 
 prep = None if len(sys.argv) < 2 else sys.argv[1]
-preps = ["illumina", "noob", "raw", "swan"]
+preps = get_args(PrepType)
 if prep not in preps:
     print(f"First command line argument must be in {preps}")
     print(f"Received: {prep}")

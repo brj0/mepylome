@@ -60,7 +60,10 @@ class SmartFormatter(argparse.ArgumentDefaultsHelpFormatter):
     def _split_lines(self, text: str, width: int) -> list[str]:
         lines = []
         for line in textwrap.dedent(text).strip().split("\n"):
-            ident = re.match(r"^\s*", line).group(0)
+            if (m := re.match(r"^\s*", line)) is not None:
+                ident = m.group(0)
+            else:
+                ident = ""
             curr_line = [ident] if ident else []
             curr_len = len(ident)
             for word in line.split():

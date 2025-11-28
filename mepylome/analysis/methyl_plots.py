@@ -272,7 +272,7 @@ def write_cnv_to_disk(
         for x in sample_path
         if not Path(cnv_dir, str(x.name) + ZIP_ENDING).exists()
         and not Path(cnv_dir, str(x.name) + ERROR_ENDING).exists()
-    ]
+    ] # BUG: Error files prevent recalculation
 
     if len(new_idat_paths) == 0:
         return
