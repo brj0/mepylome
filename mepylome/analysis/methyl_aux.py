@@ -540,10 +540,10 @@ class IdatHandler:
 
     def _warn_on_sample_overlap(self) -> None:
         """Warn about overlapping samples between analysis and test samples."""
-        assert self._tmp_test_ids is not None
+        assert self.test_ids is not None
         n_inters = len(
             set(self.analysis_id_to_path.keys()).intersection(
-                self._tmp_test_ids
+                self.test_ids
             )
         )
         if n_inters:
