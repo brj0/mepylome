@@ -5,10 +5,10 @@ import pickle
 import re
 import threading
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Optional, Sequence, TypeVar, Union, overload
+from typing import Any, Optional, TypeVar, Union, overload
 
 import numpy as np
 import pandas as pd
@@ -272,7 +272,7 @@ class IdatHandler:
 
     analysis_dir: Path
     analysis_id_to_path: dict[str, Path]
-    analysis_ids: Optional[Iterable[str]]
+    analysis_ids: list[str]
     annotation: Path
     annotation_df: pd.DataFrame
     basename_to_id: dict[str, str]
@@ -283,14 +283,11 @@ class IdatHandler:
     selected_columns: list[str]
     test_dir: Optional[Path]
     test_id_to_path: dict[str, Path]
-    test_ids: Optional[Iterable[str]]
+    test_ids: list[str]
 
-    _init_analysis_dir: Union[str, Path]
-    _init_analysis_ids: Optional[Iterable[str]]
-    _init_annotation: Optional[Union[str, Path]]
-    _init_test_dir: Optional[Union[str, Path]]
-    _init_test_ids: Optional[Iterable[str]]
-    _some_private_cache: dict[str, Any]
+    _init_parameters: dict[str, Any]
+    _tmp_analysis_ids: Optional[Iterable[str]]
+    _tmp_test_ids: Optional[Iterable[str]]
 
     def __init__(
         self,
@@ -311,15 +308,18 @@ class IdatHandler:
         )
         self.test_dir = Path(test_dir) if test_dir else None
         self.overlap = overlap
-        self.analysis_ids = analysis_ids
-        self.test_ids = test_ids
+        self._tmp_analysis_ids = analysis_ids
+        self._tmp_test_ids = test_ids
 
         # Track initialization parameters
-        self._init_analysis_dir = analysis_dir
-        self._init_annotation = annotation
-        self._init_test_dir = test_dir
-        self._init_test_ids = test_ids
-        self._init_analysis_ids = analysis_ids
+        self._init_parameters = {
+            "analysis_dir": analysis_dir,
+            "annotation": annotation,
+            "test_dir": test_dir,
+            "overlap": overlap,
+            "test_ids": test_ids,
+            "analysis_ids": analysis_ids,
+        }
 
         # Load IDAT paths and annotation data
         self.analysis_id_to_path = self._get_id_to_path(self.analysis_dir)
@@ -350,14 +350,7 @@ class IdatHandler:
 
     def init_parameters(self) -> dict[str, Any]:
         """Returns the initialization attributes."""
-        return {
-            "analysis_dir": self._init_analysis_dir,
-            "annotation": self._init_annotation,
-            "test_dir": self._init_test_dir,
-            "overlap": self.overlap,
-            "test_ids": self._init_test_ids,
-            "analysis_ids": self._init_analysis_ids,
-        }
+        return self._init_parameters
 
     def _get_id_to_path(
         self,
@@ -477,8 +470,8 @@ class IdatHandler:
             self.annotation_df[col_name]
         )
         self.annotation_df = self.annotation_df.drop(columns=[col_name])
-        self.analysis_ids = convert_to_sentrix_ids(self.analysis_ids)
-        self.test_ids = convert_to_sentrix_ids(self.test_ids)
+        self._tmp_analysis_ids = convert_to_sentrix_ids(self._tmp_analysis_ids)
+        self._tmp_test_ids = convert_to_sentrix_ids(self._tmp_test_ids)
         logger.info("Extracted Sentrix IDs from column '%s'", col_name)
 
     def _get_samples_annotated(self) -> pd.DataFrame:
@@ -493,9 +486,9 @@ class IdatHandler:
         if result_df.empty:
             result_df[METHYLATION_CLASS] = ""
 
-        if self.test_ids:
+        if self._tmp_test_ids:
             result_df[TEST_CASE] = False
-            result_df.loc[self.test_ids, TEST_CASE] = True
+            result_df.loc[self._tmp_test_ids, TEST_CASE] = True
 
         return result_df
 
@@ -524,11 +517,11 @@ class IdatHandler:
             }
 
         self.analysis_id_to_path = restrict_and_validate(
-            self.analysis_ids, self.analysis_id_to_path, "analysis"
+            self._tmp_analysis_ids, self.analysis_id_to_path, "analysis"
         )
 
         self.test_id_to_path = restrict_and_validate(
-            self.test_ids, self.test_id_to_path, "test"
+            self._tmp_test_ids, self.test_id_to_path, "test"
         )
 
     def _apply_overlap_filter(self) -> None:
@@ -547,9 +540,11 @@ class IdatHandler:
 
     def _warn_on_sample_overlap(self) -> None:
         """Warn about overlapping samples between analysis and test samples."""
-        assert self.test_ids is not None
+        assert self._tmp_test_ids is not None
         n_inters = len(
-            set(self.analysis_id_to_path.keys()).intersection(self.test_ids)
+            set(self.analysis_id_to_path.keys()).intersection(
+                self._tmp_test_ids
+            )
         )
         if n_inters:
             warnings.warn(
