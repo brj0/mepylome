@@ -3,13 +3,13 @@
 import gzip
 import io
 import os
+from collections.abc import Generator
+from contextlib import contextmanager
 from enum import IntEnum, unique
 from pathlib import Path
-from typing import BinaryIO, Union
+from typing import Any, BinaryIO, Union, cast
 
 import numpy as np
-
-from mepylome.utils.files import get_file_object
 
 __all__ = ["IdatParser"]
 
@@ -107,6 +107,35 @@ def _get_file_size(file_like: BinaryIO) -> int:
     raise ValueError(msg)
 
 
+@contextmanager
+def get_file_object(
+    file: Union[str, Path, BinaryIO],
+) -> Generator[BinaryIO, None, None]:
+    """Returns a file-like object for reading an IDAT file.
+
+    Supports plain and gzipped IDAT files.
+
+    Args:
+        file: Path to the file (str or Path) or an already open file-like
+            object.
+
+    Yields:
+        A binary file-like object.
+    """
+    if isinstance(file, (io.BufferedIOBase, io.BytesIO)):
+        # Already a file-like object
+        yield file
+    else:
+        if not isinstance(file, (str, Path)):
+            raise TypeError(f"Expected file-like object, got {type(file)}")
+        path = Path(file)
+        f = gzip.open(path, "rb") if path.suffix == ".gz" else path.open("rb")
+        try:
+            yield cast(BinaryIO, f)
+        finally:
+            f.close()
+
+
 class IdatParser:
     """Reads and parses an IDAT file.
 
@@ -201,7 +230,7 @@ class IdatParser:
         seek_to_section(IdatSectionCode.RUN_INFO)
         runinfo_entry_count = read_int(idat_file)
 
-        self.run_info = [None] * runinfo_entry_count
+        self.run_info: list[Any] = [None] * runinfo_entry_count
         for i in range(runinfo_entry_count):
             self.run_info[i] = [
                 read_string(idat_file),  # run_time

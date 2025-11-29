@@ -10,7 +10,6 @@ from .files import (
     download_files,
     ensure_directory_exists,
     get_csv_file,
-    get_file_object,
     get_resource_path,
     reset_file,
 )
@@ -28,7 +27,6 @@ __all__ = [
     "download_files",
     "download_idats",
     "ensure_directory_exists",
-    "get_file_object",
     "get_csv_file",
     "make_log_file",
     "reset_file",

@@ -5,30 +5,25 @@ manifest files from Illumina), ensuring directories exist, and working with
 file-like objects and archives.
 """
 
-import gzip
 import logging
 import time
 import zipfile
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path, PurePath
-from typing import IO, Any, BinaryIO, Iterable, Union
+from importlib.resources import files
+from pathlib import Path
+from typing import IO, Union, cast
 
 import requests
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
-try:
-    from importlib.resources import files
-except (ImportError, ModuleNotFoundError):
-    from importlib_resources import files
-
 
 __all__ = [
     "download_file",
     "download_files",
     "ensure_directory_exists",
-    "get_file_object",
     "get_resource_path",
     "get_csv_file",
     "reset_file",
@@ -209,51 +204,10 @@ def download_files(
             progress.close()
 
 
-def is_file_like(obj: Any) -> bool:
-    """Check if the object is a file-like object.
-
-    For objects to be considered file-like, they must be an iterator AND have
-    either a `read` and/or `write` method as an attribute.  Note: file-like
-    objects must be iterable, but iterable objects need not be file-like.
-
-    Arguments:
-        obj (any): The object to check.
-
-    Returns:
-        boolean: description
-
-    Examples:
-        >>> buffer(StringIO("data"))
-        >>> is_file_like(buffer)
-        True
-        >>> is_file_like([1, 2, 3])
-        False
-    """
-    return all(hasattr(obj, attr) for attr in ("read", "write", "__iter__"))
-
-
-def get_file_object(
-    filepath_or_buffer: Union[str, Path, IO],
-) -> Union[IO, gzip.GzipFile]:
-    """Returns a file-like object for the given input.
-
-    Args:
-        filepath_or_buffer (str or file-like object): The file path or
-            file-like object to be processed. Can be a gz-archived file.
-
-    Returns:
-        file-like object: A file-like object for reading the file.
-    """
-    if is_file_like(filepath_or_buffer):
-        return filepath_or_buffer
-
-    if PurePath(filepath_or_buffer).suffix == ".gz":
-        return gzip.open(filepath_or_buffer, "rb")
-
-    return open(filepath_or_buffer, "rb")
-
-
-def get_csv_file(file_or_archive: Union[str, Path], filename: str) -> BinaryIO:
+def get_csv_file(
+    file_or_archive: Union[str, Path],
+    filename: str,
+) -> IO[bytes]:
     """Retrieve a CSV file from a regular file or a ZIP archive.
 
     This function extracts a specific CSV file from either a regular CSV file
