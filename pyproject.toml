@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development"
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "dash>=2.16.0,<3.1.0",
     "dash_bootstrap_components",
@@ -140,7 +140,7 @@ pretty = true
 exclude = ["examples"]
 
 [tool.ty.terminal]
-output-format = "full"
+output-format = "concise"
 
 [tool.ty.rules]
 unresolved-import = "ignore"
