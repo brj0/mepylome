@@ -2226,7 +2226,7 @@ class MethylAnalysis:
             assets_folder=str(assets_folder),
             external_stylesheets=[dbc.themes.BOOTSTRAP],
         )
-        app._favicon = "favicon.svg"
+        app._favicon = "favicon.svg" # type: ignore[assignment]
         app.title = "mepylome"
         side_navigation = get_side_navigation(
             sample_ids=self.ids,
@@ -2776,7 +2776,7 @@ class MethylAnalysis:
         def on_clf_start_button_click(
             n_clicks: Optional[int],
             clf_list: Optional[Sequence[str]],
-        ) -> Optional[str]:
+        ) -> Optional[Union[str, Any]]:
             if not n_clicks:
                 return no_update
 
