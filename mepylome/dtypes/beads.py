@@ -7,14 +7,13 @@ preprocessing techniques, normalization, and data handling.
 import collections
 import os
 import pickle
+from collections.abc import Iterator, Sequence
 from functools import reduce
 from pathlib import Path
 from typing import (
     Any,
-    Iterator,
     Literal,
     Optional,
-    Sequence,
     Union,
 )
 

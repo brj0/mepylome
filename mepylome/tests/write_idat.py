@@ -67,13 +67,12 @@ class IdatWriter:
         """Initializes and writes data to the IDAT file or buffer."""
         self.file = file
         self.data = data or {}
-        self.buffer = None
+        self.buffer = io.BytesIO()
         if self.file:
             with open(self.file, "wb") as outfile:
                 self._write_header(outfile)
                 self._write_body(outfile)
         else:
-            self.buffer = io.BytesIO()
             self._write_header(self.buffer)
             self._write_body(self.buffer)
             self.buffer.seek(0)  # Rewind buffer to the beginning

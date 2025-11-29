@@ -541,7 +541,7 @@ class CNV:
     coef: Optional[np.ndarray]
     detail: Optional[pr.PyRanges]
     noise: Optional[float]
-    probe: str # TODO: Change this variable name (sample_id?)
+    probe: str  # TODO: Change this variable name (sample_id?)
     probes: pd.Index
     ratio: Optional[pd.DataFrame]
     reference: "MethylData"

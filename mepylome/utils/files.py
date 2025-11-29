@@ -42,8 +42,8 @@ GEO_BASE_URL = (
 
 def get_resource_path(package: str, resource_name: str = "") -> Path:
     """Returns the full path to the resource within the specified package."""
-    package_path = files(package)
-    return package_path.joinpath(resource_name)
+    resource = files(package).joinpath(resource_name)
+    return cast(Path, resource)
 
 
 def ensure_directory_exists(path_like: Union[str, Path]) -> None:

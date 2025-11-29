@@ -90,9 +90,7 @@ class IdatSectionCode(IntEnum):
     NUM_SNPS_READ = 1000
 
 
-def _get_file_size(
-    file_like: Union[io.BufferedReader, gzip.GzipFile, io.BytesIO],
-) -> int:
+def _get_file_size(file_like: BinaryIO) -> int:
     """Get the size of a file-like object."""
     # Check if the file-like object has a fileno method
     if isinstance(file_like, (io.BufferedReader, gzip.GzipFile)):

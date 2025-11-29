@@ -4,10 +4,11 @@ import colorsys
 import hashlib
 import logging
 import traceback
+from collections.abc import Sequence
 from functools import lru_cache, partial
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 import plotly.colors
@@ -272,7 +273,7 @@ def write_cnv_to_disk(
         for x in sample_path
         if not Path(cnv_dir, str(x.name) + ZIP_ENDING).exists()
         and not Path(cnv_dir, str(x.name) + ERROR_ENDING).exists()
-    ] # BUG: Error files prevent recalculation
+    ]  # BUG: Error files prevent recalculation
 
     if len(new_idat_paths) == 0:
         return

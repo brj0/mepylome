@@ -7,14 +7,17 @@ performance by storing and reusing computed results.
 import inspect
 import logging
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Union
+from typing import Any, Callable, Optional, Protocol, TypeVar, Union
 
 import numpy as np
 import pandas as pd
 import xxhash
 
 logger = logging.getLogger(__name__)
+
+R_co = TypeVar("R_co", covariant=True)
 
 
 def np_hash(array: np.ndarray) -> Union[bytes, tuple]:
@@ -71,7 +74,7 @@ def cache_key(*args: Any) -> Union[Any, tuple[Any, ...]]:
         If an argument is a numpy array of object type, the key may not be
         unique.
     """
-    type_map = {
+    type_map: dict[str, Callable] = {
         "ArrayType": str,
         "Manifest": lambda x: x.array_type.value,
         "PosixPath": str,
@@ -124,7 +127,15 @@ def get_id_tuple(
     return tuple(id_list)
 
 
-def memoize(f: Callable) -> Callable:
+class CachedCallable(Protocol[R_co]):
+    """Return type of memoize is callable and has reachable cache variable."""
+
+    _cache: dict
+
+    def __call__(self, *args: Any, **kwargs: Any) -> R_co: ...
+
+
+def memoize(f: Callable) -> CachedCallable:
     """Memoization decorator for classes and functions.
 
     Description:
@@ -147,7 +158,7 @@ def memoize(f: Callable) -> Callable:
     """
 
     class Memoize:
-        def __init__(self, cls: Union[type, Callable]) -> None:
+        def __init__(self, cls: Union[type[Any], Callable]) -> None:
             self.cls = cls
             self._cache: dict = {}
             self.__name__ = cls.__name__
@@ -175,7 +186,7 @@ def memoize(f: Callable) -> Callable:
 
         def __instancecheck__(self, other: Any) -> bool:
             """Make isinstance() work."""
-            return isinstance(other, self.cls)
+            return isinstance(other, self.cls)  # type: ignore[arg-type]
 
     return Memoize(f)
 

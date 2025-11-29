@@ -1,6 +1,6 @@
 """Pipeline that runs diagnostics on new cases from config and saves reports.
 
-This script executes a diagnostic pipeline defined in a JSON/YAML config file.
+This script executes a diagnostic pipeline defined in a JSON config file.
 It processes IDAT files, applies supervised and unsupervised (UMAP)
 classifiers, and saves the resulting reports in the directories containing the
 new cases. The pipeline is highly customizable through the config file.
@@ -12,6 +12,7 @@ import json
 import logging
 import zipfile
 from pathlib import Path
+from typing import Any, Optional, Union
 
 import pandas as pd
 import requests
@@ -33,23 +34,19 @@ FONTSIZE = 23
 IMG_WIDTH = 1000
 
 
-def load_config(config_path):
-    """Load a JSON or YAML file and return its contents as a dictionary."""
+def load_config(config_path: Path) -> dict[str, Any]:
+    """Load a JSON or TOML file and return its contents as a dictionary."""
     with config_path.open(
         "rb" if config_path.suffix == ".toml" else "r"
     ) as file:
         if config_path.suffix == ".json":
             return json.load(file)
-        if config_path.suffix in [".yaml", ".yml"]:
-            import yaml
-
-            return yaml.safe_load(file)
         if config_path.suffix == ".toml":
             return tomllib.load(file)
     raise ValueError("Unsupported config format")
 
 
-def sex_chromosome_cpgs():
+def sex_chromosome_cpgs() -> set:
     """Returns a set of CpGs on sex chromosomes for all arrays."""
     array_types = ["450k", "epic", "epicv2"]
     sex_cpgs = set()
@@ -63,7 +60,7 @@ def sex_chromosome_cpgs():
     return sex_cpgs
 
 
-def generate_default_blacklist(blacklist_path):
+def generate_default_blacklist(blacklist_path: Union[str, Path]) -> set:
     """Returns and caches CpG sites that should be blacklisted."""
     blacklist_path = Path(blacklist_path).expanduser()
     if not blacklist_path.exists():
@@ -92,7 +89,11 @@ def generate_default_blacklist(blacklist_path):
     return set(blacklist_df.iloc[:, 0])
 
 
-def unsupervised_classifier(analysis, dataset_name, dataset_config):
+def unsupervised_classifier(
+    analysis: MethylAnalysis,
+    dataset_name: str,
+    dataset_config: dict[str, Any],
+) -> None:
     """Generate and save UMAP plots for all 'test_ids'."""
     # Collect only those IDs where outputs are missing
     umap_jobs = []
@@ -106,7 +107,9 @@ def unsupervised_classifier(analysis, dataset_name, dataset_config):
         if not (jpg_path.exists() and html_path.exists()):
             umap_jobs.append((id_, html_path, jpg_path))
 
-    def generate_and_save_umap(id_, html_path, jpg_path):
+    def generate_and_save_umap(
+        id_: str, html_path: Path, jpg_path: Path
+    ) -> None:
         """Generate and save UMAP plots for a given sample ID."""
         analysis.cnv_id = id_
         analysis.test_ids = [id_]
@@ -126,7 +129,11 @@ def unsupervised_classifier(analysis, dataset_name, dataset_config):
         generate_and_save_umap(*job)
 
 
-def supervised_classifier(analysis, dataset_name, dataset_config):
+def supervised_classifier(
+    analysis: MethylAnalysis,
+    dataset_name: str,
+    dataset_config: dict[str, Any],
+) -> None:
     """Run supervised classifiers on test samples and save as HTML reports."""
     ids = analysis.idat_handler.test_ids
 
@@ -148,7 +155,7 @@ def supervised_classifier(analysis, dataset_name, dataset_config):
         ids=uncalculated_ids,
         clf_list=clf_list,
     )
-    id_to_report = {id_: [] for id_ in uncalculated_ids}
+    id_to_report: dict[str, list] = {id_: [] for id_ in uncalculated_ids}
 
     for clf_result in clf_results:
         for id_, report in zip(uncalculated_ids, clf_result.reports["html"]):
@@ -168,7 +175,11 @@ def supervised_classifier(analysis, dataset_name, dataset_config):
         path.write_text(html_str)
 
 
-def make_cnv(analysis, dataset_name, dataset_config):
+def make_cnv(
+    analysis: MethylAnalysis,
+    dataset_name: str,
+    dataset_config: dict[str, Any],
+) -> None:
     """Generates CNV Plot and saves it to corresponding directory."""
     ids = analysis.idat_handler.test_ids
     analysis.precompute_cnvs(ids)
@@ -195,7 +206,11 @@ def make_cnv(analysis, dataset_name, dataset_config):
         cnv_plot.write_html(html_path)
 
 
-def run_single_diagnostics(dataset_name, dataset_config, defaults):
+def run_single_diagnostics(
+    dataset_name: str,
+    dataset_config: dict[str, Any],
+    defaults: dict[str, Any],
+) -> None:
     """Run methylation analysis for a single dataset."""
     print()
     logging.info("-- Starting diagnostics for %s --", dataset_name)
@@ -233,7 +248,10 @@ def run_single_diagnostics(dataset_name, dataset_config, defaults):
     mepylome.clear_cache()
 
 
-def run_diagnostics(config_path, test_dir=None):
+def run_diagnostics(
+    config_path: str,
+    test_dir: Optional[str] = None,
+) -> None:
     """Run diagnostics for each dataset based on the provided config."""
     config_dict = load_config(Path(config_path))
 
@@ -257,7 +275,7 @@ def run_diagnostics(config_path, test_dir=None):
         run_single_diagnostics(dataset_name, dataset_config, defaults)
 
 
-def main():
+def main() -> None:
     """Start diagnostics."""
     parser = argparse.ArgumentParser(
         description="Run methylation diagnostics."

@@ -19,7 +19,7 @@ Usage:
 import sys
 import time
 from pathlib import Path
-from typing import get_args
+from typing import cast, get_args
 
 time0 = time.time()
 
@@ -31,6 +31,7 @@ time1 = time.time()
 
 
 prep = None if len(sys.argv) < 2 else sys.argv[1]
+prep = cast(PrepType, prep)
 preps = get_args(PrepType)
 if prep not in preps:
     print(f"First command line argument must be in {preps}")

@@ -472,7 +472,7 @@ def start_mepylome() -> None:
 
         from mepylome.analysis.methyl import MethylAnalysis
 
-        if cli_args["tutorial"]: # BUG: use_gpu not working for tutorial
+        if cli_args["tutorial"]:  # BUG: use_gpu not working for tutorial
             from mepylome.utils import setup_tutorial_files
 
             tutorial_dir = Path.home() / "mepylome" / "tutorial"

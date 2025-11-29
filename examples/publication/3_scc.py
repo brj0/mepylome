@@ -104,7 +104,6 @@ import sys
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -163,7 +162,7 @@ print(f"Data will be stored in: {mepylome_dir}")
 # Main Functions
 
 
-def valid_idat_basenames(root_dir: Path) -> List[str]:
+def valid_idat_basenames(root_dir: Path) -> list[str]:
     """Returns all IDAT basenames that are of type 450k or epicv1."""
     all_idat_files = list(root_dir.rglob("*.idat*"))
     valid_array_types = {ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC}

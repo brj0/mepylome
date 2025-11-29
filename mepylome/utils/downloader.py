@@ -47,8 +47,9 @@ import shutil
 import sys
 import tarfile
 import xml.etree.ElementTree as ET
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 import requests

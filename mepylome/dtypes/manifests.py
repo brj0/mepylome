@@ -8,7 +8,7 @@ characteristics.
 import logging
 import pickle
 from pathlib import Path
-from typing import Any, BinaryIO, Optional, Union
+from typing import IO, Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -546,7 +546,7 @@ class Manifest:
         return probes_ranges.df
 
     @staticmethod
-    def _seek_to_start(manifest_file: BinaryIO) -> None:
+    def _seek_to_start(manifest_file: IO[bytes]) -> None:
         """Move the manifest file pointer to the start of the data section.
 
         Details:

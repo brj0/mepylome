@@ -36,7 +36,7 @@ class TestIdatParser(unittest.TestCase):
                 )
 
     def test_idat_parser(self) -> None:
-        test_data_list = [
+        test_data_list: list[dict[str, Any]] = [
             {},
             {"illumina_ids": np.array([1, 10, 1000, 10000], dtype="<i4")},
             {"illumina_ids": np.arange(0, 10000, dtype="<i4")},

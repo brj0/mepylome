@@ -1,9 +1,10 @@
 """This script translates the commented rtd_tutorial.py file to rst format."""
 
-from importlib.resources import files
 from pathlib import Path
 
-PACKAGE_DIR = files("mepylome")
+from mepylome.utils.files import get_resource_path
+
+PACKAGE_DIR = get_resource_path("mepylome")
 
 
 def parse_print_block(lines: list[str]) -> list[str]:

@@ -15,8 +15,9 @@ import threading
 import time
 import webbrowser
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Union
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -1990,7 +1991,7 @@ class MethylAnalysis:
     def classify(
         self,
         *,
-        ids: Optional[Union[str, Sequence[str], np.ndarray]] = None,
+        ids: Optional[Union[str, Sequence[str]]] = None,
         values: Optional[Union[pd.DataFrame, np.ndarray]] = None,
         clf_list: Any,
     ) -> list[ClassifierResult]:
@@ -2008,7 +2009,7 @@ class MethylAnalysis:
         predictions and performance reports.
 
         Args:
-            ids (str, list, tuple, np.ndarray, or None): Sample IDs for
+            ids (str, list, tuple, or None): Sample IDs for
                 prediction/classification. If `values` is provided, `ids` must
                 be `None`.
             values (pd.DataFrame, np.ndarray, or None): Feature matrix for
@@ -2112,7 +2113,7 @@ class MethylAnalysis:
 
     def _load_training_data(
         self,
-        ids: Optional[Union[np.ndarray, Sequence[str]]],
+        ids: Optional[Sequence[str]],
         shape_only: bool = False,
     ) -> tuple[Any, Optional[list[Any]], Optional[pd.DataFrame]]:
         """Load training data for classification."""
