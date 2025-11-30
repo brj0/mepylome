@@ -2197,6 +2197,7 @@ class MethylAnalysis:
         self.cpg_blacklist = set()
         self.cpgs = list(MLH1_CPGS)
         self.set_betas()
+        assert self.betas_all is not None
         array_types = {
             id_: str(ArrayType.from_idat(self.idat_handler.id_to_path[id_]))
             for id_ in ids
@@ -2214,6 +2215,7 @@ class MethylAnalysis:
             result.append(make_single_mlh1_report_page(probes))
         self.cpg_blacklist = prev_cpg_blacklist
         self.cpgs = prev_cpgs
+        self._update_paths()
         return result
 
     def get_app(self) -> Dash:
@@ -2226,7 +2228,7 @@ class MethylAnalysis:
             assets_folder=str(assets_folder),
             external_stylesheets=[dbc.themes.BOOTSTRAP],
         )
-        app._favicon = "favicon.svg" # type: ignore[assignment]
+        app._favicon = "favicon.svg"  # type: ignore[assignment]
         app.title = "mepylome"
         side_navigation = get_side_navigation(
             sample_ids=self.ids,

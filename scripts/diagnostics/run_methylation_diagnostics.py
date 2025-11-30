@@ -123,7 +123,9 @@ def unsupervised_classifier(
             height=IMG_WIDTH,
             scale=1,
         )
-        analysis.umap_plot.write_html(html_path)
+        analysis.umap_plot.write_html(
+            html_path, include_plotlyjs=True, full_html=True
+        )
 
     for job in umap_jobs:
         generate_and_save_umap(*job)
@@ -203,7 +205,28 @@ def make_cnv(
             height=IMG_WIDTH,
             scale=1,
         )
-        cnv_plot.write_html(html_path)
+        cnv_plot.write_html(html_path, include_plotlyjs=True, full_html=True)
+
+
+def make_mlh1_report_pages(
+    analysis: MethylAnalysis,
+    dataset_name: str,
+    dataset_config: dict[str, Any],
+) -> None:
+    """Generates MLH1 analysis report page and saves it to directory."""
+    ids = analysis.idat_handler.test_ids
+    id_to_path = {}
+    for id_ in ids:
+        filename = f"{id_}_mlh1_promoter.html"
+        path = analysis.idat_handler.test_id_to_path[id_].parent / filename
+        if not path.exists():
+            id_to_path[id_] = path
+    if not id_to_path:
+        return
+    uncalculated_ids = list(id_to_path.keys())
+    pages = analysis.mlh1_report_pages(uncalculated_ids)
+    for (_, path), page in zip(id_to_path.items(), pages):
+        path.write_text(page)
 
 
 def run_single_diagnostics(
@@ -238,6 +261,11 @@ def run_single_diagnostics(
         print()
         logging.info("Starting CNV for %s", dataset_name)
         make_cnv(analysis, dataset_name, dataset_config)
+
+    if dataset_config.get("do_mlh1"):
+        print()
+        logging.info("Starting MLH1 for %s", dataset_name)
+        make_mlh1_report_pages(analysis, dataset_name, dataset_config)
 
     if dataset_config.get("do_umap"):
         print()
@@ -292,7 +320,7 @@ def main() -> None:
     parser.add_argument(
         "--test_dir",
         type=Path,
-        required=True,
+        required=False,
         help="Path to the directory with the new IDAT cases",
     )
     args = parser.parse_args()

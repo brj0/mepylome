@@ -542,9 +542,7 @@ class IdatHandler:
         """Warn about overlapping samples between analysis and test samples."""
         assert self.test_ids is not None
         n_inters = len(
-            set(self.analysis_id_to_path.keys()).intersection(
-                self.test_ids
-            )
+            set(self.analysis_id_to_path.keys()).intersection(self.test_ids)
         )
         if n_inters:
             warnings.warn(
@@ -1211,7 +1209,7 @@ def make_single_mlh1_report_page(probes: pd.Series) -> str:
         margin=dict(t=40, b=100),
         height=500,
     )
-    plot_html = pio.to_html(fig, full_html=False, include_plotlyjs="cdn")
+    plot_html = pio.to_html(fig, full_html=True, include_plotlyjs=True)
     return get_mlh1_report_template().format(
         id_=id_,
         mean=str(mean),
