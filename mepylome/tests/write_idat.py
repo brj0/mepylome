@@ -2,7 +2,7 @@
 
 import io
 from pathlib import Path
-from typing import Any, BinaryIO, Optional, Union
+from typing import Any, BinaryIO
 
 import numpy as np
 
@@ -61,8 +61,8 @@ class IdatWriter:
 
     def __init__(
         self,
-        file: Optional[Union[str, Path]] = None,
-        data: Optional[dict[str, Any]] = None,
+        file: str | Path | None = None,
+        data: dict[str, Any] | None = None,
     ) -> None:
         """Initializes and writes data to the IDAT file or buffer."""
         self.file = file
@@ -244,9 +244,9 @@ class IdatWriter:
 
 
 def write_idat(
-    data: Optional[dict[str, Any]] = None,
-    file: Optional[Union[str, Path]] = None,
-) -> Optional[io.BytesIO]:
+    data: dict[str, Any] | None = None,
+    file: str | Path | None = None,
+) -> io.BytesIO | None:
     """Write IDAT data to file or return in-memory buffer."""
     writer = IdatWriter(file=file, data=data)
     if file is None:

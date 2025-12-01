@@ -12,7 +12,7 @@ import json
 import logging
 import zipfile
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import pandas as pd
 import requests
@@ -60,7 +60,7 @@ def sex_chromosome_cpgs() -> set:
     return sex_cpgs
 
 
-def generate_default_blacklist(blacklist_path: Union[str, Path]) -> set:
+def generate_default_blacklist(blacklist_path: str | Path) -> set:
     """Returns and caches CpG sites that should be blacklisted."""
     blacklist_path = Path(blacklist_path).expanduser()
     if not blacklist_path.exists():
@@ -160,7 +160,9 @@ def supervised_classifier(
     id_to_report: dict[str, list] = {id_: [] for id_ in uncalculated_ids}
 
     for clf_result in clf_results:
-        for id_, report in zip(uncalculated_ids, clf_result.reports["html"]):
+        for id_, report in zip(
+            uncalculated_ids, clf_result.reports["html"], strict=True
+        ):
             id_to_report[id_].append(report)
 
     app_version = get_app_version()
@@ -225,7 +227,7 @@ def make_mlh1_report_pages(
         return
     uncalculated_ids = list(id_to_path.keys())
     pages = analysis.mlh1_report_pages(uncalculated_ids)
-    for (_, path), page in zip(id_to_path.items(), pages):
+    for (_, path), page in zip(id_to_path.items(), pages, strict=True):
         path.write_text(page)
 
 
@@ -278,7 +280,7 @@ def run_single_diagnostics(
 
 def run_diagnostics(
     config_path: str,
-    test_dir: Optional[str] = None,
+    test_dir: str | None = None,
 ) -> None:
     """Run diagnostics for each dataset based on the provided config."""
     config_dict = load_config(Path(config_path))

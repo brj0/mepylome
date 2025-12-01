@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -76,8 +76,8 @@ class TrainedClassifier(ABC):
     @abstractmethod
     def predict_proba(
         self,
-        betas: Union[np.ndarray, pd.DataFrame],
-        id_: Optional[Union[pd.Series, np.ndarray, Sequence]] = None,
+        betas: np.ndarray | pd.DataFrame,
+        id_: pd.Series | np.ndarray | Sequence | None = None,
     ) -> np.ndarray:
         """Predicts the probability of the given input samples (betas).
 
@@ -197,7 +197,7 @@ def _format_metrics(metrics: dict[str, Any]) -> dict[str, str]:
     """Transforms classifier metrics to readable text."""
 
     def format_metric_scores(scores: Any) -> str:
-        if isinstance(scores, (list, np.ndarray)):
+        if isinstance(scores, list | np.ndarray):
             return f"{np.mean(scores):.4f} (SD {np.std(scores):.4f})"
         return str(scores)
 
@@ -232,8 +232,8 @@ class TrainedSklearnClassifier(TrainedClassifier):
     def __init__(
         self,
         clf: Any,
-        X: Optional[pd.DataFrame] = None,
-        metrics: Optional[dict[str, Any]] = None,
+        X: pd.DataFrame | None = None,
+        metrics: dict[str, Any] | None = None,
     ) -> None:
         self.clf = clf
         self._classes = clf.classes_
@@ -245,8 +245,8 @@ class TrainedSklearnClassifier(TrainedClassifier):
 
     def predict_proba(
         self,
-        betas: Union[np.ndarray, pd.DataFrame],
-        id_: Optional[Union[pd.Series, np.ndarray, Sequence]] = None,
+        betas: np.ndarray | pd.DataFrame,
+        id_: pd.Series | np.ndarray | Sequence | None = None,
     ) -> np.ndarray:
         return self.clf.predict_proba(betas)
 
@@ -295,7 +295,7 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         clf: Any,
         probabilities_cv: np.ndarray,
         X: pd.DataFrame,
-        metrics: Optional[dict[str, Any]] = None,
+        metrics: dict[str, Any] | None = None,
     ) -> None:
         self.clf = clf
         self.probabilities_cv = pd.DataFrame(probabilities_cv, index=X.index)
@@ -305,8 +305,8 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
 
     def predict_proba(
         self,
-        betas: Union[np.ndarray, pd.DataFrame],
-        id_: Optional[Union[pd.Series, np.ndarray, Sequence]] = None,
+        betas: np.ndarray | pd.DataFrame,
+        id_: pd.Series | np.ndarray | Sequence | None = None,
     ) -> np.ndarray:
         if id_ is not None:
             id_ = np.ravel(id_)
@@ -370,8 +370,8 @@ class VarianceThresholdLite(BaseEstimator, TransformerMixin):
 
     def fit(
         self,
-        X: Union[np.ndarray, pd.DataFrame],
-        y: Optional[ArrayLike] = None,
+        X: np.ndarray | pd.DataFrame,
+        y: ArrayLike | None = None,
     ) -> "VarianceThresholdLite":
         X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         if X_array.ndim != 2:
@@ -384,7 +384,7 @@ class VarianceThresholdLite(BaseEstimator, TransformerMixin):
             raise ValueError(msg)
         return self
 
-    def transform(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
+    def transform(self, X: np.ndarray | pd.DataFrame) -> np.ndarray:
         X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         return X_array[:, self.support_mask_]
 
@@ -400,8 +400,8 @@ class TopVarianceSelector(BaseEstimator, TransformerMixin):
 
     def fit(
         self,
-        X: Union[np.ndarray, pd.DataFrame],
-        y: Optional[ArrayLike] = None,
+        X: np.ndarray | pd.DataFrame,
+        y: ArrayLike | None = None,
     ) -> "TopVarianceSelector":
         X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         if X_array.ndim != 2:
@@ -422,7 +422,7 @@ class TopVarianceSelector(BaseEstimator, TransformerMixin):
 
         return self
 
-    def transform(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
+    def transform(self, X: np.ndarray | pd.DataFrame) -> np.ndarray:
         X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
         return X_array[:, self.top_indices_]
 
@@ -460,9 +460,9 @@ def parse_component_key(key: str) -> tuple[str, list[Any], dict[str, Any]]:
 
 
 def make_clf_pipeline(
-    step_keys: Union[str, list[str]],
-    X_shape: Optional[tuple[int, int]] = None,
-    cv: Optional[Union[int, Any]] = None,
+    step_keys: str | list[str],
+    X_shape: tuple[int, int] | None = None,
+    cv: int | Any | None = None,
 ) -> Pipeline:
     """Sklearn pipeline with scaling, feature selection, and classifier."""
     scalers = {
@@ -591,7 +591,7 @@ def make_reports(
 
 def make_classifier_report_page(
     reports: Sequence[str],
-    title: Optional[str] = None,
+    title: str | None = None,
 ) -> str:
     """Generates an HTML page for multiple classifier reports.
 
@@ -695,8 +695,8 @@ def _is_ovr_or_ovo(clf: Any) -> str:
 
 def cross_val_metrics(
     clf: Any,
-    X: Union[pd.DataFrame, np.ndarray],
-    y: Union[pd.Series, np.ndarray, Sequence],
+    X: pd.DataFrame | np.ndarray,
+    y: pd.Series | np.ndarray | Sequence,
     probabilities_cv: np.ndarray,
     cv: Any,
 ) -> dict[str, Any]:
@@ -767,9 +767,9 @@ def train_clf(
     X: pd.DataFrame,
     y: ArrayLike,
     save_path: Path,
-    cv: Union[int, Any],
+    cv: int | Any,
     n_jobs: int = 1,
-) -> Union["TrainedSklearnClassifier", "TrainedSklearnCVClassifier"]:
+) -> TrainedSklearnClassifier | TrainedSklearnCVClassifier:
     """Trains a classifier and stores the trained model to disk.
 
     If the classifier has already been trained (and saved), it loads the
@@ -853,11 +853,11 @@ class ClassifierResult:
 def fit_and_evaluate_clf(
     X: pd.DataFrame,
     y: ArrayLike,
-    X_test: Union[pd.DataFrame, np.ndarray],
+    X_test: pd.DataFrame | np.ndarray,
     id_test: Sequence[str],
     save_path: Path,
     clf: Any,
-    cv: Union[int, Any],
+    cv: int | Any,
     n_jobs: int = 1,
 ) -> ClassifierResult:
     """Predicts the methylation class by supervised learning classifier.
@@ -940,7 +940,7 @@ def fit_and_evaluate_clf(
             - reports (dict): Dict of evaluation report (both 'txt' and 'html')
               for each sample.
     """
-    if isinstance(clf, (Pipeline, ClassifierMixin)):
+    if isinstance(clf, Pipeline | ClassifierMixin):
         trained_clf = train_clf(
             clf=clf, X=X, y=y, save_path=save_path, cv=cv, n_jobs=n_jobs
         )

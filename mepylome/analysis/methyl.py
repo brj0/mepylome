@@ -17,7 +17,7 @@ import webbrowser
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -121,7 +121,7 @@ class DualOutput:
     jupyter notebooks.
     """
 
-    def __init__(self, filename: Union[str, Path]) -> None:
+    def __init__(self, filename: str | Path) -> None:
         self.terminal = sys.stdout
         self.log = open(filename, "a")
 
@@ -144,9 +144,9 @@ class DualOutput:
 
     def __exit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: Any | None,
     ) -> None:
         sys.stdout = self.original_stdout
         self.close()
@@ -585,7 +585,7 @@ def extract_sub_dataframe(
 
 def get_balanced_indices(
     feature_labels: Sequence[str],
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> np.ndarray:
     """Returns indices of a balanced selection of feature labels.
 
@@ -622,10 +622,10 @@ def get_balanced_indices(
 
 
 def get_cpgs_from_file(
-    input_path: Union[str, Path, Any],
-) -> Optional[np.ndarray]:
+    input_path: str | Path | Any,
+) -> np.ndarray | None:
     """Reads CpG sites from a file and return a numpy array."""
-    if not isinstance(input_path, (str, Path)):
+    if not isinstance(input_path, str | Path):
         return None
 
     path = Path(input_path).expanduser()
@@ -984,41 +984,41 @@ class MethylAnalysis:
     """
 
     analysis_dir: Path
-    analysis_ids: Optional[list[str]]
+    analysis_ids: list[str] | None
     annotation: Path
-    app: Optional[Dash]
-    balancing_feature: Optional[str]
-    betas_all: Optional[pd.DataFrame]
+    app: Dash | None
+    balancing_feature: str | None
+    betas_all: pd.DataFrame | None
     betas_dir: Path
-    betas_sel: Optional[pd.DataFrame]
+    betas_sel: pd.DataFrame | None
     clf_dir: Path
     cnv_dir: Path
-    cnv_id: Optional[str]
+    cnv_id: str | None
     cnv_plot: go.Figure
     cpg_blacklist: set[str]
     cpg_selection: str
     cv_default: Any
     debug: bool
     do_seg: bool
-    dropdown_id: Optional[Sequence[str]]
-    feature_matrix: Optional[Union[pd.DataFrame, np.ndarray]]
+    dropdown_id: Sequence[str] | None
+    feature_matrix: pd.DataFrame | np.ndarray | None
     host: str
     ids: Sequence[str]
     ids_to_highlight: list
     load_full_betas: bool
     n_cpgs: int
     n_jobs_clf: int
-    n_jobs_cnv: Optional[int]
+    n_jobs_cnv: int | None
     output_dir: Path
     overlap: bool
     port: int
     precalculate_cnv: bool
     prep: PrepType
-    raw_umap_plot: Optional[go.Figure]
+    raw_umap_plot: go.Figure | None
     reference_dir: Path
     test_dir: Path
-    test_ids: Optional[list[str]]
-    umap_cpgs: Optional[np.ndarray]
+    test_ids: list[str] | None
+    umap_cpgs: np.ndarray | None
     umap_df: pd.DataFrame
     umap_dir: Path
     umap_parms: dict[str, Any]
@@ -1026,54 +1026,50 @@ class MethylAnalysis:
     umap_plot_path: Path
     use_gpu: bool
 
-    _balanced_sorted_cpgs: Optional[pd.Index]
-    _classifiers: Optional[list[dict[str, Any]]]
+    _balanced_sorted_cpgs: pd.Index | None
+    _classifiers: list[dict[str, Any]] | None
     _clf_log: Path
     _cpgs: np.ndarray
-    _idat_handler: Optional[IdatHandler]
-    _internal_cpgs_hash: Optional[str]
-    _old_selected_columns: Optional[list[str]]
+    _idat_handler: IdatHandler | None
+    _internal_cpgs_hash: str | None
+    _old_selected_columns: list[str] | None
     _prev_vars: dict[str, Any]
     _prog_bar: ProgressBar
-    _sorted_cpgs: Optional[np.ndarray]
+    _sorted_cpgs: np.ndarray | None
     _testdir_provided: bool
     _use_discrete_colors: bool
 
     def __init__(
         self,
-        analysis_dir: Union[str, Path] = INVALID_PATH,
+        analysis_dir: str | Path = INVALID_PATH,
         *,
-        annotation: Union[str, Path] = INVALID_PATH,
-        reference_dir: Union[str, Path] = INVALID_PATH,
-        output_dir: Union[str, Path] = DEFAULT_OUTPUT_DIR,
-        test_dir: Union[str, Path] = INVALID_PATH,
+        annotation: str | Path = INVALID_PATH,
+        reference_dir: str | Path = INVALID_PATH,
+        output_dir: str | Path = DEFAULT_OUTPUT_DIR,
+        test_dir: str | Path = INVALID_PATH,
         prep: PrepType = "illumina",
-        cpgs: Union[str, Sequence[str], set[str], np.ndarray] = "auto",
-        cpg_blacklist: Optional[
-            Union[Sequence[str], set[str], np.ndarray]
-        ] = None,
+        cpgs: str | Sequence[str] | set[str] | np.ndarray = "auto",
+        cpg_blacklist: Sequence[str] | set[str] | np.ndarray | None = None,
         n_cpgs: int = DEFAULT_N_CPGS,
-        classifiers: Optional[list[dict[str, Any]]] = None,
-        cv_default: Union[int, Any] = 5,
+        classifiers: list[dict[str, Any]] | None = None,
+        cv_default: int | Any = 5,
         n_jobs_clf: int = 1,
-        n_jobs_cnv: Optional[int] = None,
+        n_jobs_cnv: int | None = None,
         precalculate_cnv: bool = False,
         load_full_betas: bool = True,
-        feature_matrix: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        feature_matrix: pd.DataFrame | np.ndarray | None = None,
         overlap: bool = False,
-        analysis_ids: Optional[
-            Union[Sequence[str], set[str], np.ndarray]
-        ] = None,
-        test_ids: Optional[Union[Sequence[str], set[str], np.ndarray]] = None,
+        analysis_ids: Sequence[str] | set[str] | np.ndarray | None = None,
+        test_ids: Sequence[str] | set[str] | np.ndarray | None = None,
         cpg_selection: str = "top",
         do_seg: bool = False,
         host: str = "localhost",
         port: int = 8050,
         debug: bool = False,
-        umap_parms: Optional[dict[str, Any]] = None,
+        umap_parms: dict[str, Any] | None = None,
         use_gpu: bool = False,
         verbose: int = 1,
-        balancing_feature: Optional[str] = None,
+        balancing_feature: str | None = None,
     ) -> None:
         self.analysis_dir = Path(analysis_dir).expanduser()
         self.analysis_ids = (
@@ -1180,7 +1176,7 @@ class MethylAnalysis:
     @cpgs.setter
     def cpgs(
         self,
-        cpgs: Union[str, Sequence[str], set[str], np.ndarray],
+        cpgs: str | Sequence[str] | set[str] | np.ndarray,
     ) -> None:
         """Set the CpG sites for analysis."""
         self._cpgs = self._get_cpgs(cpgs)
@@ -1247,7 +1243,7 @@ class MethylAnalysis:
         return self._get_classifiers(self._classifiers)
 
     @classifiers.setter
-    def classifiers(self, classifiers: Union[Any, list[Any], None]) -> None:
+    def classifiers(self, classifiers: Any | list[Any] | None) -> None:
         """Sets the configuration for classifiers.
 
         This setter accepts either a single classifier model or a list of
@@ -1280,7 +1276,7 @@ class MethylAnalysis:
 
     def _get_classifiers(
         self,
-        classifiers: Optional[Union[Any, list[Any]]],
+        classifiers: Any | list[Any] | None,
     ) -> list[dict[str, Any]]:
         if classifiers is None:
             return []
@@ -1306,7 +1302,7 @@ class MethylAnalysis:
 
     @staticmethod
     def _get_umap_parms(
-        umap_parms: Optional[dict[str, Any]],
+        umap_parms: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Returns UMAP parameters with defaults if not provided."""
         umap_parms = {} if umap_parms is None else umap_parms
@@ -1348,19 +1344,19 @@ class MethylAnalysis:
 
     def _get_cpgs(
         self,
-        input_var: Union[str, Sequence[str], set[str], np.ndarray] = "auto",
+        input_var: str | Sequence[str] | set[str] | np.ndarray = "auto",
     ) -> np.ndarray:
         """Returns CpG sites based on the provided input variable."""
         self._internal_cpgs_hash = None
 
         def exclude_blacklist(
-            cpgs: Union[np.ndarray, list, set],
+            cpgs: np.ndarray | list | set,
         ) -> np.ndarray:
             return np.sort(np.array(list(set(cpgs) - self.cpg_blacklist)))
 
         logger.info("Determine CpG sites...")
 
-        if isinstance(input_var, (np.ndarray, set, list, pd.Index)):
+        if isinstance(input_var, np.ndarray | set | list | pd.Index):
             return exclude_blacklist(input_var)
 
         cpgs_from_file = get_cpgs_from_file(input_var)
@@ -1813,7 +1809,7 @@ class MethylAnalysis:
             ["Umap_x", "Umap_y"]
         ]
 
-    def _umap_plot_highlight(self, cnv_id: Optional[str] = None) -> None:
+    def _umap_plot_highlight(self, cnv_id: str | None = None) -> None:
         """Highlights the selected samples and the sample selected for CNV."""
         if cnv_id is not None:
             self.cnv_id = cnv_id
@@ -1848,7 +1844,7 @@ class MethylAnalysis:
     def make_cnv_plot(
         self,
         sample_id: str,
-        genes_sel: Optional[Sequence[str]] = None,
+        genes_sel: Sequence[str] | None = None,
     ) -> None:
         """Generates a copy number variation (CNV) plot for a specific sample.
 
@@ -1883,7 +1879,7 @@ class MethylAnalysis:
             do_seg=self.do_seg,
         )
 
-    def precompute_cnvs(self, ids: Optional[Sequence[str]] = None) -> None:
+    def precompute_cnvs(self, ids: Sequence[str] | None = None) -> None:
         """Precalculates CNVs for all samples and saves them to disk.
 
         This method performs CNV analysis, and writes the output to the
@@ -1918,8 +1914,8 @@ class MethylAnalysis:
     def get_cnv(
         self,
         sample_id: str,
-        extract: Optional[Sequence[str]] = None,
-    ) -> tuple[Optional[pd.DataFrame], ...]:
+        extract: Sequence[str] | None = None,
+    ) -> tuple[pd.DataFrame | None, ...]:
         """Retrieves the CNV information for a specified sample.
 
         This method locates the IDAT file corresponding to the provided
@@ -1996,8 +1992,8 @@ class MethylAnalysis:
     def classify(
         self,
         *,
-        ids: Optional[Union[str, Sequence[str]]] = None,
-        values: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        ids: str | Sequence[str] | None = None,
+        values: pd.DataFrame | np.ndarray | None = None,
         clf_list: Any,
     ) -> list[ClassifierResult]:
         """Classify samples using specified classifiers.
@@ -2118,9 +2114,9 @@ class MethylAnalysis:
 
     def _load_training_data(
         self,
-        ids: Optional[Sequence[str]],
+        ids: Sequence[str] | None,
         shape_only: bool = False,
-    ) -> tuple[Any, Optional[list[Any]], Optional[pd.DataFrame]]:
+    ) -> tuple[Any, list[Any] | None, pd.DataFrame | None]:
         """Load training data for classification."""
         shape_path = self.clf_dir / "shape.npy"
         cpgs_path = self.clf_dir / "cpgs.npy"
@@ -2233,7 +2229,7 @@ class MethylAnalysis:
             assets_folder=str(assets_folder),
             external_stylesheets=[dbc.themes.BOOTSTRAP],
         )
-        app._favicon = "favicon.svg"  # type: ignore[assignment]
+        app._favicon = "favicon.svg"
         app.title = "mepylome"
         side_navigation = get_side_navigation(
             sample_ids=self.ids,
@@ -2313,12 +2309,12 @@ class MethylAnalysis:
             State("umap-plot", "figure"),
         )
         def update_plots(
-            click_data: Optional[dict[str, Any]],
-            ids_to_highlight: Optional[list[str]],
-            umap_color_columns: Optional[list[str]],
-            umap_color_scheme: Optional[str],
-            genes_sel: Optional[list[str]],
-            curr_umap_plot: Optional[dict[str, Any]],
+            click_data: dict[str, Any] | None,
+            ids_to_highlight: list[str] | None,
+            umap_color_columns: list[str] | None,
+            umap_color_scheme: str | None,
+            genes_sel: list[str] | None,
+            curr_umap_plot: dict[str, Any] | None,
         ) -> tuple[Any, Any, Any]:
             def update_umap_plot() -> tuple[Any, Any, Any]:
                 try:
@@ -2564,20 +2560,20 @@ class MethylAnalysis:
             ],
         )
         def on_umap_start_button_click(
-            n_clicks: Optional[int],
-            n_cpgs: Optional[int],
+            n_clicks: int | None,
+            n_cpgs: int | None,
             analysis_dir: str,
             annotation: str,
             reference_dir: str,
             test_dir: str,
             output_dir: str,
-            prep: Optional[PrepType],
-            analysis_dir_valid: Optional[bool],
-            test_dir_valid: Optional[bool],
-            output_dir_valid: Optional[bool],
-            precalculate_cnv: Optional[bool],
-            cpg_selection: Optional[str],
-            balancing_feature: Optional[str],
+            prep: PrepType | None,
+            analysis_dir_valid: bool | None,
+            test_dir_valid: bool | None,
+            output_dir_valid: bool | None,
+            precalculate_cnv: bool | None,
+            cpg_selection: str | None,
+            balancing_feature: str | None,
         ) -> tuple[Any, Any, Any, dict[str, str]]:
             if not n_clicks:
                 return no_update, no_update, "", {}
@@ -2660,7 +2656,7 @@ class MethylAnalysis:
             Input("cpg-selection", "value"),
         )
         def toggle_column_dropdown(
-            selected_method: Optional[str],
+            selected_method: str | None,
         ) -> dict[str, str]:
             """Show column dropdown only if 'balanced' is selected."""
             if selected_method == "balanced":
@@ -2696,7 +2692,7 @@ class MethylAnalysis:
             ],
         )
         def precalculate_cnv_wrapper(
-            state: Optional[dict[str, Any]],
+            state: dict[str, Any] | None,
         ) -> list[bool]:
             if (
                 state
@@ -2738,7 +2734,7 @@ class MethylAnalysis:
         def update_output(
             list_of_contents: list[str],
             list_of_names: list[str],
-        ) -> Optional[list[html.Div]]:
+        ) -> list[html.Div] | None:
             logger.info("Uploading files...")
 
             def parse_contents(contents: str, filename: str) -> html.Div:
@@ -2756,7 +2752,7 @@ class MethylAnalysis:
 
             if list_of_contents is not None:
                 children = []
-                for c, n in zip(list_of_contents, list_of_names):
+                for c, n in zip(list_of_contents, list_of_names, strict=True):
                     children.append(parse_contents(c, n))
                 # Reload idat handler now that there are new files
                 self._idat_handler = None
@@ -2781,9 +2777,9 @@ class MethylAnalysis:
             ],
         )
         def on_clf_start_button_click(
-            n_clicks: Optional[int],
-            clf_list: Optional[Sequence[str]],
-        ) -> Optional[Union[str, Any]]:
+            n_clicks: int | None,
+            clf_list: Sequence[str] | None,
+        ) -> str | Any | None:
             if not n_clicks:
                 return no_update
 
@@ -2839,7 +2835,7 @@ class MethylAnalysis:
 
         def format_value(value: object) -> tuple[str, str]:
             length_info = ""
-            if isinstance(value, (pd.DataFrame, pd.Series, pd.Index)):
+            if isinstance(value, pd.DataFrame | pd.Series | pd.Index):
                 display_value = str(value)
             elif isinstance(value, np.ndarray):
                 display_value = str(value)

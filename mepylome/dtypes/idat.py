@@ -7,7 +7,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from enum import IntEnum, unique
 from pathlib import Path
-from typing import Any, BinaryIO, Union, cast
+from typing import Any, BinaryIO, cast
 
 import numpy as np
 
@@ -51,7 +51,7 @@ def read_string(infile: BinaryIO) -> str:
 
 def read_array(
     infile: BinaryIO,
-    dtype: Union[str, np.dtype],
+    dtype: str | np.dtype,
     n: int,
 ) -> np.ndarray:
     dtype = np.dtype(dtype)
@@ -93,7 +93,7 @@ class IdatSectionCode(IntEnum):
 def _get_file_size(file_like: BinaryIO) -> int:
     """Get the size of a file-like object."""
     # Check if the file-like object has a fileno method
-    if isinstance(file_like, (io.BufferedReader, gzip.GzipFile)):
+    if isinstance(file_like, io.BufferedReader | gzip.GzipFile):
         return os.fstat(file_like.fileno()).st_size
 
     if isinstance(file_like, io.BytesIO):
@@ -109,7 +109,7 @@ def _get_file_size(file_like: BinaryIO) -> int:
 
 @contextmanager
 def get_file_object(
-    file: Union[str, Path, BinaryIO],
+    file: str | Path | BinaryIO,
 ) -> Generator[BinaryIO, None, None]:
     """Returns a file-like object for reading an IDAT file.
 
@@ -122,11 +122,11 @@ def get_file_object(
     Yields:
         A binary file-like object.
     """
-    if isinstance(file, (io.BufferedIOBase, io.BytesIO)):
+    if isinstance(file, io.BufferedIOBase | io.BytesIO):
         # Already a file-like object
         yield file
     else:
-        if not isinstance(file, (str, Path)):
+        if not isinstance(file, str | Path):
             raise TypeError(f"Expected file-like object, got {type(file)}")
         path = Path(file)
         f = gzip.open(path, "rb") if path.suffix == ".gz" else path.open("rb")
@@ -156,7 +156,7 @@ class IdatParser:
 
     def __init__(
         self,
-        file: Union[str, Path, BinaryIO],
+        file: str | Path | BinaryIO,
         *,
         intensity_only: bool = False,
         array_type_only: bool = False,

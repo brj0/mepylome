@@ -199,7 +199,7 @@ def calculate_cn_summary(analysis, class_):
         output_dir / f"{analysis_dir.name}_cn_summary_{clean_filename(x)}.png"
         for x in all_classes
     ]
-    for path, fig in zip(png_paths, plot_list):
+    for path, fig in zip(png_paths, plot_list, strict=True):
         fig.write_image(path)
     images = [Image.open(path) for path in png_paths]
     width, height = images[0].size
@@ -470,7 +470,9 @@ dropped_labels = {
     if count < analysis.cv_default
 }
 ids = [
-    id_ for id_, label in zip(all_ids, labels) if label not in dropped_labels
+    id_
+    for id_, label in zip(all_ids, labels, strict=True)
+    if label not in dropped_labels
 ]
 analysis.analysis_ids = ids
 

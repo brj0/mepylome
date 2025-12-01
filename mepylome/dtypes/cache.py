@@ -7,9 +7,9 @@ performance by storing and reusing computed results.
 import inspect
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Optional, Protocol, TypeVar, Union
+from typing import Any, Protocol, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 R_co = TypeVar("R_co", covariant=True)
 
 
-def np_hash(array: np.ndarray) -> Union[bytes, tuple]:
+def np_hash(array: np.ndarray) -> bytes | tuple:
     """Generates a hashable key for a NumPy array.
 
     This function creates a hashable key from a NumPy array by converting it to
@@ -59,7 +59,7 @@ def pd_hash(data_frame: pd.DataFrame) -> tuple:
     return (tuple(np_hash(data_frame[col].values) for col in data_frame),)
 
 
-def cache_key(*args: Any) -> Union[Any, tuple[Any, ...]]:
+def cache_key(*args: Any) -> Any | tuple[Any, ...]:
     """Generates a cache key for arguments based on their type.
 
     Args:
@@ -146,7 +146,7 @@ def memoize(f: Callable) -> CachedCallable:
         returns the cached instance or result instead of creating a new one.
 
     Args:
-        f (Union[class, function]): The class or function to be decorated with
+        f (class | function): The class or function to be decorated with
         memoization.
 
     Returns:
@@ -158,7 +158,7 @@ def memoize(f: Callable) -> CachedCallable:
     """
 
     class Memoize:
-        def __init__(self, cls: Union[type[Any], Callable]) -> None:
+        def __init__(self, cls: type[Any] | Callable) -> None:
             self.cls = cls
             self._cache: dict = {}
             self.__name__ = cls.__name__
@@ -193,8 +193,8 @@ def memoize(f: Callable) -> CachedCallable:
 
 def input_args_id(
     *args: Any,
-    extra_hash: Optional[Iterable[Any]] = None,
-    suffix_limit: Optional[int] = 40,
+    extra_hash: Iterable[Any] | None = None,
+    suffix_limit: int | None = 40,
 ) -> str:
     """Returns a unique identifier for a set of arguments."""
     components = []
@@ -211,7 +211,7 @@ def input_args_id(
         if isinstance(arg, Path):
             components.append(arg.name)
             return str(arg).encode()
-        if isinstance(arg, (list, tuple)):
+        if isinstance(arg, list | tuple):
             return ",".join(map(str, arg)).encode()
         if hasattr(arg, "steps"):
             value = "-".join(str(x[1])[:15] for x in arg.steps)

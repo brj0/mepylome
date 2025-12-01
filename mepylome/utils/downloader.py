@@ -49,7 +49,7 @@ import tarfile
 import xml.etree.ElementTree as ET
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import pandas as pd
 import requests
@@ -105,7 +105,7 @@ def _text_of(el: ET.Element) -> str:
     return (el.text or "").strip()
 
 
-def _first_attr_value(attrib: Optional[dict[str, Any]]) -> str:
+def _first_attr_value(attrib: dict[str, Any] | None) -> str:
     """Return attribute values as string joined with ';'."""
     vals = [str(v).strip() for v in attrib.values()] if attrib else []
     return ";".join(vals)
@@ -131,8 +131,8 @@ def _unique_add(key: str, value: str, dictionary: dict[str, Any]) -> None:
 def parse_miniml_to_df(
     miniml_path: Path,
     series_id: str,
-    samples: Optional[Iterable[str]] = None,
-    meta: Optional[str] = None,
+    samples: Iterable[str] | None = None,
+    meta: str | None = None,
 ) -> None:
     """Parse a GEO MINiML family XML and save as spreadsheet to disk."""
     tree = ET.parse(miniml_path)
@@ -193,9 +193,9 @@ def download_geo_metadata(
     series_id: str,
     save_dir: Path,
     show_progress: bool = True,
-    samples: Optional[Iterable[str]] = None,
-    subdir: Optional[str] = None,
-    meta: Optional[str] = None,
+    samples: Iterable[str] | None = None,
+    subdir: str | None = None,
+    meta: str | None = None,
 ) -> None:
     """Download and extract the MINiML (family XML) for a GEO series.
 
@@ -208,9 +208,9 @@ def download_geo_metadata(
         samples (Iterable[str]): Optional iterable of Sample_ID bases (e.g.
             "GSM4429896_201503470062_R02C01"). If provided, restrict the CSV to
             those Sample_IDs only.
-        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+        subdir (str | None): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "series_id" if None.
-        meta (Optional[str]): Optional base name for the output annotation file
+        meta (str | None): Optional base name for the output annotation file
             (without extension). Defaults to "annotation" if None.
     """
     subdir = subdir or series_id
@@ -248,7 +248,7 @@ def download_geo_idat_all_files(
     series_id: str,
     save_dir: Path,
     show_progress: bool = True,
-    subdir: Optional[str] = None,
+    subdir: str | None = None,
 ) -> None:
     """Download and extract the RAW IDAT archive for a GEO series.
 
@@ -258,7 +258,7 @@ def download_geo_idat_all_files(
         save_dir (Path): Directory path where the metadata will be saved.
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
-        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+        subdir (str | None): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "series_id" if None.
     """
     subdir = subdir or series_id
@@ -313,7 +313,7 @@ def download_geo_idat_single_files(
     save_dir: Path,
     samples: Iterable[str],
     show_progress: bool = True,
-    subdir: Optional[str] = None,
+    subdir: str | None = None,
 ) -> None:
     """Download individual IDAT files for the provided samples.
 
@@ -324,7 +324,7 @@ def download_geo_idat_single_files(
             "GSM4180454_201904410008_R05C01".
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
-        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+        subdir (str | None): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "series_id" if None.
     """
     subdir = subdir or series_id
@@ -356,8 +356,8 @@ def download_geo_idat(
     series_id: str,
     save_dir: Path,
     show_progress: bool = True,
-    samples: Optional[Iterable[str]] = None,
-    subdir: Optional[str] = None,
+    samples: Iterable[str] | None = None,
+    subdir: str | None = None,
 ) -> None:
     """Downloads IDAT files from geo.
 
@@ -374,7 +374,7 @@ def download_geo_idat(
             "GSM4429896_201503470062_R02C01"). If provided, restricts download
             to those Sample_IDs only (downloads per-sample Grn/Red idat .gz
             files).
-        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+        subdir (str | None): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "series_id" if None.
     """
     if not samples or samples == "all":
@@ -397,10 +397,10 @@ def download_geo_idat(
 def download_arrayexpress_metadata(
     series_id: str,
     save_dir: Path,
-    samples: Optional[Iterable[str]] = None,
+    samples: Iterable[str] | None = None,
     show_progress: bool = True,
-    subdir: Optional[str] = None,
-    meta: Optional[str] = None,
+    subdir: str | None = None,
+    meta: str | None = None,
 ) -> None:
     """Download the SDRF metadata file and save as simplified CSV.
 
@@ -413,9 +413,9 @@ def download_arrayexpress_metadata(
             Sample_IDs only.
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
-        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+        subdir (str | None): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "series_id" if None.
-        meta (Optional[str]): Optional base name for the output annotation file
+        meta (str | None): Optional base name for the output annotation file
             (without extension). Defaults to "annotation" if None.
     """
     subdir = subdir or series_id
@@ -464,9 +464,9 @@ def download_arrayexpress_metadata(
 def download_arrayexpress_idat(
     series_id: str,
     save_dir: Path,
-    samples: Optional[Iterable[str]] = None,
+    samples: Iterable[str] | None = None,
     show_progress: bool = True,
-    subdir: Optional[str] = None,
+    subdir: str | None = None,
 ) -> None:
     """Download all IDAT files for a given ArrayExpress ID.
 
@@ -479,7 +479,7 @@ def download_arrayexpress_idat(
             Sample_IDs only.
         show_progress (bool, optional): If True, displays logging messages and
             progress bar during download. Defaults to True.
-        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+        subdir (str | None): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "series_id" if None.
     """
     subdir = subdir or series_id
@@ -538,8 +538,8 @@ def make_tcga_metadata(
     save_dir: Path,
     metadata_cart: Path,
     metadata_clinical: Path,
-    subdir: Optional[str] = None,
-    meta: Optional[str] = None,
+    subdir: str | None = None,
+    meta: str | None = None,
 ) -> None:
     """Build merged TCGA annotation DataFrame and saves to disk.
 
@@ -548,9 +548,9 @@ def make_tcga_metadata(
             write_csv True).
         metadata_cart (Path): path to metadata.cart JSON from GDC.
         metadata_clinical (Path): path to clinical TSV (tab-separated).
-        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+        subdir (str | None): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "TCGA_<hash>" if None.
-        meta (Optional[str]): Optional base name for the output annotation file
+        meta (str | None): Optional base name for the output annotation file
             (without extension). Defaults to "annotation" if None.
     """
     save_dir = Path(save_dir).expanduser()
@@ -611,7 +611,7 @@ def download_tcga_idat(
     save_dir: Path,
     metadata_cart: Path,
     show_progress: bool = True,
-    subdir: Optional[str] = None,
+    subdir: str | None = None,
 ) -> None:
     """Download missing TCGA IDAT files listed in the manifest.
 
@@ -624,7 +624,7 @@ def download_tcga_idat(
         save_dir (Path): Directory to store idat files.
         metadata_cart (Path): Path to CSV manifest listing 'id' and 'filename'.
         show_progress (bool): Whether to show download progress.
-        subdir (Optional[str]): Optional subdirectory name under `save_dir` for
+        subdir (str | None): Optional subdirectory name under `save_dir` for
             the dataset folder. Defaults to "TCGA_<hash>" if None.
     """
     subdir = subdir or _get_tcga_series(metadata_cart)
@@ -678,8 +678,8 @@ def download_tcga_idat(
 
 
 def make_dataset(
-    dataset: Union[dict[str, Union[str, list[str]]], Iterable[str], str],
-) -> list[dict[str, Union[str, list[str]]]]:
+    dataset: dict[str, str | list[str]] | Iterable[str] | str,
+) -> list[dict[str, str | list[str]]]:
     """Normalize dataset input into a list of standardized dictionaries.
 
     Accepts E-MTAB*, GSE*, or GSM* identifiers.
@@ -697,7 +697,7 @@ def make_dataset(
             'GSM2']}
         ]
     """
-    if isinstance(dataset, (dict, str)):
+    if isinstance(dataset, dict | str):
         items = [dataset]
     elif isinstance(dataset, Iterable):
         items = list(dataset)
@@ -744,13 +744,13 @@ def make_dataset(
 
 def _download_single_dataset(
     dataset: dict[str, Any],
-    save_dir: Union[str, Path],
+    save_dir: str | Path,
     idat: bool = True,
     metadata: bool = True,
 ) -> None:
     """Helper: download IDAT/metadata for a single normalized dataset dict."""
 
-    def to_path(p: Union[str, Path]) -> Path:
+    def to_path(p: str | Path) -> Path:
         return Path(p).expanduser()
 
     save_dir = to_path(save_dir)
@@ -821,8 +821,8 @@ def _download_single_dataset(
 
 
 def download_idats(
-    dataset: Union[dict[str, Union[str, list[str]]], Iterable[str], str],
-    save_dir: Union[str, Path],
+    dataset: dict[str, str | list[str]] | Iterable[str] | str,
+    save_dir: str | Path,
     idat: bool = True,
     metadata: bool = True,
 ) -> None:
@@ -898,9 +898,7 @@ def download_idats(
         ... ], "~/Downloads/mixed_data")
     """
     save_dir = Path(save_dir).expanduser()
-    dataset_list: list[dict[str, Union[str, list[str]]]] = make_dataset(
-        dataset
-    )
+    dataset_list: list[dict[str, str | list[str]]] = make_dataset(dataset)
 
     for ds in dataset_list:
         _download_single_dataset(
@@ -924,8 +922,8 @@ def unzip_and_remove_gz_files(
 
 
 def setup_tutorial_files(
-    analysis_dir: Union[str, Path],
-    reference_dir: Union[str, Path],
+    analysis_dir: str | Path,
+    reference_dir: str | Path,
 ) -> None:
     """Prepare the directory structure and files for the tutorial.
 

@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development"
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "dash>=2.16.0,<3.1.0",
     "dash_bootstrap_components",

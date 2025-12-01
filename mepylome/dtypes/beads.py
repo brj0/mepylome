@@ -13,8 +13,6 @@ from pathlib import Path
 from typing import (
     Any,
     Literal,
-    Optional,
-    Union,
 )
 
 import numpy as np
@@ -39,10 +37,10 @@ PrepType = Literal["raw", "illumina", "swan", "noob"]
 
 
 def is_valid_idat_basepath(
-    basepath: Union[str, Path, Sequence[Union[str, Path]]],
+    basepath: str | Path | Sequence[str | Path],
 ) -> bool:
     """Checks if the given basepath(s) point to valid IDAT files."""
-    if isinstance(basepath, (str, Path)):
+    if isinstance(basepath, str | Path):
         basepaths = [str(basepath)]
     else:
         basepaths = [str(x) for x in basepath]
@@ -61,7 +59,7 @@ def is_valid_idat_basepath(
 
 
 def idat_basepaths(
-    files: Union[str, Path, Sequence[Union[str, Path]]],
+    files: str | Path | Sequence[str | Path],
     only_valid: bool = False,
 ) -> list[Path]:
     """Returns unique basepaths from IDAT files or directory.
@@ -92,7 +90,7 @@ def idat_basepaths(
         [PosixPath('/path/to/idat/file')]
     """
 
-    def get_idat_files(file_or_dir: Union[str, Path]) -> Iterator[str]:
+    def get_idat_files(file_or_dir: str | Path) -> Iterator[str]:
         path = os.path.expanduser(file_or_dir)
         # If path is dir take all files in it
         if os.path.isdir(path):
@@ -109,7 +107,7 @@ def idat_basepaths(
                 return file_path[: -len(suffix)]
         return file_path
 
-    if isinstance(files, (str, Path)):
+    if isinstance(files, str | Path):
         files = [files]
 
     _files = [
@@ -129,7 +127,7 @@ def idat_basepaths(
 
 
 def idat_paths_from_basenames(
-    basenames: Sequence[Union[str, Path]],
+    basenames: Sequence[str | Path],
 ) -> tuple[np.ndarray, np.ndarray]:
     """Returns paths to green and red IDAT files.
 
@@ -149,7 +147,7 @@ def idat_paths_from_basenames(
         [Path(str(name) + ENDING_RED) for name in basenames]
     )
 
-    def check_and_fix(files: np.ndarray) -> Optional[Path]:
+    def check_and_fix(files: np.ndarray) -> Path | None:
         not_existing = [i for i, path in enumerate(files) if not path.exists()]
         files[not_existing] = [
             x.parent / (x.name + ENDING_GZ) for x in files[not_existing]
@@ -198,15 +196,15 @@ class RawData:
     probes: list[str]
 
     _grn: np.ndarray
-    _grn_df: Optional[pd.DataFrame]
+    _grn_df: pd.DataFrame | None
     _red: np.ndarray
-    _red_df: Optional[pd.DataFrame]
+    _red_df: pd.DataFrame | None
 
     def __init__(
         self,
-        basenames: Union[str, Path, Sequence[Union[str, Path]]],
+        basenames: str | Path | Sequence[str | Path],
         *,
-        manifest: Optional[Manifest] = None,
+        manifest: Manifest | None = None,
     ) -> None:
         _basenames = idat_basepaths(basenames)
 
@@ -311,8 +309,8 @@ class RawData:
 
 @memoize
 def _overlap_indices(
-    left_arr: Union[Sequence, pd.Index],
-    right_arr: Union[Sequence, pd.Index],
+    left_arr: Sequence | pd.Index,
+    right_arr: Sequence | pd.Index,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute the indices of overlapping elements between two arrays.
 
@@ -375,23 +373,23 @@ class MethylData:
     methyl_ilmnid: np.ndarray
     methyl_index: np.ndarray
     probes: list[str]
-    seed: Optional[int]
+    seed: int | None
     unmethyl: np.ndarray
-    intensity: Optional[np.ndarray]
+    intensity: np.ndarray | None
 
     _grn: np.ndarray
-    _grn_df: Optional[pd.DataFrame]
-    _methylated_df: Optional[pd.DataFrame]
+    _grn_df: pd.DataFrame | None
+    _methylated_df: pd.DataFrame | None
     _red: np.ndarray
-    _red_df: Optional[pd.DataFrame]
-    _unmethylated_df: Optional[pd.DataFrame]
+    _red_df: pd.DataFrame | None
+    _unmethylated_df: pd.DataFrame | None
 
     def __init__(
         self,
-        data: Optional["RawData"] = None,
-        file: Optional[Union[str, Path, Sequence[Union[str, Path]]]] = None,
+        data: RawData | None = None,
+        file: str | Path | Sequence[str | Path] | None = None,
         prep: PrepType = "illumina",
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> None:
         if (data is None) == (file is None):
             msg = "Exactly one of 'data' or 'file' must be provided."
@@ -747,7 +745,7 @@ class MethylData:
     def _swan_indices(
         manifest: Manifest,
         methyl_index: np.ndarray,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> tuple[dict, dict]:
         rng = np.random.default_rng(seed)
         all_ncpgs = (
@@ -1002,7 +1000,7 @@ class MethylData:
 
     def betas_at(
         self,
-        cpgs: Optional[Union[Sequence, np.ndarray]] = None,
+        cpgs: Sequence | np.ndarray | None = None,
         fill: float = NEUTRAL_BETA,
     ) -> pd.DataFrame:
         """Calculates beta values for specified CpG sites.
@@ -1113,7 +1111,7 @@ class ReferenceMethylData:
 
     _cache: dict[Any, "ReferenceMethylData"] = {}
 
-    file: Union[str, Path, Sequence[Union[str, Path]]]
+    file: str | Path | Sequence[str | Path]
     prep: PrepType
     save_to_disk: bool
 
@@ -1122,7 +1120,7 @@ class ReferenceMethylData:
 
     def __new__(
         cls,
-        file: Union[str, Path, Sequence[Union[str, Path]]],
+        file: str | Path | Sequence[str | Path],
         prep: PrepType = "illumina",
         save_to_disk: bool = False,
     ) -> "ReferenceMethylData":
@@ -1138,13 +1136,13 @@ class ReferenceMethylData:
 
     def __getnewargs__(
         self,
-    ) -> tuple[Union[str, Path, Sequence[Union[str, Path]]], PrepType, bool]:
+    ) -> tuple[str | Path | Sequence[str | Path], PrepType, bool]:
         # Necessary for pickle
         return self.file, self.prep, self.save_to_disk
 
     def __init__(
         self,
-        file: Union[str, Path, Sequence[Union[str, Path]]],
+        file: str | Path | Sequence[str | Path],
         prep: PrepType = "illumina",
         save_to_disk: bool = False,
     ) -> None:

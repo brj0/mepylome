@@ -8,7 +8,7 @@ import warnings
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Optional, TypeVar, Union, overload
+from typing import Any, TypeVar, overload
 
 import numpy as np
 import pandas as pd
@@ -104,7 +104,7 @@ class ProgressBar:
         return str(self)
 
 
-def read_dataframe(path: Union[str, Path], **kwargs: Any) -> pd.DataFrame:
+def read_dataframe(path: str | Path, **kwargs: Any) -> pd.DataFrame:
     """Reads a DataFrame from the specified file path.
 
     Supports ods, xlsx, xls, csv (comma-separated), csv (column-separated), and
@@ -184,8 +184,8 @@ def convert_to_sentrix_ids(data: Iterable[str]) -> list[str]: ...
 
 
 def convert_to_sentrix_ids(
-    data: Optional[Union[set, dict, list, Iterable]],
-) -> Optional[Union[set, dict, list]]:
+    data: set | dict | list | Iterable | None,
+) -> set | dict | list | None:
     """Tries to convert every ID in 'data' to a Sentrix ID."""
     if data is None:
         return None
@@ -281,23 +281,23 @@ class IdatHandler:
     overlap: bool
     samples_annotated: pd.DataFrame
     selected_columns: list[str]
-    test_dir: Optional[Path]
+    test_dir: Path | None
     test_id_to_path: dict[str, Path]
     test_ids: list[str]
 
     _init_parameters: dict[str, Any]
-    _tmp_analysis_ids: Optional[Iterable[str]]
-    _tmp_test_ids: Optional[Iterable[str]]
+    _tmp_analysis_ids: Iterable[str] | None
+    _tmp_test_ids: Iterable[str] | None
 
     def __init__(
         self,
-        analysis_dir: Union[str, Path],
+        analysis_dir: str | Path,
         *,
-        annotation: Optional[Union[str, Path]] = None,
-        test_dir: Optional[Union[str, Path]] = None,
-        test_ids: Optional[Iterable[str]] = None,
+        annotation: str | Path | None = None,
+        test_dir: str | Path | None = None,
+        test_ids: Iterable[str] | None = None,
         overlap: bool = False,
-        analysis_ids: Optional[Iterable[str]] = None,
+        analysis_ids: Iterable[str] | None = None,
     ) -> None:
         # Initialize paths and attributes
         self.analysis_dir = Path(analysis_dir)
@@ -354,7 +354,7 @@ class IdatHandler:
 
     def _get_id_to_path(
         self,
-        directory: Optional[Union[str, Path]],
+        directory: str | Path | None,
     ) -> dict[str, Path]:
         """Retrieve valid IDAT sample IDs and paths from a directory."""
         if not directory or not Path(directory).exists():
@@ -373,7 +373,7 @@ class IdatHandler:
             )
             return pd.DataFrame()
 
-    def _identify_annotation_index(self) -> tuple[bool, Optional[str]]:
+    def _identify_annotation_index(self) -> tuple[bool, str | None]:
         """Identify the appropriate annotation column.
 
         This method checks the columns of `self.annotation_df` to determine
@@ -447,7 +447,7 @@ class IdatHandler:
     def _set_annotation_index_and_convert_ids(
         self,
         id_missmatch: bool,
-        col_name: Optional[str],
+        col_name: str | None,
     ) -> None:
         """Set annotation index and convert IDs to Sentrix format if needed."""
         if col_name is None:
@@ -497,7 +497,7 @@ class IdatHandler:
         # NOTE: This must be after _set_annotation_index_and_convert_ids
 
         def restrict_and_validate(
-            ids: Optional[Iterable],
+            ids: Iterable | None,
             id_to_path: dict[str, Path],
             id_type: str,
         ) -> dict[str, Path]:
@@ -573,7 +573,7 @@ class IdatHandler:
 
     def features(
         self,
-        columns: Optional[Union[str, Iterable[str]]] = None,
+        columns: str | Iterable[str] | None = None,
         separator: str = "|",
     ) -> list[str]:
         """Combines specified columns into a single label per sample.
@@ -618,7 +618,7 @@ class IdatHandler:
 
         def format_value(value: object) -> tuple[str, str]:
             length_info = ""
-            if isinstance(value, (pd.DataFrame, pd.Series, pd.Index)):
+            if isinstance(value, pd.DataFrame | pd.Series | pd.Index):
                 display_value = str(value)
             elif isinstance(value, np.ndarray):
                 display_value = str(value)
@@ -644,7 +644,7 @@ class IdatHandler:
         return str(self)
 
 
-def check_memory(nrows: int, ncols: int, dtype: Union[type, np.dtype]) -> None:
+def check_memory(nrows: int, ncols: int, dtype: type | np.dtype) -> None:
     """Checks if sufficient free memory is available for a given numpy array.
 
     Raises:
@@ -704,8 +704,8 @@ class BetasHandler:
 
     def __init__(
         self,
-        directory: Union[str, Path],
-        array_cpgs: Optional[dict[ArrayType, np.ndarray]] = None,
+        directory: str | Path,
+        array_cpgs: dict[ArrayType, np.ndarray] | None = None,
     ) -> None:
         self.basedir = Path(directory).expanduser()
         self.array_cpgs = (
@@ -755,7 +755,7 @@ class BetasHandler:
         self,
         idat_handler: IdatHandler,
         cpgs: np.ndarray,
-        ids: Optional[Sequence[str]] = None,
+        ids: Sequence[str] | None = None,
         fill: float = NEUTRAL_BETA,
         parallel: bool = True,
     ) -> pd.DataFrame:
@@ -816,7 +816,7 @@ class BetasHandler:
         self,
         idat_handler: IdatHandler,
         cpgs: np.ndarray,
-        ids: Optional[Sequence[str]] = None,
+        ids: Sequence[str] | None = None,
         fill: float = NEUTRAL_BETA,
         parallel: bool = True,
     ) -> np.ndarray:
@@ -849,7 +849,7 @@ class BetasHandler:
         for key, item in self.array_cpgs.items():
             left_idx[key], right_idx[key] = _overlap_indices(cpgs, item)
 
-        def get_row(filename: str) -> Optional[np.ndarray]:
+        def get_row(filename: str) -> np.ndarray | None:
             path = self.paths.get(filename)
             if path is None:
                 return None
@@ -921,7 +921,7 @@ def ensure_betas_exist(
     cpgs: np.ndarray,
     prep: PrepType,
     betas_dir: Path,
-    pbar: Optional[ProgressBar] = None,
+    pbar: ProgressBar | None = None,
 ) -> BetasHandler:
     """Ensures all beta files are extracted and available.
 
@@ -969,8 +969,8 @@ def get_betas(
     cpgs: np.ndarray,
     prep: PrepType,
     betas_dir: Path,
-    ids: Optional[Sequence[str]] = None,
-    pbar: Optional[ProgressBar] = None,
+    ids: Sequence[str] | None = None,
+    pbar: ProgressBar | None = None,
 ) -> pd.DataFrame:
     """Extracts and processes beta values from IDAT files.
 
@@ -1006,8 +1006,8 @@ def get_columnwise_variance(
     cpgs: np.ndarray,
     prep: PrepType,
     betas_dir: Path,
-    pbar: Optional[ProgressBar] = None,
-    ids: Optional[Sequence[str]] = None,
+    pbar: ProgressBar | None = None,
+    ids: Sequence[str] | None = None,
     parallel: bool = True,
 ) -> np.ndarray:
     """Computes column-wise variance of beta values for specified CpGs.
@@ -1044,8 +1044,8 @@ def reordered_cpgs_by_variance_online(
     cpgs: np.ndarray,
     prep: PrepType,
     betas_dir: Path,
-    pbar: Optional[ProgressBar] = None,
-    ids: Optional[Sequence[str]] = None,
+    pbar: ProgressBar | None = None,
+    ids: Sequence[str] | None = None,
     parallel: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Returns CpG and their variances, ordered by descending variance."""

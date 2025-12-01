@@ -9,9 +9,10 @@ import io
 import logging
 import pickle
 import zipfile
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -38,7 +39,7 @@ GAPS = PACKAGE_DIR / CONFIG["paths"]["gaps"]
 GENES = PACKAGE_DIR / CONFIG["paths"]["genes"]
 
 
-def _get_cgsegment() -> Optional[Callable[[list[float]], list[list[int]]]]:
+def _get_cgsegment() -> Callable[[list[float]], list[list[int]]] | None:
     try:
         import ruptures
 
@@ -46,7 +47,8 @@ def _get_cgsegment() -> Optional[Callable[[list[float]], list[list[int]]]]:
             algo = ruptures.KernelCPD("linear", min_size=5).fit(bin_values)
             segments = algo.predict(pen=1.5)
             return [
-                [start, end] for start, end in zip([0] + segments, segments)
+                [start, end]
+                for start, end in zip([0] + segments, segments, strict=False)
             ]
 
         return function
@@ -125,10 +127,10 @@ class Annotation:
     adjusted_manifest: pr.PyRanges
     _cpg_bins: pd.DataFrame
     _cpg_detail: pd.DataFrame
-    _init_manifest: Optional[Manifest]
-    _init_array_type: Optional[Union[str, ArrayType]]
-    _init_gap: Optional[pr.PyRanges]
-    _init_detail: Optional[pr.PyRanges]
+    _init_manifest: Manifest | None
+    _init_array_type: str | ArrayType | None
+    _init_gap: pr.PyRanges | None
+    _init_detail: pr.PyRanges | None
     _init_bin_size: int
     _init_min_probes_per_bin: int
     _cached: bool
@@ -136,10 +138,10 @@ class Annotation:
 
     def __new__(
         cls,
-        manifest: Optional[Manifest] = None,
-        array_type: Optional[Union[str, ArrayType]] = None,
-        gap: Optional[pr.PyRanges] = None,
-        detail: Optional[pr.PyRanges] = None,
+        manifest: Manifest | None = None,
+        array_type: str | ArrayType | None = None,
+        gap: pr.PyRanges | None = None,
+        detail: pr.PyRanges | None = None,
         bin_size: int = 50000,
         min_probes_per_bin: int = 15,
     ) -> "Annotation":
@@ -173,10 +175,10 @@ class Annotation:
 
     def __init__(
         self,
-        manifest: Optional["Manifest"] = None,
-        array_type: Optional[Union[str, "ArrayType"]] = None,
-        gap: Optional[pr.PyRanges] = None,
-        detail: Optional[pr.PyRanges] = None,
+        manifest: Manifest | None = None,
+        array_type: str | ArrayType | None = None,
+        gap: pr.PyRanges | None = None,
+        detail: pr.PyRanges | None = None,
         bin_size: int = 50000,
         min_probes_per_bin: int = 15,
     ) -> None:
@@ -339,7 +341,7 @@ class Annotation:
         # Need to regularly extract minimum; use min-heap
         heap = [
             (x, y)
-            for x, y in zip(bin_df.N_probes, bin_df.index)
+            for x, y in zip(bin_df.N_probes, bin_df.index, strict=True)
             if x < min_probes_per_bin
         ]
         heapq.heapify(heap)
@@ -421,9 +423,7 @@ class Annotation:
 
     @staticmethod
     def load(
-        array_types: Optional[
-            Union[list[Union[str, "ArrayType"]], str, "ArrayType"]
-        ] = None,
+        array_types: list[str | ArrayType] | str | ArrayType | None = None,
     ) -> None:
         """Loads specified annotation into memory.
 
@@ -538,23 +538,23 @@ class CNV:
 
     annotation: "Annotation"
     bins: pr.PyRanges
-    coef: Optional[np.ndarray]
-    detail: Optional[pr.PyRanges]
-    noise: Optional[float]
+    coef: np.ndarray | None
+    detail: pr.PyRanges | None
+    noise: float | None
     probe: str  # TODO: Change this variable name (sample_id?)
     probes: pd.Index
-    ratio: Optional[pd.DataFrame]
+    ratio: pd.DataFrame | None
     reference: "MethylData"
     sample: "MethylData"
-    segments: Optional[pd.DataFrame]
+    segments: pd.DataFrame | None
 
-    _ratio: Optional[np.ndarray]
+    _ratio: np.ndarray | None
 
     def __init__(
         self,
         sample: "MethylData",
-        reference: Union["MethylData", "ReferenceMethylData"],
-        annotation: Optional["Annotation"] = None,
+        reference: MethylData | ReferenceMethylData,
+        annotation: Annotation | None = None,
     ) -> None:
         if len(sample.probes) != 1:
             msg = "sample must contain exactly 1 probe."
@@ -602,9 +602,9 @@ class CNV:
     @classmethod
     def set_all(
         cls,
-        sample: "MethylData",
-        reference: Union["MethylData", "ReferenceMethylData"],
-        annotation: Optional["Annotation"] = None,
+        sample: MethylData,
+        reference: MethylData | ReferenceMethylData,
+        annotation: Annotation | None = None,
         *,
         do_seg: bool = True,
     ) -> "CNV":
@@ -831,8 +831,8 @@ class CNV:
 
     def write(
         self,
-        path: Union[str, Path],
-        data: Union[str, list[str]] = "all",
+        path: str | Path,
+        data: str | list[str] = "all",
     ) -> None:
         """Writes CNV data to disk as a zip file.
 

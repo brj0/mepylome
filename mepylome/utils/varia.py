@@ -15,7 +15,7 @@ import time
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 import numpy as np
@@ -68,7 +68,7 @@ class Timer:
         """Resets timer."""
         self.time0 = time.time()
 
-    def stop(self, text: Optional[str] = None) -> float:
+    def stop(self, text: str | None = None) -> float:
         """Resets timer and return elapsed time."""
         delta_time = 1000 * (time.time() - self.time0)
         comment = "" if text is None else "(" + text + ")"
@@ -192,9 +192,9 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
 
 def normexp_get_xs(
     xf: np.ndarray,
-    controls: Optional[np.ndarray] = None,
+    controls: np.ndarray | None = None,
     offset: float = 50,
-    param: Optional[np.ndarray] = None,
+    param: np.ndarray | None = None,
 ) -> dict[str, np.ndarray]:
     """Used in NOOB.
 

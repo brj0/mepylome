@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from functools import lru_cache, partial
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import pandas as pd
 import plotly.colors
@@ -108,7 +108,7 @@ def continuous_colors(names: Sequence[str]) -> dict[str, str]:
     return colors
 
 
-def _mixed_sort_key(s: Union[str, float]) -> tuple[int, Union[float, str]]:
+def _mixed_sort_key(s: str | float) -> tuple[int, float | str]:
     """Sorts numeric if input is a number, else alphanumeric."""
     try:
         return (0, float(s))
@@ -173,7 +173,7 @@ def umap_plot_from_data(
 
 
 def get_reference_methyl_data(
-    reference_dir: Union[str, Path],
+    reference_dir: str | Path,
     prep: PrepType,
 ) -> ReferenceMethylData:
     """Loads and caches CNV-neutral reference data."""
@@ -189,8 +189,8 @@ def get_reference_methyl_data(
 
 def write_single_cnv_to_disk(
     idat_basepath: Path,
-    reference_dir: Union[str, Path],
-    cnv_dir: Union[str, Path],
+    reference_dir: str | Path,
+    cnv_dir: str | Path,
     prep: PrepType,
     do_seg: bool,
 ) -> None:
@@ -243,12 +243,12 @@ def get_optimal_core_count(reserve_mem_gb: float = 1.0) -> int:
 
 def write_cnv_to_disk(
     sample_path: Sequence[Path],
-    reference_dir: Union[str, Path],
-    cnv_dir: Union[str, Path],
+    reference_dir: str | Path,
+    cnv_dir: str | Path,
     prep: PrepType,
     do_seg: bool,
-    pbar: Optional[Any] = None,
-    n_cores: Optional[int] = None,
+    pbar: Any | None = None,
+    n_cores: int | None = None,
 ) -> None:
     """Generate and save CNV-analysis output files for given samples.
 
@@ -319,9 +319,9 @@ def write_cnv_to_disk(
 @lru_cache
 def get_cnv_plot(
     sample_path: Path,
-    reference_dir: Union[str, Path],
+    reference_dir: str | Path,
     prep: PrepType,
-    cnv_dir: Union[str, Path],
+    cnv_dir: str | Path,
     genes_sel: Sequence[str],
     do_seg: bool,
 ) -> go.Figure:

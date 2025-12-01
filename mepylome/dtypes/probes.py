@@ -7,7 +7,6 @@ Usage:
 """
 
 from enum import IntEnum, unique
-from typing import Union
 
 
 @unique
@@ -50,7 +49,7 @@ class ProbeType(IntEnum):
     @staticmethod
     def from_manifest_values(
         name: str,
-        infinium_type: Union[str, "InfiniumDesignType"],
+        infinium_type: str | InfiniumDesignType,
     ) -> "ProbeType":
         """Method to determine ProbeType based on name and design type.
 

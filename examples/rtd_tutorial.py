@@ -886,7 +886,7 @@ y = methyl_analysis.idat_handler.features()
 ## Exclude test indices and invalid samples
 valid_indices = [
     i
-    for i, (idx, label) in enumerate(zip(X.index, y))
+    for i, (idx, label) in enumerate(zip(X.index, y, strict=True))
     if label and idx not in methyl_analysis.idat_handler.test_ids
 ]
 X = X.iloc[valid_indices]

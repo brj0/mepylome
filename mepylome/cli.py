@@ -15,7 +15,6 @@ import re
 import textwrap
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Union
 
 
 def get_app_version() -> str:
@@ -46,7 +45,7 @@ Starting Methylation Analysis...
     print(welcome_message)
 
 
-def absolute_path(path: Union[str, Path]) -> Path:
+def absolute_path(path: str | Path) -> Path:
     """Converts a relative path to an absolute path."""
     return Path(path).absolute()
 

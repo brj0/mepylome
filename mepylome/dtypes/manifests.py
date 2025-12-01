@@ -8,7 +8,7 @@ characteristics.
 import logging
 import pickle
 from pathlib import Path
-from typing import IO, Any, Optional, Union
+from typing import IO, Any
 
 import numpy as np
 import pandas as pd
@@ -113,27 +113,27 @@ class Manifest:
 
     _cache: dict[Any, "Manifest"] = {}
 
-    array_type: Optional["ArrayType"]
+    array_type: ArrayType | None
     ctrl_path: Path
     download_proc: bool
     proc_path: Path
-    raw_path: Optional[Path]
+    raw_path: Path | None
 
     _control_data_frame: pd.DataFrame
     _data_frame: pd.DataFrame
-    _init_array_type: Optional[Union[str, "ArrayType"]]
+    _init_array_type: str | ArrayType | None
     _init_download_proc: bool
-    _init_proc_path: Optional[Union[str, Path]]
-    _init_raw_path: Optional[Union[str, Path]]
-    _methyl_probes: Optional[np.ndarray]
+    _init_proc_path: str | Path | None
+    _init_raw_path: str | Path | None
+    _methyl_probes: np.ndarray | None
     _pickle_path: Path
     _snp_data_frame: pd.DataFrame
 
     def __new__(
         cls,
-        array_type: Optional[Union[str, ArrayType]] = None,
-        raw_path: Optional[Union[str, Path]] = None,
-        proc_path: Optional[Union[str, Path]] = None,
+        array_type: str | ArrayType | None = None,
+        raw_path: str | Path | None = None,
+        proc_path: str | Path | None = None,
         download_proc: bool = True,
     ) -> "Manifest":
         key = cache_key(array_type, raw_path, proc_path)
@@ -157,9 +157,9 @@ class Manifest:
 
     def __init__(
         self,
-        array_type: Optional[Union[str, ArrayType]] = None,
-        raw_path: Optional[Union[str, Path]] = None,
-        proc_path: Optional[Union[str, Path]] = None,
+        array_type: str | ArrayType | None = None,
+        raw_path: str | Path | None = None,
+        proc_path: str | Path | None = None,
         download_proc: bool = True,
     ) -> None:
         if hasattr(self, "_cached"):
@@ -171,7 +171,7 @@ class Manifest:
         self._init_proc_path = proc_path
         self._init_download_proc = download_proc
 
-        def to_path(x: Optional[Union[str, Path]]) -> Optional[Path]:
+        def to_path(x: str | Path | None) -> Path | None:
             return x if x is None else Path(x)
 
         self.array_type = ArrayType(array_type) if array_type else None
@@ -287,13 +287,13 @@ class Manifest:
 
     def control_address(
         self,
-        control_type: Optional[Union[str, tuple[str], list[str]]] = None,
+        control_type: str | tuple[str] | list[str] | None = None,
     ) -> pd.Series:
         """Returns address IDs of all control probes of the specified type."""
         if control_type is None:
             return self._control_data_frame.Address_ID
         # Ensure control_type is a list-like object
-        if not isinstance(control_type, (list, tuple)):
+        if not isinstance(control_type, list | tuple):
             control_type = [control_type]
         # Use isin() with the list-like object
         return self._control_data_frame[
@@ -302,9 +302,7 @@ class Manifest:
 
     @staticmethod
     def load(
-        array_types: Optional[
-            Union[list[Union[str, ArrayType]], str, ArrayType]
-        ] = None,
+        array_types: list[str | ArrayType] | str | ArrayType | None = None,
     ) -> None:
         """Loads specified manifests into memory.
 
@@ -375,7 +373,7 @@ class Manifest:
         split_filename[0] += ENDING_CONTROL_PROBES
         return Path(probes_path.parent, ".".join(split_filename))
 
-    def _process_manifest(self, csv_filename: Optional[str] = None) -> None:
+    def _process_manifest(self, csv_filename: str | None = None) -> None:
         """Process the manifest file and save it locally to disk.
 
         This method processes the raw manifest file by extracting the necessary
@@ -573,7 +571,7 @@ class Manifest:
         else:
             manifest_file.seek(current_pos - 1)
 
-    def _read_probes(self, probes_file: Union[str, Path]) -> pd.DataFrame:
+    def _read_probes(self, probes_file: str | Path) -> pd.DataFrame:
         """Reads and returns probes from local file `probes_file`."""
         data_frame = pd.read_csv(
             probes_file,
@@ -587,7 +585,7 @@ class Manifest:
 
     def _read_control_probes(
         self,
-        control_file: Union[str, Path],
+        control_file: str | Path,
     ) -> pd.DataFrame:
         """Reads and returns control probes from local file `control_file`."""
         data_frame = pd.read_csv(
@@ -630,7 +628,7 @@ class Manifest:
     def probe_info(
         self,
         probe_type: ProbeType,
-        channel: Optional[Channel] = None,
+        channel: Channel | None = None,
     ) -> pd.DataFrame:
         """Retrieves information about probes of a specified type and channel.
 

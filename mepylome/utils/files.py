@@ -12,7 +12,7 @@ from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from importlib.resources import files
 from pathlib import Path
-from typing import IO, Union, cast
+from typing import IO, cast
 
 import requests
 from tqdm import tqdm
@@ -41,14 +41,14 @@ def get_resource_path(package: str, resource_name: str = "") -> Path:
     return cast(Path, resource)
 
 
-def ensure_directory_exists(path_like: Union[str, Path]) -> None:
+def ensure_directory_exists(path_like: str | Path) -> None:
     """Ensures the ancestor directories of the provided path exist."""
     Path(path_like).mkdir(parents=True, exist_ok=True)
 
 
 def download_file(
     url: str,
-    save_path: Union[str, Path],
+    save_path: str | Path,
     overwrite: bool = False,
     show_progress: bool = True,
     chunk_size: int = 8192,
@@ -159,10 +159,10 @@ def download_file(
 
 def download_files(
     urls: Iterable[str],
-    save_paths: Iterable[Union[str, Path]],
+    save_paths: Iterable[str | Path],
     overwrite: bool = False,
     show_progress: bool = True,
-    max_workers: Union[int, None] = None,
+    max_workers: int | None = None,
 ) -> None:
     """Download multiple files in parallel with optional progress bar.
 
@@ -183,7 +183,7 @@ def download_files(
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(download_file, url, path, overwrite, False): url
-            for url, path in zip(urls, save_paths)
+            for url, path in zip(urls, save_paths, strict=True)
         }
 
         progress = tqdm(
@@ -205,7 +205,7 @@ def download_files(
 
 
 def get_csv_file(
-    file_or_archive: Union[str, Path],
+    file_or_archive: str | Path,
     filename: str,
 ) -> IO[bytes]:
     """Retrieve a CSV file from a regular file or a ZIP archive.
