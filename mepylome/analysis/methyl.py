@@ -1465,7 +1465,12 @@ class MethylAnalysis:
 
         # umap dir
         cur_vars = self._get_vars_or_hashes()
-        umap_hash_key = input_args_id(
+        umap_dir_hash_key = input_args_id(
+            self.analysis_dir,
+            "umap",
+            self.annotation,
+        )
+        umap_plot_hash_key = input_args_id(
             self.analysis_dir,
             "umap",
             self.prep,
@@ -1478,8 +1483,8 @@ class MethylAnalysis:
                 self.annotation,
             ],
         )
-        self.umap_dir = self.output_dir / f"{umap_hash_key}"
-        self.umap_plot_path = self.umap_dir / "umap_plot.csv"
+        self.umap_dir = self.output_dir / f"{umap_dir_hash_key}"
+        self.umap_plot_path = self.umap_dir / f"{umap_plot_hash_key}.csv"
         ensure_directory_exists(self.umap_dir)
 
         # clf dir
