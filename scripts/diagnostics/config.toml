@@ -66,9 +66,6 @@ version = "0.0.0"
 [diagnostic_config.individual_idat_files.methyl_analysis]
 cpgs = []
 
-# Adds horozontal segmentation line. Must install `pip install ruptures`
-do_seg = true
-
 
 # ===============================================================
 # Salivary Gland Tumor configuration
