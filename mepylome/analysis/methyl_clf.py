@@ -232,15 +232,16 @@ class TrainedSklearnClassifier(TrainedClassifier):
     def __init__(
         self,
         clf: Any,
-        X: pd.DataFrame | None = None,
+        X: pd.DataFrame,
         metrics: dict[str, Any] | None = None,
     ) -> None:
         self.clf = clf
         self._classes = clf.classes_
-        self.ids = [] if X is None else X.index
+        self.ids = X.index
+        self.shape = X.shape
         self._metrics = metrics or {
-            "n_features": X.shape[1] if X is not None else 0,
-            "n_samples": X.shape[0] if X is not None else 0,
+            "n_features": X.shape[1],
+            "n_samples": X.shape[0],
         }
 
     def predict_proba(
@@ -300,6 +301,7 @@ class TrainedSklearnCVClassifier(TrainedClassifier):
         self.clf = clf
         self.probabilities_cv = pd.DataFrame(probabilities_cv, index=X.index)
         self.ids = X.index
+        self.shape = X.shape
         self._metrics = metrics or {}
         self._classes = clf.classes_
 
@@ -766,7 +768,6 @@ def train_clf(
     clf: Any,
     X: pd.DataFrame,
     y: ArrayLike,
-    save_path: Path,
     cv: int | Any,
     n_jobs: int = 1,
 ) -> TrainedSklearnClassifier | TrainedSklearnCVClassifier:
@@ -780,8 +781,6 @@ def train_clf(
         clf (classifier): The classifier to train or load.
         X (array-like): The feature matrix.
         y (array-like): The target labels.
-        save_path (Path): The path where the trained model should be
-            saved.
         cv (int or cross-validation generator): Determines the cross-validation
             splitting strategy.
         n_jobs (int): Number of parallel processes to run.
@@ -791,11 +790,6 @@ def train_clf(
             classifier object.
     """
     n_splits = cv if isinstance(cv, int) else cv.n_splits
-
-    if save_path.exists():
-        logger.info("Reading trained and cached classifier.")
-        with save_path.open("rb") as file:
-            return pickle.load(file)
 
     if is_trained(clf):
         return TrainedSklearnClassifier(clf, X=X)
@@ -834,9 +828,6 @@ def train_clf(
         clf=clf, probabilities_cv=probabilities_cv, X=X, metrics=metrics
     )
 
-    with save_path.open("wb") as file:
-        pickle.dump(trained_clf, file)
-
     return trained_clf
 
 
@@ -851,10 +842,10 @@ class ClassifierResult:
 
 
 def fit_and_evaluate_clf(
-    X: pd.DataFrame,
-    y: ArrayLike,
+    X: pd.DataFrame | None,
+    y: ArrayLike | None,
     X_test: pd.DataFrame | np.ndarray,
-    id_test: Sequence[str],
+    id_test: Sequence[str] | None,
     save_path: Path,
     clf: Any,
     cv: int | Any,
@@ -940,17 +931,25 @@ def fit_and_evaluate_clf(
             - reports (dict): Dict of evaluation report (both 'txt' and 'html')
               for each sample.
     """
-    if isinstance(clf, Pipeline | ClassifierMixin):
-        trained_clf = train_clf(
-            clf=clf, X=X, y=y, save_path=save_path, cv=cv, n_jobs=n_jobs
-        )
+    if save_path.exists():
+        logger.info("Reading trained and cached classifier.")
+        with save_path.open("rb") as file:
+            trained_clf = pickle.load(file)
+
+    elif isinstance(clf, Pipeline | ClassifierMixin):
+        if X is None or y is None:
+            raise ValueError("Both X and y must be different from 'None'.")
+        trained_clf = train_clf(clf=clf, X=X, y=y, cv=cv, n_jobs=n_jobs)
+
     elif isinstance(clf, str):
+        if X is None or y is None:
+            raise ValueError("Both X and y must be different from 'None'.")
         pipeline = make_clf_pipeline(clf, X.shape, cv)
-        trained_clf = train_clf(
-            clf=pipeline, X=X, y=y, save_path=save_path, cv=cv, n_jobs=n_jobs
-        )
+        trained_clf = train_clf(clf=pipeline, X=X, y=y, cv=cv, n_jobs=n_jobs)
+
     else:
         trained_clf = clf
+
     classes = trained_clf.classes()
     probabilities = trained_clf.predict_proba(X_test, id_test)
     info_txt = trained_clf.info(output_format="txt")
@@ -958,9 +957,16 @@ def fit_and_evaluate_clf(
     prediction = pd.DataFrame(probabilities, index=id_test, columns=classes)
     reports_txt = make_reports(prediction, info_txt, output_format="txt")
     reports_html = make_reports(prediction, info_html, output_format="html")
-    return ClassifierResult(
+
+    result = ClassifierResult(
         prediction,
         trained_clf.model(),
         trained_clf.metrics(),
         {"txt": reports_txt, "html": reports_html},
     )
+
+    if not save_path.exists():
+        with save_path.open("wb") as file:
+            pickle.dump(trained_clf, file)
+
+    return result

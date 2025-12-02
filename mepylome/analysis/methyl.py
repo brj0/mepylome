@@ -15,7 +15,7 @@ import threading
 import time
 import webbrowser
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -1003,7 +1003,7 @@ class MethylAnalysis:
     dropdown_id: Sequence[str] | None
     feature_matrix: pd.DataFrame | np.ndarray | None
     host: str
-    ids: Sequence[str]
+    ids: pd.Index[str] | Sequence[str]
     ids_to_highlight: list
     load_full_betas: bool
     n_cpgs: int
@@ -1350,7 +1350,7 @@ class MethylAnalysis:
         self._internal_cpgs_hash = None
 
         def exclude_blacklist(
-            cpgs: np.ndarray | list | set,
+            cpgs: np.ndarray | Iterable[str],
         ) -> np.ndarray:
             return np.sort(np.array(list(set(cpgs) - self.cpg_blacklist)))
 
@@ -2066,7 +2066,7 @@ class MethylAnalysis:
 
         # Only load data to memory if training is needed
         if all(_clf_path(clf).exists() for clf in clfs):
-            X, y, _values = self._load_training_data(ids, shape_only=True)
+            X, y, _values = self._load_training_data(ids, values_only=True)
 
         else:
             X, y, _values = self._load_training_data(ids)
@@ -2115,18 +2115,13 @@ class MethylAnalysis:
     def _load_training_data(
         self,
         ids: Sequence[str] | None,
-        shape_only: bool = False,
+        values_only: bool = False,
     ) -> tuple[Any, list[Any] | None, pd.DataFrame | None]:
         """Load training data for classification."""
-        shape_path = self.clf_dir / "shape.npy"
         cpgs_path = self.clf_dir / "cpgs.npy"
 
-        if shape_only and shape_path.exists() and cpgs_path.exists():
-            shape = np.load(shape_path)
+        if values_only and cpgs_path.exists():
             cpgs = np.load(cpgs_path)
-
-            X = type("EmptyDataFrame", (), {"shape": shape})
-            y = None
 
             if ids and len(ids):
                 values = get_betas(
@@ -2140,15 +2135,16 @@ class MethylAnalysis:
             else:
                 values = None
 
-            return X, y, values
+            return None, None, values
 
         self.set_betas()
 
         y = self.idat_handler.features()
-        logger.info("Start classifying...")
+        logger.info("Loading feature matrix into memory.")
 
         if self.feature_matrix is not None:
-            X = pd.DataFrame(self.feature_matrix, index=self.betas_all.index)
+            assert self.betas_sel is not None
+            X = pd.DataFrame(self.feature_matrix, index=self.betas_sel.index)
         elif self.load_full_betas:
             X = self.betas_all
         elif self.betas_sel is not None:
@@ -2179,7 +2175,6 @@ class MethylAnalysis:
         y = [y[i] for i in valid_indices]
 
         # Save to file
-        np.save(shape_path, np.array(X.shape))
         np.save(cpgs_path, np.array(X.columns, dtype=str))
 
         return X, y, values
@@ -2229,7 +2224,7 @@ class MethylAnalysis:
             assets_folder=str(assets_folder),
             external_stylesheets=[dbc.themes.BOOTSTRAP],
         )
-        app._favicon = "favicon.svg"
+        app._favicon = "favicon.svg"  # type: ignore[assignment]
         app.title = "mepylome"
         side_navigation = get_side_navigation(
             sample_ids=self.ids,
