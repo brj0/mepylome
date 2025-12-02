@@ -525,7 +525,7 @@ class CNVPlot:
         current_dir = Path(__file__).resolve().parent
         assets_folder = current_dir.parent / "data" / "assets"
         app = Dash(__name__, assets_folder=str(assets_folder))
-        app._favicon = "favicon.svg"
+        app._favicon = "favicon.svg"  # type: ignore[assignment]
         app.title = "mepylome"
         fig = go.Figure(layout=go.Layout(yaxis={"range": [-2, 2]}))
         app.layout = html.Div(
