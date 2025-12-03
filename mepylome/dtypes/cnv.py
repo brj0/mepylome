@@ -538,17 +538,17 @@ class CNV:
 
     annotation: "Annotation"
     bins: pr.PyRanges
-    coef: np.ndarray | None
+    coef: np.ndarray
     detail: pr.PyRanges | None
-    noise: float | None
+    noise: float
     probe: str  # TODO: Change this variable name (sample_id?)
     probes: pd.Index
-    ratio: pd.DataFrame | None
+    ratio: pd.DataFrame
     reference: "MethylData"
     sample: "MethylData"
     segments: pd.DataFrame | None
 
-    _ratio: np.ndarray | None
+    _ratio: np.ndarray
 
     def __init__(
         self,
@@ -590,10 +590,6 @@ class CNV:
         self.set_itensity(self.reference)
         self.bins = self.annotation.bins
         self.probes = self.annotation.adjusted_manifest.IlmnID
-        self.coef = None
-        self._ratio = None
-        self.ratio = None
-        self.noise = None
         self.detail = None
         self.segments = None
 
@@ -729,7 +725,6 @@ class CNV:
         model fit in the 'fit' method.
         """
         logger.info("%s Setting bins...", self.probe)
-        assert self.ratio is not None
         cpg_bins = self.annotation._cpg_bins.copy()
         cpg_bins["ratio"] = _pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
@@ -751,7 +746,6 @@ class CNV:
         variance, and count of probes within each region.
         """
         logger.info("%s Setting detail...", self.probe)
-        assert self.ratio is not None
         cpg_detail = self.annotation._cpg_detail.copy()
         cpg_detail["ratio"] = _pd_loc(
             self.ratio, cpg_detail.IlmnID
@@ -813,7 +807,6 @@ class CNV:
         logger.info("%s Setting segments...", self.probe)
         segments = self.bins.apply(self._get_segments)
         overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
-        assert self.ratio is not None
         overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
         result = (
             overlap.df.groupby(["Chromosome", "Start", "End"], dropna=False)[
