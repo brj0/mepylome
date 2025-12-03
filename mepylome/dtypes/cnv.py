@@ -480,7 +480,7 @@ def cached_index(left_arr: pd.Index, right_arr: pd.Index) -> np.ndarray:
     return left_arr.get_indexer(right_arr)
 
 
-def _pd_loc(pd_df: pd.DataFrame, pd_col: pd.Series) -> pd.DataFrame:
+def _pd_loc(pd_df: pd.DataFrame, pd_col: pd.Series | pd.Index) -> pd.DataFrame:
     """Cached version of pd_df.loc[pd_col] to speed up computation."""
     return pd_df.iloc[cached_index(pd_df.index, pd_col.values)]
 
@@ -693,6 +693,8 @@ class CNV:
         logger.info("%s Performing fit...", self.probe)
         from sklearn.linear_model import LinearRegression
 
+        assert self.sample.intensity is not None
+        assert self.reference.intensity is not None
         smp_intensity = _pd_loc(
             self.sample.intensity, self.probes
         ).values.ravel()
@@ -727,6 +729,7 @@ class CNV:
         model fit in the 'fit' method.
         """
         logger.info("%s Setting bins...", self.probe)
+        assert self.ratio is not None
         cpg_bins = self.annotation._cpg_bins.copy()
         cpg_bins["ratio"] = _pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
@@ -748,6 +751,7 @@ class CNV:
         variance, and count of probes within each region.
         """
         logger.info("%s Setting detail...", self.probe)
+        assert self.ratio is not None
         cpg_detail = self.annotation._cpg_detail.copy()
         cpg_detail["ratio"] = _pd_loc(
             self.ratio, cpg_detail.IlmnID

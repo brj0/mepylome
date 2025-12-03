@@ -15,14 +15,13 @@ import threading
 import time
 import webbrowser
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Sequence, Sized
 from pathlib import Path
 from typing import Any
 
 import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
-import plotly
 import plotly.graph_objects as go
 from dash import (
     Dash,
@@ -472,11 +471,13 @@ def get_side_navigation(
                 ),
                 html.Br(),
                 dcc.Upload(
-                    [
-                        "Drag & Drop or ",
-                        html.A("Select IDAT File pairs"),
-                        html.Br(),
-                    ],
+                    html.Div(
+                        [
+                            html.Span("Drag & Drop or "),
+                            html.A("Select IDAT File pairs"),
+                            html.Br(),
+                        ],
+                    ),
                     style={
                         "width": "100%",
                         "height": "60px",
@@ -1003,7 +1004,7 @@ class MethylAnalysis:
     dropdown_id: Sequence[str] | None
     feature_matrix: pd.DataFrame | np.ndarray | None
     host: str
-    ids: pd.Index[str] | Sequence[str]
+    ids: list[str]
     ids_to_highlight: list
     load_full_betas: bool
     n_cpgs: int
@@ -1026,7 +1027,8 @@ class MethylAnalysis:
     umap_plot_path: Path
     use_gpu: bool
 
-    _balanced_sorted_cpgs: pd.Index | None
+    _balanced_sorted_cpgs: np.ndarray | None
+    _balanced_sorted_cpgs_var: np.ndarray | None
     _classifiers: list[dict[str, Any]] | None
     _clf_log: Path
     _cpgs: np.ndarray
@@ -1111,6 +1113,7 @@ class MethylAnalysis:
         self.use_gpu = use_gpu
 
         self._balanced_sorted_cpgs = None
+        self._balanced_sorted_cpgs_var = None
         self._classifiers = classifiers
         self._clf_log = make_log_file(f"{self.analysis_dir.name}-clf")
         self._idat_handler = None
@@ -1656,7 +1659,7 @@ class MethylAnalysis:
         if self.umap_df is None:
             msg = "'umap_df' not set. Run 'make_umap' instead."
             raise AttributeError(msg)
-        self.ids = self.umap_df.index
+        self.ids = list(self.umap_df.index)
         umap_color = self.idat_handler.features()
         if len(umap_color) != len(self.umap_df):
             msg = (
@@ -1836,8 +1839,10 @@ class MethylAnalysis:
                 arrowhead=2,
             )
 
-    def _retrieve_zoom(self, current_plot: go.Figure) -> None:
+    def _retrieve_zoom(self, current_plot: dict[str, Any] | None) -> None:
         """Retrieves and applies the zoom level to the UMAP plot."""
+        if current_plot is None:
+            return
         self.umap_plot.layout.xaxis = current_plot["layout"]["xaxis"]
         self.umap_plot.layout.yaxis = current_plot["layout"]["yaxis"]
 
@@ -2072,6 +2077,7 @@ class MethylAnalysis:
             X, y, _values = self._load_training_data(ids)
 
         values = _values if _values is not None else values
+        assert values is not None
 
         def _log(string: str) -> None:
             with self._clf_log.open("a") as f:
@@ -2158,6 +2164,7 @@ class MethylAnalysis:
             msg = "No valid feature matrix could be selected."
             raise ValueError(msg)
 
+        assert X is not None
         values = X.loc[ids] if ids else None
 
         def _invalid_class(cls: Any) -> bool:
@@ -2835,13 +2842,7 @@ class MethylAnalysis:
             elif isinstance(value, np.ndarray):
                 display_value = str(value)
                 length_info = f"\n\n[{len(value)} items]"
-            elif hasattr(value, "__len__"):
-                display_value = str(value)[:80] + (
-                    "..." if len(str(value)) > 80 else ""
-                )
-                if len(str(value)) > 80:
-                    length_info = f"\n\n[{len(value)} items]"
-            elif isinstance(value, (plotly.graph_objs.Figure)):
+            elif isinstance(value, go.Figure):
                 data_str = (
                     str(value.data[0])[:70].replace("\n", " ")
                     if value.data
@@ -2860,6 +2861,9 @@ class MethylAnalysis:
                 display_value = str(value)[:80] + (
                     "..." if len(str(value)) > 80 else ""
                 )
+                if isinstance(value, Sized) and len(str(value)) > 80:
+                    length_info = f"\n\n[{len(value)} items]"
+
             return display_value, length_info
 
         for attr, value in sorted(self.__dict__.items()):

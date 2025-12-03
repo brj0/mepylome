@@ -5,7 +5,7 @@ import pickle
 import re
 import threading
 import warnings
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Sequence, Sized
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, TypeVar, overload
@@ -623,16 +623,12 @@ class IdatHandler:
             elif isinstance(value, np.ndarray):
                 display_value = str(value)
                 length_info = f"\n\n[{len(value)} items]"
-            elif hasattr(value, "__len__"):
-                display_value = str(value)[:80] + (
-                    "..." if len(str(value)) > 80 else ""
-                )
-                if len(str(value)) > 80:
-                    length_info = f"\n\n[{len(value)} items]"
             else:
                 display_value = str(value)[:80] + (
                     "..." if len(str(value)) > 80 else ""
                 )
+                if isinstance(value, Sized) and len(str(value)) > 80:
+                    length_info = f"\n\n[{len(value)} items]"
             return display_value, length_info
 
         for attr, value in sorted(self.__dict__.items()):
@@ -1029,12 +1025,12 @@ def get_columnwise_variance(
 
 def reordered_cpgs_by_variance(
     data_frame: pd.DataFrame,
-) -> tuple[pd.Index, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Returns CpG and their variances, ordered by descending variance."""
     logger.info("Reordering CpG's by variance...")
     variances = np.var(data_frame.values, axis=0)
     sorted_indices = np.argsort(-variances, kind="stable")
-    sorted_columns = data_frame.columns[sorted_indices]
+    sorted_columns = data_frame.columns[sorted_indices].to_numpy()
     sorted_variances = variances[sorted_indices]
     return sorted_columns, sorted_variances
 

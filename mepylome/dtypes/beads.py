@@ -375,7 +375,7 @@ class MethylData:
     probes: list[str]
     seed: int | None
     unmethyl: np.ndarray
-    intensity: np.ndarray | None
+    intensity: pd.DataFrame | None
 
     _grn: np.ndarray
     _grn_df: pd.DataFrame | None
