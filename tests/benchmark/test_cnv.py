@@ -41,6 +41,8 @@ if subdir is None or not subdir.exists():
     print(f"Received: {subdir}")
     sys.exit()
 
+assert subdir is not None
+
 print(f"Time for importing mepylome: {import_time}")
 
 idat_files = sorted(idat_basepaths(subdir))

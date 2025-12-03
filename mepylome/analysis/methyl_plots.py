@@ -348,6 +348,8 @@ def get_cnv_plot(
     )
     logger.info("Read CNV from disk....")
     bins, detail, segments = read_cnv_data_from_disk(cnv_dir, sample_id)
+    assert bins is not None
+    assert detail is not None
     plot = cnv_plot_from_data(
         sample_id,
         bins,
