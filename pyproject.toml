@@ -40,7 +40,7 @@ dependencies = [
     "tqdm",
     "toml",
     "umap-learn",
-    "numba!=0.62", # 0.62 leads to bad clustering with umap
+    "numba<0.62", # 0.62 leads to bad clustering with umap
     "xlrd",
     "xxhash"
 ]
