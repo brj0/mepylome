@@ -115,27 +115,6 @@ example the  Illumina IDs (probes IDs) can be accessed by:
 
 
 
-C++ Parser
-~~~~~~~~~~
-
-
-If you installed mepylome with C++ support (see `installation
-<installation.html>`_) you can also use the C++ parser (input must be a
-string, not a Path object)
-
-.. code-block:: python
-
-    >>> try:
-    >>>     from mepylome import _IdatParser
-
-    >>>     _idat_data = _IdatParser(str(idat_file))
-    >>>     print("C++ parser available")
-
-    >>> except ImportError:
-    >>>     print("C++ parser NOT available")
-
-
-
 Manifest files
 --------------
 
@@ -1083,7 +1062,7 @@ them into the analysis. Below is an example using a Random Forest classifier.
     >>> # Exclude test indices and invalid samples
     >>> valid_indices = [
     >>>     i
-    >>>     for i, (idx, label) in enumerate(zip(X.index, y))
+    >>>     for i, (idx, label) in enumerate(zip(X.index, y, strict=True))
     >>>     if label and idx not in methyl_analysis.idat_handler.test_ids
     >>> ]
     >>> X = X.iloc[valid_indices]

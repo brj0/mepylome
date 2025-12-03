@@ -5,8 +5,5 @@
 #
 # When prompted for the username, provide __token__
 
-# Includes the header files in the resulting .gz file for PyPI
-include src/*.h
-
 # Includes data
 recursive-include mepylome/data/ *

@@ -89,23 +89,6 @@ print(ids)
 """
 
 
-# C++ Parser
-# ~~~~~~~~~~
-
-
-# If you installed mepylome with C++ support (see `installation
-# <installation.html>`_) you can also use the C++ parser (input must be a
-# string, not a Path object)
-try:
-    from mepylome import _IdatParser
-
-    _idat_data = _IdatParser(str(idat_file))
-    print("C++ parser available")
-
-except ImportError:
-    print("C++ parser NOT available")
-
-
 # Manifest files
 # --------------
 

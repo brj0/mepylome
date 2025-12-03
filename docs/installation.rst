@@ -80,19 +80,6 @@ Important Note
 Only **one** of the above packages should be installed at a time to avoid conflicts.
 
 
-C++ parser
-----------
-
-Mepylome also includes a C++ parser (``_IdatParser``) with Python bindings. Due
-to no significant speed gain, it is currently not included by default. To
-enable it, install from source after you execute the following command:
-
-
-.. code-block:: sh
-
-    export MEPYLOME_CPP=1
-
-
 Uninstallation
 --------------
 

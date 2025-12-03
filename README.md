@@ -107,12 +107,6 @@ limited in Colab.
 See <https://mepylome.readthedocs.io/> for details.
 
 
-## C++ parser
-
-Mepylome also includes a C++ parser. See <https://mepylome.readthedocs.io/> for
-details.
-
-
 ## Contributing
 
 Contributions are welcome! If you have any bug reports, feature requests, or suggestions, please open an issue or submit a pull request.

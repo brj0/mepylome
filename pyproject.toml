@@ -3,7 +3,6 @@ requires = [
     "setuptools>=42",
     "wheel",
     "numpy>=1.10.0",
-    "pybind11>=2.0",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -22,7 +21,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX",
-    "Programming Language :: C++",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development"
