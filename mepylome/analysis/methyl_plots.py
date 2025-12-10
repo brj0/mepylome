@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from mepylome.dtypes import (
     CNV,
+    Annotation,
     MethylData,
     PrepType,
     ReferenceMethylData,
@@ -304,6 +305,8 @@ def write_cnv_to_disk(
                     pbar.increment()
                 _ = tqdm_bar.update(1)
     else:
+        # Loading annotations here prevents race conditions
+        Annotation.load()
         with (
             Pool(n_cores) as pool,
             tqdm(
