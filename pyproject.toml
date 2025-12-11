@@ -59,6 +59,7 @@ dev = [
   "mypy",                # static type checking
   "nbstripout",          # strip outputs from committed notebooks
   "pillow",              # image handling (capitalized PyPI name)
+  "pytest",              # test code
   "ruff",                # fast linter
   "ruptures",            # segmentation algorithm
   "sphinx",              # docs generator
