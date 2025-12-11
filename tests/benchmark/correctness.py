@@ -1,9 +1,9 @@
 """Compares minfi outputs with mepylome outputs.
 
 This script compares the methylation data extracted by the minfi (R) and
-mepylome (Python) packages. It assumes that the test_idat_extraction.py and
-test_idat_extraction.R scripts have been run first to generate output files in
-~/mepylome/output_tests.
+mepylome (Python) packages. It assumes that the benchmark_idat_extraction.py
+and benchmark_idat_extraction.R scripts have been run first to generate output
+files in ~/mepylome/output_tests.
 
 Usage:
     python correctness.py

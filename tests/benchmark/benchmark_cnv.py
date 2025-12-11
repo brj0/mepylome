@@ -6,11 +6,11 @@ This script reads IDAT files from a specified subdirectory of
 files must have the same array type.
 
 Usage:
-    python test_cnv.py <preprocessing_method> <subdir_containing_idat>
-    python test_cnv.py illumina idat_epic
+    python benchmark_cnv.py <preprocessing_method> <subdir_containing_idat>
+    python benchmark_cnv.py illumina idat_epic
 
     # To perform profiling
-    /usr/bin/time -v python test_cnv.py illumina idat_450k
+    /usr/bin/time -v python benchmark_cnv.py illumina idat_450k
 """
 
 import sys

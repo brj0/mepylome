@@ -1,25 +1,19 @@
-"""Unittest for manifest object."""
-
-import unittest
+"""Pytest for manifest object."""
 
 from mepylome.dtypes import Manifest, ProbeType
 from mepylome.tests.helpers import TempManifest
 
 
-class TestManifests(unittest.TestCase):
-    """Unittest for IDAT preprocessing."""
+def test_manifest() -> None:
+    """Tests if dummy manifest is correctly created."""
+    tmp_manifest = TempManifest()
+    manifest = Manifest(raw_path=tmp_manifest.path)
 
-    def test_manifest(self) -> None:
-        tmp_manifest = TempManifest()
-        manifest = Manifest(raw_path=tmp_manifest.path)
-        self.assertIsNotNone(str(manifest))
-        self.assertIsNotNone(manifest.probe_info(ProbeType.ONE))
+    # Basic sanity checks
+    assert str(manifest) is not None
+    assert manifest.probe_info(ProbeType.ONE) is not None
 
-        # Clean up
-        manifest.proc_path.unlink()
-        manifest.ctrl_path.unlink()
-        manifest._pickle_path.unlink()
-
-
-if __name__ == "__main__":
-    unittest.main()
+    # Clean up
+    manifest.proc_path.unlink()
+    manifest.ctrl_path.unlink()
+    manifest._pickle_path.unlink()

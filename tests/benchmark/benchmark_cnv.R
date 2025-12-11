@@ -6,11 +6,11 @@
 # files must have the same array type.
 #
 # Usage:
-#     Rscript test_cnv.R <preprocessing_method> <subdir_containing_idat>
-#     Rscript test_cnv.R illumina idat_epic
+#     Rscript benchmark_cnv.R <preprocessing_method> <subdir_containing_idat>
+#     Rscript benchmark_cnv.R illumina idat_epic
 #
 #     # To perform profiling
-#     /usr/bin/time -v Rscript test_cnv.R illumina idat_450k
+#     /usr/bin/time -v Rscript benchmark_cnv.R illumina idat_450k
 
 
 args <- commandArgs(trailingOnly = TRUE)

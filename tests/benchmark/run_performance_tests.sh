@@ -26,14 +26,14 @@ ctrl_c() {
 # Loop over each preprocessing method
 for prep in "${preps[@]}"; do
     print_separator
-    echo "mepylome: python test_idat_extraction.py $prep"
+    echo "mepylome: python benchmark_idat_extraction.py $prep"
     sudo sh -c "sync; echo 3 > /proc/sys/vm/drop_caches"
-    /usr/bin/time -v python test_idat_extraction.py "$prep"
+    /usr/bin/time -v python benchmark_idat_extraction.py "$prep"
 
     print_separator
-    echo "minfi: Rscript test_idat_extraction.R $prep"
+    echo "minfi: Rscript benchmark_idat_extraction.R $prep"
     sudo sh -c "sync; echo 3 > /proc/sys/vm/drop_caches"
-    /usr/bin/time -v Rscript test_idat_extraction.R "$prep"
+    /usr/bin/time -v Rscript benchmark_idat_extraction.R "$prep"
 
     # Loop over each subdirectory
     for subdir in "${subdirs[@]}"; do
@@ -42,13 +42,13 @@ for prep in "${preps[@]}"; do
         subdir_name=$(basename "$subdir")
 
         print_separator
-        echo "mepylome: python test_cnv.py $prep $subdir_name"
+        echo "mepylome: python benchmark_cnv.py $prep $subdir_name"
         sudo sh -c "sync; echo 3 > /proc/sys/vm/drop_caches"
-        /usr/bin/time -v python test_cnv.py "$prep" "$subdir_name"
+        /usr/bin/time -v python benchmark_cnv.py "$prep" "$subdir_name"
 
         print_separator
-        echo "conumee2.0: Rscrip test_cnv.R $prep $subdir_name"
+        echo "conumee2.0: Rscrip benchmark_cnv.R $prep $subdir_name"
         sudo sh -c "sync; echo 3 > /proc/sys/vm/drop_caches"
-        /usr/bin/time -v Rscript test_cnv.R "$prep" "$subdir_name"
+        /usr/bin/time -v Rscript benchmark_cnv.R "$prep" "$subdir_name"
     done
 done

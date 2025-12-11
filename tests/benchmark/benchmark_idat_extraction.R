@@ -6,14 +6,14 @@
 #
 # If '--save' is added it saves the extracted methylated and unmethylated
 # information to disk, enabling further comparison tests with the mepylome
-# package using the ./test_idat_extraction.py script and validating correctness
+# package using the ./benchmark_idat_extraction.py script and validating correctness
 # with the ./correctness.py script.
 #
 # Usage:
-#     Rscript test_idat_extraction.R illumina --save
+#     Rscript benchmark_idat_extraction.R illumina --save
 #
 #     # To measure time and memory consumption
-#     /usr/bin/time -v Rscript test_idat_extraction.R noob
+#     /usr/bin/time -v Rscript benchmark_idat_extraction.R noob
 
 
 # Parse command line arguments

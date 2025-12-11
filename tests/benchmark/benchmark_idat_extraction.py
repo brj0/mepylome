@@ -6,14 +6,14 @@ command-line argument (e.g., "illumina", "noob", "raw", "swan").
 
 If '--save' is added it saves the extracted methylated and unmethylated
 information to disk, enabling further comparison tests with the minfi package
-using the ./test_idat_extraction.R script and validating correctness with the
-./correctness.py script.
+using the ./benchmark_idat_extraction.R script and validating correctness with
+the ./correctness.py script.
 
 Usage:
-    python test_idat_extraction.py illumina --save
+    python benchmark_idat_extraction.py illumina --save
 
     # To measure time and memory consumption
-    /usr/bin/time -v python test_idat_extraction.py noob
+    /usr/bin/time -v python benchmark_idat_extraction.py noob
 """
 
 import sys

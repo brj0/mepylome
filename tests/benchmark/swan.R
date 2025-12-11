@@ -1,4 +1,4 @@
-# Extends test_idat_extraction.py by averaging SWAN.
+# Extends benchmark_idat_extraction.py by averaging SWAN.
 #
 # As SWAN is stochastic, a direct comparison between outputs of mepylome and
 # minfi is not straightforward. To better compare the two outputs, we apply
