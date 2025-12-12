@@ -1,13 +1,164 @@
 """Pytest for IDAT preprocessing."""
 
+from pathlib import Path
+
 import numpy as np
 import numpy.testing as npt
+import pytest
 
 from mepylome.dtypes import ArrayType, Manifest, MethylData, PrepType, RawData
 from mepylome.tests.helpers import TempIdatFilePair, TempManifest
 
+ENDING_GRN = "_Grn.idat"
+ENDING_RED = "_Red.idat"
+ENDING_GZ = ".gz"
+ENDING_SUFFIXES = (
+    ENDING_GRN,
+    ENDING_RED,
+    ENDING_GRN + ENDING_GZ,
+    ENDING_RED + ENDING_GZ,
+)
+
+from mepylome.dtypes.beads import (
+    idat_basepaths,
+    idat_paths_from_basenames,
+    is_valid_idat_basepath,
+)
+
+
+def create_idat_pair(base: Path, gz: bool = False) -> None:
+    """Create a valid Grn/Red file pair."""
+    if gz:
+        (base.parent / (base.name + ENDING_GRN + ENDING_GZ)).touch()
+        (base.parent / (base.name + ENDING_RED + ENDING_GZ)).touch()
+    else:
+        (base.parent / (base.name + ENDING_GRN)).touch()
+        (base.parent / (base.name + ENDING_RED)).touch()
+
+
+# ----------------------------------------------------------------------------
+# Tests for is_valid_idat_basepath
+# ----------------------------------------------------------------------------
+
+
+def test_is_valid_basepath_true(tmp_path: Path) -> None:
+    base = tmp_path / "sample"
+    create_idat_pair(base, gz=False)
+    assert is_valid_idat_basepath(base) is True
+
+
+def test_is_valid_basepath_true_gz(tmp_path: Path) -> None:
+    base = tmp_path / "sample"
+    create_idat_pair(base, gz=True)
+    assert is_valid_idat_basepath(base) is True
+
+
+def test_is_valid_multiple_paths(tmp_path: Path) -> None:
+    base1 = tmp_path / "a"
+    base2 = tmp_path / "b"
+    create_idat_pair(base1, gz=True)
+    create_idat_pair(base2, gz=False)
+    assert is_valid_idat_basepath([base1, base2]) is True
+
+
+def test_is_valid_basepath_false(tmp_path: Path) -> None:
+    base = tmp_path / "sample"
+    (tmp_path / ("sample" + ENDING_GRN)).touch()
+    assert is_valid_idat_basepath(base) is False
+
+
+# ----------------------------------------------------------------------------
+# Tests for idat_basepaths
+# ----------------------------------------------------------------------------
+
+
+def test_idat_basepaths_from_directory(tmp_path: Path) -> None:
+    base1 = tmp_path / "x1"
+    base2 = tmp_path / "x2"
+    create_idat_pair(base1)
+    create_idat_pair(base2, gz=True)
+    result = idat_basepaths(tmp_path)
+    assert base1 in result
+    assert base2 in result
+    assert len(result) == 2
+
+
+def test_idat_basepaths_strip_suffix(tmp_path: Path) -> None:
+    base = tmp_path / "sample"
+    create_idat_pair(base)
+    files = [
+        tmp_path / ("sample" + ENDING_GRN),
+        tmp_path / ("sample" + ENDING_RED),
+    ]
+    result = idat_basepaths(files)
+    assert result == [base]
+
+
+def test_idat_basepaths_only_valid(tmp_path: Path) -> None:
+    base_valid = tmp_path / "valid"
+    base_invalid = tmp_path / "invalid"
+    create_idat_pair(base_valid)
+    (tmp_path / ("invalid" + ENDING_GRN)).touch()
+    result = idat_basepaths([base_valid, base_invalid], only_valid=True)
+    assert result == [base_valid]
+
+
+def test_idat_basepaths_deduplicates(tmp_path: Path) -> None:
+    base = tmp_path / "sample"
+    create_idat_pair(base)
+    files = [
+        tmp_path / ("sample" + ENDING_GRN),
+        tmp_path / ("sample" + ENDING_RED),
+    ]
+    result = idat_basepaths(files)
+    assert result == [base]
+
+
+# -------------------------------------------------------------------------
+# Tests for idat_paths_from_basenames
+# -------------------------------------------------------------------------
+
+
+def test_idat_paths_from_basenames_success(tmp_path: Path) -> None:
+    base = tmp_path / "test"
+    create_idat_pair(base)
+    grn, red = idat_paths_from_basenames([base])
+    assert grn[0] == base.with_name(base.name + ENDING_GRN)
+    assert red[0] == base.with_name(base.name + ENDING_RED)
+
+
+def test_idat_paths_from_basenames_gz(tmp_path: Path) -> None:
+    base = tmp_path / "test"
+    create_idat_pair(base, gz=True)
+    grn, red = idat_paths_from_basenames([base])
+    assert grn[0].suffix == ".gz"
+    assert red[0].suffix == ".gz"
+
+
+def test_idat_paths_from_basenames_missing_file_raises(tmp_path: Path) -> None:
+    base = tmp_path / "missing"
+    (tmp_path / ("missing" + ENDING_GRN)).touch()
+    with pytest.raises(FileNotFoundError):
+        idat_paths_from_basenames([base])
+
+
+def test_idat_paths_multiple(tmp_path: Path) -> None:
+    base1 = tmp_path / "a"
+    base2 = tmp_path / "b"
+    create_idat_pair(base1)
+    create_idat_pair(base2)
+    grn, red = idat_paths_from_basenames([base1, base2])
+    assert len(grn) == 2
+    assert len(red) == 2
+
+
+# -------------------------------------------------------------------------
+# Tests for MethylData
+# -------------------------------------------------------------------------
+
 
 def _test_raw_data(
+    dirpath: Path,
     n_cpgs: int,
     manifest: Manifest,
     n_probes: int,
@@ -46,7 +197,9 @@ def _test_raw_data(
             "probe_means": mean_red,
         }
         idat_pairs.append(
-            TempIdatFilePair(data_grn=test_grn, data_red=test_red)
+            TempIdatFilePair(
+                dirpath=dirpath, data_grn=test_grn, data_red=test_red
+            )
         )
 
     if manifest.array_type == ArrayType.UNKNOWN:
@@ -177,17 +330,17 @@ def _test_methyl_data_swan(raw_data: RawData) -> None:
     )
 
 
-def test_raw_data() -> None:
+def test_raw_data(tmp_path: Path) -> None:
     """Main test entry for IDAT processing."""
-    tmp_manifest = TempManifest()
+    tmp_manifest = TempManifest(dirpath=tmp_path)
     manifest = Manifest(raw_path=tmp_manifest.path)
     manifest.array_type = ArrayType.UNKNOWN
 
-    _test_raw_data(54, manifest, 2)
-    # _test_raw_data(622500, Manifest("450k"), 1)
-    # _test_raw_data(622500, Manifest("450k"), 4)
-    # _test_raw_data(1051000, Manifest("epic"), 3)
-    # _test_raw_data(1104000, Manifest("epicv2"), 2)
+    _test_raw_data(tmp_path, 54, manifest, 2)
+    # _test_raw_data(tmp_path, 622500, Manifest("450k"), 1)
+    # _test_raw_data(tmp_path, 622500, Manifest("450k"), 4)
+    # _test_raw_data(tmp_path, 1051000, Manifest("epic"), 3)
+    # _test_raw_data(tmp_path, 1104000, Manifest("epicv2"), 2)
 
     # Clean up
     manifest.proc_path.unlink()

@@ -1,5 +1,6 @@
 """Pytest for IDAT parser."""
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -42,11 +43,12 @@ TEST_DATA_DICT: dict[str, dict[str, Any]] = {
 
 
 def _check_idat_parser(
+    dirpath: Path,
     test_data: dict[str, Any],
     gzipped: bool,
 ) -> None:
     """Check the data consistency between writer and parser."""
-    tmp_idat = TempIdatFile(test_data, gzipped)
+    tmp_idat = TempIdatFile(dirpath, test_data, gzipped)
     idat_file = IdatParser(tmp_idat.path)
 
     for key in tmp_idat.data:
@@ -78,6 +80,8 @@ def _check_idat_parser(
     list(TEST_DATA_DICT.values()),
     ids=list(TEST_DATA_DICT.keys()),
 )
-def test_idat_parser(test_data: dict[str, Any], gzipped: bool) -> None:
+def test_idat_parser(
+    test_data: dict[str, Any], gzipped: bool, tmp_path: Path
+) -> None:
     """Tests IDAT parser."""
-    _check_idat_parser(test_data, gzipped)
+    _check_idat_parser(tmp_path, test_data, gzipped)

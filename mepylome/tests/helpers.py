@@ -5,14 +5,6 @@ import uuid
 from pathlib import Path
 
 from mepylome.tests.write_idat import IdatWriter
-from mepylome.utils.files import (
-    ensure_directory_exists,
-)
-from mepylome.utils.varia import MEPYLOME_TMP_DIR
-
-# Create a temporary test directory
-TEST_DIR = MEPYLOME_TMP_DIR / "tests"
-ensure_directory_exists(TEST_DIR)
 
 
 def _write_binary(path: Path, value: bytes) -> None:
@@ -20,17 +12,18 @@ def _write_binary(path: Path, value: bytes) -> None:
         with gzip.open(path, "wb") as gz_file:
             gz_file.write(value)
     else:
-        with open(path, "wb") as file:
-            file.write(value)
+        path.write_bytes(value)
 
 
 class TempIdatFile:
     """Creates a temporary IDAT file."""
 
-    def __init__(self, data: dict, gzipped: bool = False) -> None:
-        suffix = "idat.gz" if gzipped else ".idat"
+    def __init__(
+        self, dirpath: Path, data: dict, gzipped: bool = False
+    ) -> None:
+        suffix = ".idat.gz" if gzipped else ".idat"
         basename = str(uuid.uuid4())
-        self.path = TEST_DIR / (basename + suffix)
+        self.path = dirpath / (basename + suffix)
 
         idat_writer = IdatWriter(data=data)
         self.data = idat_writer.data
@@ -39,7 +32,7 @@ class TempIdatFile:
         _write_binary(self.path, idat_writer.buffer.getvalue())
 
     def __del__(self) -> None:
-        self.path.unlink()
+        self.path.unlink(missing_ok=True)
 
 
 class TempIdatFilePair:
@@ -47,15 +40,16 @@ class TempIdatFilePair:
 
     def __init__(
         self,
+        dirpath: Path,
         data_grn: dict,
         data_red: dict,
         gzipped: bool = False,
     ) -> None:
         basename = str(uuid.uuid4())
         suffix = "idat.gz" if gzipped else ".idat"
-        self.basepath = TEST_DIR / basename
-        self.path_grn = TEST_DIR / (basename + "_Grn" + suffix)
-        self.path_red = TEST_DIR / (basename + "_Red" + suffix)
+        self.basepath = dirpath / basename
+        self.path_grn = dirpath / (basename + "_Grn" + suffix)
+        self.path_red = dirpath / (basename + "_Red" + suffix)
 
         idat_writer_grn = IdatWriter(data=data_grn)
         self.data_grn = idat_writer_grn.data
@@ -68,8 +62,8 @@ class TempIdatFilePair:
         _write_binary(self.path_red, idat_writer_red.buffer.getvalue())
 
     def __del__(self) -> None:
-        self.path_grn.unlink()
-        self.path_red.unlink()
+        self.path_grn.unlink(missing_ok=True)
+        self.path_red.unlink(missing_ok=True)
 
 
 TEST_MANIFEST_CSV = b"""Illumina, Inc.,,,,,,,,,
@@ -128,10 +122,10 @@ rs715359,rs715359,18796328,TTATTAAACTCTCACCACTAACTTTCTACTTCTCTCAAAATCAAAACCTC,48
 class TempManifest:
     """Creates a temporary manifest file."""
 
-    def __init__(self) -> None:
+    def __init__(self, dirpath: Path) -> None:
         basename = str(uuid.uuid4())
-        self.path = TEST_DIR / ("tmp_manifest_" + basename + ".csv")
+        self.path = dirpath / ("tmp_manifest_" + basename + ".csv")
         _write_binary(self.path, TEST_MANIFEST_CSV)
 
     def __del__(self) -> None:
-        self.path.unlink()
+        self.path.unlink(missing_ok=True)
