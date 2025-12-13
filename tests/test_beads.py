@@ -12,12 +12,6 @@ from mepylome.tests.helpers import TempIdatFilePair, TempManifest
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
 ENDING_GZ = ".gz"
-ENDING_SUFFIXES = (
-    ENDING_GRN,
-    ENDING_RED,
-    ENDING_GRN + ENDING_GZ,
-    ENDING_RED + ENDING_GZ,
-)
 
 from mepylome.dtypes.beads import (
     idat_basepaths,
@@ -202,7 +196,7 @@ def _test_raw_data(
             )
         )
 
-    if manifest.array_type == ArrayType.UNKNOWN:
+    if manifest.array_type == ArrayType.UNKNOWN:  # BUG: is None
         raw_data = RawData(
             [file.basepath for file in idat_pairs], manifest=manifest
         )

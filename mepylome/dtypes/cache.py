@@ -76,7 +76,7 @@ def cache_key(*args: Any) -> Any | tuple[Any, ...]:
     """
     type_map: dict[str, Callable] = {
         "ArrayType": str,
-        "Manifest": lambda x: x.array_type.value,
+        "Manifest": lambda x: x.cache_key,
         "PosixPath": str,
         "WindowsPath": str,
         "Path": str,

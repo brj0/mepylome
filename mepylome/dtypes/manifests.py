@@ -180,17 +180,21 @@ class Manifest:
         self.download_proc = download_proc
 
         # Load cached data from disk
-        pickle_hash = input_args_id(
+        self._cache_key = input_args_id(
             "manifest", self.array_type, self.raw_path, proc_path
         )
-        self._pickle_path = MEPYLOME_TMP_DIR / f"{pickle_hash}.pkl"
+        self._pickle_path = MEPYLOME_TMP_DIR / f"{self._cache_key}.pkl"
         if self._pickle_path.exists():
             with self._pickle_path.open("rb") as file_read:
                 saved_instance = pickle.load(file_read)
                 self.__dict__.update(saved_instance.__dict__)
                 return
 
-        if self.array_type == ArrayType.UNKNOWN:
+        if (
+            self.array_type == ArrayType.UNKNOWN
+            and proc_path is None
+            and raw_path is None
+        ):
             self._data_frame = pd.DataFrame()
             self._control_data_frame = pd.DataFrame()
             self._snp_data_frame = pd.DataFrame()
@@ -199,7 +203,10 @@ class Manifest:
 
         # Set processed manifest path
         if proc_path is None:
-            if self.array_type is not None:
+            if (
+                self.array_type is not None
+                and self.array_type != ArrayType.UNKNOWN
+            ):
                 self.proc_path = MANIFEST_DIR / LOCAL_FILENAME[self.array_type]
             elif self.raw_path is not None:
                 if self.raw_path.suffix == ".zip":
@@ -225,6 +232,10 @@ class Manifest:
         # Save to disk
         with self._pickle_path.open("wb") as file_write:
             pickle.dump(self, file_write)
+
+    @property
+    def cache_key(self) -> str:
+        return self._cache_key
 
     def _create_processed_manifest_files(self) -> None:
         """Create processed manifest files if they do not exist."""
