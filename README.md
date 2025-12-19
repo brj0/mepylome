@@ -23,7 +23,6 @@ an interactive GUI that enables users to generate UMAP plots and CNV plots
 
 This library is described in the following peer-reviewed publication:
 
-Advanced Intelligent Systems (2025)
 https://doi.org/10.1002/aisy.202500778
 
 

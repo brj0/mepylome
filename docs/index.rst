@@ -19,6 +19,16 @@ an interactive GUI that enables users to generate UMAP plots and CNV plots
 Mepylome is open source, and hosted at github: https://github.com/brj0/mepylome
 
 
+
+Publication
+~~~~~~~~~~~
+
+This library is described in the following peer-reviewed publication:
+
+https://doi.org/10.1002/aisy.202500778
+
+
+
 Features
 ~~~~~~~~
 
@@ -35,7 +45,6 @@ Features
   - Can be run from the command line with minimal setup or customized through a
     Python script
 - CN-summary plots
-
 
 
 
