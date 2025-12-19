@@ -36,9 +36,9 @@
 # - *Python Version*: 3.12
 #
 #
-# ### Reference Publication (will follow)
+# ### Reference Publication
 #
-# - *Authors*: Jon Brugger et al.
+# https://doi.org/10.1002/aisy.202500778
 #
 #
 # ### Run This Notebook in Google Colab
