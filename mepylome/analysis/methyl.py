@@ -835,8 +835,9 @@ class MethylAnalysis:
         overlap (bool): Flag to analyze only samples that are both in the
             analysis directory and within the annotation file (default: False).
 
-        analysis_ids (list): A list of sample IDs in 'analysis_dir'
-            that will be used.
+        analysis_ids (list): A list of sample IDs. The analysis will be
+            restricted to these samples only. If `None`, the analysis will
+            include all available samples.
 
         test_ids (list): A list of sample IDs in 'test_dir' that will
             be used.
