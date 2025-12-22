@@ -94,7 +94,11 @@ def idat_basepaths(
         path = os.path.expanduser(file_or_dir)
         # If path is dir take all files in it
         if os.path.isdir(path):
-            for dirpath, _, filenames in os.walk(path, followlinks=True):
+            for dirpath, dirnames, filenames in os.walk(
+                path, followlinks=True
+            ):
+                dirnames.sort()
+                filenames.sort()
                 for filename in filenames:
                     if filename.endswith(ENDING_SUFFIXES):
                         yield os.path.join(dirpath, filename)
