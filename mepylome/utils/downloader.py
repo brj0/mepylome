@@ -589,6 +589,17 @@ def make_tcga_metadata(
     )[["case_id", "Sample_ID"]]
     clinical_df = pd.read_csv(metadata_clinical, sep="\t")
 
+    # TCGA changed case_id to cases.case_id
+    if "case_id" not in clinical_df.columns:
+        if "cases.case_id" in clinical_df.columns:
+            clinical_df = clinical_df.rename(
+                columns={"cases.case_id": "case_id"}
+            )
+        else:
+            raise KeyError(
+                "Neither 'case_id' nor 'cases.case_id' found in clinical TSV."
+            )
+
     annotation = (
         clinical_df.merge(case_sample_df, on="case_id", how="left")
         # Drop duplicates, replace '-- by NaN and drop empty entries
