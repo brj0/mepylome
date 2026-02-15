@@ -151,11 +151,6 @@ class DualOutput:
         self.close()
 
 
-LOG_DIR = MEPYLOME_TMP_DIR / "log"
-ensure_directory_exists(MEPYLOME_TMP_DIR)
-ensure_directory_exists(LOG_DIR)
-
-
 def get_all_genes() -> list[str]:
     """Returns a list of names for all genes."""
     return Annotation.default_genes().df.Name.tolist()

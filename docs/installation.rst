@@ -93,9 +93,8 @@ To uninstall Mepylome:
 
 2. Delete the following directories:
 
-   - ~/.mepylome  (Contains manifest files)
+   - ~/.cache/mepylome (Contains cached files)
    - ~/mepylome  (Contains tutorial/example files)
-   - /tmp/mepylome  (Default output directory, if not changed)
 
 
 Platform Compatibility

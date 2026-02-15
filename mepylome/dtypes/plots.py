@@ -16,7 +16,6 @@ import plotly
 import plotly.graph_objects as go
 
 from mepylome.dtypes.cache import memoize
-from mepylome.utils.files import ensure_directory_exists
 from mepylome.utils.varia import CONFIG, MEPYLOME_TMP_DIR, get_free_port
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,6 @@ ZIP_ENDING = CONFIG["suffixes"]["cnv_zip"]
 THRESHOLD_BALANCED = 0.1
 CHROMOSOME_DATA = CONFIG["genes"]["chromosome_data"]
 
-ensure_directory_exists(MEPYLOME_TMP_DIR)
 CNV_GRID = Path(MEPYLOME_TMP_DIR, f"cnv_grid_v{plotly.__version__}.json")
 
 

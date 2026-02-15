@@ -24,14 +24,14 @@ from mepylome.utils.files import (
     get_csv_file,
     reset_file,
 )
-from mepylome.utils.varia import CONFIG, MEPYLOME_TMP_DIR
+from mepylome.utils.varia import CONFIG, MEPYLOME_CACHE_DIR, MEPYLOME_TMP_DIR
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["Manifest"]
 
 
-MANIFEST_DIR = Path.home() / ".mepylome" / "manifest_files_v0"
+MANIFEST_DIR = MEPYLOME_CACHE_DIR / "manifests" / "manifest_files_v0"
 DOWNLOAD_DIR = MEPYLOME_TMP_DIR / "manifests"
 
 ENDING_CONTROL_PROBES = CONFIG["suffixes"]["manifest_control_probes"]

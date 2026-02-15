@@ -172,4 +172,4 @@ The default **output directory** is `/tmp/mepylome`. You can change this using t
 over time. If you encounter memory issues, you can safely delete the entire
 directory or its subfolders.
 
-Once downloaded and transformed, **manifest** files are saved under `~/.mepylome`.
+Once downloaded and transformed, **manifest** files are saved under `~/.cache/mepylome`.

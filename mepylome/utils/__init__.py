@@ -15,6 +15,8 @@ from .files import (
 )
 from .varia import (
     CONFIG,
+    MEPYLOME_CACHE_DIR,
+    MEPYLOME_LOG_DIR,
     MEPYLOME_TMP_DIR,
     Timer,
     get_free_port,
@@ -37,4 +39,6 @@ __all__ = [
     "normexp_get_xs",
     "CONFIG",
     "MEPYLOME_TMP_DIR",
+    "MEPYLOME_LOG_DIR",
+    "MEPYLOME_CACHE_DIR",
 ]

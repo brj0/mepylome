@@ -30,7 +30,7 @@ from mepylome.utils import (
     CONFIG,
 )
 from mepylome.utils.files import ensure_directory_exists
-from mepylome.utils.varia import MEPYLOME_TMP_DIR
+from mepylome.utils.varia import MEPYLOME_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -663,7 +663,7 @@ def check_memory(nrows: int, ncols: int, dtype: type | np.dtype) -> None:
 
 def get_array_cpgs() -> dict[ArrayType, np.ndarray]:
     """Returns all CpG sites for all array types."""
-    path = MEPYLOME_TMP_DIR / "all_cpgs.pkl"
+    path = MEPYLOME_CACHE_DIR / "all_cpgs.pkl"
     if not path.exists():
         with path.open("wb") as f:
             array_cpgs = {

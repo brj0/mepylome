@@ -8,9 +8,10 @@ Usage:
 """
 
 import logging
+import os
+import shutil
 import socket
 import sys
-import tempfile
 import time
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -26,6 +27,10 @@ from mepylome.utils.files import get_resource_path
 __all__ = ["Timer", "normexp_get_xs", "MEPYLOME_TMP_DIR"]
 
 
+APP_NAME = "mepylome"
+TMP_MAX_AGE = 12 * 3600
+
+
 def get_app_version() -> str:
     """Retrieve the app version from the package metadata."""
     try:
@@ -34,26 +39,58 @@ def get_app_version() -> str:
         return "unknown"
 
 
+def py_tag() -> str:
+    """Return the Python version tag (e.g., py311)."""
+    return f"py{sys.version_info.major}{sys.version_info.minor}"
+
+
+def version_tag() -> str:
+    """Return combined app and Python version tag."""
+    return f"{get_app_version()}-{py_tag()}"
+
+
+def user_cache_dir() -> Path:
+    """Return and create the version-isolated user cache directory."""
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+    else:
+        base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    path = base / APP_NAME / version_tag()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def log_dir() -> Path:
+    """Return and create the version-isolated log directory."""
+    path = user_cache_dir() / "logs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def tmp_dir() -> Path:
+    """Create and return a temporary directory."""
+    path = user_cache_dir() / "tmp"
+
+    if path.exists():
+        age = time.time() - path.stat().st_mtime
+        if age > TMP_MAX_AGE:
+            shutil.rmtree(path, ignore_errors=True)
+
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 logger = logging.getLogger(__name__)
 
-version_str = get_app_version().replace(".", "_")
-py_version_str = (
-    f"{sys.version_info.major}_"
-    f"{sys.version_info.minor}_"
-    f"{sys.version_info.micro}"
-)
-MEPYLOME_TMP_DIR = (
-    Path(tempfile.gettempdir()) / f"mepylome-{version_str}-py{py_version_str}"
-)
-LOG_DIR = MEPYLOME_TMP_DIR / "log"
-
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+MEPYLOME_TMP_DIR = tmp_dir()
+MEPYLOME_CACHE_DIR = user_cache_dir()
+MEPYLOME_LOG_DIR = log_dir()
 
 
 def make_log_file(prefix: str) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_id = uuid4().hex[:8]
-    log_file = LOG_DIR / f"{prefix}-{timestamp}-{unique_id}.log"
+    log_file = MEPYLOME_LOG_DIR / f"{prefix}-{timestamp}-{unique_id}.log"
     log_file.touch(exist_ok=True)
     return log_file
 

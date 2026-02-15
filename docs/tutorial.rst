@@ -121,9 +121,9 @@ Manifest files
 
 The mepylome package includes a ``Manifest`` class that provides
 functionality to download, process, and save Illumina manifest files
-internally in a efficient format (stored in ~/.mepylome). These manifest
-files contain information about the CpG sites on the methylation array,
-including genetic coordinates, probe types, and more.
+internally in a efficient format (stored in ~/.cache/mepylome/manifests). These
+manifest files contain information about the CpG sites on the methylation
+array, including genetic coordinates, probe types, and more.
 
 Load the available manifest files for different array types.
 
@@ -138,7 +138,8 @@ Load the available manifest files for different array types.
 .. note::
 
     The first time you run this, the manifest files will be downloaded and
-    saved locally to ~/.mepylome. This initial download might take some time.
+    saved locally to ~/.cache/mepylome/manifests. This initial download might
+    take some time.
 
 Obtain values from attributes:
 

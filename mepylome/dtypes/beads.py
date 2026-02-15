@@ -24,7 +24,7 @@ from mepylome.dtypes.cache import cache_key, input_args_id, memoize
 from mepylome.dtypes.idat import IdatParser
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.probes import Channel, ProbeType
-from mepylome.utils.varia import MEPYLOME_TMP_DIR, normexp_get_xs
+from mepylome.utils.varia import MEPYLOME_CACHE_DIR, normexp_get_xs
 
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
@@ -1193,7 +1193,7 @@ class ReferenceMethylData:
         prep: PrepType,
         idat_files: list[Path],
     ) -> Path:
-        return MEPYLOME_TMP_DIR / input_args_id(
+        return MEPYLOME_CACHE_DIR / input_args_id(
             "Ref", prep, sorted(str(x) for x in idat_files)
         )
 
