@@ -17,6 +17,7 @@ from typing import Any
 import pandas as pd
 import requests
 import tomllib
+import yaml
 
 import mepylome
 from mepylome import ArrayType, Manifest
@@ -35,12 +36,14 @@ IMG_WIDTH = 1000
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
-    """Load a JSON or TOML file and return its contents as a dictionary."""
+    """Load a JSON/TOML/YAML file and return its contents as a dictionary."""
     with config_path.open(
         "rb" if config_path.suffix == ".toml" else "r"
     ) as file:
         if config_path.suffix == ".json":
             return json.load(file)
+        if config_path.suffix in [".yaml", ".yml"]:
+            return yaml.safe_load(file)
         if config_path.suffix == ".toml":
             return tomllib.load(file)
     raise ValueError("Unsupported config format")

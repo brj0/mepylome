@@ -1,0 +1,90 @@
+# ===========================
+# Default parameters used for all datasets.
+# These can be overwritten for specific datasets if needed.
+# ===========================
+
+defaults:
+  # Path to a file containing CpGs that should be excluded from analysis.
+  cpg_blacklist_path: "~/mepylome/data/cpg_blacklist.csv"
+
+  # List of machine learning algorithms used for analysis.
+  classifier_list:
+    # Extra Trees (tree-based method)
+    - "vtl-kbest(k=10000)-et"
+
+    # Linear regression using the top 10,000 CpGs
+    - "vtl-kbest(k=10000)-lr(max_iter=10000)"
+
+  # ===========================
+  # Parameters specific to methylation analysis
+  # ===========================
+  methyl_analysis:
+    # Directory where analysis results will be saved.
+    output_dir: "~/mepylome/outputs"
+
+    # Number of CpGs to use when calculating UMAP
+    n_cpgs: 25000
+
+    # Only analyze CpGs present in both IDAT files and annotation
+    overlap: true
+
+    # Whether to use GPU acceleration
+    use_gpu: false
+
+
+# ===============================================================
+# CNV (Copy-Number Variation) configuration
+# ===============================================================
+
+diagnostic_config:
+  cnvrefs:
+    name: "CNV"
+    do_cnv: true
+    version: "0.0.0"
+    methyl_analysis:
+      reference_dir: "~/mepylome/data/cnv_references"
+      cpgs: []
+      do_seg: true  # Adds horizontal segmentation line (requires ruptures)
+
+  # ===========================
+  # MLH1 methylation configurations
+  # ===========================
+
+  individual_idat_files:
+    name: "MLH1"
+    do_mlh1: true
+    version: "0.0.0"
+    methyl_analysis:
+      cpgs: []
+
+  # ===============================================================
+  # Salivary Gland Tumor configuration
+  # ===============================================================
+
+  salivary_gland_tumors:
+    name: "Salivary Gland Tumors"
+    do_umap: true
+    do_classify: true
+    version: "0.0.0"
+    annotation_diagnosis_column:
+      - "Methylation class"
+    methyl_analysis:
+      analysis_dir: "~/mepylome/data/salivary_gland_tumors"
+      annotation: "~/mepylome/data/salivary_gland_tumors/salivary_gland_tumors.xlsx"
+      cpgs: "epic+epicv2"
+
+  # ===============================================================
+  # Soft Tissue Tumor configuration
+  # ===============================================================
+
+  soft_tissue_tumors:
+    name: "Soft Tissue Tumors"
+    do_umap: true
+    do_classify: true
+    version: "0.0.0"
+    annotation_diagnosis_column:
+      - "Methylation_class"
+    methyl_analysis:
+      analysis_dir: "~/mepylome/data/soft_tissue_tumors"
+      annotation: "~/mepylome/data/soft_tissue_tumors/soft_tissue_tumors.xlsx"
+      cpgs: "450k+epic+epicv2"
