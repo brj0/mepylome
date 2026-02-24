@@ -784,8 +784,17 @@ class BetasHandler:
             path = self.paths.get(filename)
             if path is not None:
                 key = self.array_type_from_dir[path.parent]
-                betas = np.fromfile(path, dtype=DTYPE)
-                beta_matrix[i, left_idx[key]] = betas[right_idx[key]]
+
+                try:
+                    betas = np.fromfile(path, dtype=DTYPE)
+                    beta_matrix[i, left_idx[key]] = betas[right_idx[key]]
+                except Exception as error:
+                    # Delete the bad file
+                    path.unlink()
+                    raise ValueError(
+                        f"Deleted invalid cached beta file {filename} due to "
+                        f"error: {error}. Please try again."
+                    ) from error
 
         if parallel:
             with ThreadPoolExecutor() as executor:
