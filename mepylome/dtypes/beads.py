@@ -32,6 +32,7 @@ ENDING_GZ = ".gz"
 ENDING_SUFFIXES = ("_Grn.idat", "_Red.idat", "_Grn.idat.gz", "_Red.idat.gz")
 
 NEUTRAL_BETA = 0.5
+NEUTRAL_M_VALUE = 0.0
 
 PrepType = Literal["raw", "illumina", "swan", "noob"]
 
@@ -1034,7 +1035,7 @@ class MethylData:
     def _get_beta(
         methylated: np.ndarray,
         unmethylated: np.ndarray,
-        offset: float = 0,
+        offset: float = 100,
         beta_threshold: float = 0,
         *,
         min_zero: bool = True,
@@ -1061,6 +1062,64 @@ class MethylData:
             )
 
         return betas
+
+    @property
+    def mvalues(self) -> pd.DataFrame:
+        """Returns M-values."""
+        mvals = self._get_m_value(self.methyl, self.unmethyl)
+        return pd.DataFrame(
+            mvals.T, columns=self.probes, index=self.methyl_ilmnid
+        )
+
+    def mvalues_at(
+        self,
+        cpgs: Sequence | np.ndarray | None = None,
+        fill: float = NEUTRAL_M_VALUE,
+    ) -> pd.DataFrame:
+        if cpgs is None:
+            cpgs = self.manifest.methylation_probes
+
+        mvals = self._get_m_value(self.methyl, self.unmethyl)
+
+        converted = np.full((len(self.probes), len(cpgs)), fill)
+        left_idx, right_idx = _overlap_indices(cpgs, self.methyl_ilmnid)
+        converted[:, left_idx] = mvals[:, right_idx]
+
+        converted[np.isnan(converted)] = fill
+
+        return pd.DataFrame(converted.T, columns=self.probes, index=cpgs)
+
+    @staticmethod
+    def _get_m_value(
+        methylated: np.ndarray,
+        unmethylated: np.ndarray,
+        offset: float = 1.0,
+        *,
+        min_zero: bool = True,
+    ) -> np.ndarray:
+        """Compute M-values: log2((M + offset) / (U + offset)).
+
+        Args:
+            methylated: methylated intensities
+            unmethylated: unmethylated intensities
+            offset: small constant to prevent log(0)
+            min_zero: clamp negative intensities to zero
+
+        Returns:
+            np.ndarray of M-values
+        """
+        if offset < 0:
+            raise ValueError("'offset' must be non-negative")
+
+        if min_zero:
+            methylated = np.maximum(methylated, 0)
+            unmethylated = np.maximum(unmethylated, 0)
+
+        # Ignore division by zero
+        with np.errstate(divide="ignore", invalid="ignore"):
+            mvals = np.log2((methylated + offset) / (unmethylated + offset))
+
+        return mvals
 
     def __repr__(self) -> str:
         title = "MethylData():"
