@@ -33,7 +33,7 @@ dependencies = [
     "odfpy",
     "openpyxl",
     "pandas",
-    "plotly<6.0.0",
+    "plotly",
     "psutil",
     "pyranges<0.1.3",
     "scikit-learn",
