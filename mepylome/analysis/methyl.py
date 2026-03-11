@@ -1039,12 +1039,12 @@ class MethylAnalysis:
 
     def __init__(
         self,
-        analysis_dir: str | Path = INVALID_PATH,
+        analysis_dir: str | Path | None = None,
         *,
-        annotation: str | Path = INVALID_PATH,
-        reference_dir: str | Path = INVALID_PATH,
-        output_dir: str | Path = DEFAULT_OUTPUT_DIR,
-        test_dir: str | Path = INVALID_PATH,
+        annotation: str | Path | None = None,
+        reference_dir: str | Path | None = None,
+        output_dir: str | Path | None = None,
+        test_dir: str | Path | None = None,
         prep: PrepType = "illumina",
         cpgs: str | Sequence[str] | set[str] | np.ndarray = "auto",
         cpg_blacklist: Sequence[str] | set[str] | np.ndarray | None = None,
@@ -1069,11 +1069,26 @@ class MethylAnalysis:
         verbose: int = 1,
         balancing_feature: str | None = None,
     ) -> None:
-        self.analysis_dir = Path(analysis_dir).expanduser()
-        self.analysis_ids = (
-            None if analysis_ids is None else list(analysis_ids)
-        )
-        self.annotation = Path(annotation).expanduser()
+        def _resolve_path(p: str | Path | None, default_path: Path) -> Path:
+            """Convert None or string to Path."""
+            if p is None:
+                return default_path
+            if isinstance(p, str):
+                return Path(p).expanduser()
+            if isinstance(p, Path):
+                return p.expanduser()
+            raise ValueError(
+                f"_resolve_path: expected str, Path, or None, got "
+                f"{type(p).__name__}: {p}"
+            )
+
+        def _to_list(seq: Any | None) -> list[Any] | None:
+            """Convert a sequence to a list if input is not None."""
+            return None if seq is None else list(seq)
+
+        self.analysis_dir = _resolve_path(analysis_dir, INVALID_PATH)
+        self.analysis_ids = _to_list(analysis_ids)
+        self.annotation = _resolve_path(annotation, INVALID_PATH)
         self.app = None
         self.balancing_feature = balancing_feature
         self.betas_all = None
@@ -1093,15 +1108,15 @@ class MethylAnalysis:
         self.n_cpgs = n_cpgs
         self.n_jobs_clf = n_jobs_clf
         self.n_jobs_cnv = n_jobs_cnv
-        self.output_dir = Path(output_dir).expanduser()
+        self.output_dir = _resolve_path(output_dir, DEFAULT_OUTPUT_DIR)
         self.overlap = overlap
         self.port = port
         self.precalculate_cnv = precalculate_cnv
         self.prep = prep
         self.raw_umap_plot = None
-        self.reference_dir = Path(reference_dir).expanduser()
-        self.test_dir = Path(test_dir).expanduser()
-        self.test_ids = None if test_ids is None else list(test_ids)
+        self.reference_dir = _resolve_path(reference_dir, INVALID_PATH)
+        self.test_dir = _resolve_path(test_dir, INVALID_PATH)
+        self.test_ids = _to_list(test_ids)
         self.umap_cpgs = None
         self.umap_df = pd.DataFrame()
         self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
