@@ -107,7 +107,7 @@ UMAP_METRICS = [
     "yule",
 ]
 VERBOSITY_LEVELS = {
-    0: logging.WARNING,
+    0: logging.CRITICAL + 1,
     1: logging.INFO,
     2: logging.DEBUG,
 }
