@@ -153,7 +153,7 @@ class DualOutput:
 
 def get_all_genes() -> list[str]:
     """Returns a list of names for all genes."""
-    return Annotation.default_genes().df.Name.tolist()
+    return Annotation.default_genes()["Name"].tolist()
 
 
 def get_navbar() -> dbc.Navbar:

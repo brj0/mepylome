@@ -12,7 +12,7 @@ from typing import IO, Any
 
 import numpy as np
 import pandas as pd
-import pyranges as pr
+import pyranges1 as pr
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.cache import cache_key, input_args_id
@@ -551,8 +551,8 @@ class Manifest:
         if not {"Chromosome", "Start", "End"}.issubset(data_frame.columns):
             return data_frame
 
-        probes_ranges = pr.PyRanges(data_frame).sort()
-        return probes_ranges.df
+        probes_ranges = pr.PyRanges(data_frame).sort_ranges()
+        return pd.DataFrame(probes_ranges)
 
     @staticmethod
     def _seek_to_start(manifest_file: IO[bytes]) -> None:

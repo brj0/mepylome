@@ -5,7 +5,6 @@ performing methylation analysis.
 """
 
 import logging
-import warnings
 
 from mepylome.dtypes import (
     CNV,
@@ -20,9 +19,6 @@ from mepylome.dtypes import (
     idat_basepaths,
 )
 from mepylome.utils import make_log_file
-
-# Suppress pyranges warnings
-warnings.simplefilter(action="ignore", category=FutureWarning)
 
 LOG_FILE = make_log_file("stdout")
 

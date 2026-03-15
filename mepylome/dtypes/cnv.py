@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import pyranges as pr
+import pyranges1 as pr
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.beads import MethylData, ReferenceMethylData
@@ -225,15 +225,15 @@ class Annotation:
         self.bin_size = bin_size
         self.min_probes_per_bin = min_probes_per_bin
 
-        self.gap = gap or self.default_gaps()
+        self.gap = gap if gap is not None else self.default_gaps()
 
-        self.detail = detail or self.default_genes()
+        self.detail = detail if detail is not None else self.default_genes()
         if detail is not None:
             # PyRanges ranges start at 0
-            self.detail.Start -= 1
-            self.detail = self.detail.sort()
+            self.detail["Start"] -= 1
+            self.detail = self.detail.sort_ranges()
 
-        self.chromsizes = pr.data.chromsizes()
+        self.chromsizes = pr.example_data.chromsizes
 
         manifest_df = self.manifest.data_frame.copy()
         manifest_df = manifest_df[
@@ -246,23 +246,25 @@ class Annotation:
             manifest_df.Chromosome
         )
         # PyRanges ranges start at 0
-        manifest_df.Start -= 1
+        manifest_df["Start"] -= 1
         self.adjusted_manifest = pr.PyRanges(manifest_df)
 
-        self.probes = self.adjusted_manifest.IlmnID.values
+        self.probes = self.adjusted_manifest["IlmnID"].values
         self.bins = self.make_bins()
-        self.bins.bins_index = np.arange(len(self.bins.df))
-        self._cpg_bins = (
-            self.bins.join(self.adjusted_manifest[["IlmnID"]])
-            .df[["bins_index", "IlmnID"]]
-            .set_index("bins_index")
+        self.bins["bins_index"] = np.arange(len(self.bins))
+        self._cpg_bins = pd.DataFrame(
+            self.bins.join_overlaps(self.adjusted_manifest)[
+                ["bins_index", "IlmnID"]
+            ].set_index("bins_index")
         )
         if self.detail is None:
             self._cpg_detail = pd.DataFrame(columns=["Name", "IlmnID"])
         else:
-            self._cpg_detail = self.detail.join(
-                self.adjusted_manifest[["IlmnID"]]
-            ).df[["Name", "IlmnID"]]
+            self._cpg_detail = pd.DataFrame(
+                self.detail.join_overlaps(self.adjusted_manifest)[
+                    ["Name", "IlmnID"]
+                ]
+            )
 
         # Save to disk
         with self._pickle_path.open("wb") as file:
@@ -280,7 +282,7 @@ class Annotation:
         """
         gap_df = pd.read_csv(GAPS)
         # PyRanges ranges start at 0
-        gap_df.Start -= 1
+        gap_df["Start"] -= 1
         return pr.PyRanges(gap_df)
 
     @staticmethod
@@ -293,28 +295,28 @@ class Annotation:
         """
         genes_df = pd.read_csv(GENES, sep="\t")
         # PyRanges ranges start at 0
-        genes_df.Start -= 1
+        genes_df["Start"] -= 1
         return pr.PyRanges(genes_df)
 
     def make_bins(self) -> pr.PyRanges:
         """Creates equidistant bins and then removes genomic gaps."""
-        bins = pr.gf.tile_genome(self.chromsizes, int(self.bin_size))
-        bins = bins[bins.Chromosome != "chrM"]
+        bins = pr.tile_genome(self.chromsizes, int(self.bin_size))
+        bins = bins[bins["Chromosome"] != "chrM"]
         if self.gap is not None:
-            bins = bins.subtract(self.gap)
+            bins = bins.subtract_overlaps(self.gap)
         return self.merge_bins(bins)
 
     def merge_bins(self, bins: pr.PyRanges) -> pr.PyRanges:
         """Merges adjacent bins until all contain a minimum of probes."""
         bins = bins.count_overlaps(
-            self.adjusted_manifest[["IlmnID"]], overlap_col="N_probes"
+            self.adjusted_manifest, overlap_col="N_probes"
         )
-        return bins.apply(
-            lambda df: self.merge_bins_in_chromosome(
-                df, self.min_probes_per_bin
-            ),
-            as_pyranges=True,
-        )
+        merged = bins.groupby("Chromosome").apply(
+            lambda x: self.merge_bins_in_chromosome(
+                x.reset_index(drop=True), self.min_probes_per_bin
+            )
+        ).reset_index()[["Chromosome", "Start", "End", "N_probes"]]
+        return pr.PyRanges(merged).sort_ranges().reset_index(drop=True)
 
     @staticmethod
     def merge_bins_in_chromosome(
@@ -393,7 +395,7 @@ class Annotation:
                 update_neighbors(i_left, i_min, i_right)
                 if logger.isEnabledFor(logging.DEBUG):
                     row = (
-                        bin_df.loc[i_min, ["Chromosome", "Start", "End"]]
+                        bin_df.loc[i_min, ["Start", "End"]]
                         .astype(str)
                         .tolist()
                     )
@@ -419,7 +421,7 @@ class Annotation:
 
         bin_df[["Start", "End", "N_probes"]] = matrix[:, :3]
         bin_df = bin_df[bin_df.N_probes != INVALID]
-        return bin_df[["Chromosome", "Start", "End", "N_probes"]]
+        return bin_df[["Start", "End", "N_probes"]]
 
     @staticmethod
     def load(
@@ -730,7 +732,7 @@ class CNV:
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
         )
-        bins_df = self.bins.df
+        bins_df = self.bins.copy()
         bins_df["Median"] = np.nan
         bins_df["Var"] = np.nan
         bins_df.loc[result.index, ["Median", "Var"]] = result.values
@@ -753,7 +755,7 @@ class CNV:
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
         )
-        detail_df = self.annotation.detail.df.set_index("Name")
+        detail_df = pd.DataFrame(self.annotation.detail.set_index("Name"))
         detail_df["Median"] = np.nan
         detail_df["Var"] = np.nan
         detail_df["N_probes"] = 0
@@ -787,11 +789,10 @@ class CNV:
         cbsegment = _get_cgsegment()
         assert cbsegment is not None
         bin_values = df["Median"].values
-        chrom = df["Chromosome"].iloc[0]
         seg = cbsegment(bin_values)
         return pd.DataFrame(
-            [[chrom, df.Start.iloc[s[0]], df.End.iloc[s[1] - 1]] for s in seg],
-            columns=["Chromosome", "Start", "End"],
+            [[df["Start"].iloc[s[0]], df["End"].iloc[s[1] - 1]] for s in seg],
+            columns=["Start", "End"],
         )
 
     def set_segments(self) -> None:
@@ -805,11 +806,15 @@ class CNV:
         if _get_cgsegment() is None:
             return
         logger.info("%s Setting segments...", self.probe)
-        segments = self.bins.apply(self._get_segments)
-        overlap = segments.join(self.annotation.adjusted_manifest[["IlmnID"]])
-        overlap.ratio = self.ratio.loc[overlap.IlmnID].ratio
+        segments = pr.PyRanges(
+            self.bins.groupby("Chromosome")
+            .apply(self._get_segments)
+            .reset_index()
+        )
+        overlap = segments.join_overlaps(self.annotation.adjusted_manifest)
+        overlap["ratio"] = self.ratio.loc[overlap.IlmnID].values
         result = (
-            overlap.df.groupby(["Chromosome", "Start", "End"], dropna=False)[
+            overlap.groupby(["Chromosome", "Start", "End"], dropna=False)[
                 "ratio"
             ]
             .agg(["median", "mean", "var", "count"])
@@ -823,8 +828,7 @@ class CNV:
                 }
             )
         )
-        self.segments = pr.PyRanges(result)
-        self.segments = self.segments.sort()
+        self.segments = pr.PyRanges(result).sort_ranges()
 
     def write(
         self,
@@ -862,11 +866,11 @@ class CNV:
             raise ValueError(msg)
         dfs_to_write = []
         if "bins" in data_set and self.bins is not None:
-            dfs_to_write.append(("bins.csv", self.bins.df))
+            dfs_to_write.append(("bins.csv", pd.DataFrame(self.bins)))
         if "detail" in data_set and self.detail is not None:
-            dfs_to_write.append(("detail.csv", self.detail.df))
+            dfs_to_write.append(("detail.csv", pd.DataFrame(self.detail)))
         if "segments" in data_set and self.segments is not None:
-            dfs_to_write.append(("segments.csv", self.segments.df))
+            dfs_to_write.append(("segments.csv", pd.DataFrame(self.segments)))
         if "metadata" in data_set:
             metadata_df = pd.DataFrame(
                 {

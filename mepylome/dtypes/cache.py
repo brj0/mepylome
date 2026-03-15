@@ -204,9 +204,11 @@ def input_args_id(
         if isinstance(arg, np.ndarray):
             return arg.tobytes()
         if isinstance(arg, pd.DataFrame):
+            # If there are columns of type object choose the slower encoding
             if not arg.select_dtypes(include=["object"]).empty:
-                msg = "DataFrame contains columns with object dtype."
-                raise ValueError(msg)
+                return pd.util.hash_pandas_object(
+                    arg, index=True
+                ).values.tobytes()
             return arg.values.tobytes()
         if isinstance(arg, Path):
             components.append(arg.name)

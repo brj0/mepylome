@@ -10,13 +10,13 @@ import argparse
 import io
 import json
 import logging
+import tomllib
 import zipfile
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import requests
-import tomllib
 import yaml
 
 import mepylome

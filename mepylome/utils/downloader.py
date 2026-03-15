@@ -44,7 +44,6 @@ import json
 import logging
 import re
 import shutil
-import sys
 import tarfile
 import xml.etree.ElementTree as ET
 from collections.abc import Iterable
@@ -229,14 +228,9 @@ def download_geo_metadata(
         if not miniml_path.exists():
             with tarfile.open(miniml_tar_path, "r:gz") as tar:
                 member_name = miniml_tar_path.stem
-                if sys.version_info >= (3, 12):
-                    # Python 3.12+ needs the `filter` argument
-                    tar.extract(
-                        member=member_name, path=samples_dir, filter="data"
-                    )
-                else:
-                    # Older Python versions: don't pass `filter`
-                    tar.extract(member=member_name, path=samples_dir)
+                tar.extract(
+                    member=member_name, path=samples_dir, filter="data"
+                )
                 miniml_tar_path.with_suffix("").rename(miniml_path)
     except Exception as exc:
         logger.debug("Could not unzip %s: %s", miniml_tar_path, exc)
@@ -280,12 +274,7 @@ def download_geo_idat_all_files(
     # Extract idat files
     try:
         with tarfile.open(tar_idat_path, "r:*") as tar:
-            if sys.version_info >= (3, 12):
-                # Python 3.12+ supports the `filter` kwarg
-                tar.extractall(path=idat_dir, filter="data")
-            else:
-                # Older Python versions: no filter argument
-                tar.extractall(path=idat_dir)
+            tar.extractall(path=idat_dir, filter="data")
 
         # Remove unwanted GPL*csv.gz manifest files if present
         for file_path in idat_dir.rglob("*"):

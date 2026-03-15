@@ -1,9 +1,11 @@
 # To upload this project to PyPI, follow these steps:
 #
-# python setup.py sdist bdist_wheel
+# pip install build twine
+# rm -rf dist build *.egg-info
+# python -m build
 # twine upload dist/*
-#
-# When prompted for the username, provide __token__
+# username: __token__
+# password: pypi-xxxxxxxxxxxxxxxx
 
 # Includes data
 recursive-include mepylome/data/ *
