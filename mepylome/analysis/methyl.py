@@ -1016,7 +1016,7 @@ class MethylAnalysis:
     test_dir: Path
     test_ids: list[str] | None
     umap_cpgs: np.ndarray | None
-    umap_df: pd.DataFrame
+    umap_df: pd.DataFrame | None
     umap_dir: Path
     umap_parms: dict[str, Any]
     umap_plot: go.Figure
@@ -1118,7 +1118,7 @@ class MethylAnalysis:
         self.test_dir = _resolve_path(test_dir, INVALID_PATH)
         self.test_ids = _to_list(test_ids)
         self.umap_cpgs = None
-        self.umap_df = pd.DataFrame()
+        self.umap_df = None
         self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
         self.umap_plot = EMPTY_FIGURE
         self.use_gpu = use_gpu
@@ -1646,10 +1646,12 @@ class MethylAnalysis:
         umap_df = pd.DataFrame(
             umap_2d, columns=["Umap_x", "Umap_y"], index=chosen_index
         )
+        # Remove invalid IDAT files
+        annotation = self.idat_handler.samples_annotated.reindex(umap_df.index)
         self.umap_df = pd.concat(
             [
                 umap_df,
-                self.idat_handler.samples_annotated,
+                annotation,
             ],
             axis=1,
         )
@@ -1670,15 +1672,19 @@ class MethylAnalysis:
         if self.umap_df is None:
             msg = "'umap_df' not set. Run 'make_umap' instead."
             raise AttributeError(msg)
+
         self.ids = list(self.umap_df.index)
-        umap_color = self.idat_handler.features()
-        if len(umap_color) != len(self.umap_df):
-            msg = (
-                "Dimension mismatch 2: Analysis files may have changed. "
-                f"Try to delete cached files in {self.output_dir}."
+        umap_color_all = self.idat_handler.features()
+
+        missing = set(self.ids) - set(umap_color_all.index)
+        if missing:
+            raise KeyError(
+                f"Missing {len(missing)} IDs (e.g. {list(missing)[:5]}) in "
+                f"features. Cache: {self.output_dir}"
             )
-            raise AttributeError(msg)
-        self.umap_df["Umap_color"] = [str(x) for x in umap_color]
+
+        umap_color = umap_color_all.loc[self.ids]
+        self.umap_df["Umap_color"] = umap_color.astype(str)
         self.umap_plot = umap_plot_from_data(
             self.umap_df, self._use_discrete_colors
         )
@@ -1781,7 +1787,9 @@ class MethylAnalysis:
             )
 
         elif self.cpg_selection == "balanced":
-            features = self.idat_handler.features(self.balancing_feature or [])
+            features = self.idat_handler.features(
+                self.balancing_feature or []
+            ).tolist()
             balanced_indices = get_balanced_indices(features, seed=42)
             if self._balanced_sorted_cpgs is None:
                 if self.betas_all is not None:
@@ -2156,7 +2164,7 @@ class MethylAnalysis:
 
         self.set_betas()
 
-        y = self.idat_handler.features()
+        y = self.idat_handler.features().tolist()
         logger.info("Loading feature matrix into memory.")
 
         if self.feature_matrix is not None:

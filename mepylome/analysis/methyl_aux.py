@@ -575,7 +575,7 @@ class IdatHandler:
         self,
         columns: str | Iterable[str] | None = None,
         separator: str = "|",
-    ) -> list[str]:
+    ) -> pd.Series:
         """Combines specified columns into a single label per sample.
 
         If `columns` is not provided, it defaults to the first column in
@@ -593,11 +593,15 @@ class IdatHandler:
                 columns. Default is "|".
 
         Returns:
-            list: A list of combined labels, one per sample.
+            pd.Series:
+                A Series of combined labels, indexed by sample IDs.
 
         Example:
             >>> idat_handler.features(columns=["GEO", "CNVs"])
-            ['SGT_103|Balanced', 'SGT_056|Balanced', 'SGT_276|Balanced', ...]
+            sample_1    SGT_103|Balanced
+            sample_2    SGT_056|Balanced
+            sample_3    SGT_276|Balanced
+            dtype: object
         """
         if columns is None:
             if self.selected_columns is not None:
@@ -605,10 +609,8 @@ class IdatHandler:
             else:
                 columns = [self.samples_annotated.columns[0]]
         columns = [columns] if isinstance(columns, str) else columns
-        return (
-            self.samples_annotated[columns]
-            .apply(lambda row: separator.join(row.values.astype(str)), axis=1)
-            .tolist()
+        return self.samples_annotated[columns].apply(
+            lambda row: separator.join(row.values.astype(str)), axis=1
         )
 
     def __str__(self) -> str:

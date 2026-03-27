@@ -311,11 +311,15 @@ class Annotation:
         bins = bins.count_overlaps(
             self.adjusted_manifest, overlap_col="N_probes"
         )
-        merged = bins.groupby("Chromosome").apply(
-            lambda x: self.merge_bins_in_chromosome(
-                x.reset_index(drop=True), self.min_probes_per_bin
+        merged = (
+            bins.groupby("Chromosome")
+            .apply(
+                lambda x: self.merge_bins_in_chromosome(
+                    x.reset_index(drop=True), self.min_probes_per_bin
+                )
             )
-        ).reset_index()[["Chromosome", "Start", "End", "N_probes"]]
+            .reset_index()[["Chromosome", "Start", "End", "N_probes"]]
+        )
         return pr.PyRanges(merged).sort_ranges().reset_index(drop=True)
 
     @staticmethod

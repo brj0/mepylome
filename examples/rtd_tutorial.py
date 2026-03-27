@@ -865,7 +865,7 @@ methyl_analysis.idat_handler.selected_columns = ["Diagnosis"]
 
 ## Extract features (X) and target labels (y)
 X = methyl_analysis.betas_all
-y = methyl_analysis.idat_handler.features()
+y = methyl_analysis.idat_handler.features().tolist()
 
 ## Exclude test indices and invalid samples
 valid_indices = [

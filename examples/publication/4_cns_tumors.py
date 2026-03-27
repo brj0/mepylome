@@ -461,7 +461,7 @@ analysis.idat_handler.selected_columns = ["Reference Group abbreviation"]
 all_ids = analysis.idat_handler.ids
 analysis.cv_default = 3
 
-labels = analysis.idat_handler.features()
+labels = analysis.idat_handler.features().tolist()
 label_counts = Counter(labels)
 
 dropped_labels = {
