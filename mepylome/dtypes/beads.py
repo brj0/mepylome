@@ -14,6 +14,7 @@ from typing import (
     Any,
     Literal,
 )
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -1242,10 +1243,14 @@ class ReferenceMethylData:
                 raw_data, prep=self.prep
             )
 
-        # Save to disk
+        # Save saving to disk
+        tmp_path = filepath.with_suffix(f".{uuid4()}.tmp")
+
         if self.save_to_disk:
-            with filepath.open("wb") as f:
+            with tmp_path.open("wb") as f:
                 pickle.dump(self, f)
+
+        tmp_path.replace(filepath)
 
     @staticmethod
     def pickle_filename(
