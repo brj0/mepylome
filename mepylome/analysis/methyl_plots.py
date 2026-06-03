@@ -305,8 +305,9 @@ def write_cnv_to_disk(
                     pbar.increment()
                 _ = tqdm_bar.update(1)
     else:
-        # Loading annotations here prevents race conditions
+        # Loading annotations and load References here prevents race conditions
         Annotation.load()
+        _ = get_reference_methyl_data(reference_dir, prep)
         with (
             Pool(n_cores) as pool,
             tqdm(
