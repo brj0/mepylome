@@ -8,11 +8,13 @@ import heapq
 import io
 import logging
 import pickle
+import threading
 import zipfile
 from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -114,6 +116,8 @@ class Annotation:
     """
 
     _cache: dict[Any, "Annotation"] = {}
+    _lock_new = threading.Lock()
+    _lock_init = threading.Lock()
 
     manifest: Manifest
     array_type: ArrayType
@@ -153,14 +157,15 @@ class Annotation:
             bin_size,
             min_probes_per_bin,
         )
-        if key in cls._cache:
-            return cls._cache[key]
+        with cls._lock_new:
+            if key in cls._cache:
+                return cls._cache[key]
 
-        instance = super().__new__(cls)
+            instance = super().__new__(cls)
 
-        # Cache the instance
-        cls._cache[key] = instance
-        return instance
+            # Cache the instance
+            cls._cache[key] = instance
+            return instance
 
     def __getnewargs__(self) -> tuple:
         # Necessary for pickle
@@ -183,94 +188,104 @@ class Annotation:
         min_probes_per_bin: int = 15,
     ) -> None:
         # Don't need to initialize if instance is cached.
-        if hasattr(self, "_cached"):
-            return
-        self._cached = True
-
-        self._init_manifest = manifest
-        self._init_array_type = array_type
-        self._init_gap = gap
-        self._init_detail = detail
-        self._init_bin_size = bin_size
-        self._init_min_probes_per_bin = min_probes_per_bin
-
-        pickle_hash = input_args_id(
-            "annotation",
-            self._init_manifest,
-            self._init_array_type,
-            self._init_gap,
-            self._init_detail,
-            self._init_bin_size,
-            self._init_min_probes_per_bin,
-        )
-        self._pickle_path = MEPYLOME_TMP_DIR / f"{pickle_hash}.pkl"
-        if self._pickle_path.exists():
-            with self._pickle_path.open("rb") as file:
-                saved_instance = pickle.load(file)
-                self.__dict__.update(saved_instance.__dict__)
+        with Annotation._lock_init:
+            if getattr(self, "_cached", False):
                 return
 
-        logger.info("Constructing annotation...")
-        if manifest is None and array_type is None:
-            raise ValueError("Either array_type or manifest must be provided")
+            self._init_manifest = manifest
+            self._init_array_type = array_type
+            self._init_gap = gap
+            self._init_detail = detail
+            self._init_bin_size = bin_size
+            self._init_min_probes_per_bin = min_probes_per_bin
 
-        if array_type is None:
-            assert manifest is not None
-            self.array_type = ArrayType(manifest.array_type)
-        else:
-            self.array_type = ArrayType(array_type)
-
-        self.manifest = manifest or Manifest(self.array_type)
-
-        self.bin_size = bin_size
-        self.min_probes_per_bin = min_probes_per_bin
-
-        self.gap = gap if gap is not None else self.default_gaps()
-
-        self.detail = detail if detail is not None else self.default_genes()
-        if detail is not None:
-            # PyRanges ranges start at 0
-            self.detail["Start"] -= 1
-            self.detail = self.detail.sort_ranges()
-
-        self.chromsizes = pr.example_data.chromsizes
-
-        manifest_df = self.manifest.data_frame.copy()
-        manifest_df = manifest_df[
-            [x.startswith("cg") for x in manifest_df.IlmnID.values]
-        ]
-        manifest_df = manifest_df[
-            Chromosome.is_valid_chromosome(manifest_df.Chromosome)
-        ]
-        manifest_df.Chromosome = Chromosome.pd_to_string(
-            manifest_df.Chromosome
-        )
-        # PyRanges ranges start at 0
-        manifest_df["Start"] -= 1
-        self.adjusted_manifest = pr.PyRanges(manifest_df)
-
-        self.probes = self.adjusted_manifest["IlmnID"].values
-        self.bins = self.make_bins()
-        self.bins["bins_index"] = np.arange(len(self.bins))
-        self._cpg_bins = pd.DataFrame(
-            self.bins.join_overlaps(self.adjusted_manifest)[
-                ["bins_index", "IlmnID"]
-            ].set_index("bins_index")
-        )
-        if self.detail is None:
-            self._cpg_detail = pd.DataFrame(columns=["Name", "IlmnID"])
-        else:
-            self._cpg_detail = pd.DataFrame(
-                self.detail.join_overlaps(self.adjusted_manifest)[
-                    ["Name", "IlmnID"]
-                ]
+            pickle_hash = input_args_id(
+                "annotation",
+                self._init_manifest,
+                self._init_array_type,
+                self._init_gap,
+                self._init_detail,
+                self._init_bin_size,
+                self._init_min_probes_per_bin,
             )
+            self._pickle_path = MEPYLOME_TMP_DIR / f"{pickle_hash}.pkl"
+            if self._pickle_path.exists():
+                with self._pickle_path.open("rb") as file:
+                    saved_instance = pickle.load(file)
+                    self.__dict__.update(saved_instance.__dict__)
+                    self._cached = True
+                    return
 
-        # Save to disk
-        with self._pickle_path.open("wb") as file:
-            pickle.dump(self, file)
+            logger.info("Constructing annotation...")
+            if manifest is None and array_type is None:
+                raise ValueError(
+                    "Either array_type or manifest must be provided"
+                )
 
-        logger.info("Constructing annotation done")
+            if array_type is None:
+                assert manifest is not None
+                self.array_type = ArrayType(manifest.array_type)
+            else:
+                self.array_type = ArrayType(array_type)
+
+            self.manifest = manifest or Manifest(self.array_type)
+
+            self.bin_size = bin_size
+            self.min_probes_per_bin = min_probes_per_bin
+
+            self.gap = gap if gap is not None else self.default_gaps()
+
+            self.detail = (
+                detail if detail is not None else self.default_genes()
+            )
+            if detail is not None:
+                # PyRanges ranges start at 0
+                self.detail["Start"] -= 1
+                self.detail = self.detail.sort_ranges()
+
+            self.chromsizes = pr.example_data.chromsizes
+
+            manifest_df = self.manifest.data_frame.copy()
+            manifest_df = manifest_df[
+                [x.startswith("cg") for x in manifest_df.IlmnID.values]
+            ]
+            manifest_df = manifest_df[
+                Chromosome.is_valid_chromosome(manifest_df.Chromosome)
+            ]
+            manifest_df.Chromosome = Chromosome.pd_to_string(
+                manifest_df.Chromosome
+            )
+            # PyRanges ranges start at 0
+            manifest_df["Start"] -= 1
+            self.adjusted_manifest = pr.PyRanges(manifest_df)
+
+            self.probes = self.adjusted_manifest["IlmnID"].values
+            self.bins = self.make_bins()
+            self.bins["bins_index"] = np.arange(len(self.bins))
+            self._cpg_bins = pd.DataFrame(
+                self.bins.join_overlaps(self.adjusted_manifest)[
+                    ["bins_index", "IlmnID"]
+                ].set_index("bins_index")
+            )
+            if self.detail is None:
+                self._cpg_detail = pd.DataFrame(columns=["Name", "IlmnID"])
+            else:
+                self._cpg_detail = pd.DataFrame(
+                    self.detail.join_overlaps(self.adjusted_manifest)[
+                        ["Name", "IlmnID"]
+                    ]
+                )
+
+            # Save to disk
+            tmp_path = self._pickle_path.with_suffix(f".{uuid4()}.tmp")
+
+            with tmp_path.open("wb") as file_write:
+                pickle.dump(self, file_write)
+
+            tmp_path.replace(self._pickle_path)
+
+            self._cached = True
+            logger.info("Constructing annotation done")
 
     @staticmethod
     @lru_cache

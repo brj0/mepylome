@@ -7,8 +7,10 @@ characteristics.
 
 import logging
 import pickle
+import threading
 from pathlib import Path
 from typing import IO, Any
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -112,6 +114,8 @@ class Manifest:
     """
 
     _cache: dict[Any, "Manifest"] = {}
+    _lock_new = threading.Lock()
+    _lock_init = threading.Lock()
 
     array_type: ArrayType | None
     ctrl_path: Path
@@ -137,14 +141,16 @@ class Manifest:
         download_proc: bool = True,
     ) -> "Manifest":
         key = cache_key(array_type, raw_path, proc_path)
-        if key in cls._cache:
-            return cls._cache[key]
 
-        instance = super().__new__(cls)
+        with cls._lock_new:
+            if key in cls._cache:
+                return cls._cache[key]
 
-        # Cache the instance
-        cls._cache[key] = instance
-        return instance
+            instance = super().__new__(cls)
+
+            # Cache the instance
+            cls._cache[key] = instance
+            return instance
 
     def __getnewargs__(self) -> tuple:
         # Necessary for pickle
@@ -162,76 +168,88 @@ class Manifest:
         proc_path: str | Path | None = None,
         download_proc: bool = True,
     ) -> None:
-        if hasattr(self, "_cached"):
-            return
-        self._cached = True
-
-        self._init_array_type = array_type
-        self._init_raw_path = raw_path
-        self._init_proc_path = proc_path
-        self._init_download_proc = download_proc
-
-        def to_path(x: str | Path | None) -> Path | None:
-            return x if x is None else Path(x)
-
-        self.array_type = ArrayType(array_type) if array_type else None
-        self.raw_path = to_path(raw_path)
-        proc_path = to_path(proc_path)
-        self.download_proc = download_proc
-
-        # Load cached data from disk
-        self._cache_key = input_args_id(
-            "manifest", self.array_type, self.raw_path, proc_path
-        )
-        self._pickle_path = MEPYLOME_TMP_DIR / f"{self._cache_key}.pkl"
-        if self._pickle_path.exists():
-            with self._pickle_path.open("rb") as file_read:
-                saved_instance = pickle.load(file_read)
-                self.__dict__.update(saved_instance.__dict__)
+        with Manifest._lock_init:
+            if getattr(self, "_cached", False):
                 return
 
-        if (
-            self.array_type == ArrayType.UNKNOWN
-            and proc_path is None
-            and raw_path is None
-        ):
-            self._data_frame = pd.DataFrame()
-            self._control_data_frame = pd.DataFrame()
-            self._snp_data_frame = pd.DataFrame()
-            self._methyl_probes = None
-            return
+            self._init_array_type = array_type
+            self._init_raw_path = raw_path
+            self._init_proc_path = proc_path
+            self._init_download_proc = download_proc
 
-        # Set processed manifest path
-        if proc_path is None:
+            def to_path(x: str | Path | None) -> Path | None:
+                return x if x is None else Path(x)
+
+            self.array_type = ArrayType(array_type) if array_type else None
+            self.raw_path = to_path(raw_path)
+            proc_path = to_path(proc_path)
+            self.download_proc = download_proc
+
+            # Load cached data from disk
+            self._cache_key = input_args_id(
+                "manifest", self.array_type, self.raw_path, proc_path
+            )
+            self._pickle_path = MEPYLOME_TMP_DIR / f"{self._cache_key}.pkl"
+            if self._pickle_path.exists():
+                with self._pickle_path.open("rb") as file_read:
+                    saved_instance = pickle.load(file_read)
+                    self.__dict__.update(saved_instance.__dict__)
+                    self._cached = True
+                    return
+
             if (
-                self.array_type is not None
-                and self.array_type != ArrayType.UNKNOWN
+                self.array_type == ArrayType.UNKNOWN
+                and proc_path is None
+                and raw_path is None
             ):
-                self.proc_path = MANIFEST_DIR / LOCAL_FILENAME[self.array_type]
-            elif self.raw_path is not None:
-                if self.raw_path.suffix == ".zip":
-                    gz_filename = "proc_" + self.raw_path.stem + ".gz"
+                self._data_frame = pd.DataFrame()
+                self._control_data_frame = pd.DataFrame()
+                self._snp_data_frame = pd.DataFrame()
+                self._methyl_probes = None
+                self._cached = True
+                return
+
+            # Set processed manifest path
+            if proc_path is None:
+                if (
+                    self.array_type is not None
+                    and self.array_type != ArrayType.UNKNOWN
+                ):
+                    self.proc_path = (
+                        MANIFEST_DIR / LOCAL_FILENAME[self.array_type]
+                    )
+                elif self.raw_path is not None:
+                    if self.raw_path.suffix == ".zip":
+                        gz_filename = "proc_" + self.raw_path.stem + ".gz"
+                    else:
+                        gz_filename = "proc_" + self.raw_path.name + ".gz"
+                    self.proc_path = DOWNLOAD_DIR / gz_filename
                 else:
-                    gz_filename = "proc_" + self.raw_path.name + ".gz"
-                self.proc_path = DOWNLOAD_DIR / gz_filename
+                    msg = "Provide either array_type or proc_path or raw_path"
+                    raise ValueError(msg)
             else:
-                msg = "Provide either array_type or proc_path or raw_path"
-                raise ValueError(msg)
-        else:
-            self.proc_path = proc_path
+                self.proc_path = proc_path
 
-        self.ctrl_path = Manifest._get_control_path(self.proc_path)
+            self.ctrl_path = Manifest._get_control_path(self.proc_path)
 
-        self._create_processed_manifest_files()
+            self._create_processed_manifest_files()
 
-        self._data_frame = self._read_probes(self.proc_path)
-        self._control_data_frame = self._read_control_probes(self.ctrl_path)
-        self._snp_data_frame = self._read_snp_probes()
-        self._methyl_probes = None
+            self._data_frame = self._read_probes(self.proc_path)
+            self._control_data_frame = self._read_control_probes(
+                self.ctrl_path
+            )
+            self._snp_data_frame = self._read_snp_probes()
+            self._methyl_probes = None
 
-        # Save to disk
-        with self._pickle_path.open("wb") as file_write:
-            pickle.dump(self, file_write)
+            # Save to disk
+            tmp_path = self._pickle_path.with_suffix(f".{uuid4()}.tmp")
+
+            with tmp_path.open("wb") as file_write:
+                pickle.dump(self, file_write)
+
+            tmp_path.replace(self._pickle_path)
+
+            self._cached = True
 
     @property
     def cache_key(self) -> str:

@@ -7,6 +7,7 @@ preprocessing techniques, normalization, and data handling.
 import collections
 import os
 import pickle
+import threading
 from collections.abc import Iterator, Sequence
 from functools import reduce
 from pathlib import Path
@@ -1174,6 +1175,8 @@ class ReferenceMethylData:
     """
 
     _cache: dict[Any, "ReferenceMethylData"] = {}
+    _lock_new = threading.Lock()
+    _lock_init = threading.Lock()
 
     file: str | Path | Sequence[str | Path]
     prep: PrepType
@@ -1189,14 +1192,16 @@ class ReferenceMethylData:
         save_to_disk: bool = False,
     ) -> "ReferenceMethylData":
         key = cache_key(file, prep)
-        if key in cls._cache:
-            return cls._cache[key]
 
-        instance = super().__new__(cls)
+        with cls._lock_new:
+            if key in cls._cache:
+                return cls._cache[key]
 
-        # Cache the instance
-        cls._cache[key] = instance
-        return instance
+            instance = super().__new__(cls)
+
+            # Cache the instance
+            cls._cache[key] = instance
+            return instance
 
     def __getnewargs__(
         self,
@@ -1210,47 +1215,52 @@ class ReferenceMethylData:
         prep: PrepType = "illumina",
         save_to_disk: bool = False,
     ) -> None:
-        # Don't need to initialize if instance is cached.
-        if hasattr(self, "_cached"):
-            return
-        self._cached = True
-
-        self.file = file
-        self.prep = prep
-        self.save_to_disk = save_to_disk
-        idat_files = idat_basepaths(self.file)
-
-        # Load data from disk
-        filepath = ReferenceMethylData.pickle_filename(self.prep, idat_files)
-        if self.save_to_disk and filepath.exists():
-            with filepath.open("rb") as f:
-                saved_instance = pickle.load(f)
-                self.__dict__.update(saved_instance.__dict__)
+        with ReferenceMethylData._lock_init:
+            # Don't need to initialize if instance is cached.
+            if getattr(self, "_cached", False):
                 return
 
-        reference_files = collections.defaultdict(list)
-        self._methyl_data = {}
-        for idat_file in tqdm(
-            idat_files, desc="Categorizing reference IDAT files"
-        ):
-            array_type = ArrayType.from_idat(idat_file)
-            reference_files[array_type].append(idat_file)
-        for array_type, file_list in tqdm(
-            reference_files.items(), desc="Processing reference IDAT files"
-        ):
-            raw_data = RawData(file_list)
-            self._methyl_data[array_type] = MethylData(
-                raw_data, prep=self.prep
+            self.file = file
+            self.prep = prep
+            self.save_to_disk = save_to_disk
+            idat_files = idat_basepaths(self.file)
+
+            # Load data from disk
+            filepath = ReferenceMethylData.pickle_filename(
+                self.prep, idat_files
             )
+            if self.save_to_disk and filepath.exists():
+                with filepath.open("rb") as f:
+                    saved_instance = pickle.load(f)
+                    self.__dict__.update(saved_instance.__dict__)
+                    self._cached = True
+                    return
 
-        # Save saving to disk
-        tmp_path = filepath.with_suffix(f".{uuid4()}.tmp")
+            reference_files = collections.defaultdict(list)
+            self._methyl_data = {}
+            for idat_file in tqdm(
+                idat_files, desc="Categorizing reference IDAT files"
+            ):
+                array_type = ArrayType.from_idat(idat_file)
+                reference_files[array_type].append(idat_file)
+            for array_type, file_list in tqdm(
+                reference_files.items(), desc="Processing reference IDAT files"
+            ):
+                raw_data = RawData(file_list)
+                self._methyl_data[array_type] = MethylData(
+                    raw_data, prep=self.prep
+                )
 
-        if self.save_to_disk:
-            with tmp_path.open("wb") as f:
-                pickle.dump(self, f)
+            if self.save_to_disk:
+                # Save saving to disk
+                tmp_path = filepath.with_suffix(f".{uuid4()}.tmp")
 
-        tmp_path.replace(filepath)
+                with tmp_path.open("wb") as f:
+                    pickle.dump(self, f)
+
+                tmp_path.replace(filepath)
+
+            self._cached = True
 
     @staticmethod
     def pickle_filename(
