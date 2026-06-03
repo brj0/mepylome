@@ -1827,6 +1827,8 @@ class MethylAnalysis:
 
     def _get_coordinates(self, sample_id: str) -> pd.Series:
         """Returns UMAP 2D embedding coordinates."""
+        if self.umap_df is None:
+            raise ValueError("'umap_df' not set")
         return self.umap_df[self.umap_df.index == sample_id].iloc[0][
             ["Umap_x", "Umap_y"]
         ]
