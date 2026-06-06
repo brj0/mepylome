@@ -206,7 +206,9 @@ def _test_raw_data(
     assert str(raw_data) is not None
     assert str(raw_data.manifest) is not None
 
-    npt.assert_array_equal(raw_data.ids, ids, err_msg="Mismatch in IDs array")
+    npt.assert_array_equal(
+        raw_data.illumina_ids, ids, err_msg="Mismatch in IDs array"
+    )
     npt.assert_array_equal(
         raw_data._grn,
         np.array([pair.data_grn["probe_means"] for pair in idat_pairs]),
@@ -217,9 +219,9 @@ def _test_raw_data(
         np.array([pair.data_red["probe_means"] for pair in idat_pairs]),
         err_msg="Mismatch in Red channel array",
     )
-    assert raw_data.probes == [pair.basepath.name for pair in idat_pairs], (
-        "Mismatch in probe name"
-    )
+    assert raw_data.sample_ids == [
+        pair.basepath.name for pair in idat_pairs
+    ], "Mismatch in sample ids"
     assert raw_data.array_type == manifest.array_type, "Mismatch in array type"
 
     if manifest.array_type == ArrayType.UNKNOWN:

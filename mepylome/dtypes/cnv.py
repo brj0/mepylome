@@ -562,7 +562,7 @@ class CNV:
     coef: np.ndarray
     detail: pr.PyRanges | None
     noise: float
-    probe: str  # TODO: Change this variable name (sample_id?)
+    sample_id: str
     probes: pd.Index
     ratio: pd.DataFrame
     reference: "MethylData"
@@ -577,11 +577,11 @@ class CNV:
         reference: MethylData | ReferenceMethylData,
         annotation: Annotation | None = None,
     ) -> None:
-        if len(sample.probes) != 1:
-            msg = "sample must contain exactly 1 probe."
+        if len(sample.sample_ids) != 1:
+            msg = "sample must contain exactly 1 'sample_id'."
             raise ValueError(msg)
         self.sample = sample
-        self.probe = self.sample.probes[0]
+        self.sample_id = self.sample.sample_ids[0]
         if isinstance(reference, MethylData):
             self.reference = reference
         elif isinstance(reference, ReferenceMethylData):
@@ -667,12 +667,12 @@ class CNV:
         """Calculates intensity values from methylation data."""
         if getattr(methyl_data, "intensity", None) is not None:
             return
-        logger.debug("%s Setting intensity...", self.probe)
+        logger.debug("%s Setting intensity...", self.sample_id)
         intensity = methyl_data.methyl + methyl_data.unmethyl
         prefix = (
-            f"{self.probe}"
+            f"{self.sample_id}"
             if methyl_data == self.sample
-            else f"{self.reference.probes[0]},..."
+            else f"{self.reference.sample_ids[0]},..."
         )
 
         # Replace NaN values with 1
@@ -697,7 +697,7 @@ class CNV:
             )
         methyl_data.intensity = pd.DataFrame(
             intensity.T,
-            columns=methyl_data.probes,
+            columns=methyl_data.sample_ids,
             index=methyl_data.methyl_ilmnid,
         )
 
@@ -707,7 +707,7 @@ class CNV:
         This method fits a linear regression model to the intensity data of the
         sample and reference and calculates the CNV at every CpG site.
         """
-        logger.info("%s Performing fit...", self.probe)
+        logger.info("%s Performing fit...", self.sample_id)
         from sklearn.linear_model import LinearRegression
 
         assert self.sample.intensity is not None
@@ -723,7 +723,7 @@ class CNV:
         if any(correlation >= 0.99):
             logger.info(
                 "%s Sample found in reference set. Excluded from fitting.",
-                self.probe,
+                self.sample_id,
             )
             ref_intensity = ref_intensity[:, correlation < 0.99]
         X = np.log2(ref_intensity)
@@ -745,7 +745,7 @@ class CNV:
         by taking the median of the ratios obtained from the linear regression
         model fit in the 'fit' method.
         """
-        logger.info("%s Setting bins...", self.probe)
+        logger.info("%s Setting bins...", self.sample_id)
         cpg_bins = self.annotation._cpg_bins.copy()
         cpg_bins["ratio"] = _pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
@@ -766,7 +766,7 @@ class CNV:
         specified in the detail object. The result includes the median ratio,
         variance, and count of probes within each region.
         """
-        logger.info("%s Setting detail...", self.probe)
+        logger.info("%s Setting detail...", self.sample_id)
         cpg_detail = self.annotation._cpg_detail.copy()
         cpg_detail["ratio"] = _pd_loc(
             self.ratio, cpg_detail.IlmnID
@@ -824,7 +824,7 @@ class CNV:
         """
         if _get_cgsegment() is None:
             return
-        logger.info("%s Setting segments...", self.probe)
+        logger.info("%s Setting segments...", self.sample_id)
         segments = pr.PyRanges(
             self.bins.groupby("Chromosome")
             .apply(self._get_segments)
@@ -869,7 +869,7 @@ class CNV:
         Raises:
             ValueError: If an invalid data option is specified.
         """
-        logger.info("%s Write data to disk...", self.probe)
+        logger.info("%s Write data to disk...", self.sample_id)
         default = {"all", "bins", "detail", "segments", "metadata"}
         if not isinstance(data, list):
             data = [data]
@@ -913,10 +913,10 @@ class CNV:
 
     def plot(self) -> None:
         """Generates and displays a plot of the CNV data."""
-        logger.info("%s Plotting...", self.probe)
+        logger.info("%s Plotting...", self.sample_id)
         cnv_dir = Path(MEPYLOME_TMP_DIR, "cnv_zips")
         ensure_directory_exists(cnv_dir)
-        cnv_file = self.probe + ZIP_ENDING
+        cnv_file = self.sample_id + ZIP_ENDING
         cnv_path = Path(cnv_dir, cnv_file)
         if "Median" not in self.bins.columns:
             self.set_bins()
@@ -930,8 +930,8 @@ class CNV:
         title = "CNV():"
         lines = [
             title + "\n" + "*" * len(title),
-            f"sample:\n{self.sample.probes}",
-            f"reference:\n{self.reference.probes}",
+            f"sample:\n{self.sample.sample_ids}",
+            f"reference:\n{self.reference.sample_ids}",
             f"_ratio: {self._ratio}",
             f"bins:\n{self.bins}",
             f"detail:\n{self.detail}",
