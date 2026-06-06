@@ -7,15 +7,9 @@ from typing import Any
 
 import dash_bootstrap_components as dbc
 import numpy as np
-from dash import (
-    dcc,
-    html,
-)
+from dash import dcc, html
 
-from mepylome.dtypes import (
-    Annotation,
-    PrepType,
-)
+from mepylome.dtypes import Annotation, PrepType
 
 logger = logging.getLogger(__name__)
 

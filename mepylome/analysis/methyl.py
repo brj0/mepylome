@@ -21,12 +21,8 @@ import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from dash import (
-    Dash,
-)
-from sklearn.model_selection import (
-    StratifiedKFold,
-)
+from dash import Dash
+from sklearn.model_selection import StratifiedKFold
 
 from mepylome import LOG_FILE
 from mepylome.analysis.methyl_aux import (

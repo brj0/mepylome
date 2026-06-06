@@ -25,9 +25,7 @@ from mepylome import LOG_FILE
 from mepylome.analysis.methyl_aux import INVALID_PATH
 from mepylome.analysis.methyl_layout import ON, get_navbar, get_side_navigation
 from mepylome.analysis.methyl_plots import EMPTY_FIGURE
-from mepylome.dtypes import (
-    PrepType,
-)
+from mepylome.dtypes import PrepType
 from mepylome.utils import (
     MEPYLOME_TMP_DIR,
     ensure_directory_exists,
