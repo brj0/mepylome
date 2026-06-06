@@ -22,7 +22,7 @@ import yaml
 import mepylome
 from mepylome import ArrayType, Manifest
 from mepylome.analysis import MethylAnalysis
-from mepylome.analysis.methyl_clf import make_classifier_report_page
+from mepylome.analysis.classifiers import make_classifier_report_page
 from mepylome.cli import get_app_version
 from mepylome.dtypes.manifests import (
     DOWNLOAD_DIR,

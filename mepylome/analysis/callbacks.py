@@ -22,9 +22,9 @@ from dash import (
 )
 
 from mepylome import LOG_FILE
-from mepylome.analysis.methyl_aux import INVALID_PATH
-from mepylome.analysis.methyl_layout import ON, get_navbar, get_side_navigation
-from mepylome.analysis.methyl_plots import EMPTY_FIGURE
+from mepylome.analysis.layout import ON, get_navbar, get_side_navigation
+from mepylome.analysis.plots import EMPTY_FIGURE
+from mepylome.analysis.utils import INVALID_PATH
 from mepylome.dtypes import PrepType
 from mepylome.utils import (
     MEPYLOME_TMP_DIR,
@@ -32,7 +32,7 @@ from mepylome.utils import (
 )
 
 if TYPE_CHECKING:
-    from mepylome.analysis.methyl import MethylAnalysis
+    from mepylome.analysis.core import MethylAnalysis
 
 logger = logging.getLogger(__name__)
 

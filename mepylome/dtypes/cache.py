@@ -270,14 +270,11 @@ def clear_cache() -> None:
         find_genes_within_bins._cache.clear()
         logger.info("Cleared cache for: cnv_grid, find_genes_within_bins")
 
-    if "mepylome.methyl_plots" in loaded:
-        from .methyl_plots import get_cnv_plot, get_reference_methyl_data
+    if "mepylome.analysis.plots" in loaded:
+        from mepylome.analysis.plots import get_cnv_plot
 
         get_cnv_plot.cache_clear()
-        get_reference_methyl_data.cache_clear()
-        logger.info(
-            "Cleared cache for: get_cnv_plot, get_reference_methyl_data"
-        )
+        logger.info("Cleared cache for: get_cnv_plot")
 
     if sys.platform.startswith("linux"):
         try:

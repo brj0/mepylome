@@ -1171,7 +1171,7 @@ or apply additional functionality.
 .. code-block:: python
 
     >>> # Define a Custom Classifier
-    >>> from mepylome.analysis.methyl_clf import TrainedClassifier
+    >>> from mepylome.analysis.classifiers import TrainedClassifier
 
 
     >>> class CustomClassifier(TrainedClassifier):

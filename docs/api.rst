@@ -29,24 +29,24 @@ mepylome.dtypes.cnv
 .. automodule:: mepylome.dtypes.cnv
    :members:
 
-mepylome.analysis.methyl
-------------------------
+mepylome.analysis.core
+----------------------
 
-.. automodule:: mepylome.analysis.methyl
-.. autoclass:: mepylome.analysis.methyl.MethylAnalysis
+.. automodule:: mepylome.analysis.core
+.. autoclass:: mepylome.analysis.core.MethylAnalysis
    :members:
 
-mepylome.analysis.methyl_aux
-----------------------------
+mepylome.analysis.utils
+-----------------------
 
-.. automodule:: mepylome.analysis.methyl_aux
-.. autoclass:: mepylome.analysis.methyl_aux.IdatHandler
+.. automodule:: mepylome.analysis.utils
+.. autoclass:: mepylome.analysis.utils.IdatHandler
    :members:
 
 
-mepylome.analysis.methyl_clf
-----------------------------
+mepylome.analysis.classifiers
+-----------------------------
 
-.. automodule:: mepylome.analysis.methyl_clf
-.. autoclass:: mepylome.analysis.methyl_clf.fit_and_evaluate_clf
+.. automodule:: mepylome.analysis.classifiers
+.. autoclass:: mepylome.analysis.classifiers.fit_and_evaluate_clf
    :members:

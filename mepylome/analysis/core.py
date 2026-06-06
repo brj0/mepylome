@@ -25,7 +25,22 @@ from dash import Dash
 from sklearn.model_selection import StratifiedKFold
 
 from mepylome import LOG_FILE
-from mepylome.analysis.methyl_aux import (
+from mepylome.analysis.callbacks import (
+    DEFAULT_OUTPUT_DIR,
+    build_layout,
+    register_callbacks,
+)
+from mepylome.analysis.classifiers import (
+    ClassifierResult,
+    fit_and_evaluate_clf,
+)
+from mepylome.analysis.plots import (
+    EMPTY_FIGURE,
+    get_cnv_plot,
+    umap_plot_from_data,
+    write_cnv_to_disk,
+)
+from mepylome.analysis.utils import (
     INVALID_PATH,
     IdatHandler,
     ProgressBar,
@@ -35,21 +50,6 @@ from mepylome.analysis.methyl_aux import (
     read_dataframe,
     reordered_cpgs_by_variance,
     reordered_cpgs_by_variance_online,
-)
-from mepylome.analysis.methyl_callbacks import (
-    DEFAULT_OUTPUT_DIR,
-    build_layout,
-    register_callbacks,
-)
-from mepylome.analysis.methyl_clf import (
-    ClassifierResult,
-    fit_and_evaluate_clf,
-)
-from mepylome.analysis.methyl_plots import (
-    EMPTY_FIGURE,
-    get_cnv_plot,
-    umap_plot_from_data,
-    write_cnv_to_disk,
 )
 from mepylome.dtypes import (
     ArrayType,
@@ -285,7 +285,7 @@ class MethylAnalysis:
                 - A scikit-learn classifier object (trained or untrained).
                 - A string in the format `"scaler-selector-classifier"`. See
                   the documentation of `fit_and_evaluate_clf` in
-                  `mepylome.analysis.methyl_clf` for all valid values.
+                  `mepylome.analysis.classifiers` for all valid values.
                 - A custom class, that inherits from `TrainedClassifier`.
 
         cv_default (int or cross-validation generator, optional): Determines

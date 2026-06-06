@@ -469,7 +469,7 @@ def start_mepylome() -> None:
 
         print_welcome_message()
 
-        from mepylome.analysis.methyl import MethylAnalysis
+        from mepylome.analysis.core import MethylAnalysis
 
         if cli_args["tutorial"]:  # BUG: use_gpu not working for tutorial
             from mepylome.utils import setup_tutorial_files
