@@ -13,9 +13,11 @@ import shutil
 import socket
 import sys
 import time
+from collections.abc import Callable
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 from uuid import uuid4
 
@@ -96,22 +98,46 @@ def make_log_file(prefix: str) -> Path:
 
 
 class Timer:
-    """Measures the time elapsed in milliseconds."""
+    """Lightweight high-resolution timer (ms) for performance tests."""
 
-    def __init__(self) -> None:
-        self.time0 = time.time()
+    def __init__(self, *, log: Callable[[str], None] | None = print) -> None:
+        self._t0 = time.perf_counter()
+        self._log = log
 
     def start(self) -> None:
-        """Resets timer."""
-        self.time0 = time.time()
+        """Reset timer."""
+        self._t0 = time.perf_counter()
 
-    def stop(self, text: str | None = None) -> float:
-        """Resets timer and return elapsed time."""
-        delta_time = 1000 * (time.time() - self.time0)
-        comment = "" if text is None else "(" + text + ")"
-        print("Time passed:", delta_time, "ms", comment)
-        self.time0 = time.time()
-        return delta_time
+    def elapsed(self) -> float:
+        """Return elapsed time in milliseconds (without resetting)."""
+        return (time.perf_counter() - self._t0) * 1_000
+
+    def stop(self, text: str | None = None, *, reset: bool = True) -> float:
+        """Return elapsed time in ms, optionally log and reset."""
+        dt = self.elapsed()
+
+        if self._log is not None:
+            msg = f"{dt:.3f} ms"
+            if text:
+                msg = f"{text}: {msg}"
+            self._log(msg)
+
+        if reset:
+            self._t0 = time.perf_counter()
+
+        return dt
+
+    def __enter__(self) -> "Timer":
+        self.start()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.stop()
 
 
 def huber(
