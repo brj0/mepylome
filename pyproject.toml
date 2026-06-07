@@ -27,7 +27,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "dash>=2.16.0,<3.1.0",
+    "dash>=2.16.0",
     "dash_bootstrap_components",
     "numpy",
     "odfpy",
@@ -40,7 +40,7 @@ dependencies = [
     "tqdm",
     "toml",
     "umap-learn",
-    "numba<0.62", # 0.62 leads to bad clustering with umap
+    "numba",
     "xlrd",
     "xxhash"
 ]
