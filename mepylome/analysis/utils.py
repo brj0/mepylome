@@ -920,7 +920,9 @@ def extract_beta(data: tuple[Path, PrepType, BetasHandler]) -> None:
         betas_handler.add(betas, idat_file.name, array_type)
     except Exception as error:
         betas_handler.add_error(idat_file.name, error)
-        print(f"The following error occured for {idat_file.name}: {error}")
+        logger.error(
+            "The following error occurred for %s: %s", idat_file.name, error
+        )
 
 
 def ensure_betas_exist(
