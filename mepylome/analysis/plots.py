@@ -253,9 +253,8 @@ def write_cnv_to_disk(
 ) -> None:
     """Generate and save CNV-analysis output files for given samples.
 
-    Saves CNV data with a ZIP_ENDING extension, or an error message with an
-    ERROR_ENDING extension. Processes unseen samples, avoiding existing CNV and
-    samples that lead to an error. Uses single-threading for one sample, and
+    Saves CNV data with a ZIP_ENDING extension. Processes unseen samples,
+    avoiding existing CNV. Uses single-threading for one sample, and
     multi-threading for multiple samples.
 
     Args:
@@ -273,8 +272,7 @@ def write_cnv_to_disk(
         x
         for x in sample_path
         if not Path(cnv_dir, str(x.name) + ZIP_ENDING).exists()
-        and not Path(cnv_dir, str(x.name) + ERROR_ENDING).exists()
-    ]  # BUG: Error files prevent recalculation
+    ]
 
     if len(new_idat_paths) == 0:
         return
