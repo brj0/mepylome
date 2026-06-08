@@ -429,21 +429,27 @@ IPImage(filename=output_path)
 # on platforms like Google Colab or Binder.
 
 # %%
-# To make it work in Colab, set up the proxy iframe and launch manually
-if "google.colab" in sys.modules:
-    from google.colab import output
-
-    output.serve_kernel_port_as_iframe(analysis.port, height="800")
-
-    app = analysis.get_app()
-    app.run(
-        debug=analysis.debug,
-        host=analysis.host,
-        use_reloader=False,
-        port=analysis.port,
-    )
-else:
+if "google.colab" not in sys.modules:
     analysis.run_app(open_tab=True)
+
+# Google Colab users:
+# Uncomment the code below if you want to run Dash inside Colab.
+# Note that performance can be poor and browser integration may be unreliable.
+
+# import sys
+#
+# if "google.colab" in sys.modules:
+#     from google.colab import output
+#
+#     output.serve_kernel_port_as_iframe(analysis.port, height="800")
+#
+#     app = analysis.get_app()
+#     app.run(
+#         debug=analysis.debug,
+#         host=analysis.host,
+#         use_reloader=False,
+#         port=analysis.port,
+#     )
 
 # %% [markdown]
 # On memory-limited platforms such as Google Colab, we need to manually free up
