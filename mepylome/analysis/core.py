@@ -84,7 +84,7 @@ VERBOSITY_LEVELS = {
 class DualOutput:
     """Enables to simultaneously write output to the terminal and file.
 
-    Should only be used with `while` as it leads to print problems with
+    Should only be used as context manager as it leads to print problems with
     jupyter notebooks.
     """
 

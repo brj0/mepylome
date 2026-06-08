@@ -607,8 +607,8 @@ class CNV:
                 "All must be the same."
             )
             raise ValueError(msg)
-        self.set_itensity(self.sample)
-        self.set_itensity(self.reference)
+        self.set_intensity(self.sample)
+        self.set_intensity(self.reference)
         self.bins = self.annotation.bins
         self.probes = self.annotation.adjusted_manifest.IlmnID
         self.detail = None
@@ -663,7 +663,7 @@ class CNV:
             cnv.set_segments()
         return cnv
 
-    def set_itensity(self, methyl_data: "MethylData") -> None:
+    def set_intensity(self, methyl_data: "MethylData") -> None:
         """Calculates intensity values from methylation data."""
         if getattr(methyl_data, "intensity", None) is not None:
             return
@@ -685,7 +685,7 @@ class CNV:
         lt_one_indices = intensity < 1
         if np.any(lt_one_indices):
             intensity[lt_one_indices] = 1
-            logger.debug("%s: Intensities < 0 set to 1", prefix)
+            logger.debug("%s: Intensities < 1 set to 1", prefix)
 
         # Check abnormal low and high intensities
         mean_intensity = np.mean(intensity, axis=1)

@@ -1041,7 +1041,7 @@ class MethylData:
             pandas.DataFrame: DataFrame containing beta values for specified
                 CpGs.
 
-        Nore:
+        Note:
             If 'cpgs' is None, all CpGs from the used manifest are considered.
         """
         if cpgs is None:
@@ -1098,6 +1098,20 @@ class MethylData:
         cpgs: Sequence | np.ndarray | None = None,
         fill: float = NEUTRAL_M_VALUE,
     ) -> pd.DataFrame:
+        """Calculates m-values for specified CpG sites.
+
+        Args:
+            cpgs (array-like): Array of CpG IDs.
+            fill (float): Value to fill for CpGs not found in the used
+                manifest or equal to NaN.
+
+        Returns:
+            pandas.DataFrame: DataFrame containing m-values for specified
+                CpGs.
+
+        Note:
+            If 'cpgs' is None, all CpGs from the used manifest are considered.
+        """
         if cpgs is None:
             cpgs = self.manifest.methylation_probes
 
