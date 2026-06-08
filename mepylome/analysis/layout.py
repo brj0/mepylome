@@ -108,6 +108,7 @@ def get_side_navigation(
     tabs = [
         dbc.Tab(
             label="Setting",
+            tab_id="tab-setting",
             children=[
                 dcc.Store(id="running-state"),
                 dcc.Interval(
@@ -267,6 +268,7 @@ def get_side_navigation(
         ),
         dbc.Tab(
             label="UMAP",
+            tab_id="tab-umap",
             children=[
                 html.Br(),
                 html.H5("Determine UMAP settings."),
@@ -304,6 +306,7 @@ def get_side_navigation(
         ),
         dbc.Tab(
             label="Highlight",
+            tab_id="tab-highlight",
             children=[
                 html.Br(),
                 html.Br(),
@@ -344,6 +347,7 @@ def get_side_navigation(
         ),
         dbc.Tab(
             label="Upload",
+            tab_id="tab-upload",
             children=[
                 html.Br(),
                 html.Span(
@@ -399,6 +403,7 @@ def get_side_navigation(
         ),
         dbc.Tab(
             label="Classify",
+            tab_id="tab-classify",
             children=[
                 html.Br(),
                 html.H6("Classifiers to use"),
@@ -440,4 +445,7 @@ def get_side_navigation(
             ],
         ),
     ]
-    return dbc.Col([dbc.Tabs(tabs)], width={"size": 2})
+    return dbc.Col(
+        [dbc.Tabs(tabs, id="side-tab", active_tab="tab-setting")],
+        width={"size": 2},
+    )
