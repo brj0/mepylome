@@ -108,8 +108,8 @@ manifest_msa48 = Manifest("msa48")
 # .. note::
 #
 #     The first time you run this, the manifest files will be downloaded and
-#     saved locally to ~/.cache/mepylome/manifests. This initial download might take some
-#     time.
+#     saved locally to ~/.cache/mepylome/manifests. This initial download might
+#     take some time.
 
 # Obtain values from attributes:
 probes_df = manifest_450k.data_frame
