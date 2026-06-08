@@ -58,6 +58,7 @@
 # ### Run Tutorial
 
 # %%
+import sys
 from pathlib import Path
 
 from mepylome.analysis import MethylAnalysis
@@ -80,4 +81,19 @@ analysis.make_umap()
 # ### Graphical User Interface
 
 # %%
-analysis.run_app(open_tab=True)
+
+# If in Colab, set up the proxy iframe and launch manually
+if "google.colab" in sys.modules:
+    from google.colab import output
+
+    output.serve_kernel_port_as_iframe(analysis.port, height="800")
+
+    app = analysis.get_app()
+    app.run(
+        debug=analysis.debug,
+        host=analysis.host,
+        use_reloader=False,
+        port=analysis.port,
+    )
+else:
+    analysis.run_app(open_tab=True)
