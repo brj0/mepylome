@@ -506,6 +506,24 @@ def _pd_loc(pd_df: pd.DataFrame, pd_col: pd.Series | pd.Index) -> pd.DataFrame:
     return pd_df.iloc[cached_index(pd_df.index, pd_col.values)]
 
 
+def _vec_correlation(x: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    """Correlate vector x against every column of matrix Y.
+
+    Equivalent to [np.corrcoef(x, col)[0, 1] for col in Y.T] but
+    faster.
+
+    Args:
+        x: 1-D array of length n.
+        Y: 2-D array of shape (n, m).
+
+    Returns:
+        1-D array of length m with Pearson correlations.
+    """
+    x_c = x - x.mean()
+    Y_c = Y - Y.mean(axis=0)
+    return (x_c @ Y_c) / np.sqrt((x_c**2).sum() * (Y_c**2).sum(axis=0))
+
+
 class CNV:
     """Class for Copy Number Variation (CNV) analysis.
 
@@ -712,14 +730,11 @@ class CNV:
 
         assert self.sample.intensity is not None
         assert self.reference.intensity is not None
-        smp_intensity = _pd_loc(
-            self.sample.intensity, self.probes
-        ).values.ravel()
-        idx = _pd_loc(self.sample.intensity, self.probes).index
+        smp_loc = _pd_loc(self.sample.intensity, self.probes)
+        smp_intensity = smp_loc.values.ravel()
+        idx = smp_loc.index
         ref_intensity = _pd_loc(self.reference.intensity, self.probes).values
-        correlation = np.array(
-            [np.corrcoef(smp_intensity, z)[0, 1] for z in ref_intensity.T]
-        )
+        correlation = _vec_correlation(smp_intensity, ref_intensity)
         if any(correlation >= 0.99):
             logger.info(
                 "%s Sample found in reference set. Excluded from fitting.",
