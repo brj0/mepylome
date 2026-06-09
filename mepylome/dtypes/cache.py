@@ -7,7 +7,7 @@ performance by storing and reusing computed results.
 import inspect
 import logging
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
@@ -19,18 +19,24 @@ logger = logging.getLogger(__name__)
 
 R_co = TypeVar("R_co", covariant=True)
 
+_SAMPLE_LEN = 64
 
-def np_hash(array: np.ndarray) -> bytes | tuple:
-    """Generates a hashable key for a NumPy array.
 
-    This function creates a hashable key from a NumPy array by converting it to
-    bytes if the data type is not an object. If the array's data type is an
-    object (used for IlmnID), it samples 57 evenly spaced elements from the
-    array along with the last element and combines them into a tuple with the
-    array's length to form the key.
+def _sample_indices(n: int) -> tuple[int, ...]:
+    if n <= _SAMPLE_LEN:
+        return tuple(range(n))
+    step = max(1, n // _SAMPLE_LEN)
+    return tuple(i * step for i in range(_SAMPLE_LEN - 1)) + (n - 1,)
+
+
+def np_hash(array: Sequence) -> bytes | tuple:
+    """Generates a hashable key for a NumPy array or pandas ExtensionArray.
+
+    Returns raw bytes for numeric dtypes (zero-copy), or a sampled tuple
+    for object arrays (where .tobytes() is unsafe).
 
     Args:
-        array (numpy.ndarray): The input array for which to generate the
+        array (numpy.ndarray, Any): The input array for which to generate the
             hashable key.
 
     Returns:
@@ -43,20 +49,32 @@ def np_hash(array: np.ndarray) -> bytes | tuple:
         >>> arr = np.array([1, 2, 3, 4, 5])
         >>> np_hash(arr)
     """
-    if array.dtype != np.dtype(object):
+    # numpy arrays
+    if isinstance(array, np.ndarray) and array.dtype != np.dtype(object):
         return array.tobytes()
-    full_len = len(array)
-    sample_len = 57
-    idx_left = [i * full_len // sample_len for i in range(sample_len)] + [-1]
-    return (
-        tuple(array[x] for x in idx_left),
-        full_len,
-    )
+
+    n = len(array)
+    idx = _sample_indices(n)
+    return tuple(array[i] for i in idx), n
 
 
 def pd_hash(data_frame: pd.DataFrame) -> tuple:
     """Generates a hashable key for a pandas DataFrame."""
-    return (tuple(np_hash(data_frame[col].values) for col in data_frame),)
+    return tuple(np_hash(data_frame[col].values) for col in data_frame)
+
+
+def index_hash(idx: pd.Index) -> bytes | tuple:
+    """Generates a hashable key for pandas Index.
+
+    Collisions may occur in theory.
+    """
+    values = idx.values
+    if isinstance(values, np.ndarray):
+        return values.tobytes()
+    # pandas StringArray / ExtensionArray fallback
+    n = len(values)
+    idx = _sample_indices(n)
+    return tuple(values[i] for i in idx), n
 
 
 def cache_key(*args: Any) -> Any | tuple[Any, ...]:
@@ -85,7 +103,7 @@ def cache_key(*args: Any) -> Any | tuple[Any, ...]:
         "NoneType": str,
         "str": str,
         "RangeIndex": lambda x: x.values.tobytes(),
-        "Index": lambda x: x.values.tobytes(),
+        "Index": index_hash,
         "ndarray": np_hash,
         "DataFrame": pd_hash,
     }
