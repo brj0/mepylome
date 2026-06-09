@@ -478,20 +478,16 @@ class Manifest:
             "I": InfiniumDesignType.TYPE_I,
             "II": InfiniumDesignType.TYPE_II,
         }
-        with pd.option_context("future.no_silent_downcasting", True):
-            if "Color_Channel" in data_frame.columns:
-                data_frame["Color_Channel"] = (
-                    data_frame["Color_Channel"]
-                    .replace(channel_to_int)
-                    .infer_objects()
-                )
 
-            if "Infinium_Design_Type" in data_frame.columns:
-                data_frame["Infinium_Design_Type"] = (
-                    data_frame["Infinium_Design_Type"]
-                    .replace(design_type_map)
-                    .infer_objects()
-                )
+        if "Color_Channel" in data_frame.columns:
+            data_frame["Color_Channel"] = data_frame["Color_Channel"].map(
+                channel_to_int
+            )
+
+        if "Infinium_Design_Type" in data_frame.columns:
+            data_frame["Infinium_Design_Type"] = data_frame[
+                "Infinium_Design_Type"
+            ].map(design_type_map)
 
         data_frame["TypeI_N_CpG"] = 0
         data_frame["TypeII_N_CpG"] = 0
