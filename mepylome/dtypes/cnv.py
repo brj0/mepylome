@@ -625,8 +625,6 @@ class CNV:
                 "All must be the same."
             )
             raise ValueError(msg)
-        self.set_intensity(self.sample)
-        self.set_intensity(self.reference)
         self.bins = self.annotation.bins
         self.probes = self.annotation.adjusted_manifest.IlmnID
         self.detail = None
@@ -681,44 +679,6 @@ class CNV:
             cnv.set_segments()
         return cnv
 
-    def set_intensity(self, methyl_data: "MethylData") -> None:
-        """Calculates intensity values from methylation data."""
-        if getattr(methyl_data, "intensity", None) is not None:
-            return
-        logger.debug("%s Setting intensity...", self.sample_id)
-        intensity = methyl_data.methyl + methyl_data.unmethyl
-        prefix = (
-            f"{self.sample_id}"
-            if methyl_data == self.sample
-            else f"{self.reference.sample_ids[0]},..."
-        )
-
-        # Replace NaN values with 1
-        nan_indices = np.isnan(intensity)
-        if np.any(nan_indices):
-            intensity[nan_indices] = 1
-            logger.debug("%s: Intensities that are NA set to 1", prefix)
-
-        # Replace values less than 1 with 1
-        lt_one_indices = intensity < 1
-        if np.any(lt_one_indices):
-            intensity[lt_one_indices] = 1
-            logger.debug("%s: Intensities < 1 set to 1", prefix)
-
-        # Check abnormal low and high intensities
-        mean_intensity = np.mean(intensity, axis=1)
-        if np.min(mean_intensity) < 5000:
-            logger.info("%s: Intensities are abnormally low (< 5000)", prefix)
-        if np.max(mean_intensity) > 50000:
-            logger.info(
-                "%s: Intensities are abnormally high (> 50000)", prefix
-            )
-        methyl_data.intensity = pd.DataFrame(
-            intensity.T,
-            columns=methyl_data.sample_ids,
-            index=methyl_data.methyl_ilmnid,
-        )
-
     def fit(self) -> None:
         """Fits linear regression model to calculate CNV at every CpG site.
 
@@ -728,8 +688,6 @@ class CNV:
         logger.info("%s Performing fit...", self.sample_id)
         from sklearn.linear_model import LinearRegression
 
-        assert self.sample.intensity is not None
-        assert self.reference.intensity is not None
         smp_loc = _pd_loc(self.sample.intensity, self.probes)
         smp_intensity = smp_loc.values.ravel()
         idx = smp_loc.index

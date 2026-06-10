@@ -5,6 +5,7 @@ preprocessing techniques, normalization, and data handling.
 """
 
 import collections
+import logging
 import os
 import pickle
 import threading
@@ -27,6 +28,8 @@ from mepylome.dtypes.idat import IdatParser
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.probes import Channel, ProbeType
 from mepylome.utils.varia import MEPYLOME_CACHE_DIR, normexp_get_xs
+
+logger = logging.getLogger(__name__)
 
 ENDING_GRN = "_Grn.idat"
 ENDING_RED = "_Red.idat"
@@ -394,7 +397,6 @@ class MethylData:
     sample_ids: list[str]
     seed: int | None
     unmethyl: np.ndarray
-    intensity: pd.DataFrame | None
 
     _grn: np.ndarray
     _grn_df: pd.DataFrame | None
@@ -402,6 +404,7 @@ class MethylData:
     _red: np.ndarray
     _red_df: pd.DataFrame | None
     _unmethylated_df: pd.DataFrame | None
+    _intensity: np.ndarray | None
 
     def __init__(
         self,
@@ -427,11 +430,11 @@ class MethylData:
         self.manifest = data.manifest
         self.sample_ids = data.sample_ids
         self.data = data
-        self.intensity = None
         self._grn_df = None
         self._red_df = None
         self._methylated_df = None
         self._unmethylated_df = None
+        self._intensity = None
         if prep == "illumina":
             self.preprocess_illumina()
         elif prep == "swan":
@@ -493,6 +496,47 @@ class MethylData:
             )
             self._unmethylated_df.index.name = "IlmnID"
         return self._unmethylated_df
+
+    @property
+    def intensity(self) -> np.ndarray:
+        """Calculates intensity values from methylation data."""
+        if self._intensity is None:
+            logger.debug("Setting intensity for: %s", self.sample_ids)
+            intensity = self.methyl + self.unmethyl
+
+            # Replace NaN values with 1
+            nan_indices = np.isnan(intensity)
+            if np.any(nan_indices):
+                intensity[nan_indices] = 1
+                logger.debug(
+                    "%s: Intensities that are NA set to 1", self.sample_ids
+                )
+
+            # Replace values less than 1 with 1
+            lt_one_indices = intensity < 1
+            if np.any(lt_one_indices):
+                intensity[lt_one_indices] = 1
+                logger.debug("%s: Intensities < 1 set to 1", self.sample_ids)
+
+            # Check abnormal low and high intensities
+            mean_intensity = np.mean(intensity, axis=1)
+            if np.min(mean_intensity) < 5000:
+                logger.info(
+                    "%s: Intensities are abnormally low (< 5000)",
+                    self.sample_ids,
+                )
+            if np.max(mean_intensity) > 50000:
+                logger.info(
+                    "%s: Intensities are abnormally high (> 50000)",
+                    self.sample_ids,
+                )
+            self._intensity = intensity
+
+        return pd.DataFrame(
+            self._intensity.T,
+            columns=self.sample_ids,
+            index=self.methyl_ilmnid,
+        )
 
     def preprocess_illumina(self) -> None:
         """Performs preprocessing usings Illuminas method.
@@ -1168,11 +1212,10 @@ class MethylData:
             f"_red:\n{self._red}",
             f"grn:\n{self.grn}",
             f"red:\n{self.red}",
+            f"intensity:\n{self.intensity}",
             f"methylated:\n{self.methylated}",
             f"unmethylated:\n{self.unmethylated}",
         ]
-        if hasattr(self, "intensity"):
-            lines.append(f"intensity:\n{self.intensity}")
         return "\n\n".join(lines)
 
 
