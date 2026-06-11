@@ -501,27 +501,24 @@ def cached_index(left_arr: pd.Index, right_arr: pd.Index) -> np.ndarray:
     return left_arr.get_indexer(right_arr)
 
 
-def _pd_loc(pd_df: pd.DataFrame, pd_col: pd.Series | pd.Index) -> pd.DataFrame:
-    """Cached version of pd_df.loc[pd_col] to speed up computation."""
-    return pd_df.iloc[cached_index(pd_df.index, pd_col.values)]
-
-
-def _vec_correlation(x: np.ndarray, Y: np.ndarray) -> np.ndarray:
-    """Correlate vector x against every column of matrix Y.
-
-    Equivalent to [np.corrcoef(x, col)[0, 1] for col in Y.T] but
-    faster.
+def _linear_regression(
+    X: np.ndarray, y: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Fit OLS regression with intercept in last column of X.
 
     Args:
-        x: 1-D array of length n.
-        Y: 2-D array of shape (n, m).
+        X: Design matrix of shape (n, m+1), intercept in last column.
+        y: Target vector of shape (n,).
 
     Returns:
-        1-D array of length m with Pearson correlations.
+        y_pred: Clipped predictions of shape (n,).
+        coef: Coefficients of shape (m,), intercept excluded.
     """
-    x_c = x - x.mean()
-    Y_c = Y - Y.mean(axis=0)
-    return (x_c @ Y_c) / np.sqrt((x_c**2).sum() * (Y_c**2).sum(axis=0))
+    res = np.linalg.lstsq(X, y, rcond=None)[0]
+    _coef = res[:-1]
+    y_pred = X @ res
+    np.clip(y_pred, 0, None, out=y_pred)
+    return y_pred, _coef
 
 
 class CNV:
@@ -588,6 +585,7 @@ class CNV:
     segments: pd.DataFrame | None
 
     _ratio: np.ndarray
+    _ci_dict: dict | None
 
     def __init__(
         self,
@@ -629,6 +627,7 @@ class CNV:
         self.probes = self.annotation.adjusted_manifest.IlmnID
         self.detail = None
         self.segments = None
+        self._ci_dict = None
 
         self.fit()
 
@@ -679,6 +678,36 @@ class CNV:
             cnv.set_segments()
         return cnv
 
+    @memoize
+    def _cached_indices(
+        idx_sample: np.ndarray,
+        idx_reference: np.ndarray,
+        idx_probes: np.ndarray,
+        idx_bins: np.ndarray,
+        idx_detail: np.ndarray,
+    ) -> dict[str, np.ndarray]:
+        idx_sample_pd = pd.Index(idx_sample)
+        idx_reference_pd = pd.Index(idx_reference)
+        idx_probes_pd = pd.Index(idx_probes)
+        return {
+            "idx_fit_sample": idx_sample_pd.get_indexer(idx_probes),
+            "idx_fit_reference": idx_reference_pd.get_indexer(idx_probes),
+            "idx_bins": idx_probes_pd.get_indexer(idx_bins),
+            "idx_detail": idx_probes_pd.get_indexer(idx_detail),
+        }
+
+    @property
+    def _ci(self) -> dict[str, np.ndarray]:
+        if self._ci_dict is None:
+            self._ci_dict = CNV._cached_indices(
+                idx_sample=self.sample.methyl_ilmnid,
+                idx_reference=self.reference.methyl_ilmnid,
+                idx_probes=self.probes.values,
+                idx_bins=self.annotation._cpg_bins.IlmnID.values,
+                idx_detail=self.annotation._cpg_detail.IlmnID.values,
+            )
+        return self._ci_dict
+
     def fit(self) -> None:
         """Fits linear regression model to calculate CNV at every CpG site.
 
@@ -686,27 +715,22 @@ class CNV:
         sample and reference and calculates the CNV at every CpG site.
         """
         logger.info("%s Performing fit...", self.sample_id)
-        from sklearn.linear_model import LinearRegression
 
-        smp_loc = _pd_loc(self.sample.intensity, self.probes)
-        smp_intensity = smp_loc.values.ravel()
-        idx = smp_loc.index
-        ref_intensity = _pd_loc(self.reference.intensity, self.probes).values
-        correlation = _vec_correlation(smp_intensity, ref_intensity)
+        y = np.log2(self.sample.intensity_array)[
+            :, self._ci["idx_fit_sample"]
+        ].ravel()
+        X = self.reference.log_intensity_fit[self._ci["idx_fit_reference"]]
+        correlation = np.array([np.corrcoef(y, z)[0, 1] for z in X[:, :-1].T])
         if any(correlation >= 0.99):
             logger.info(
                 "%s Sample found in reference set. Excluded from fitting.",
                 self.sample_id,
             )
-            ref_intensity = ref_intensity[:, correlation < 0.99]
-        X = np.log2(ref_intensity)
-        y = np.log2(smp_intensity)
-        reg = LinearRegression().fit(X, y)
-        y_pred = reg.predict(X)
-        y_pred[y_pred < 0] = 0
-        self.coef = reg.coef_
+            X = X[:, correlation < 0.99]
+
+        y_pred, self.coef = _linear_regression(X, y)
         self._ratio = y - y_pred
-        self.ratio = pd.DataFrame({"ratio": self._ratio}, idx)
+        self.ratio = pd.DataFrame({"ratio": self._ratio}, self.probes)
         self.noise = np.sqrt(
             np.mean((self._ratio[1:] - self._ratio[:-1]) ** 2)
         )
@@ -720,7 +744,7 @@ class CNV:
         """
         logger.info("%s Setting bins...", self.sample_id)
         cpg_bins = self.annotation._cpg_bins.copy()
-        cpg_bins["ratio"] = _pd_loc(self.ratio, cpg_bins.IlmnID).ratio.values
+        cpg_bins["ratio"] = self._ratio[self._ci["idx_bins"]]
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
         )
@@ -741,9 +765,7 @@ class CNV:
         """
         logger.info("%s Setting detail...", self.sample_id)
         cpg_detail = self.annotation._cpg_detail.copy()
-        cpg_detail["ratio"] = _pd_loc(
-            self.ratio, cpg_detail.IlmnID
-        ).ratio.values
+        cpg_detail["ratio"] = self._ratio[self._ci["idx_detail"]]
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
         )

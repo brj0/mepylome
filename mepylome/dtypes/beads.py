@@ -405,6 +405,7 @@ class MethylData:
     _red_df: pd.DataFrame | None
     _unmethylated_df: pd.DataFrame | None
     _intensity: np.ndarray | None
+    _log_intensity_fit: np.ndarray | None
 
     def __init__(
         self,
@@ -435,6 +436,7 @@ class MethylData:
         self._methylated_df = None
         self._unmethylated_df = None
         self._intensity = None
+        self._log_intensity_fit = None
         if prep == "illumina":
             self.preprocess_illumina()
         elif prep == "swan":
@@ -498,8 +500,8 @@ class MethylData:
         return self._unmethylated_df
 
     @property
-    def intensity(self) -> np.ndarray:
-        """Calculates intensity values from methylation data."""
+    def intensity_array(self) -> np.ndarray:
+        """Calculates numpy intensity values from methylation data."""
         if self._intensity is None:
             logger.debug("Setting intensity for: %s", self.sample_ids)
             intensity = self.methyl + self.unmethyl
@@ -532,8 +534,37 @@ class MethylData:
                 )
             self._intensity = intensity
 
+        return self._intensity
+
+    @property
+    def log_intensity_fit(self) -> np.ndarray:
+        """log2 intensity with appended intercept column for linear regression.
+
+        Shape: (n_probes, n_samples + 1) - intercept in last column.
+        """
+        if self._log_intensity_fit is None:
+            log_intensity = np.log2(self.intensity_array)
+            self._log_intensity_fit = np.hstack(
+                [
+                    log_intensity.T,
+                    np.ones(
+                        (log_intensity.shape[1], 1),
+                        dtype=log_intensity.dtype,
+                    ),
+                ]
+            )
+        return self._log_intensity_fit
+
+    def load_log_intensity(self) -> None:
+        """Calculates log_intensity so this can be saved to disk."""
+        _ = self.log_intensity_fit
+        self._intensity = None
+
+    @property
+    def intensity(self) -> pd.DataFrame:
+        """Calculates DataFrame intensity values from methylation data."""
         return pd.DataFrame(
-            self._intensity.T,
+            self.intensity_array.T,
             columns=self.sample_ids,
             index=self.methyl_ilmnid,
         )
@@ -1327,6 +1358,7 @@ class ReferenceMethylData:
                 self._methyl_data[array_type] = MethylData(
                     raw_data, prep=self.prep
                 )
+                self._methyl_data[array_type].load_log_intensity()
 
             if self.save_to_disk:
                 # Save saving to disk
