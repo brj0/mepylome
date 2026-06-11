@@ -825,8 +825,11 @@ class CNV:
             .apply(self._get_segments)
             .reset_index()
         )
-        overlap = segments.join_overlaps(self.annotation.adjusted_manifest)
-        overlap["ratio"] = self.ratio.loc[overlap.IlmnID].values
+
+        adjusted_manifest = self.annotation.adjusted_manifest.copy()
+        adjusted_manifest["ratio"] = self._ratio
+        overlap = segments.join_overlaps(adjusted_manifest)
+
         result = (
             overlap.groupby(["Chromosome", "Start", "End"], dropna=False)[
                 "ratio"
