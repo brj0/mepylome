@@ -128,7 +128,7 @@ class Annotation:
     bin_size: int
     min_probes_per_bin: int
     chromsizes: dict[str, int]
-    adjusted_manifest: pr.PyRanges
+    _adjusted_manifest: pr.PyRanges
     _cpg_bins: pd.DataFrame
     _cpg_detail: pd.DataFrame
     _init_manifest: Manifest | None
@@ -257,13 +257,13 @@ class Annotation:
             )
             # PyRanges ranges start at 0
             manifest_df["Start"] -= 1
-            self.adjusted_manifest = pr.PyRanges(manifest_df)
+            self._adjusted_manifest = pr.PyRanges(manifest_df)
 
-            self.probes = self.adjusted_manifest["IlmnID"].values
+            self.probes = self._adjusted_manifest["IlmnID"].values
             self.bins = self.make_bins()
             self.bins["bins_index"] = np.arange(len(self.bins))
             self._cpg_bins = pd.DataFrame(
-                self.bins.join_overlaps(self.adjusted_manifest)[
+                self.bins.join_overlaps(self._adjusted_manifest)[
                     ["bins_index", "IlmnID"]
                 ].set_index("bins_index")
             )
@@ -271,7 +271,7 @@ class Annotation:
                 self._cpg_detail = pd.DataFrame(columns=["Name", "IlmnID"])
             else:
                 self._cpg_detail = pd.DataFrame(
-                    self.detail.join_overlaps(self.adjusted_manifest)[
+                    self.detail.join_overlaps(self._adjusted_manifest)[
                         ["Name", "IlmnID"]
                     ]
                 )
@@ -324,7 +324,7 @@ class Annotation:
     def merge_bins(self, bins: pr.PyRanges) -> pr.PyRanges:
         """Merges adjacent bins until all contain a minimum of probes."""
         bins = bins.count_overlaps(
-            self.adjusted_manifest, overlap_col="N_probes"
+            self._adjusted_manifest, overlap_col="N_probes"
         )
         merged = (
             bins.groupby("Chromosome")
@@ -484,7 +484,7 @@ class Annotation:
             f"gap:\n{self.gap}",
             f"detail:\n{self.detail}",
             f"array_type:\n{self.array_type}",
-            f"adjusted_manifest:\n{self.adjusted_manifest}",
+            f"_adjusted_manifest:\n{self._adjusted_manifest}",
             f"chromsizes:\n{self.chromsizes}",
             f"bins:\n{self.bins}",
         ]
@@ -615,7 +615,7 @@ class CNV:
             )
             raise ValueError(msg)
         self.bins = self.annotation.bins
-        self.probes = self.annotation.adjusted_manifest.IlmnID
+        self.probes = self.annotation._adjusted_manifest.IlmnID
         self.detail = None
         self.segments = None
         self._idx_cached = None
@@ -718,7 +718,7 @@ class CNV:
             :, self._idx["fit_sample"]
         ].ravel()
         X = self.reference.log_intensity_fit[self._idx["fit_reference"]]
-        correlation = np.array([np.corrcoef(y, z)[0, 1] for z in X[:, :-1].T])
+        correlation = np.corrcoef(y, X[:, :-1].T)[0, 1:]
         if any(correlation >= 0.99):
             logger.info(
                 "%s Sample found in reference set. Excluded from fitting.",
@@ -741,7 +741,7 @@ class CNV:
         model fit in the 'fit' method.
         """
         logger.info("%s Setting bins...", self.sample_id)
-        cpg_bins = self.annotation._cpg_bins.copy()
+        cpg_bins = self.annotation._cpg_bins
         cpg_bins["ratio"] = self._ratio[self._idx["bins"]]
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
@@ -762,7 +762,7 @@ class CNV:
         variance, and count of probes within each region.
         """
         logger.info("%s Setting detail...", self.sample_id)
-        cpg_detail = self.annotation._cpg_detail.copy()
+        cpg_detail = self.annotation._cpg_detail
         cpg_detail["ratio"] = self._ratio[self._idx["detail"]]
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
@@ -824,7 +824,7 @@ class CNV:
             .reset_index()
         )
 
-        adjusted_manifest = self.annotation.adjusted_manifest.copy()
+        adjusted_manifest = self.annotation._adjusted_manifest
         adjusted_manifest["ratio"] = self._ratio
         overlap = segments.join_overlaps(adjusted_manifest)
 
