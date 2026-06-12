@@ -491,15 +491,6 @@ class Annotation:
         return "\n\n".join(lines)
 
 
-@memoize
-def cached_index(left_arr: pd.Index, right_arr: pd.Index) -> np.ndarray:
-    """Cached indices to improve speed of pandas loc/iloc operations.
-
-    Return the cached indices of elements in left_array based on their presence
-    in right_array.
-    """
-    return left_arr.get_indexer(right_arr)
-
 
 def _linear_regression(
     X: np.ndarray, y: np.ndarray
@@ -585,7 +576,7 @@ class CNV:
     segments: pd.DataFrame | None
 
     _ratio: np.ndarray
-    _ci_dict: dict | None
+    _idx_cached: dict | None
 
     def __init__(
         self,
@@ -627,7 +618,7 @@ class CNV:
         self.probes = self.annotation.adjusted_manifest.IlmnID
         self.detail = None
         self.segments = None
-        self._ci_dict = None
+        self._idx_cached = None
 
         self.fit()
 
@@ -679,34 +670,41 @@ class CNV:
         return cnv
 
     @memoize
+    def _cached_index(left_arr: pd.Index, right_arr: pd.Index) -> np.ndarray:
+        """Cached index to improve speed of pandas iloc operations."""
+        return left_arr.get_indexer(right_arr)
+
+
+    @memoize
     def _cached_indices(
-        idx_sample: np.ndarray,
-        idx_reference: np.ndarray,
-        idx_probes: np.ndarray,
-        idx_bins: np.ndarray,
-        idx_detail: np.ndarray,
+        sample_ids: np.ndarray,
+        reference_ids: np.ndarray,
+        probes_ids: np.ndarray,
+        bins_ids: np.ndarray,
+        detail_ids: np.ndarray,
     ) -> dict[str, np.ndarray]:
-        idx_sample_pd = pd.Index(idx_sample)
-        idx_reference_pd = pd.Index(idx_reference)
-        idx_probes_pd = pd.Index(idx_probes)
+        """Cached indices for CNV pipeline steps."""
+        sample_idx = pd.Index(sample_ids)
+        reference_idx = pd.Index(reference_ids)
+        probes_idx = pd.Index(probes_ids)
         return {
-            "idx_fit_sample": idx_sample_pd.get_indexer(idx_probes),
-            "idx_fit_reference": idx_reference_pd.get_indexer(idx_probes),
-            "idx_bins": idx_probes_pd.get_indexer(idx_bins),
-            "idx_detail": idx_probes_pd.get_indexer(idx_detail),
+            "fit_sample": sample_idx.get_indexer(probes_ids),
+            "fit_reference": reference_idx.get_indexer(probes_ids),
+            "bins": probes_idx.get_indexer(bins_ids),
+            "detail": probes_idx.get_indexer(detail_ids),
         }
 
     @property
-    def _ci(self) -> dict[str, np.ndarray]:
-        if self._ci_dict is None:
-            self._ci_dict = CNV._cached_indices(
-                idx_sample=self.sample.methyl_ilmnid,
-                idx_reference=self.reference.methyl_ilmnid,
-                idx_probes=self.probes.values,
-                idx_bins=self.annotation._cpg_bins.IlmnID.values,
-                idx_detail=self.annotation._cpg_detail.IlmnID.values,
+    def _idx(self) -> dict[str, np.ndarray]:
+        if self._idx_cached is None:
+            self._idx_cached = CNV._cached_indices(
+                sample_ids=self.sample.methyl_ilmnid,
+                reference_ids=self.reference.methyl_ilmnid,
+                probes_ids=self.probes.values,
+                bins_ids=self.annotation._cpg_bins.IlmnID.values,
+                detail_ids=self.annotation._cpg_detail.IlmnID.values,
             )
-        return self._ci_dict
+        return self._idx_cached
 
     def fit(self) -> None:
         """Fits linear regression model to calculate CNV at every CpG site.
@@ -717,9 +715,9 @@ class CNV:
         logger.info("%s Performing fit...", self.sample_id)
 
         y = np.log2(self.sample.intensity_array)[
-            :, self._ci["idx_fit_sample"]
+            :, self._idx["fit_sample"]
         ].ravel()
-        X = self.reference.log_intensity_fit[self._ci["idx_fit_reference"]]
+        X = self.reference.log_intensity_fit[self._idx["fit_reference"]]
         correlation = np.array([np.corrcoef(y, z)[0, 1] for z in X[:, :-1].T])
         if any(correlation >= 0.99):
             logger.info(
@@ -744,7 +742,7 @@ class CNV:
         """
         logger.info("%s Setting bins...", self.sample_id)
         cpg_bins = self.annotation._cpg_bins.copy()
-        cpg_bins["ratio"] = self._ratio[self._ci["idx_bins"]]
+        cpg_bins["ratio"] = self._ratio[self._idx["bins"]]
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
         )
@@ -765,7 +763,7 @@ class CNV:
         """
         logger.info("%s Setting detail...", self.sample_id)
         cpg_detail = self.annotation._cpg_detail.copy()
-        cpg_detail["ratio"] = self._ratio[self._ci["idx_detail"]]
+        cpg_detail["ratio"] = self._ratio[self._idx["detail"]]
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
         )
@@ -773,7 +771,7 @@ class CNV:
         detail_df["Median"] = np.nan
         detail_df["Var"] = np.nan
         detail_df["N_probes"] = 0
-        idx = cached_index(detail_df.index, result.index.values)
+        idx = CNV._cached_index(detail_df.index, result.index.values)
         detail_df.iloc[
             idx, detail_df.columns.get_indexer(["Median", "Var", "N_probes"])
         ] = result.values
