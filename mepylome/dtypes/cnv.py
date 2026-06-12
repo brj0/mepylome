@@ -771,7 +771,7 @@ class CNV:
         detail_df["Median"] = np.nan
         detail_df["Var"] = np.nan
         detail_df["N_probes"] = 0
-        idx = CNV._cached_index(detail_df.index, result.index.values)
+        idx = CNV._cached_index(detail_df.index, result.index)
         detail_df.iloc[
             idx, detail_df.columns.get_indexer(["Median", "Var", "N_probes"])
         ] = result.values
