@@ -267,13 +267,14 @@ def clear_cache() -> None:
         )
 
     if "mepylome.dtypes.cnv" in loaded:
-        from mepylome.dtypes.cnv import Annotation, cached_index
+        from mepylome.dtypes.cnv import CNV, Annotation, cached_index
 
         Annotation._cache.clear()
         Annotation.default_gaps.cache_clear()
         Annotation.default_genes.cache_clear()
+        CNV._cached_indices._cache.clear()
         cached_index._cache.clear()
-        logger.info("Cleared cache for: Annotation, cached_index")
+        logger.info("Cleared cache for: Annotation, CNV, cached_index")
 
     if "mepylome.dtypes.beads" in loaded:
         from mepylome.dtypes.beads import _overlap_indices

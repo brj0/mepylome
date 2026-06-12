@@ -726,7 +726,7 @@ class CNV:
                 "%s Sample found in reference set. Excluded from fitting.",
                 self.sample_id,
             )
-            X = X[:, np.append(correlation < 0.99, True)] 
+            X = X[:, np.append(correlation < 0.99, True)]
 
         y_pred, self.coef = _linear_regression(X, y)
         self._ratio = y - y_pred
