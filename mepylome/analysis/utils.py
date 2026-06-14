@@ -9,6 +9,7 @@ from collections.abc import Iterable, Sequence, Sized
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, TypeVar, overload
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -663,18 +664,19 @@ def check_memory(nrows: int, ncols: int, dtype: type | np.dtype) -> None:
         raise MemoryError(msg)
 
 
-def get_array_cpgs() -> dict[ArrayType, np.ndarray]:
-    """Returns all CpG sites for all array types."""
-    path = MEPYLOME_CACHE_DIR / "all_cpgs.pkl"
+def _get_cpgs_for_array(array_type: ArrayType) -> np.ndarray:
+    """Returns (and caches) CpG sites for a single ArrayType."""
+    path = MEPYLOME_CACHE_DIR / "cpgs" / f"{array_type}.pkl"
     if not path.exists():
-        with path.open("wb") as f:
-            array_cpgs = {
-                ArrayType("450k"): Manifest("450k").methylation_probes,
-                ArrayType("epic"): Manifest("epic").methylation_probes,
-                ArrayType("epicv2"): Manifest("epicv2").methylation_probes,
-                ArrayType("msa48"): Manifest("msa48").methylation_probes,
-            }
-            pickle.dump(array_cpgs, f)
+        ensure_directory_exists(path.parent)
+        cpgs = Manifest(array_type).methylation_probes
+
+        tmp = path.with_suffix(f".{uuid4()}.tmp")
+
+        with tmp.open("wb") as f:
+            pickle.dump(cpgs, f)
+
+        tmp.replace(path)
     with path.open("rb") as f:
         return pickle.load(f)
 
@@ -690,11 +692,7 @@ class BetasHandler:
 
     Attributes:
         basedir (Path): Path to the directory containing beta files.
-        array_cpgs (dict): Dictionary mapping ArrayType names to CpG arrays.
-        dir (dict): Dictionary mapping ArrayType and 'error' to subdirectories
-            of basedir.
-        array_type_from_dir (dict): Reverse mapping of directory paths to
-            ArrayType names.
+        error_dir (dict): Dictionary where errors are written.
         paths (dict): Dictionary of all beta file paths.
         invalid_paths (dict): Dictionary of invalid beta file paths.
 
@@ -706,20 +704,32 @@ class BetasHandler:
         array_cpgs: dict[ArrayType, np.ndarray] | None = None,
     ) -> None:
         self.basedir = Path(directory).expanduser()
-        self.array_cpgs = (
-            get_array_cpgs() if array_cpgs is None else array_cpgs
-        )
-        self.dir: dict = {}
-        for key in self.array_cpgs:
-            self.dir[key] = self.basedir / f"{key}"
-            ensure_directory_exists(self.dir[key])
-        self.dir["error"] = self.basedir / "error"
-        ensure_directory_exists(self.dir["error"])
-        self.array_type_from_dir = {
-            item: key for key, item in self.dir.items()
-        }
+        self._array_cpgs: dict[ArrayType, np.ndarray] = array_cpgs or {}
+        self.error_dir = self.basedir / "error"
         self.paths: dict = {}
+        self.invalid_paths: dict = {}
         self.update()
+
+    @property
+    def array_cpgs(self) -> dict[ArrayType, np.ndarray]:
+        """Dictionary mapping ArrayType names to CpG arrays."""
+        # Discovers new ArrayTypes from subdirectories and registers them.
+        for subdir in self.basedir.glob("*"):
+            if not subdir.is_dir() or subdir == self.error_dir:
+                continue
+            try:
+                array_type = ArrayType(subdir.name)
+                if array_type not in self._array_cpgs:
+                    self._array_cpgs[array_type] = _get_cpgs_for_array(
+                        array_type
+                    )
+            except ValueError:
+                logger.warning(
+                    "Invalid directory will be ignored: %s", subdir.name
+                )
+                pass
+
+        return self._array_cpgs
 
     @property
     def filenames(self) -> list[str]:
@@ -738,7 +748,9 @@ class BetasHandler:
         array_type: ArrayType,
     ) -> None:
         """Adds beta values to the file system on disk."""
-        betas.astype(DTYPE).tofile(self.dir[array_type] / filename)
+        output_dir = self.basedir / str(array_type)
+        ensure_directory_exists(output_dir)
+        betas.astype(DTYPE).tofile(output_dir / filename)
 
     def add_error(
         self,
@@ -746,7 +758,8 @@ class BetasHandler:
         msg: Any,
     ) -> None:
         """Adds error message to the file system on disk."""
-        with (self.dir["error"] / filename).open("w") as f:
+        ensure_directory_exists(self.error_dir)
+        with (self.error_dir / filename).open("w") as f:
             f.write(str(msg))
 
     def get(
@@ -759,18 +772,15 @@ class BetasHandler:
     ) -> pd.DataFrame:
         """Retrieves beta values for specified IDs and CpGs."""
         if ids is None:
-            filenames = [
-                filename
-                for filename in idat_handler.idat_basenames
-                if filename not in self.invalid_filenames
-            ]
+            filenames = idat_handler.idat_basenames
         else:
-            basenames = [idat_handler.id_to_basename[id_] for id_ in ids]
-            filenames = [
-                basename
-                for basename in basenames
-                if basename not in self.invalid_filenames
-            ]
+            filenames = [idat_handler.id_to_basename[id_] for id_ in ids]
+
+        filenames = [
+            filename
+            for filename in filenames
+            if filename not in self.invalid_filenames
+        ]
         ids = [idat_handler.basename_to_id[x] for x in filenames]
 
         check_memory(len(filenames), len(cpgs), DTYPE)
@@ -785,7 +795,7 @@ class BetasHandler:
         def process_beta_value(i: int, filename: str) -> None:
             path = self.paths.get(filename)
             if path is not None:
-                key = self.array_type_from_dir[path.parent]
+                key = ArrayType(path.parent.name)
 
                 try:
                     betas = np.fromfile(path, dtype=DTYPE)
@@ -860,7 +870,7 @@ class BetasHandler:
             path = self.paths.get(filename)
             if path is None:
                 return None
-            key = self.array_type_from_dir[path.parent]
+            key = ArrayType(path.parent.name)
             betas = np.fromfile(path, dtype=DTYPE)
             row = np.full(len(cpgs), fill, dtype=DTYPE)
             row[left_idx[key]] = betas[right_idx[key]]
@@ -906,7 +916,7 @@ class BetasHandler:
             if not path.is_dir()
         }
         self.invalid_paths = {
-            path.name: path for path in self.dir["error"].rglob("*")
+            path.name: path for path in self.error_dir.rglob("*")
         }
 
 
