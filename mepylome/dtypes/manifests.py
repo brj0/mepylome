@@ -490,6 +490,8 @@ class Manifest:
         design_type_map = {
             "I": InfiniumDesignType.TYPE_I,
             "II": InfiniumDesignType.TYPE_II,
+            1: InfiniumDesignType.TYPE_I,
+            2: InfiniumDesignType.TYPE_II,
         }
 
         if "Color_Channel" in data_frame.columns:

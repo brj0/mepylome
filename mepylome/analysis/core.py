@@ -961,7 +961,6 @@ class MethylAnalysis:
         supported_types = {str(x) for x in ArrayType} - {
             str(ArrayType.UNKNOWN),
             str(ArrayType.HORVATH_MAMMAL_40),
-            str(ArrayType.ILLUMINA_MOUSE),
         }
         if input_var_set.issubset(supported_types):
             if not input_var_set:
