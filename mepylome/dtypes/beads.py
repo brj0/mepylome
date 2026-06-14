@@ -1260,11 +1260,11 @@ class MethylData:
 
         r_mu = np.median(r_bg, axis=1)
         # Median absolute deviation scaled for normal distribution
-        r_sd = 1.4826 *np.median(np.abs(r_bg - r_mu[:, None]), axis=1)
+        r_sd = 1.4826 * np.median(np.abs(r_bg - r_mu[:, None]), axis=1)
         r_sd = np.clip(r_sd, EPSILON, None)
 
         g_mu = np.median(g_bg, axis=1)
-        g_sd = 1.4826 *np.median(np.abs(g_bg - g_mu[:, None]), axis=1)
+        g_sd = 1.4826 * np.median(np.abs(g_bg - g_mu[:, None]), axis=1)
         g_sd = np.clip(g_sd, EPSILON, None)
 
         n_samples = len(self.sample_ids)
