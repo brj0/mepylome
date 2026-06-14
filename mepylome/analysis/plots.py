@@ -198,7 +198,7 @@ def write_single_cnv_to_disk(
     """Performs CNV analysis on a single sample and writes results to disk."""
     sample_id = idat_basepath.name
     try:
-        sample_methyl = MethylData(file=idat_basepath)
+        sample_methyl = MethylData(file=idat_basepath, prep=prep)
         reference = get_reference_methyl_data(reference_dir, prep)
         cnv = CNV.set_all(sample_methyl, reference, do_seg=do_seg)
         cnv_filename = sample_id + ZIP_ENDING

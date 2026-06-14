@@ -491,7 +491,6 @@ class Annotation:
         return "\n\n".join(lines)
 
 
-
 def _linear_regression(
     X: np.ndarray, y: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -673,7 +672,6 @@ class CNV:
     def _cached_index(left_arr: pd.Index, right_arr: pd.Index) -> np.ndarray:
         """Cached index to improve speed of pandas iloc operations."""
         return left_arr.get_indexer(right_arr)
-
 
     @memoize
     def _cached_indices(
