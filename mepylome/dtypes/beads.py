@@ -36,6 +36,7 @@ ENDING_RED = "_Red.idat"
 ENDING_GZ = ".gz"
 ENDING_SUFFIXES = ("_Grn.idat", "_Red.idat", "_Grn.idat.gz", "_Red.idat.gz")
 
+EPSILON = 1e-6
 NEUTRAL_BETA = 0.5
 NEUTRAL_M_VALUE = 0.0
 
@@ -1091,6 +1092,206 @@ class MethylData:
 
         self.methyl = methyl
         self.unmethyl = unmethyl
+
+    def poobah(
+        self,
+    ) -> pd.DataFrame:
+        """Compute pOOBAH detection p-values for all probes.
+
+        Compute pOOBAH detection p-values using out-of-band (OOB) hybridization
+        signals.
+
+        pOOBAH estimates whether probe intensities are distinguishable from
+        empirical background distributions derived from OOB measurements.
+
+        The method uses empirical cumulative distribution functions (ECDFs)
+        computed from OOB probe intensities in each channel.
+
+        Low p-values indicate reliable detection above background. A probe is
+        considered to have failed detection (unreliable) when its pOOBAH
+        p-value is greater than a threshold (usually 0.05).
+
+        Returns:
+            pandas.DataFrame:
+                Detection p-values (0–1), shape (n_probes × n_samples),
+                indexed by IlmnID. NaN indicates missing probes.
+
+        Note:
+            In SeSAMe, some probes are filtered using `backgroundMask`. This
+            step is not implemented here, which may lead to small differences
+            in the resulting p-values compared to SeSAMe.
+
+        Reference:
+            SeSAMe: reducing artifactual detection of DNA methylation by
+            Infinium BeadChips in genomic deletions.
+            Wanding Zhou, Timothy J. Triche Jr., Peter W. Laird, Hui Shen.
+            Nucleic Acids Research, 46(e123), 2018.
+            https://doi.org/10.1093/nar/gky691
+
+        Examples:
+            >>> methyl = MethylData(file=idat_basepath)
+            >>> pvals = methyl.poobah()
+            >>> mask = pvals >= 0.05
+        """
+        ci = MethylData._cached_indices(
+            self.manifest, self.illumina_ids, "noob"
+        )
+
+        # NOTE: sesame additionaly filteres probes with backgroundMask
+        grn_oob = np.concatenate(
+            [
+                self._grn[:, ci["ids_1_red_a"]],
+                self._grn[:, ci["ids_1_red_b"]],
+            ],
+            axis=1,
+        )
+        red_oob = np.concatenate(
+            [
+                self._red[:, ci["ids_1_grn_a"]],
+                self._red[:, ci["ids_1_grn_b"]],
+            ],
+            axis=1,
+        )
+
+        n_probes = len(ci["idx"])
+        n_samples = len(self.sample_ids)
+        pvals = np.full((n_samples, n_probes), np.nan)
+
+        def ecdf(x: np.ndarray, ref: np.ndarray) -> np.ndarray:
+            """Evaluate ECDF of OOB green/red at values x."""
+            return np.searchsorted(ref, x, side="right") / len(ref)
+
+        for s in range(n_samples):
+            oob_g = np.sort(grn_oob[s])
+            oob_r = np.sort(red_oob[s])
+
+            # Type I Red probes
+            m_1red = self._red[s, ci["ids_1_red_b"]]
+            u_1red = self._red[s, ci["ids_1_red_a"]]
+            pvals[s, ci["idx_1_red__"]] = 1.0 - np.maximum(
+                ecdf(m_1red, oob_r), ecdf(u_1red, oob_r)
+            )
+
+            # Type I Green probes
+            m_1grn = self._grn[s, ci["ids_1_grn_b"]]
+            u_1grn = self._grn[s, ci["ids_1_grn_a"]]
+            pvals[s, ci["idx_1_grn__"]] = 1.0 - np.maximum(
+                ecdf(m_1grn, oob_g), ecdf(u_1grn, oob_g)
+            )
+
+            # Type II probes
+            m_2 = self._grn[s, ci["ids_2_____a"]]
+            u_2 = self._red[s, ci["ids_2_____a"]]
+            pvals[s, ci["idx_2______"]] = 1.0 - np.maximum(
+                ecdf(m_2, oob_g), ecdf(u_2, oob_r)
+            )
+
+        return pd.DataFrame(
+            pvals.T,
+            columns=self.sample_ids,
+            index=ci["ilmnid"],
+        )
+
+    def quality_metrics(self) -> pd.DataFrame:
+        """Compute per-sample median methylated and unmethylated intensities.
+
+        This function reproduces the QC summary used in minfi::getQC, returning
+        log2-transformed median intensities per sample.
+
+        These values are commonly used for sample quality assessment. Samples
+        with unusually low median intensities may indicate poor DNA quality or
+        assay failure.
+        """
+        log2_med_m = np.log2(np.nanmedian(self.methyl, axis=1))
+        log2_med_u = np.log2(np.nanmedian(self.unmethyl, axis=1))
+
+        return pd.DataFrame(
+            {
+                "log2_median_methylated": log2_med_m,
+                "log2_median_unmethylated": log2_med_u,
+            },
+            index=self.sample_ids,
+        )
+
+    def detection_p(self) -> pd.DataFrame:
+        """Detection p-values for probe signal vs background noise.
+
+        Computes whether each probe signal (M+U) is distinguishable from a
+        Gaussian background estimated from negative control probes. The p-value
+        is the right-tail probability under this model.
+
+        Low values indicate reliable detection above background. Samples with
+        many high p-values (failed probes) may be low quality.
+
+        Returns:
+            pd.DataFrame: Detection p-values (n_probes × n_samples), indexed by
+                IlmnID.
+
+        Notes:
+            - Background is derived from negative control probes.
+            - Uses robust statistics (median and MAD-like estimator).
+            - Variance is stabilized to avoid degeneracy.
+
+        Reference:
+            Implements the Illumina detectionP method used in minfi.
+        """
+        from scipy.stats import norm
+
+        ci = MethylData._cached_indices(
+            self.manifest,
+            self.illumina_ids,
+            prep="illumina",
+        )
+
+        ctrl_idx = ci["ids_ng_cont"]
+
+        # Background statistics
+        r_bg = self._red[:, ctrl_idx]
+        g_bg = self._grn[:, ctrl_idx]
+
+        r_mu = np.median(r_bg, axis=1)
+        # Median absolute deviation scaled for normal distribution
+        r_sd = 1.4826 *np.median(np.abs(r_bg - r_mu[:, None]), axis=1)
+        r_sd = np.clip(r_sd, EPSILON, None)
+
+        g_mu = np.median(g_bg, axis=1)
+        g_sd = 1.4826 *np.median(np.abs(g_bg - g_mu[:, None]), axis=1)
+        g_sd = np.clip(g_sd, EPSILON, None)
+
+        n_samples = len(self.sample_ids)
+        n_probes = len(ci["ilmnid"])
+
+        pvals = np.full((n_samples, n_probes), np.nan)
+
+        # Type I Red
+        m = self._red[:, ci["ids_1_red_a"]] + self._red[:, ci["ids_1_red_b"]]
+        pvals[:, ci["idx_1_red__"]] = norm.sf(
+            m,
+            loc=2 * r_mu[:, None],
+            scale=2 * r_sd[:, None],
+        )
+
+        # Type I Green
+        m = self._grn[:, ci["ids_1_grn_a"]] + self._grn[:, ci["ids_1_grn_b"]]
+        pvals[:, ci["idx_1_grn__"]] = norm.sf(
+            m,
+            loc=2 * g_mu[:, None],
+            scale=2 * g_sd[:, None],
+        )
+
+        # Type II
+        m = self._red[:, ci["ids_2_____a"]] + self._grn[:, ci["ids_2_____a"]]
+        pvals[:, ci["idx_2______"]] = norm.sf(
+            m,
+            loc=(r_mu + g_mu)[:, None],
+            scale=(r_sd + g_sd)[:, None],
+        )
+
+        return pd.DataFrame(
+            pvals.T,
+            index=ci["ilmnid"],
+            columns=self.sample_ids,
+        )
 
     @property
     def betas(self) -> pd.DataFrame:
