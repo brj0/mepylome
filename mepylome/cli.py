@@ -188,7 +188,7 @@ def parse_args() -> argparse.Namespace:
         "-p",
         "--prep",
         type=str,
-        choices=["illumina", "swan", "noob"],
+        choices=["raw", "illumina", "swan", "noob"],
         default="illumina",
         help=(
             """

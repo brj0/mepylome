@@ -63,6 +63,7 @@ PROBES_COLUMNS = [
     "CHR",
     "Chr",
     "MAPINFO",
+    "MapInfo",
     "AlleleA_ProbeSeq",
     "AlleleB_ProbeSeq",
 ]
@@ -198,7 +199,8 @@ class Manifest:
                     return
 
             if (
-                self.array_type == ArrayType.UNKNOWN
+                self.array_type
+                in [ArrayType.UNKNOWN, ArrayType.HORVATH_MAMMAL_40]
                 and proc_path is None
                 and raw_path is None
             ):
@@ -207,6 +209,10 @@ class Manifest:
                 self._snp_data_frame = pd.DataFrame()
                 self._methyl_probes = None
                 self._cached = True
+                logger.warning(
+                    "Manifest for the array type '%s' is not implemented.",
+                    self.array_type,
+                )
                 return
 
             # Set processed manifest path
@@ -436,7 +442,7 @@ class Manifest:
             )
             n_probes = probes_df[probes_df.IlmnID.str.startswith("[")].index[0]
             probes_df = probes_df[:n_probes]
-            probes_df = Manifest._process_probes(probes_df)
+            probes_df = Manifest._process_probes(probes_df, self.array_type)
             probes_df.to_csv(self.proc_path, index=False)
             # Process controls
             Manifest._seek_to_start(manifest_file)
@@ -448,6 +454,10 @@ class Manifest:
                 usecols=range(len(CONTROL_COLUMNS)),
             )
             controls_df.columns = CONTROL_COLUMNS
+            # In 27k Control_Type is not upper case
+            controls_df["Control_Type"] = controls_df[
+                "Control_Type"
+            ].str.upper()
             if (
                 pd.to_numeric(controls_df["Address_ID"], errors="coerce")
                 .notna()
@@ -459,10 +469,13 @@ class Manifest:
             controls_df.to_csv(self.ctrl_path, index=False)
 
     @staticmethod
-    def _process_probes(data_frame: pd.DataFrame) -> pd.DataFrame:
+    def _process_probes(
+        data_frame: pd.DataFrame, array_type: ArrayType | None
+    ) -> pd.DataFrame:
         """Transforms manifest probes to a more efficient internal format."""
         rename_map = {
             "MAPINFO": "Start",
+            "MapInfo": "Start",
             "CHR": "Chromosome",
             "Chr": "Chromosome",
         }
@@ -488,6 +501,11 @@ class Manifest:
             data_frame["Infinium_Design_Type"] = data_frame[
                 "Infinium_Design_Type"
             ].map(design_type_map)
+        elif array_type == ArrayType.ILLUMINA_27K:
+            # HM27K: all probes are Type I
+            data_frame["Infinium_Design_Type"] = InfiniumDesignType.TYPE_I
+        else:
+            raise ValueError("Manifest has no 'Infinium_Design_Type' column")
 
         data_frame["TypeI_N_CpG"] = 0
         data_frame["TypeII_N_CpG"] = 0

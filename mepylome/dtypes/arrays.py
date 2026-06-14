@@ -29,12 +29,13 @@ class ArrayType(Enum):
     type from probe count.
     """
 
+    HORVATH_MAMMAL_40 = "mammal40"
     ILLUMINA_27K = "27k"
     ILLUMINA_450K = "450k"
     ILLUMINA_EPIC = "epic"
     ILLUMINA_EPIC_V2 = "epicv2"
-    ILLUMINA_MSA48 = "msa48"
     ILLUMINA_MOUSE = "mouse"
+    ILLUMINA_MSA48 = "msa48"
     UNKNOWN = "unknown"
 
     def __str__(self) -> str:
@@ -46,9 +47,11 @@ class ArrayType(Enum):
         if 622000 <= probe_count <= 623000:
             return cls.ILLUMINA_450K
 
+        # Current EPIC type
         if 1050000 <= probe_count <= 1053000:
             return cls.ILLUMINA_EPIC
 
+        # Old EPIC type
         if 1032000 <= probe_count <= 1033000:
             return cls.ILLUMINA_EPIC
 
@@ -63,6 +66,9 @@ class ArrayType(Enum):
 
         if 315000 <= probe_count <= 362000:
             return cls.ILLUMINA_MOUSE
+
+        if 41000 <= probe_count <= 41100:
+            return cls.HORVATH_MAMMAL_40
 
         return cls.UNKNOWN
 

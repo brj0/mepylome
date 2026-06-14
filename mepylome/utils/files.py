@@ -208,10 +208,10 @@ def get_csv_file(
     file_or_archive: str | Path,
     filename: str,
 ) -> IO[bytes]:
-    """Retrieve a CSV file from a regular file or a ZIP archive.
+    """Open a file directly or retrieve it from a ZIP archive.
 
-    This function extracts a specific CSV file from either a regular CSV file
-    or a ZIP archive and returns it as a file-like object.
+    Supported file types are CSV files (``.csv``), Illumina BPM manifest
+    files (``.bpm``), and ZIP archives containing either file type.
 
     Examples:
         >>> get_csv_file('archive.zip', 'example.csv')
@@ -219,7 +219,7 @@ def get_csv_file(
     """
     file_or_archive = Path(file_or_archive)
 
-    if file_or_archive.suffix == ".csv":
+    if file_or_archive.suffix.lower() in {".csv", ".bpm"}:
         return file_or_archive.open("rb")
 
     if file_or_archive.suffix == ".zip":

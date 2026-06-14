@@ -580,6 +580,9 @@ class MethylData:
         Details:
             This implementation is adapted from 'minfi'.
         """
+        if self.array_type == ArrayType.ILLUMINA_27K:
+            raise ValueError(f"{self.array_type} requires raw mode.")
+
         self._methylated_df = None
         self._unmethylated_df = None
         ci = MethylData._cached_indices(
@@ -907,6 +910,9 @@ class MethylData:
             Within-Array Normalization for Illumina Infinium
             HumanMethylation450 BeadChips. Genome Biology 13, R44.
         """
+        if self.array_type == ArrayType.ILLUMINA_27K:
+            raise ValueError(f"{self.array_type} requires raw mode.")
+
         self._methylated_df = None
         self._unmethylated_df = None
         ci = MethylData._cached_indices(
@@ -991,6 +997,9 @@ class MethylData:
             Methylation BeadArrays.  Nucleic Acids Res (2013) 41, e90.
             doi:10.1093/nar/gkt090.
         """
+        if self.array_type == ArrayType.ILLUMINA_27K:
+            raise ValueError(f"{self.array_type} requires raw mode.")
+
         self._methylated_df = None
         self._unmethylated_df = None
 
