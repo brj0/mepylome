@@ -49,13 +49,14 @@ class ProbeType(IntEnum):
     @staticmethod
     def from_manifest_values(
         name: str,
-        infinium_type: str | InfiniumDesignType,
+        infinium_type: str | int | InfiniumDesignType,
     ) -> "ProbeType":
         """Method to determine ProbeType based on name and design type.
 
         Args:
             name (str): Probe name.
-            infinium_type (str): Infinium design type ('I' or 'II').
+            infinium_type (str | int | InfiniumDesignType): Infinium design
+                type ('I' or 'II').
 
         Returns:
             str: Probe type.
