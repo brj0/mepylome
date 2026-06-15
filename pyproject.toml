@@ -47,27 +47,28 @@ dependencies = [
 
 [project.optional-dependencies]
 seg = [
-  "ruptures",            # segmentation algorithm
+  "ruptures",                 # segmentation algorithm
 ]
 dev = [
-  "build",               # PEP 517 build frontend (python -m build)
-  "ipython",             # interactive REPL
-  "ipywidgets",          # interactive notebook widgets
-  "jupyter",             # notebook server & tools
-  "jupytext",            # sync notebooks and scripts
-  "kaleido==0.2.1",      # stable image export for Plotly
-  "mypy",                # static type checking
-  "nbstripout",          # strip outputs from committed notebooks
-  "pillow",              # image handling (capitalized PyPI name)
-  "pytest",              # test code
-  "pytest-cov",          # Coverate rate of tests via pytest --cov=mepylome
-  "ruff",                # fast linter
-  "ruptures",            # segmentation algorithm
-  "sphinx",              # docs generator
-  "sphinx-rtd-theme",    # ReadTheDocs theme for HTML docs
-  "tuna",                # profiler / tuning (lightweight)
-  "twine",               # upload releases to PyPI
-  "ty",                  # static type checking
+  "build",                    # PEP 517 build frontend (python -m build)
+  "ipython",                  # interactive REPL
+  "ipywidgets",               # interactive notebook widgets
+  "jupyter",                  # notebook server & tools
+  "jupytext",                 # sync notebooks and scripts
+  "kaleido==0.2.1",           # stable image export for Plotly
+  "mypy",                     # static type checking
+  "nbstripout",               # strip outputs from committed notebooks
+  "pillow",                   # image handling (capitalized PyPI name)
+  "pytest",                   # test code
+  "pytest-cov",               # Coverate rate of tests via pytest --cov=mepylome
+  "ruff",                     # fast linter
+  "ruptures",                 # segmentation algorithm
+  "sphinx",                   # docs generator
+  "sphinx-rtd-theme",         # ReadTheDocs theme for HTML docs
+  "sphinx-autodoc-typehints", # for docs
+  "tuna",                     # profiler / tuning (lightweight)
+  "twine",                    # upload releases to PyPI
+  "ty",                       # static type checking
 ]
 
 [project.urls]

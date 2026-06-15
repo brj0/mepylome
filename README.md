@@ -10,36 +10,61 @@
 -----------------
 
 
-# Mepylome: Methylation Array Analysis Toolkit
+# Mepylome: Ultra-Fast Methylation Array Analysis Toolkit
 
-Mepylome is an efficient Python toolkit tailored for parsing, processing, and
-analyzing methylation array IDAT files. Serving as a versatile library,
+Mepylome is a high-performance Python toolkit tailored for parsing, processing,
+and analyzing methylation array IDAT files. Serving as a versatile library,
 Mepylome supports a wide range of methylation analysis tasks. It also includes
 an interactive GUI that enables users to generate UMAP plots and CNV plots
 (Copy Number Variation) directly from collections of IDAT files.
+Mepylome is designed for **large-scale cohort processing and delivers
+substantial speed improvements over existing methylation analysis pipelines.**
 
 
-## Publication
+## ✨ Key Highlights
 
-This library is described in the following peer-reviewed publication:
-
-https://doi.org/10.1002/aisy.202500778
+- ⚡ **Very fast processing engine**
+- 🧬 Supports Illumina **450k, EPIC, EPICv2, 27k, MSA48, and Mouse arrays**
+- 📊 CNV analysis with interactive Plotly visualizations
+- 🧹 Clean API for large-scale cohort processing
+- 🖥️ Optional GUI for UMAP + CNV exploration
+- 🧪 Built-in QC including **pOOBAH detection and quality metrics**
 
 
 ## Features
 
+### Data Processing
 - Parsing of IDAT files
 - Extraction of methylation signals
+
+### Copy Number Analysis
 - Calculation of Copy Number Variations (CNV) with visualization using
   [plotly](https://github.com/plotly/plotly.py).
-- Support for the following Illumina array types: 450k, EPIC, EPICv2, MSA48
-- Significantly faster compared to [minfi](https://github.com/hansenlab/minfi)
-  and [conumee2](https://github.com/hovestadtlab/conumee2).
+- Interactive visualization using Plotly
+- CN-summary plots
+
+### Supported Array Types
+- Illumina EPIC / EPICv2
+- Illumina 450k
+- Illumina 27k
+- Illumina MSA48
+- Illumina Mouse
+
+### Performance
+- Significantly **faster** compared to
+  - [minfi](https://github.com/hansenlab/minfi),
+  - [conumee2](https://github.com/hovestadtlab/conumee2) and
+  - [sesame](https://github.com/zwdzwd/sesame).
+
+### Quality Control
+- pOOBAH-based probe calculation
+- Quality metrics for samples and probes
+
+### GUI
 - Methylation analysis tool with a graphical browser interface for UMAP
   analysis, CNV plots and supervised classification
   - Can be run from the command line with minimal setup or customized through a
     Python script
-- CN-summary plots
 
 
 ## Documentation
@@ -112,6 +137,13 @@ limited in Colab.
 
 
 See <https://mepylome.readthedocs.io/> for details.
+
+
+## Publication
+
+This library is described in the following peer-reviewed publication:
+
+https://doi.org/10.1002/aisy.202500778
 
 
 ## Contributing
