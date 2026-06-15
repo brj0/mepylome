@@ -8,6 +8,7 @@ characteristics.
 import logging
 import pickle
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
 from uuid import uuid4
@@ -33,24 +34,10 @@ logger = logging.getLogger(__name__)
 __all__ = ["Manifest"]
 
 
-MANIFEST_DIR = MEPYLOME_CACHE_DIR / "manifests" / "manifest_files_v0"
 DOWNLOAD_DIR = MEPYLOME_TMP_DIR / "manifests"
+MANIFEST_VERSION = "v0"
 
-ENDING_CONTROL_PROBES = CONFIG["suffixes"]["manifest_control_probes"]
 NONE = -1
-
-MANIFEST_URL = {
-    ArrayType(type_): url for type_, url in CONFIG["urls"]["manifest"].items()
-}
-PROCESSED_MANIFEST_URL = (
-    CONFIG["urls"]["processed_manifests"] % MANIFEST_DIR.name
-)
-REMOTE_FILENAME = {
-    ArrayType(type_): url for type_, url in CONFIG["files"]["remote"].items()
-}
-LOCAL_FILENAME = {
-    ArrayType(type_): url for type_, url in CONFIG["files"]["local"].items()
-}
 
 
 PROBES_COLUMNS = [
@@ -75,6 +62,71 @@ CONTROL_COLUMNS = (
     "Color",
     "Extended_Type",
 )
+
+
+def _get_control_path(path: Path) -> Path:
+    """Return the control-probe manifest path."""
+    suffix = CONFIG["suffixes"]["manifest_control_probes"]
+    parts = path.name.split(".")
+    parts[0] += suffix
+    return path.with_name(".".join(parts))
+
+
+@dataclass(slots=True)
+class ManifestSpec:
+    """Metadata required to locate, download, and parse a manifest."""
+
+    array_type: ArrayType
+    remote_filename: str | None = None
+    local_filepath: Path | None = None
+    local_filepath_ctrl: Path | None = None
+    download_url: str | None = None
+    processed_url: str | None = None
+    processed_url_ctrl: str | None = None
+    implemented: bool = True
+    all_type_1_probes: bool = False
+
+
+def _build_specs() -> dict[ArrayType, ManifestSpec]:
+    """Build manifest specifications from CONFIG."""
+    urls = CONFIG["urls"]
+    files = CONFIG["files"]
+    manifest_dir = (
+        MEPYLOME_CACHE_DIR / "manifests" / f"manifest_files_{MANIFEST_VERSION}"
+    )
+    base_url = urls["processed_manifests"] % manifest_dir.name
+
+    specs: dict[ArrayType, ManifestSpec] = {}
+
+    for at, remote_name in files["remote"].items():
+        array_type = ArrayType(at)
+        local_name = files["local"].get(at)
+
+        local = manifest_dir / local_name if local_name else None
+        ctrl = _get_control_path(local) if local else None
+
+        proc_url = base_url + (local.name if local else "")
+        ctrl_url = base_url + (ctrl.name if ctrl else "")
+
+        specs[array_type] = ManifestSpec(
+            array_type=array_type,
+            remote_filename=remote_name,
+            local_filepath=local,
+            local_filepath_ctrl=ctrl,
+            download_url=urls["manifest"][at],
+            processed_url=proc_url,
+            processed_url_ctrl=ctrl_url,
+            all_type_1_probes=(array_type == ArrayType.ILLUMINA_27K),
+        )
+
+    specs.setdefault(
+        ArrayType.UNKNOWN, ManifestSpec(ArrayType.UNKNOWN, implemented=False)
+    )
+    specs[ArrayType.HORVATH_MAMMAL_40].implemented = False
+    return specs
+
+
+MANIFEST_SPECS = _build_specs()
 
 
 class Manifest:
@@ -118,7 +170,7 @@ class Manifest:
     _lock_new = threading.Lock()
     _lock_init = threading.Lock()
 
-    array_type: ArrayType | None
+    array_type: ArrayType
     ctrl_path: Path
     download_proc: bool
     proc_path: Path
@@ -181,7 +233,9 @@ class Manifest:
             def to_path(x: str | Path | None) -> Path | None:
                 return x if x is None else Path(x)
 
-            self.array_type = ArrayType(array_type) if array_type else None
+            self.array_type = (
+                ArrayType(array_type) if array_type else ArrayType.UNKNOWN
+            )
             self.raw_path = to_path(raw_path)
             proc_path = to_path(proc_path)
             self.download_proc = download_proc
@@ -198,12 +252,9 @@ class Manifest:
                     self._cached = True
                     return
 
-            if (
-                self.array_type
-                in [ArrayType.UNKNOWN, ArrayType.HORVATH_MAMMAL_40]
-                and proc_path is None
-                and raw_path is None
-            ):
+            spec = MANIFEST_SPECS[self.array_type]
+
+            if not spec.implemented and proc_path is None and raw_path is None:
                 self._data_frame = pd.DataFrame()
                 self._control_data_frame = pd.DataFrame()
                 self._snp_data_frame = pd.DataFrame()
@@ -215,10 +266,10 @@ class Manifest:
                 )
                 return
 
-            self.proc_path = self._resolve_proc_path(proc_path)
-            self.ctrl_path = Manifest._get_control_path(self.proc_path)
+            self.proc_path = self._resolve_proc_path(proc_path, spec)
+            self.ctrl_path = _get_control_path(self.proc_path)
 
-            self._create_processed_manifest_files()
+            self._create_processed_manifest_files(spec)
 
             self._data_frame = self._read_probes(self.proc_path)
             self._control_data_frame = self._read_control_probes(
@@ -241,32 +292,25 @@ class Manifest:
     def cache_key(self) -> str:
         return self._cache_key
 
-    def _create_processed_manifest_files(self) -> None:
-        """Create processed manifest files if they do not exist."""
-        if (
-            self.proc_path is None
-            or self.ctrl_path is None
-            or not (self.proc_path.exists() and self.ctrl_path.exists())
-        ):
-            # If array type is given, download the files
-            if self.array_type is not None:
-                if (
-                    not self.download_proc
-                    or not self._download_processed_manifest()
-                ):
-                    self._download_manifest()
-                    csv_filename = REMOTE_FILENAME[self.array_type]
-                    self._process_manifest(csv_filename=csv_filename)
-            # Else process from raw_path
-            elif self.raw_path is not None:
-                if self.raw_path.suffix == ".zip":
-                    csv_filename = self.raw_path.stem
-                else:
-                    csv_filename = self.raw_path.name
-                self._process_manifest(csv_filename=csv_filename)
-            else:
-                msg = "Provide either array_type or proc_path or raw_path"
-                raise ValueError(msg)
+    def _create_processed_manifest_files(self, spec: ManifestSpec) -> None:
+        """Ensure processed manifest files exist on disk."""
+        if self.proc_path.exists() and self.ctrl_path.exists():
+            return
+
+        if self.array_type != ArrayType.UNKNOWN:
+            # 1. Try pre-built download
+            if self.download_proc and self._download_processed_manifest(spec):
+                return
+            # 2. Download raw and process
+            self._download_manifest(spec)
+            self._process_manifest(csv_filename=spec.remote_filename)
+        elif self.raw_path is not None:
+            csv_filename = self.raw_path.stem
+            self._process_manifest(csv_filename=csv_filename)
+        else:
+            raise ValueError(
+                "Provide at least one of: array_type, proc_path, raw_path"
+            )
 
     @property
     def data_frame(self) -> pd.DataFrame:
@@ -347,66 +391,61 @@ class Manifest:
         for array_type in array_types:
             _ = Manifest(array_type)
 
-    def _download_manifest(
-        self,
-    ) -> None:
-        """Downloads the appropriate manifest file.
-
-        This method downloads the manifest file based on the `array_type`
-        specified during the initialization of the Manifest object. It stores
-        the downloaded file in the path of the `raw_path` attribute.
-
-        Raises:
-            KeyError: If the array type is not found in MANIFEST_URL.
-        """
-        assert self.array_type is not None
-        source_url = MANIFEST_URL[self.array_type]
-        source_filename = Path(source_url).name
-
+    def _download_manifest(self, spec: ManifestSpec | None = None) -> None:
+        """Download the raw manifest for this array type."""
+        assert self.array_type != ArrayType.UNKNOWN
+        if spec is None:
+            spec = _build_specs()[self.array_type]
+        if not spec.download_url:
+            raise ValueError(
+                f"No download URL configured for array type "
+                f"'{self.array_type}'. Set ManifestSpec.download_url in "
+                "MANIFEST_SPECS."
+            )
+        source_filename = Path(spec.download_url).name
         logger.info("Downloading manifest: %s", source_filename)
-
         self.raw_path = DOWNLOAD_DIR / source_filename
-        download_file(source_url, self.raw_path)
+        download_file(spec.download_url, self.raw_path)
 
-    def _download_processed_manifest(self) -> bool:
+    def _download_processed_manifest(self, spec: ManifestSpec) -> bool:
         """Download processed manifest file and return true if successful."""
         logger.info("Downloading processed %s manifest", self.array_type)
         try:
-            for path in [self.proc_path, self.ctrl_path]:
-                assert path is not None
-                ensure_directory_exists(path.parent)
-                url = PROCESSED_MANIFEST_URL + path.name
-                download_file(url, path)
+            assert self.proc_path is not None and self.ctrl_path is not None
+            assert spec.processed_url is not None
+            assert spec.processed_url_ctrl is not None
+
+            ensure_directory_exists(self.proc_path.parent)
+            download_file(spec.processed_url, self.proc_path)
+
+            ensure_directory_exists(self.ctrl_path.parent)
+            download_file(spec.processed_url_ctrl, self.ctrl_path)
+
             return True
         except Exception:
             return False
 
-    def _resolve_proc_path(self, proc_path: Path | None) -> Path:
+    def _resolve_proc_path(
+        self, proc_path: Path | None, spec: ManifestSpec
+    ) -> Path:
         # Set processed manifest path
-        if proc_path is None:
-            if (
-                self.array_type is not None
-                and self.array_type != ArrayType.UNKNOWN
-            ):
-                return MANIFEST_DIR / LOCAL_FILENAME[self.array_type]
+        if proc_path is not None:
+            return proc_path
 
-            elif self.raw_path is not None:
-                if self.raw_path.suffix == ".zip":
-                    gz_filename = "proc_" + self.raw_path.stem + ".gz"
-                else:
-                    gz_filename = "proc_" + self.raw_path.name + ".gz"
-                return DOWNLOAD_DIR / gz_filename
-            else:
-                msg = "Provide either array_type or proc_path or raw_path"
-                raise ValueError(msg)
-        return proc_path
+        if spec.local_filepath:
+            return spec.local_filepath
 
-    @staticmethod
-    def _get_control_path(probes_path: Path) -> Path:
-        """Converts probes path to the control probes path."""
-        split_filename = probes_path.name.split(".")
-        split_filename[0] += ENDING_CONTROL_PROBES
-        return Path(probes_path.parent, ".".join(split_filename))
+        if self.raw_path is not None:
+            stem = (
+                self.raw_path.stem
+                if self.raw_path.suffix in {".zip", ".gz", ".gzip"}
+                else self.raw_path.name
+            )
+            return DOWNLOAD_DIR / f"proc_{stem}.gz"
+
+        raise ValueError(
+            "Provide at least one of: array_type, proc_path, raw_path"
+        )
 
     def _process_manifest(self, csv_filename: str | None = None) -> None:
         """Process the manifest file and save it locally to disk.

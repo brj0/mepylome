@@ -20,15 +20,12 @@ import requests
 import yaml
 
 import mepylome
-from mepylome import ArrayType, Manifest
+from mepylome import Manifest
 from mepylome.analysis import MethylAnalysis
 from mepylome.analysis.classifiers import make_classifier_report_page
 from mepylome.cli import get_app_version
-from mepylome.dtypes.manifests import (
-    DOWNLOAD_DIR,
-    MANIFEST_URL,
-    REMOTE_FILENAME,
-)
+from mepylome.dtypes.manifests import DOWNLOAD_DIR
+from mepylome.utils.varia import CONFIG
 
 IMG_HEIGHT = 2000
 FONTSIZE = 23
@@ -68,7 +65,8 @@ def generate_default_blacklist(blacklist_path: str | Path) -> set:
     blacklist_path = Path(blacklist_path).expanduser()
     if not blacklist_path.exists():
         print("Generating blacklist. Can take some time...")
-        manifest_url = MANIFEST_URL[ArrayType.ILLUMINA_EPIC]
+        manifest_url = CONFIG["urls"]["manifest"]["epic"]
+
         DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
         response = requests.get(manifest_url)
         html_sucess_ok_code = 200
@@ -78,7 +76,8 @@ def generate_default_blacklist(blacklist_path: str | Path) -> set:
         else:
             msg = f"Failed to download the file: {response.status_code}"
             raise RuntimeError(msg)
-        csv_path = DOWNLOAD_DIR / REMOTE_FILENAME[ArrayType.ILLUMINA_EPIC]
+        csv_path = DOWNLOAD_DIR / CONFIG["files"]["remote"]["epic"]
+
         manifest_df = pd.read_csv(csv_path, skiprows=7, low_memory=False)
         flagged_cpgs = manifest_df[
             manifest_df["MFG_Change_Flagged"].fillna(False)
