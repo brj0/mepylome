@@ -215,27 +215,7 @@ class Manifest:
                 )
                 return
 
-            # Set processed manifest path
-            if proc_path is None:
-                if (
-                    self.array_type is not None
-                    and self.array_type != ArrayType.UNKNOWN
-                ):
-                    self.proc_path = (
-                        MANIFEST_DIR / LOCAL_FILENAME[self.array_type]
-                    )
-                elif self.raw_path is not None:
-                    if self.raw_path.suffix == ".zip":
-                        gz_filename = "proc_" + self.raw_path.stem + ".gz"
-                    else:
-                        gz_filename = "proc_" + self.raw_path.name + ".gz"
-                    self.proc_path = DOWNLOAD_DIR / gz_filename
-                else:
-                    msg = "Provide either array_type or proc_path or raw_path"
-                    raise ValueError(msg)
-            else:
-                self.proc_path = proc_path
-
+            self.proc_path = self._resolve_proc_path(proc_path)
             self.ctrl_path = Manifest._get_control_path(self.proc_path)
 
             self._create_processed_manifest_files()
@@ -400,6 +380,26 @@ class Manifest:
             return True
         except Exception:
             return False
+
+    def _resolve_proc_path(self, proc_path: Path | None) -> Path:
+        # Set processed manifest path
+        if proc_path is None:
+            if (
+                self.array_type is not None
+                and self.array_type != ArrayType.UNKNOWN
+            ):
+                return MANIFEST_DIR / LOCAL_FILENAME[self.array_type]
+
+            elif self.raw_path is not None:
+                if self.raw_path.suffix == ".zip":
+                    gz_filename = "proc_" + self.raw_path.stem + ".gz"
+                else:
+                    gz_filename = "proc_" + self.raw_path.name + ".gz"
+                return DOWNLOAD_DIR / gz_filename
+            else:
+                msg = "Provide either array_type or proc_path or raw_path"
+                raise ValueError(msg)
+        return proc_path
 
     @staticmethod
     def _get_control_path(probes_path: Path) -> Path:
