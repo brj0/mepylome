@@ -60,6 +60,7 @@ dev = [
   "nbstripout",          # strip outputs from committed notebooks
   "pillow",              # image handling (capitalized PyPI name)
   "pytest",              # test code
+  "pytest-cov",          # Coverate rate of tests via pytest --cov=mepylome
   "ruff",                # fast linter
   "ruptures",            # segmentation algorithm
   "sphinx",              # docs generator
