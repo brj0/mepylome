@@ -52,9 +52,9 @@ substantial speed improvements over existing methylation analysis pipelines.**
 
 ### Performance
 - Significantly **faster** compared to
-  - [minfi](https://github.com/hansenlab/minfi),
-  - [conumee2](https://github.com/hovestadtlab/conumee2) and
-  - [sesame](https://github.com/zwdzwd/sesame).
+  - [minfi](https://github.com/hansenlab/minfi)
+  - [conumee2](https://github.com/hovestadtlab/conumee2)
+  - [sesame](https://github.com/zwdzwd/sesame)
 
 ### Quality Control
 - pOOBAH-based probe calculation
