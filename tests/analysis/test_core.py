@@ -109,7 +109,7 @@ def test_get_balanced_indices_raises_on_singleton_class() -> None:
 
 
 def test_get_balanced_indices_raises_on_empty_class() -> None:
-    """A class with zero effective members (via duplicate-free input) raises."""
+    """A class with zero effective members raises."""
     labels = ["a", "b"]
     with pytest.raises(ValueError, match="Only 1 sample"):
         get_balanced_indices(labels)
