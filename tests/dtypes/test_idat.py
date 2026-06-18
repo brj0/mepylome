@@ -254,9 +254,10 @@ def test_get_file_object_with_bytesio() -> None:
 
 def test_get_file_object_bad_type_raises() -> None:
     """Faises TypeError for anything that is not a path or file-like object."""
-    with pytest.raises(
-        TypeError, match="Expected file-like object"
-    ) and get_file_object(42):  # type: ignore[arg-type]
+    with (
+        pytest.raises(TypeError, match="Expected file-like object"),
+        get_file_object(42),  # type: ignore[arg-type]
+    ):
         pass
 
 
