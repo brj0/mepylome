@@ -335,9 +335,7 @@ def test_idat_handler_with_annotation_file(
     """Annotation columns are joined onto the sample table by matching ID."""
     annotation_path = tmp_path / "annotation.csv"
     annotation_path.write_text(
-        "ID,Methylation_Class\n"
-        "sample_1,Tumor_A\n"
-        "sample_2,Tumor_B\n"
+        "ID,Methylation_Class\nsample_1,Tumor_A\nsample_2,Tumor_B\n"
     )
     handler = IdatHandler(analysis_dir=tmp_path, annotation=annotation_path)
     assert (
@@ -421,10 +419,7 @@ def test_idat_handler_features_multiple_columns_joined(
 ) -> None:
     """features() joins multiple columns with the given separator."""
     annotation_path = tmp_path / "annotation.csv"
-    annotation_path.write_text(
-        "ID,GEO,CNVs\n"
-        "sample_1,SGT_103,Balanced\n"
-    )
+    annotation_path.write_text("ID,GEO,CNVs\nsample_1,SGT_103,Balanced\n")
     handler = IdatHandler(analysis_dir=tmp_path, annotation=annotation_path)
     features = handler.features(columns=["GEO", "CNVs"], separator="|")
     assert features.loc["sample_1"] == "SGT_103|Balanced"
