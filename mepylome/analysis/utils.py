@@ -657,7 +657,7 @@ def check_memory(nrows: int, ncols: int, dtype: type | np.dtype) -> None:
     required_memory = nrows * ncols * dtype_size
     if required_memory > available_memory:
         msg = (
-            f"Not enout free memory available. For the given dimension "
+            f"Not enough free memory available. For the given dimension "
             f"({nrows} samples, {ncols} CpG's), "
             f"{required_memory / (1024**3):.1f} GB is required."
         )
