@@ -18,7 +18,7 @@ def test_array_type_str_values() -> None:
     assert str(ArrayType.ILLUMINA_EPIC) == "epic"
     assert str(ArrayType.ILLUMINA_EPIC_V2) == "epicv2"
     assert str(ArrayType.ILLUMINA_27K) == "27k"
-    assert str(ArrayType.ILLUMINA_MOUSE) == "mouse"
+    assert str(ArrayType.ILLUMINA_MM285) == "mm285"
     assert str(ArrayType.ILLUMINA_MSA48) == "msa48"
     assert str(ArrayType.HORVATH_MAMMAL_40) == "mammal40"
     assert str(ArrayType.UNKNOWN) == "unknown"
@@ -56,10 +56,10 @@ def test_array_type_str_values() -> None:
         (55200, ArrayType.ILLUMINA_27K),
         (55300, ArrayType.ILLUMINA_27K),
         (55400, ArrayType.ILLUMINA_27K),
-        # Mouse
-        (315000, ArrayType.ILLUMINA_MOUSE),
-        (340000, ArrayType.ILLUMINA_MOUSE),
-        (362000, ArrayType.ILLUMINA_MOUSE),
+        # MM285
+        (315000, ArrayType.ILLUMINA_MM285),
+        (340000, ArrayType.ILLUMINA_MM285),
+        (362000, ArrayType.ILLUMINA_MM285),
         # Mammal40
         (41000, ArrayType.HORVATH_MAMMAL_40),
         (41050, ArrayType.HORVATH_MAMMAL_40),

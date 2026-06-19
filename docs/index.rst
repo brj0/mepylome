@@ -26,7 +26,7 @@ Mepylome is open source, and hosted at github: https://github.com/brj0/mepylome
 ~~~~~~~~~~~~~~~~~
 
 - ⚡ **Very fast processing engine**
-- 🧬 Supports Illumina **450k, EPIC, EPICv2, 27k, MSA48, and Mouse arrays**
+- 🧬 Supports Illumina **450k, EPIC, EPICv2, 27k, MSA48, and MM285 arrays**
 - 📊 CNV analysis with interactive Plotly visualizations
 - 🧹 Clean API for large-scale cohort processing
 - 🖥️ Optional GUI for UMAP + CNV exploration
@@ -49,7 +49,7 @@ Features
    - Illumina 450k
    - Illumina 27k
    - Illumina MSA48
-   - Illumina Mouse
+   - Illumina MM285 (Mouse)
 - Significantly **faster** compared to:
 
   - `minfi <https://github.com/hansenlab/minfi>`_

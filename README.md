@@ -24,7 +24,7 @@ substantial speed improvements over existing methylation analysis pipelines.**
 ## ✨ Key Highlights
 
 - ⚡ **Very fast processing engine**
-- 🧬 Supports Illumina **450k, EPIC, EPICv2, 27k, MSA48, and Mouse arrays**
+- 🧬 Supports Illumina **450k, EPIC, EPICv2, 27k, MSA48, and MM285 arrays**
 - 📊 CNV analysis with interactive Plotly visualizations
 - 🧹 Clean API for large-scale cohort processing
 - 🖥️ Optional GUI for UMAP + CNV exploration
@@ -48,7 +48,7 @@ substantial speed improvements over existing methylation analysis pipelines.**
 - Illumina 450k
 - Illumina 27k
 - Illumina MSA48
-- Illumina Mouse
+- Illumina MM285 (Mouse)
 
 ### Performance
 - Significantly **faster** compared to

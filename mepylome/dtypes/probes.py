@@ -83,8 +83,4 @@ class ProbeType(IntEnum):
         if infinium_type == InfiniumDesignType.TYPE_II:
             return ProbeType.TWO
 
-        # Mouse only - not tested
-        if infinium_type in ("IR", "IG"):
-            return ProbeType.ONE
-
         return ProbeType.CONTROL

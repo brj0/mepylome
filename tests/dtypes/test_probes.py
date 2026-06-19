@@ -121,14 +121,3 @@ def test_unknown_prefix_falls_to_control() -> None:
     """A probe name that doesn't match any known prefix defaults to CONTROL."""
     pt = ProbeType.from_manifest_values("xyz_unknown", 99)
     assert pt == ProbeType.CONTROL
-
-
-# ---------------------------------------------------------------------------
-# ProbeType.from_manifest_values – Mouse-specific IR/IG infinium types
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("infinium_type", ["IR", "IG"])
-def test_mouse_probe_types(infinium_type: str) -> None:
-    pt = ProbeType.from_manifest_values("cg_mouse_probe", infinium_type)
-    assert pt == ProbeType.ONE
