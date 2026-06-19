@@ -24,6 +24,7 @@ from tqdm import tqdm
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.cache import cache_key, input_args_id, memoize
+from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.idat import IdatParser
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.probes import Channel, ProbeType
@@ -358,6 +359,35 @@ def _overlap_indices(
     left_index = left_arr.get_indexer(common_indices)
     right_index = right_arr.get_indexer(common_indices)
     return left_index, right_index
+
+
+@memoize
+def _get_sex_indices(
+    sample_probes: np.ndarray, manifest_id: ArrayType
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return probe indices for X and Y chromosomes in a sample array.
+
+    Maps manifest-defined X and Y chromosome probes to their positions
+    within a given sample probe array.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]:
+            - indices of X-chromosome probes in sample_probes
+            - indices of Y-chromosome probes in sample_probes
+    """
+    manifest_df = Manifest(manifest_id).data_frame
+
+    x_probes = manifest_df[manifest_df.Chromosome == Chromosome.CHRX][
+        "IlmnID"
+    ].values
+    y_probes = manifest_df[manifest_df.Chromosome == Chromosome.CHRY][
+        "IlmnID"
+    ].values
+
+    return (
+        _overlap_indices(sample_probes, x_probes)[0],
+        _overlap_indices(sample_probes, y_probes)[0],
+    )
 
 
 class MethylData:
@@ -1441,6 +1471,29 @@ class MethylData:
             mvals = np.log2((methylated + offset) / (unmethylated + offset))
 
         return mvals
+
+    def pred_sex(self) -> np.ndarray:
+        """Predict sex from X/Y chromosome methylation intensities.
+
+        Uses median log2 intensity difference between Y and X probes.
+        Threshold-based classifier trained/validated on ~3k tumor samples,
+        achieving ~95% accuracy.
+        """
+        x_idx, y_idx = _get_sex_indices(
+            sample_probes=self.methyl_ilmnid,
+            manifest_id=self.manifest.array_type,
+        )
+
+        x_log = np.log2(self.intensity_array[:, x_idx] + 1)
+        y_log = np.log2(self.intensity_array[:, y_idx] + 1)
+
+        x_median = np.median(x_log, axis=1)
+        y_median = np.median(y_log, axis=1)
+
+        diff_yx = y_median - x_median
+        threshold = -2.5602695724074866
+
+        return np.where(diff_yx > threshold, "male", "female")
 
     def __repr__(self) -> str:
         title = "MethylData():"
