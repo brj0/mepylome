@@ -1477,8 +1477,10 @@ class MethylData:
 
         Uses median log2 intensity difference between Y and X probes.
         Threshold-based classifier trained/validated on ~3k tumor samples,
-        achieving ~95% accuracy.
+        achieving ~95% accuracy. Algorithm needs to be refined in future
+        versions.
         """
+        # TODO: Refine algorithm
         x_idx, y_idx = _get_sex_indices(
             sample_probes=self.methyl_ilmnid,
             manifest_id=self.manifest.array_type,
