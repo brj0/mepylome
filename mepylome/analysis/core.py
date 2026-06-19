@@ -920,7 +920,7 @@ class MethylAnalysis:
 
     def _get_cpgs(
         self,
-        input_var: str | Sequence[str] | set[str] | np.ndarray = "auto",
+        input_var: str | Path | Sequence[str] | set[str] | np.ndarray = "auto",
     ) -> np.ndarray:
         """Returns CpG sites based on the provided input variable."""
         self._internal_cpgs_hash = None
