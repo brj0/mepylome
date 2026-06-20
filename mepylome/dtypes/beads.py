@@ -1538,8 +1538,8 @@ class MethylData:
 
         fig.show()
 
-    def plot_red_green_intensity_qc(self, n_points: int = 512) -> None:
-        """Red vs Green channel intensity quality control plot.
+    def plot_red_green_qq(self, n_points: int = 512) -> None:
+        """Red vs Green channel intensity quantile-quantile plot.
 
         Compares sorted intensity distributions of Red and Green channels using
         quantile downsampling.
