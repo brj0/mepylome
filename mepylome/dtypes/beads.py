@@ -1497,6 +1497,47 @@ class MethylData:
 
         return np.where(diff_yx > threshold, "male", "female")
 
+    def plot_betas_density(self, bins: int = 256) -> None:
+        """Plot beta-value density distributions."""
+        import plotly.graph_objects as go
+        from scipy.ndimage import gaussian_filter1d
+
+        fig = go.Figure()
+
+        edges = np.linspace(0, 1, bins + 1)
+        centers = (edges[:-1] + edges[1:]) / 2
+
+        for sample_id in self.sample_ids:
+            values = self.betas[sample_id].to_numpy()
+
+            hist, _ = np.histogram(
+                values,
+                bins=edges,
+                density=True,
+            )
+            hist = gaussian_filter1d(hist, sigma=2)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=centers,
+                    y=hist,
+                    mode="lines",
+                    name=sample_id,
+                )
+            )
+
+        fig.update_layout(
+            template="simple_white",
+            xaxis_title="Beta value",
+            yaxis_title="Density",
+            hovermode="x unified",
+            showlegend=True,
+        )
+
+        fig.update_xaxes(range=[0, 1])
+
+        fig.show()
+
     def __repr__(self) -> str:
         title = "MethylData():"
         lines = [
