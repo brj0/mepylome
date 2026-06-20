@@ -1538,6 +1538,66 @@ class MethylData:
 
         fig.show()
 
+    def plot_red_green_intensity_qc(self, n_points: int = 512) -> None:
+        """Red vs Green channel intensity quality control plot.
+
+        Compares sorted intensity distributions of Red and Green channels using
+        quantile downsampling.
+
+        Args:
+            n_points (int): Number of quantile-subsampled points per sample.
+        """
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+
+        global_max = 0.0
+
+        for sample_id in self.sample_ids:
+            red = self.red[sample_id].to_numpy()
+            grn = self.grn[sample_id].to_numpy()
+
+            red = np.sort(red)
+            grn = np.sort(grn)
+
+            # Downsample
+            idx = np.linspace(0, len(red) - 1, n_points).astype(int)
+            red = red[idx]
+            grn = grn[idx]
+
+            global_max = max(global_max, red[-1], grn[-1])
+
+            fig.add_trace(
+                go.Scatter(
+                    x=red,
+                    y=grn,
+                    mode="markers",
+                    name=sample_id,
+                    marker=dict(size=5, opacity=0.6),
+                )
+            )
+
+        # identity line using global max
+        fig.add_trace(
+            go.Scatter(
+                x=[0, global_max],
+                y=[0, global_max],
+                mode="lines",
+                name="Identity (Red = Green)",
+                line=dict(dash="dash"),
+            )
+        )
+
+        fig.update_layout(
+            template="simple_white",
+            title="Type-I Red vs Green signal correlation",
+            xaxis_title="Type-I Red signal",
+            yaxis_title="Type-I Green signal",
+            showlegend=True,
+        )
+
+        fig.show()
+
     def __repr__(self) -> str:
         title = "MethylData():"
         lines = [
