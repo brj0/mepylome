@@ -208,9 +208,7 @@ class RawData:
     sample_ids: list[str]
 
     _grn: np.ndarray
-    _grn_df: pd.DataFrame | None
     _red: np.ndarray
-    _red_df: pd.DataFrame | None
 
     def __init__(
         self,
@@ -288,32 +286,25 @@ class RawData:
                 ]
             )
 
-        self._grn_df = None
-        self._red_df = None
-
     @property
     def grn(self) -> pd.DataFrame:
         """DataFrame: Green channel raw intensity indexed by probe IDs."""
-        if self._grn_df is None:
-            self._grn_df = pd.DataFrame(
-                self._grn.T,
-                index=self.illumina_ids,
-                columns=self.sample_ids,
-                dtype="int32",
-            )
-        return self._grn_df
+        return pd.DataFrame(
+            self._grn.T,
+            index=self.illumina_ids,
+            columns=self.sample_ids,
+            dtype="int32",
+        )
 
     @property
     def red(self) -> pd.DataFrame:
         """DataFrame: Red channel raw intensity indexed by probe IDs."""
-        if self._red_df is None:
-            self._red_df = pd.DataFrame(
-                self._red.T,
-                index=self.illumina_ids,
-                columns=self.sample_ids,
-                dtype="int32",
-            )
-        return self._red_df
+        return pd.DataFrame(
+            self._red.T,
+            index=self.illumina_ids,
+            columns=self.sample_ids,
+            dtype="int32",
+        )
 
     def __repr__(self) -> str:
         title = "RawData():"
@@ -430,11 +421,7 @@ class MethylData:
     unmethyl: np.ndarray
 
     _grn: np.ndarray
-    _grn_df: pd.DataFrame | None
-    _methylated_df: pd.DataFrame | None
     _red: np.ndarray
-    _red_df: pd.DataFrame | None
-    _unmethylated_df: pd.DataFrame | None
     _intensity: np.ndarray | None
     _log_intensity_fit: np.ndarray | None
 
@@ -462,10 +449,6 @@ class MethylData:
         self.manifest = data.manifest
         self.sample_ids = data.sample_ids
         self.data = data
-        self._grn_df = None
-        self._red_df = None
-        self._methylated_df = None
-        self._unmethylated_df = None
         self._intensity = None
         self._log_intensity_fit = None
         if prep == "illumina":
@@ -483,52 +466,42 @@ class MethylData:
     @property
     def grn(self) -> pd.DataFrame:
         """DataFrame: Normalized green intensity by probe ID."""
-        if self._grn_df is None:
-            self._grn_df = pd.DataFrame(
-                self._grn.T,
-                index=self.illumina_ids,
-                columns=self.sample_ids,
-                dtype="float32",
-            )
-        return self._grn_df
+        return pd.DataFrame(
+            self._grn.T,
+            index=self.illumina_ids,
+            columns=self.sample_ids,
+            dtype="float32",
+        )
 
     @property
     def red(self) -> pd.DataFrame:
         """DataFrame: Normalized red intensity by probe ID."""
-        if self._red_df is None:
-            self._red_df = pd.DataFrame(
-                self._red.T,
-                index=self.illumina_ids,
-                columns=self.sample_ids,
-                dtype="float32",
-            )
-        return self._red_df
+        return pd.DataFrame(
+            self._red.T,
+            index=self.illumina_ids,
+            columns=self.sample_ids,
+            dtype="float32",
+        )
 
     @property
     def methylated(self) -> pd.DataFrame:
         """DataFrame: Methylated intensity values indexed by IlmnID."""
-        if self._methylated_df is None:
-            self._methylated_df = pd.DataFrame(
-                self.methyl.T,
-                index=self.methyl_ilmnid,
-                columns=self.sample_ids,
-                dtype="float32",
-            )
-            self._methylated_df.index.name = "IlmnID"
-        return self._methylated_df
+        return pd.DataFrame(
+            self.methyl.T,
+            index=self.methyl_ilmnid,
+            columns=self.sample_ids,
+            dtype="float32",
+        ).rename_axis("IlmnID")
 
     @property
     def unmethylated(self) -> pd.DataFrame:
         """DataFrame: Unmethylated intensity values indexed by IlmnID."""
-        if self._unmethylated_df is None:
-            self._unmethylated_df = pd.DataFrame(
-                self.unmethyl.T,
-                index=self.methyl_ilmnid,
-                columns=self.sample_ids,
-                dtype="float32",
-            )
-            self._unmethylated_df.index.name = "IlmnID"
-        return self._unmethylated_df
+        return pd.DataFrame(
+            self.unmethyl.T,
+            index=self.methyl_ilmnid,
+            columns=self.sample_ids,
+            dtype="float32",
+        ).rename_axis("IlmnID")
 
     @property
     def intensity_array(self) -> np.ndarray:
@@ -613,8 +586,6 @@ class MethylData:
         if self.array_type == ArrayType.ILLUMINA_27K:
             raise ValueError(f"{self.array_type} requires raw mode.")
 
-        self._methylated_df = None
-        self._unmethylated_df = None
         ci = MethylData._cached_indices(
             self.manifest, self.illumina_ids, "illumina"
         )
@@ -702,13 +673,13 @@ class MethylData:
             np.nan,
             index=man_idx_np,
             columns=red.columns,
-            dtype="float32",
         )
         result.loc[t1_red.index] = red.loc[t1_red["AddressB_ID"].values].values
         result.loc[t1_grn.index] = grn.loc[t1_grn["AddressB_ID"].values].values
         result.loc[t2.index] = grn.loc[t2["AddressA_ID"].values].values
         result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
-        self._methylated_df = result.set_index("IlmnID")
+        self.methyl_ilmnid = result.index.to_numpy()
+        self.methyl = result.to_numpy().T
 
     def _preprocess_raw_unmethylated(
         self,
@@ -730,7 +701,8 @@ class MethylData:
         result.loc[t1_grn.index] = grn.loc[t1_grn["AddressA_ID"].values].values
         result.loc[t2.index] = red.loc[t2["AddressA_ID"].values].values
         result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
-        self._unmethylated_df = result.set_index("IlmnID")
+        result = result.set_index("IlmnID")
+        self.unmethyl = result.to_numpy().T
 
     @memoize
     def _cached_indices(
@@ -943,8 +915,6 @@ class MethylData:
         if self.array_type == ArrayType.ILLUMINA_27K:
             raise ValueError(f"{self.array_type} requires raw mode.")
 
-        self._methylated_df = None
-        self._unmethylated_df = None
         ci = MethylData._cached_indices(
             self.manifest, self.illumina_ids, "swan"
         )
@@ -1029,9 +999,6 @@ class MethylData:
         """
         if self.array_type == ArrayType.ILLUMINA_27K:
             raise ValueError(f"{self.array_type} requires raw mode.")
-
-        self._methylated_df = None
-        self._unmethylated_df = None
 
         ci = MethylData._cached_indices(
             self.manifest, self.illumina_ids, "noob"
