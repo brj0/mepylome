@@ -694,7 +694,7 @@ def test_compute_umap_raises_on_row_count_mismatch(
 ) -> None:
     analysis = make_analysis()
     analysis.betas_sel = None
-    analysis.idat_handler.ids = ["s1", "s2"] # type: ignore[misc]
+    analysis.idat_handler.ids = ["s1", "s2"]  # type: ignore[misc]
     analysis.feature_matrix = np.zeros((3, 5))
     with pytest.raises(ValueError, match="Dimension mismatch"):
         analysis.compute_umap()
@@ -705,7 +705,7 @@ def test_compute_umap_raises_for_unknown_sample_in_feature_matrix_index(
 ) -> None:
     analysis = make_analysis()
     analysis.betas_sel = None
-    analysis.idat_handler.ids = ["s1", "s2"]# type: ignore[misc]
+    analysis.idat_handler.ids = ["s1", "s2"]  # type: ignore[misc]
     analysis.feature_matrix = pd.DataFrame(
         {"f1": [0.1, 0.2]}, index=["s1", "unknown_sample"]
     )
@@ -1016,7 +1016,7 @@ def test_compute_umap_warns_and_completes_on_chosen_index_mismatch(
     monkeypatch.setattr(core, "LOG_FILE", tmp_path / "umap.log")
 
     analysis = make_analysis()
-    analysis.idat_handler.ids = ["s1", "s2", "s3"] # type: ignore[misc]
+    analysis.idat_handler.ids = ["s1", "s2", "s3"]  # type: ignore[misc]
     analysis.betas_sel = pd.DataFrame({"cpg1": [0.1, 0.2]}, index=["s1", "s2"])
     analysis.feature_matrix = np.zeros((2, 5))
     analysis.use_gpu = False
@@ -1048,7 +1048,7 @@ def test_compute_umap_uses_gpu_backend_when_enabled(
     monkeypatch.setattr(core, "LOG_FILE", tmp_path / "umap_gpu.log")
 
     analysis = make_analysis()
-    analysis.idat_handler.ids = ["s1", "s2"] # type: ignore[misc]
+    analysis.idat_handler.ids = ["s1", "s2"]  # type: ignore[misc]
     analysis.betas_sel = pd.DataFrame({"cpg1": [0.1, 0.2]}, index=["s1", "s2"])
     analysis.feature_matrix = None
     analysis.use_gpu = True
@@ -1164,7 +1164,7 @@ def test_precompute_cnvs_writes_for_given_ids(
     make_analysis: AnalysisFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     analysis = make_analysis()
-    analysis.idat_handler.ids = ["s1", "s2"] # type: ignore[misc]
+    analysis.idat_handler.ids = ["s1", "s2"]  # type: ignore[misc]
     analysis.idat_handler.id_to_path = {
         "s1": Path("/x/s1"),
         "s2": Path("/x/s2"),
@@ -1181,7 +1181,7 @@ def test_precompute_cnvs_defaults_to_all_idat_handler_ids(
     make_analysis: AnalysisFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     analysis = make_analysis()
-    analysis.idat_handler.ids = ["s1", "s2"] # type: ignore[misc]
+    analysis.idat_handler.ids = ["s1", "s2"]  # type: ignore[misc]
     analysis.idat_handler.id_to_path = {
         "s1": Path("/x/s1"),
         "s2": Path("/x/s2"),
