@@ -114,7 +114,7 @@ from mepylome import ArrayType, Manifest, clear_cache
 from mepylome.analysis import MethylAnalysis
 from mepylome.dtypes.manifests import (
     DOWNLOAD_DIR,
-    MANIFEST_URL,
+    MANIFEST_SPECS,
     REMOTE_FILENAME,
 )
 from mepylome.utils import download_file, download_idats
@@ -233,7 +233,7 @@ def generate_blacklist_cpgs():
     print("Generating blacklist. Can take some time...")
     blacklist_path = data_dir / "cpg_blacklist.csv"
     if not blacklist_path.exists():
-        manifest_url = MANIFEST_URL[ArrayType.ILLUMINA_EPIC]
+        manifest_url = MANIFEST_SPECS[ArrayType.ILLUMINA_EPIC].download_url
         DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
         response = requests.get(manifest_url)
         html_sucess_ok_code = 200
