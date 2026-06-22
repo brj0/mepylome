@@ -1505,6 +1505,89 @@ class MethylData:
 
         fig.show()
 
+    def plot_intens_vs_betas(
+        self,
+        sample_id: str | Sequence[str] | None = None,
+        n_cols: int = 3,
+    ) -> None:
+        """Plot total signal intensity vs beta value.
+
+        Args:
+            sample_id (str, list, optional): Sample(s) to plot. Defaults to
+                all samples (one subplot per sample).
+            n_cols (int): Number of subplot columns when plotting multiple
+                samples. Defaults to 3.
+        """
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+
+        if sample_id is None:
+            sample_ids = list(self.sample_ids)
+        elif isinstance(sample_id, str):
+            sample_ids = [sample_id]
+        else:
+            sample_ids = list(sample_id)
+
+        intens_df = self.intensity
+        betas_df = self.betas
+
+        n_samples = len(sample_ids)
+        n_cols = max(1, min(n_cols, n_samples))
+        n_rows = n_samples // n_cols
+
+        fig = make_subplots(
+            rows=n_rows,
+            cols=n_cols,
+            subplot_titles=sample_ids,
+            horizontal_spacing=0.08,
+            vertical_spacing=0.15,
+        )
+
+        for i, sample in enumerate(sample_ids):
+            row = i // n_cols + 1
+            col = i % n_cols + 1
+
+            log_intens = np.log2(intens_df[sample].to_numpy())
+            beta = betas_df[sample].to_numpy()
+            valid = np.isfinite(log_intens) & np.isfinite(beta)
+
+            fig.add_trace(
+                go.Histogram2dContour(
+                    x=log_intens[valid],
+                    y=beta[valid],
+                    colorscale="Turbo",
+                    showscale=False,
+                    ncontours=20,
+                    line=dict(width=0),
+                    hoverinfo="skip",
+                ),
+                row=row,
+                col=col,
+            )
+
+            fig.add_hline(
+                y=0.5,
+                line_dash="dash",
+                line_color="gray",
+                layer="above",
+                row=row,
+                col=col,
+            )
+            fig.update_xaxes(
+                title_text="Total Intensity (Log2(M+U))", row=row, col=col
+            )
+            fig.update_yaxes(range=[0, 1], title_text="Beta", row=row, col=col)
+
+        fig.update_layout(
+            template="simple_white",
+            title="Total Signal Intensity vs Beta Values",
+            height=max(700, 380 * n_rows),
+            width=max(900, 480 * n_cols),
+            showlegend=False,
+        )
+
+        fig.show()
+
     def plot_red_green_qq(self, n_points: int = 512) -> None:
         """Red vs Green channel intensity quantile-quantile plot.
 
