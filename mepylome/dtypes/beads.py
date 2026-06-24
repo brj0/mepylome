@@ -6,6 +6,7 @@ preprocessing techniques, normalization, and data handling.
 
 import collections
 import logging
+import math
 import os
 import pickle
 import threading
@@ -20,6 +21,8 @@ from uuid import uuid4
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from tqdm import tqdm
 
 from mepylome.dtypes.arrays import ArrayType
@@ -1466,7 +1469,6 @@ class MethylData:
 
     def plot_betas_density(self, bins: int = 256) -> None:
         """Plot beta-value density distributions."""
-        import plotly.graph_objects as go
         from scipy.ndimage import gaussian_filter1d
 
         fig = go.Figure()
@@ -1518,9 +1520,6 @@ class MethylData:
             n_cols (int): Number of subplot columns when plotting multiple
                 samples. Defaults to 3.
         """
-        import plotly.graph_objects as go
-        from plotly.subplots import make_subplots
-
         if sample_id is None:
             sample_ids = list(self.sample_ids)
         elif isinstance(sample_id, str):
@@ -1533,7 +1532,7 @@ class MethylData:
 
         n_samples = len(sample_ids)
         n_cols = max(1, min(n_cols, n_samples))
-        n_rows = n_samples // n_cols
+        n_rows = math.ceil(n_samples / n_cols)
 
         fig = make_subplots(
             rows=n_rows,
@@ -1597,8 +1596,6 @@ class MethylData:
         Args:
             n_points (int): Number of quantile-subsampled points per sample.
         """
-        import plotly.graph_objects as go
-
         fig = go.Figure()
 
         global_max = 0.0
