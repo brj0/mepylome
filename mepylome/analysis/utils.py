@@ -693,8 +693,8 @@ class BetasHandler:
     Attributes:
         basedir (Path): Path to the directory containing beta files.
         error_dir (dict): Dictionary where errors are written.
-        paths (dict): Dictionary of all beta file paths.
-        invalid_paths (dict): Dictionary of invalid beta file paths.
+        beta_paths (dict): Dictionary of all beta file paths.
+        error_paths (dict): Dictionary of error file paths.
 
     """
 
@@ -706,8 +706,8 @@ class BetasHandler:
         self.basedir = Path(directory).expanduser()
         self._array_cpgs: dict[ArrayType, np.ndarray] = array_cpgs or {}
         self.error_dir = self.basedir / "error"
-        self.paths: dict = {}
-        self.invalid_paths: dict = {}
+        self.beta_paths: dict = {}
+        self.error_paths: dict = {}
         self.update()
 
     @property
@@ -734,12 +734,7 @@ class BetasHandler:
     @property
     def filenames(self) -> list[str]:
         """Returns all idat basenames."""
-        return list(self.paths.keys())
-
-    @property
-    def invalid_filenames(self) -> list[str]:
-        """Returns all invalid invalid basenames."""
-        return list(self.invalid_paths.keys())
+        return list(self.beta_paths.keys())
 
     def add(
         self,
@@ -751,6 +746,10 @@ class BetasHandler:
         output_dir = self.basedir / str(array_type)
         ensure_directory_exists(output_dir)
         betas.astype(DTYPE).tofile(output_dir / filename)
+        # Delete error file if it exists
+        path = self.error_paths.pop(filename, None)
+        if path is not None:
+            path.unlink(missing_ok=True)
 
     def add_error(
         self,
@@ -777,9 +776,7 @@ class BetasHandler:
             filenames = [idat_handler.id_to_basename[id_] for id_ in ids]
 
         filenames = [
-            filename
-            for filename in filenames
-            if filename not in self.invalid_filenames
+            filename for filename in filenames if filename in self.filenames
         ]
         ids = [idat_handler.basename_to_id[x] for x in filenames]
 
@@ -793,7 +790,7 @@ class BetasHandler:
             left_idx[key], right_idx[key] = _overlap_indices(cpgs, item)
 
         def process_beta_value(i: int, filename: str) -> None:
-            path = self.paths.get(filename)
+            path = self.beta_paths.get(filename)
             if path is not None:
                 key = ArrayType(path.parent.name)
 
@@ -845,18 +842,13 @@ class BetasHandler:
         memory.
         """
         if ids is None:
-            filenames = [
-                filename
-                for filename in idat_handler.idat_basenames
-                if filename not in self.invalid_filenames
-            ]
+            basenames = idat_handler.idat_basenames
         else:
             basenames = [idat_handler.id_to_basename[id_] for id_ in ids]
-            filenames = [
-                basename
-                for basename in basenames
-                if basename not in self.invalid_filenames
-            ]
+
+        allowed = set(self.filenames)
+        filenames = [b for b in basenames if b in allowed]
+
         # Initialize running mean and M2 for Welford’s algorithm
         count = 0
         mean = np.zeros(len(cpgs), dtype=DTYPE)
@@ -867,7 +859,7 @@ class BetasHandler:
             left_idx[key], right_idx[key] = _overlap_indices(cpgs, item)
 
         def get_row(filename: str) -> np.ndarray | None:
-            path = self.paths.get(filename)
+            path = self.beta_paths.get(filename)
             if path is None:
                 return None
             key = ArrayType(path.parent.name)
@@ -910,13 +902,13 @@ class BetasHandler:
 
     def update(self) -> None:
         """Updates the paths if beta vales were added after initialization."""
-        self.paths = {
+        self.error_paths = {
+            path.name: path for path in self.error_dir.rglob("*")
+        }
+        self.beta_paths = {
             path.name: path
             for path in self.basedir.rglob("*")
-            if not path.is_dir()
-        }
-        self.invalid_paths = {
-            path.name: path for path in self.error_dir.rglob("*")
+            if path.is_file() and self.error_dir not in path.parents
         }
 
 

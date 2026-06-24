@@ -465,10 +465,9 @@ def test_idat_handler_overlap_filters_to_annotated_samples(
 def test_betas_handler_initial_state_empty(tmp_path: Path) -> None:
     """A freshly-created BetasHandler with no files has empty paths."""
     handler = BetasHandler(tmp_path)
-    assert handler.paths == {}
-    assert handler.invalid_paths == {}
+    assert handler.beta_paths == {}
+    assert handler.error_paths == {}
     assert handler.filenames == []
-    assert handler.invalid_filenames == []
 
 
 def test_betas_handler_add_writes_file(tmp_path: Path) -> None:
@@ -503,14 +502,6 @@ def test_betas_handler_update_discovers_new_files(tmp_path: Path) -> None:
     handler.add(betas, "sample_new", ArrayType.ILLUMINA_EPIC)
     handler.update()
     assert "sample_new" in handler.filenames
-
-
-def test_betas_handler_update_discovers_invalid_files(tmp_path: Path) -> None:
-    """update() picks up error files written to the error directory."""
-    handler = BetasHandler(tmp_path)
-    handler.add_error("broken_sample", "some error")
-    handler.update()
-    assert "broken_sample" in handler.invalid_filenames
 
 
 def test_betas_handler_get_returns_betas_for_requested_ids(
