@@ -67,34 +67,46 @@ class Chromosome(IntEnum):
         """Checks if the given chromosome is valid."""
         return (chrom >= Chromosome.CHR1) & (chrom <= Chromosome.CHRY)
 
+    @classmethod
+    def from_string(cls, chrom: str) -> "Chromosome":
+        """Converts a single chromosome string to a Chromosome value."""
+        chrom_map = {
+            **{str(i): cls(i) for i in range(23)},
+            **{f"chr{i}": cls(i) for i in range(23)},
+            "M": cls.CHRM,
+            "X": cls.CHRX,
+            "Y": cls.CHRY,
+            "chrM": cls.CHRM,
+            "chrX": cls.CHRX,
+            "chrY": cls.CHRY,
+            "chrm": cls.CHRM,
+            "chrx": cls.CHRX,
+            "chry": cls.CHRY,
+            "m": cls.CHRM,
+            "x": cls.CHRX,
+            "y": cls.CHRY,
+        }
+        return chrom_map.get(chrom, cls.INVALID)
+
+    @classmethod
+    def to_string(cls, chrom: "Chromosome") -> str:
+        """Converts a single Chromosome value to its string representation."""
+        chrom_map = {
+            **{cls(i): f"chr{i}" for i in range(23)},
+            cls.CHRX: "chrX",
+            cls.CHRY: "chrY",
+            cls.CHRM: "chrM",
+        }
+        return chrom_map.get(chrom, "NaN")
+
     @staticmethod
     def pd_from_string(col: pd.Series) -> pd.Series:
         """Converts chromosome strings to Chromosome enum values."""
-        chrom_map = {
-            **{str(i): Chromosome(i) for i in range(23)},
-            **{"chr" + str(i): Chromosome(i) for i in range(23)},
-            "X": Chromosome.CHRX,
-            "Y": Chromosome.CHRY,
-            "M": Chromosome.CHRM,
-            "x": Chromosome.CHRX,
-            "y": Chromosome.CHRY,
-            "m": Chromosome.CHRM,
-            "chrX": Chromosome.CHRX,
-            "chrY": Chromosome.CHRY,
-            "chrM": Chromosome.CHRM,
-            "chrx": Chromosome.CHRX,
-            "chry": Chromosome.CHRY,
-            "chrm": Chromosome.CHRM,
-        }
-        return col.map(chrom_map).fillna(Chromosome.INVALID).astype(int)
+        unique_map = {v: Chromosome.from_string(v) for v in col.unique()}
+        return col.map(unique_map).astype(int)
 
     @staticmethod
     def pd_to_string(col: pd.Series) -> pd.Series:
         """Converts Chromosome enum values to chromosome strings."""
-        chrom_map = {
-            **{Chromosome(i): "chr" + str(i) for i in range(23)},
-            Chromosome.CHRX: "chrX",
-            Chromosome.CHRY: "chrY",
-            Chromosome.CHRM: "chrM",
-        }
-        return col.map(chrom_map).fillna("NaN")
+        unique_map = {v: Chromosome.to_string(v) for v in col.unique()}
+        return col.map(unique_map)
