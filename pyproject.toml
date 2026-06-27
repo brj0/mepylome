@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mepylome"
-version = "0.11.0"
+version = "0.12.0"
 description = "Python package for processing Infinium DNA methylation arrays"
 readme = "README.md"
 authors = [

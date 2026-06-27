@@ -59,6 +59,7 @@ substantial speed improvements over existing methylation analysis pipelines.**
 ### Quality Control
 - pOOBAH-based probe calculation
 - Quality metrics for samples and probes
+- Heatmap of beta values of a gene or genomic region
 
 ### GUI
 - Methylation analysis tool with a graphical browser interface for UMAP
