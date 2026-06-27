@@ -36,7 +36,11 @@ from mepylome.analysis.classifiers import (
 )
 from mepylome.analysis.plots import (
     EMPTY_FIGURE,
+    GenomicInfo,
     get_cnv_plot,
+    get_gene_info,
+    get_region_info,
+    region_methylation_plot,
     umap_plot_from_data,
     write_cnv_to_disk,
 )
@@ -53,6 +57,7 @@ from mepylome.analysis.utils import (
 )
 from mepylome.dtypes import (
     ArrayType,
+    Chromosome,
     Manifest,
     PrepType,
     _get_cgsegment,
@@ -1803,6 +1808,188 @@ class MethylAnalysis:
         self.cpgs = prev_cpgs
         self._update_paths()
         return result
+
+    def _resolve_ids_and_array_type(
+        self,
+        ids: Sequence[str] | None,
+        array_type: str | ArrayType | None,
+    ) -> tuple[list[str], ArrayType]:
+        """Resolves sample IDs and a single common array type for a plot."""
+        ids = list(ids) if ids is not None else list(self.idat_handler.ids)
+        if not ids:
+            msg = "No sample IDs available"
+            raise ValueError(msg)
+        if array_type is not None:
+            return ids, ArrayType(array_type)
+        detected = {
+            ArrayType.from_idat(self.idat_handler.id_to_path[id_])
+            for id_ in ids
+        }
+        if len(detected) > 1:
+            msg = (
+                f"Selected samples use multiple array types {detected}; "
+                "pass 'array_type' explicitly to disambiguate"
+            )
+            raise ValueError(msg)
+        return ids, next(iter(detected))
+
+    def _region_figure(
+        self,
+        info: GenomicInfo,
+        region_name: str,
+        ids: list[str],
+        chromosome: Chromosome | None = None,
+    ) -> go.Figure:
+        """Fetches betas for a gene/region's CpGs and builds the plot."""
+        if len(info.cpgs) == 0:
+            msg = f"'{region_name}' has no CpG probes on this array type"
+            raise ValueError(msg)
+
+        region_cpgs = [cpg for cpg in info.cpgs if cpg in self.cpgs]
+        if not region_cpgs:
+            msg = (
+                f"None of '{region_name}'s CpG probes are in the current "
+                "'cpgs' selection"
+            )
+            raise ValueError(msg)
+
+        self.set_betas()
+        assert self.betas_all is not None
+
+        # 'set_betas' silently drops samples whose IDAT extraction failed,
+        # so 'betas_all' may not contain every requested ID.
+        available_ids = [id_ for id_ in ids if id_ in self.betas_all.index]
+        missing_ids = [id_ for id_ in ids if id_ not in available_ids]
+        if missing_ids:
+            logger.warning(
+                "Skipping %d sample(s) with no beta values (failed IDAT "
+                "extraction): %s",
+                len(missing_ids),
+                missing_ids,
+            )
+        if not available_ids:
+            msg = "None of the requested sample IDs have beta values available"
+            raise ValueError(msg)
+
+        betas = self.betas_all.loc[available_ids, region_cpgs]
+        cpg_positions = info.positions.loc[region_cpgs]
+        return region_methylation_plot(
+            betas=betas,
+            region_name=region_name,
+            cpg_positions=cpg_positions,
+            region_start=info.start,
+            region_end=info.end,
+            strand=info.strand,
+            chromosome=chromosome,
+        )
+
+    def visualize_gene(
+        self,
+        gene: str,
+        array_type: str | ArrayType | None = None,
+        ids: Sequence[str] | None = None,
+        show: bool = True,
+    ) -> go.Figure | None:
+        """Visualizes methylation across a gene.
+
+        Plots a heatmap of beta values (samples x CpGs) for all CpG probes
+        located within the genomic region of ``gene`` (according to the
+        bundled gene annotation), with CpGs ordered by genomic position. A
+        gene-body track is drawn above the heatmap, with thin connector
+        lines linking each CpG's true genomic position to its
+        evenly-spaced column in the heatmap below.
+
+        Args:
+            gene (str): Gene symbol (e.g. "EGFR", "MLH1", "CDKN2A"). Must
+                match a gene name in the bundled gene annotation
+                (case-sensitive).
+            array_type (str or ArrayType, optional): Array type used to
+                look up the gene's CpGs. Defaults to the type detected
+                from the selected samples (must be a single, common type).
+            ids (list of str, optional): Sample IDs to include. Defaults
+                to all samples found in ``analysis_dir``/``test_dir``.
+            show (bool): If True (default), displays the figure immediately
+                and returns None. If False, returns the figure without
+                displaying it.
+
+        Returns:
+            go.Figure or None: The methylation heatmap with gene track, or
+            None if ``show`` is True.
+
+        Raises:
+            ValueError: If no sample IDs are available, the gene is
+                unknown, it has no CpG probes on the array type used, or
+                the selected samples span multiple array types and
+                ``array_type`` was not given explicitly.
+        """
+        ids, array_type = self._resolve_ids_and_array_type(ids, array_type)
+        gene_info = get_gene_info(gene, array_type)
+        if gene_info is None:
+            msg = f"Gene '{gene}' not found in the gene annotation"
+            raise ValueError(msg)
+        fig = self._region_figure(gene_info, region_name=gene, ids=ids)
+        if show:
+            fig.show()
+            return None
+        return fig
+
+    def visualize_region(
+        self,
+        chromosome: str | Chromosome,
+        start: int,
+        end: int,
+        array_type: str | ArrayType | None = None,
+        ids: Sequence[str] | None = None,
+        show: bool = True,
+    ) -> go.Figure | None:
+        """Visualizes methylation across an arbitrary genomic region.
+
+        Like `visualize_gene`, but for any region given as
+        chromosome/start/end instead of a gene symbol -- useful for loci
+        without a gene annotation, or custom regions of interest.
+
+        Args:
+            chromosome (str or Chromosome): Chromosome (e.g. "chr3" or "3").
+            start (int): Region start position (genomic coordinate).
+            end (int): Region end position (genomic coordinate).
+            array_type (str or ArrayType, optional): Array type used to
+                look up CpGs in the region. Defaults to the type detected
+                from the selected samples (must be a single, common type).
+            ids (list of str, optional): Sample IDs to include. Defaults
+                to all samples found in ``analysis_dir``/``test_dir``.
+            show (bool): If True (default), displays the figure immediately
+                and returns None. If False, returns the figure without
+                displaying it.
+
+        Returns:
+            go.Figure or None: The methylation heatmap with region track,
+            or None if ``show`` is True.
+
+        Raises:
+            ValueError: If ``chromosome`` is invalid, no sample IDs are
+                available, the region has no CpG probes on the array type
+                used, or the selected samples span multiple array types
+                and ``array_type`` was not given explicitly.
+        """
+        if isinstance(chromosome, str):
+            chromosome = Chromosome.from_string(chromosome)
+        if chromosome == Chromosome.INVALID:
+            msg = "'chromosome' is invalid"
+            raise ValueError(msg)
+
+        ids, array_type = self._resolve_ids_and_array_type(ids, array_type)
+        region_info = get_region_info(chromosome, start, end, array_type)
+        region_name = f"{chromosome}:{start}-{end}"
+        fig = self._region_figure(
+            region_info,
+            region_name=region_name,
+            ids=ids,
+            chromosome=chromosome,
+        )
+        if show:
+            fig.show()
+            return None
+        return fig
 
     def get_app(self) -> Dash:
         """Returns a Dash application object for methylation analysis."""
