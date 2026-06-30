@@ -1427,12 +1427,21 @@ class MethylAnalysis:
                 arrowhead=2,
             )
 
-    def _retrieve_zoom(self, current_plot: dict[str, Any] | None) -> None:
+    def _retrieve_zoom(self, relayout_data: dict[str, Any] | None) -> None:
         """Retrieves and applies the zoom level to the UMAP plot."""
-        if current_plot is None:
+        if not relayout_data:
             return
-        self.umap_plot.layout.xaxis = current_plot["layout"]["xaxis"]
-        self.umap_plot.layout.yaxis = current_plot["layout"]["yaxis"]
+
+        x0 = relayout_data.get("xaxis.range[0]")
+        x1 = relayout_data.get("xaxis.range[1]")
+        y0 = relayout_data.get("yaxis.range[0]")
+        y1 = relayout_data.get("yaxis.range[1]")
+
+        if x0 is not None and x1 is not None:
+            self.umap_plot.update_layout(xaxis=dict(range=[x0, x1]))
+
+        if y0 is not None and y1 is not None:
+            self.umap_plot.update_layout(yaxis=dict(range=[y0, y1]))
 
     def make_cnv_plot(
         self,

@@ -1118,10 +1118,16 @@ def test_retrieve_zoom_applies_provided_axis_ranges(
 ) -> None:
     analysis = make_analysis()
     analysis.umap_plot = go.Figure()
-    current_plot = {
-        "layout": {"xaxis": {"range": [0, 1]}, "yaxis": {"range": [0, 2]}}
+
+    relayout_data = {
+        "xaxis.range[0]": 0,
+        "xaxis.range[1]": 1,
+        "yaxis.range[0]": 0,
+        "yaxis.range[1]": 2,
     }
-    analysis._retrieve_zoom(current_plot)
+
+    analysis._retrieve_zoom(relayout_data)
+
     assert analysis.umap_plot.layout.xaxis.range == (0, 1)
     assert analysis.umap_plot.layout.yaxis.range == (0, 2)
 

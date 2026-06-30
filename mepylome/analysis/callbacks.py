@@ -141,7 +141,7 @@ def register_callbacks(app: Dash, analysis: MethylAnalysis) -> None:
             Input("umap-color-scheme", "value"),
             Input("selected-genes", "value"),
         ],
-        State("umap-plot", "figure"),
+        State("umap-plot", "relayoutData"),
     )
     def update_plots(
         click_data: dict[str, Any] | None,
@@ -149,13 +149,13 @@ def register_callbacks(app: Dash, analysis: MethylAnalysis) -> None:
         umap_color_columns: list[str] | None,
         umap_color_scheme: str | None,
         genes_sel: list[str] | None,
-        curr_umap_plot: dict[str, Any] | None,
+        relayout_data: dict[str, Any] | None,
     ) -> tuple[Any, Any, Any]:
         def update_umap_plot() -> tuple[Any, Any, Any]:
             try:
                 analysis.make_umap_plot()
                 analysis._umap_plot_highlight(cnv_id=analysis.cnv_id)
-                analysis._retrieve_zoom(curr_umap_plot)
+                analysis._retrieve_zoom(relayout_data)
                 return analysis.umap_plot, no_update, ""
             except AttributeError:
                 return no_update, no_update, no_update
@@ -165,17 +165,17 @@ def register_callbacks(app: Dash, analysis: MethylAnalysis) -> None:
         analysis.ids_to_highlight = ids_to_highlight or []
         if trigger == "ids-to-highlight":
             analysis._umap_plot_highlight()
-            analysis._retrieve_zoom(curr_umap_plot)
+            analysis._retrieve_zoom(relayout_data)
             return analysis.umap_plot, no_update, ""
         if (
             trigger == "umap-annotation-color"
             and umap_color_columns is not None
         ):
             analysis.idat_handler.selected_columns = umap_color_columns
-            update_umap_plot()
+            return update_umap_plot()
         if trigger == "umap-color-scheme" and umap_color_scheme is not None:
             analysis._use_discrete_colors = umap_color_scheme == "discrete"
-            update_umap_plot()
+            return update_umap_plot()
 
         if trigger == "umap-plot" and isinstance(click_data, dict):
             points = click_data.get("points")
@@ -185,7 +185,7 @@ def register_callbacks(app: Dash, analysis: MethylAnalysis) -> None:
                 if sample_id is None:
                     return no_update, no_update, ""
                 analysis._umap_plot_highlight(cnv_id=sample_id)
-                analysis._retrieve_zoom(curr_umap_plot)
+                analysis._retrieve_zoom(relayout_data)
                 try:
                     analysis.make_cnv_plot(sample_id, genes_sel)
                     return analysis.umap_plot, analysis.cnv_plot, ""
