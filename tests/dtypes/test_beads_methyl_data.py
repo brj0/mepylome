@@ -300,15 +300,15 @@ def test_mvalues_at_missing_filled(
 def test_raw_data_grn_df_shape(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, pairs = _build_raw_data(tmp_path, tmp_manifest, n_cpgs=54, n_probes=3)
     grn_df = raw.green_df
-    assert grn_df.shape == (len(raw.illumina_ids), 3)
+    assert grn_df.shape == (len(raw.bead_addresses), 3)
     assert list(grn_df.columns) == raw.sample_ids
-    assert list(grn_df.index) == list(raw.illumina_ids)
+    assert list(grn_df.index) == list(raw.bead_addresses)
 
 
 def test_raw_data_red_df_shape(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest, n_cpgs=54, n_probes=2)
     red_df = raw.red_df
-    assert red_df.shape == (len(raw.illumina_ids), 2)
+    assert red_df.shape == (len(raw.bead_addresses), 2)
 
 
 def test_raw_data_grn_values_match_array(
@@ -333,13 +333,13 @@ def test_raw_data_red_values_match_array(
 def test_methyl_data_grn_df(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    assert md.green_df.shape == (len(raw.illumina_ids), len(raw.sample_ids))
+    assert md.green_df.shape == (len(raw.bead_addresses), len(raw.sample_ids))
 
 
 def test_methyl_data_red_df(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    assert md.red_df.shape == (len(raw.illumina_ids), len(raw.sample_ids))
+    assert md.red_df.shape == (len(raw.bead_addresses), len(raw.sample_ids))
 
 
 # ---------------------------------------------------------------------------

@@ -194,7 +194,7 @@ class RawData:
     Attributes:
         array_type (str): Type of Illumina array.
         sample_ids (list): List of sample IDs corresponding to the IDAT files.
-        illumina_ids (array): Array of probe IDs.
+        bead_addresses (array): Bead addresses.
         green (array): Array of raw intensity values from the green channel.
         red (array): Array of raw intensity values from the red channel.
 
@@ -206,7 +206,7 @@ class RawData:
     """
 
     array_type: ArrayType
-    illumina_ids: np.ndarray
+    bead_addresses: np.ndarray
     manifest: Manifest
     sample_ids: list[str]
 
@@ -257,11 +257,11 @@ class RawData:
             np.array_equal(all_illumina_ids[0], arr)
             for arr in all_illumina_ids
         ):
-            self.illumina_ids = all_illumina_ids[0]
+            self.bead_addresses = all_illumina_ids[0]
             self.green = np.array([idat.probe_means for idat in grn_idat])
             self.red = np.array([idat.probe_means for idat in red_idat])
         else:
-            self.illumina_ids = reduce(
+            self.bead_addresses = reduce(
                 np.intersect1d, [idat.illumina_ids for idat in grn_idat]
             )
             self.green = np.array(
@@ -269,7 +269,7 @@ class RawData:
                     idat.probe_means[
                         np.isin(
                             idat.illumina_ids,
-                            self.illumina_ids,
+                            self.bead_addresses,
                             assume_unique=True,
                         )
                     ]
@@ -281,7 +281,7 @@ class RawData:
                     idat.probe_means[
                         np.isin(
                             idat.illumina_ids,
-                            self.illumina_ids,
+                            self.bead_addresses,
                             assume_unique=True,
                         )
                     ]
@@ -294,7 +294,7 @@ class RawData:
         """DataFrame: Green channel raw intensity indexed by probe IDs."""
         return pd.DataFrame(
             self.green.T,
-            index=self.illumina_ids,
+            index=self.bead_addresses,
             columns=self.sample_ids,
             dtype="int32",
         )
@@ -304,7 +304,7 @@ class RawData:
         """DataFrame: Red channel raw intensity indexed by probe IDs."""
         return pd.DataFrame(
             self.red.T,
-            index=self.illumina_ids,
+            index=self.bead_addresses,
             columns=self.sample_ids,
             dtype="int32",
         )
@@ -316,7 +316,7 @@ class RawData:
             f"array_type: {self.array_type}",
             f"manifest: {self.manifest.array_type}",
             f"sample_ids:\n{self.sample_ids}",
-            f"illumina_ids:\n{self.illumina_ids}",
+            f"bead_addresses:\n{self.bead_addresses}",
             f"green:\n{self.green}",
             f"red:\n{self.red}",
             f"green_df:\n{self.green_df}",
@@ -413,8 +413,7 @@ class MethylData:
     """
 
     array_type: ArrayType
-    data: RawData
-    illumina_ids: np.ndarray
+    bead_addresses: np.ndarray
     manifest: Manifest
     methylated: np.ndarray
     probe_ids: np.ndarray
@@ -448,7 +447,7 @@ class MethylData:
         self.green = data.green
         self.red = data.red
         self.array_type = data.array_type
-        self.illumina_ids = data.illumina_ids
+        self.bead_addresses = data.bead_addresses
         self.manifest = data.manifest
         self.sample_ids = data.sample_ids
         self._intensity = None
@@ -470,7 +469,7 @@ class MethylData:
         """DataFrame: Normalized green intensity by probe ID."""
         return pd.DataFrame(
             self.green.T,
-            index=self.illumina_ids,
+            index=self.bead_addresses,
             columns=self.sample_ids,
             dtype="float32",
         )
@@ -480,7 +479,7 @@ class MethylData:
         """DataFrame: Normalized red intensity by probe ID."""
         return pd.DataFrame(
             self.red.T,
-            index=self.illumina_ids,
+            index=self.bead_addresses,
             columns=self.sample_ids,
             dtype="float32",
         )
@@ -589,7 +588,7 @@ class MethylData:
             raise ValueError(f"{self.array_type} requires raw mode.")
 
         ci = MethylData._cached_indices(
-            self.manifest, self.illumina_ids, "illumina"
+            self.manifest, self.bead_addresses, "illumina"
         )
         self._illumina_control_normalization(ci=ci)
         self._illumina_bg_correction(ci)
@@ -717,14 +716,14 @@ class MethylData:
     @memoize
     def _cached_indices(
         manifest: Manifest,
-        illumina_ids: np.ndarray,
+        bead_addresses: np.ndarray,
         prep: PrepType = "illumina",
     ) -> dict[str, np.ndarray]:
         """Cache the indices required for data processing.
 
         Args:
             manifest (Manifest): Manifest object.
-            illumina_ids (array): Array of Illumina IDs.
+            bead_addresses (array): Array of Illumina bead addresses.
             prep (str): Preprocessing method. Options: "illumina", "noob",
                 "swan", "raw".
 
@@ -747,7 +746,7 @@ class MethylData:
             )
         )
         ilmnid = manifest.data_frame.IlmnID.values[idx.values]
-        ids = pd.Index(illumina_ids)
+        ids = pd.Index(bead_addresses)
         ci = {"idx": idx.values, "ilmnid": ilmnid}
         ci["ids_1_red_a"] = ids.get_indexer(type_1_red["AddressA_ID"])
         ci["ids_1_red_b"] = ids.get_indexer(type_1_red["AddressB_ID"])
@@ -800,7 +799,7 @@ class MethylData:
         into methylation signal, without using any normalization.
         """
         ci = MethylData._cached_indices(
-            self.manifest, self.illumina_ids, "raw"
+            self.manifest, self.bead_addresses, "raw"
         )
         self._preprocess_raw(ci)
 
@@ -940,7 +939,7 @@ class MethylData:
             raise ValueError(f"{self.array_type} requires raw mode.")
 
         ci = MethylData._cached_indices(
-            self.manifest, self.illumina_ids, "swan"
+            self.manifest, self.bead_addresses, "swan"
         )
         self._preprocess_raw(ci)
         bg_intensity = self._swan_bg_intensity(ci)
@@ -1025,7 +1024,7 @@ class MethylData:
             raise ValueError(f"{self.array_type} requires raw mode.")
 
         ci = MethylData._cached_indices(
-            self.manifest, self.illumina_ids, "noob"
+            self.manifest, self.bead_addresses, "noob"
         )
 
         self._preprocess_raw(ci)
@@ -1167,7 +1166,7 @@ class MethylData:
             >>> mask = pvals >= 0.05
         """
         ci = MethylData._cached_indices(
-            self.manifest, self.illumina_ids, "noob"
+            self.manifest, self.bead_addresses, "noob"
         )
 
         # NOTE: sesame additionaly filteres probes with backgroundMask
@@ -1272,7 +1271,7 @@ class MethylData:
 
         ci = MethylData._cached_indices(
             self.manifest,
-            self.illumina_ids,
+            self.bead_addresses,
             prep="illumina",
         )
 

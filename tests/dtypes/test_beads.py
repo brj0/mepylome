@@ -207,7 +207,7 @@ def _test_raw_data(
     assert str(raw_data.manifest) is not None
 
     npt.assert_array_equal(
-        raw_data.illumina_ids, ids, err_msg="Mismatch in IDs array"
+        raw_data.bead_addresses, ids, err_msg="Mismatch in IDs array"
     )
     npt.assert_array_equal(
         raw_data.green,
