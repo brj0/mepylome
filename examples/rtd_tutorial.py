@@ -153,8 +153,8 @@ raw_data = RawData(idat_file)
 # The data is saved within the following attributes:
 
 ## Intensity signals
-raw_data.grn
-raw_data.red
+raw_data.green_df
+raw_data.red_df
 
 ## Type of the array_type (e.g., 450k, EPIC)
 raw_data.array_type
@@ -181,13 +181,13 @@ probes:
 ids:
 [ 1600101  1600111  1600115 ... 99810978 99810990 99810992]
 
-_grn:
+green:
 [[15629  8469  7015 ... 10228  7971   943]]
 
-_red:
+red:
 [[ 4429  1575 24955 ...  6594 15010  5336]]
 
-grn:
+green_df:
           200925700125_R07C01
 1600101                 15629
 1600111                  8469
@@ -203,7 +203,7 @@ grn:
 
 [1052641 rows x 1 columns]
 
-red:
+red_df:
           200925700125_R07C01
 1600101                  4429
 1600111                  1575
@@ -256,12 +256,12 @@ methyl_data = MethylData(file=idat_file)
 # Obtain various values via the attributes of the MethylData object:
 
 ## The methylation signals for the green and red channels.
-methylated_signals = methyl_data.methylated
-unmethylated_signals = methyl_data.unmethylated
+methylated_signals = methyl_data.methylated_df
+unmethylated_signals = methyl_data.unmethylated_df
 
 ## The corrected color signals.
-corrected_green_signals = methyl_data.grn
-corrected_red_signals = methyl_data.red
+corrected_green_signals = methyl_data.green_df
+corrected_red_signals = methyl_data.red_df
 
 ## The type of the array used (e.g., 450k, EPIC, EPICv2).
 array_type = methyl_data.array_type
@@ -282,15 +282,15 @@ manifest: epic
 probes:
 ['200925700125_R07C01']
 
-_grn:
+green:
 [[16785.56811897  9044.70326442  7472.74551323 ... 10946.40456039
    8506.302329     908.14615612]]
 
-_red:
+red:
 [[ 3957.99684771  1303.20883282 23051.26201716 ...  5971.87773497
   13800.43272211  4801.6873626 ]]
 
-grn:
+green_df:
           200925700125_R07C01
 1600101          16785.568359
 1600111           9044.703125
@@ -306,7 +306,7 @@ grn:
 
 [1052641 rows x 1 columns]
 
-red:
+red_df:
           200925700125_R07C01
 1600101           3957.996826
 1600111           1303.208862

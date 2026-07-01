@@ -35,12 +35,12 @@ idat_files = sorted(idat_basepaths(TEST_DIR))
 for idat_file in idat_files:
     raw_data = RawData(idat_file)
     methyl_data = MethylData(raw_data, prep="swan")
-    methyl_acc = methyl_data.methylated
-    unmethyl_acc = methyl_data.unmethylated
+    methyl_acc = methyl_data.methylated_df
+    unmethyl_acc = methyl_data.unmethylated_df
     for _ in tqdm(range(N_LOOPS - 1), desc=f"{idat_file.name}"):
         methyl_data = MethylData(raw_data, prep="swan")
-        methyl_acc += methyl_data.methylated
-        unmethyl_acc += methyl_data.unmethylated
+        methyl_acc += methyl_data.methylated_df
+        unmethyl_acc += methyl_data.unmethylated_df
 
     methyl_mean = methyl_acc / N_LOOPS
     unmethyl_mean = unmethyl_acc / N_LOOPS

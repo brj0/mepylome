@@ -696,8 +696,8 @@ class CNV:
     def _idx(self) -> dict[str, np.ndarray]:
         if self._idx_cached is None:
             self._idx_cached = CNV._cached_indices(
-                sample_ids=self.sample.methyl_ilmnid,
-                reference_ids=self.reference.methyl_ilmnid,
+                sample_ids=self.sample.probe_ids,
+                reference_ids=self.reference.probe_ids,
                 probes_ids=self.probes.values,
                 bins_ids=self.annotation._cpg_bins.IlmnID.values,
                 detail_ids=self.annotation._cpg_detail.IlmnID.values,
@@ -712,9 +712,7 @@ class CNV:
         """
         logger.info("%s Performing fit...", self.sample_id)
 
-        y = np.log2(self.sample.intensity_array)[
-            :, self._idx["fit_sample"]
-        ].ravel()
+        y = np.log2(self.sample.intensity)[:, self._idx["fit_sample"]].ravel()
         X = self.reference.log_intensity_fit[self._idx["fit_reference"]]
         correlation = np.corrcoef(y, X[:, :-1].T)[0, 1:]
         if any(correlation >= 0.99):

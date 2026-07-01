@@ -43,8 +43,8 @@ def sample_mock(probe_ids: np.ndarray) -> MagicMock:
     mock = MagicMock(spec=MethylData)
     mock.sample_ids = ["SAMPLE_001"]
     mock.array_type = ArrayType.ILLUMINA_450K
-    mock.intensity_array = rng.uniform(500, 5000, (1, N_PROBES))
-    mock.methyl_ilmnid = pd.Index(probe_ids)
+    mock.intensity = rng.uniform(500, 5000, (1, N_PROBES))
+    mock.probe_ids = pd.Index(probe_ids)
     return mock
 
 
@@ -56,7 +56,7 @@ def ref_mock(probe_ids: np.ndarray) -> MagicMock:
     mock.array_type = ArrayType.ILLUMINA_450K
     log_X: np.ndarray = np.log2(rng.uniform(500, 5000, (N_PROBES, N_REFS)))
     mock.log_intensity_fit = np.hstack([log_X, np.ones((N_PROBES, 1))])
-    mock.methyl_ilmnid = pd.Index(probe_ids)
+    mock.probe_ids = pd.Index(probe_ids)
     return mock
 
 

@@ -82,5 +82,5 @@ for idat_file in idat_files:
     unmethyl_path_py = Path(TEST_OUTPUT_DIR, f"{prefix_py}-unmethylated.csv")
 
     methyl_data = MethylData(file=idat_file, prep=prep)
-    methyl_data.methylated.sort_index().to_csv(methyl_path_py)
-    methyl_data.unmethylated.sort_index().to_csv(unmethyl_path_py)
+    methyl_data.methylated_df.sort_index().to_csv(methyl_path_py)
+    methyl_data.unmethylated_df.sort_index().to_csv(unmethyl_path_py)

@@ -212,7 +212,7 @@ def test_betas_index_matches_methyl_ilmnid(
 ) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    assert list(md.betas.index) == list(md.methyl_ilmnid)
+    assert list(md.betas.index) == list(md.probe_ids)
 
 
 def test_betas_columns_match_sample_ids(
@@ -231,7 +231,7 @@ def test_betas_columns_match_sample_ids(
 def test_betas_at_subset(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    subset = md.methyl_ilmnid[:3]
+    subset = md.probe_ids[:3]
     betas_sub = md.betas_at(subset)
     assert list(betas_sub.index) == list(subset)
     assert betas_sub.shape[1] == len(raw.sample_ids)
@@ -274,7 +274,7 @@ def test_mvalues_index_matches_ilmnid(
 ) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    assert list(md.mvalues.index) == list(md.methyl_ilmnid)
+    assert list(md.mvalues.index) == list(md.probe_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +299,7 @@ def test_mvalues_at_missing_filled(
 
 def test_raw_data_grn_df_shape(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, pairs = _build_raw_data(tmp_path, tmp_manifest, n_cpgs=54, n_probes=3)
-    grn_df = raw.grn
+    grn_df = raw.green_df
     assert grn_df.shape == (len(raw.illumina_ids), 3)
     assert list(grn_df.columns) == raw.sample_ids
     assert list(grn_df.index) == list(raw.illumina_ids)
@@ -307,7 +307,7 @@ def test_raw_data_grn_df_shape(tmp_path: Path, tmp_manifest: Manifest) -> None:
 
 def test_raw_data_red_df_shape(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest, n_cpgs=54, n_probes=2)
-    red_df = raw.red
+    red_df = raw.red_df
     assert red_df.shape == (len(raw.illumina_ids), 2)
 
 
@@ -315,14 +315,14 @@ def test_raw_data_grn_values_match_array(
     tmp_path: Path, tmp_manifest: Manifest
 ) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
-    npt.assert_array_equal(raw.grn.values, raw._grn.T)
+    npt.assert_array_equal(raw.green_df.values, raw.green.T)
 
 
 def test_raw_data_red_values_match_array(
     tmp_path: Path, tmp_manifest: Manifest
 ) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
-    npt.assert_array_equal(raw.red.values, raw._red.T)
+    npt.assert_array_equal(raw.red_df.values, raw.red.T)
 
 
 # ---------------------------------------------------------------------------
@@ -333,17 +333,17 @@ def test_raw_data_red_values_match_array(
 def test_methyl_data_grn_df(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    assert md.grn.shape == (len(raw.illumina_ids), len(raw.sample_ids))
+    assert md.green_df.shape == (len(raw.illumina_ids), len(raw.sample_ids))
 
 
 def test_methyl_data_red_df(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    assert md.red.shape == (len(raw.illumina_ids), len(raw.sample_ids))
+    assert md.red_df.shape == (len(raw.illumina_ids), len(raw.sample_ids))
 
 
 # ---------------------------------------------------------------------------
-# MethylData.methylated / unmethylated DataFrames
+# MethylData.methylated_df / unmethylated_df DataFrames
 # ---------------------------------------------------------------------------
 
 
@@ -352,7 +352,7 @@ def test_methyl_data_methylated_df(
 ) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    df = md.methylated
+    df = md.methylated_df
     assert df.shape[1] == len(raw.sample_ids)
     assert df.index.name == "IlmnID"
 
@@ -362,23 +362,23 @@ def test_methyl_data_unmethylated_df(
 ) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    df = md.unmethylated
-    assert df.shape == md.methylated.shape
+    df = md.unmethylated_df
+    assert df.shape == md.methylated_df.shape
     assert df.index.name == "IlmnID"
 
 
 # ---------------------------------------------------------------------------
-# MethylData.intensity
+# MethylData.intensity_df
 # ---------------------------------------------------------------------------
 
 
 def test_methyl_data_intensity(tmp_path: Path, tmp_manifest: Manifest) -> None:
     raw, _ = _build_raw_data(tmp_path, tmp_manifest)
     md = MethylData(raw, prep="raw")
-    intensity = md.intensity
-    # intensity = methyl + unmethyl, all non-negative in our synthetic data
-    assert (intensity.values >= 0).all()
-    assert intensity.shape == md.methylated.shape
+    intensity_df = md.intensity_df
+    # intensity = methylated + unmethylated, all non-negative in our data
+    assert (intensity_df.values >= 0).all()
+    assert intensity_df.shape == md.methylated_df.shape
 
 
 # ---------------------------------------------------------------------------

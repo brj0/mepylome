@@ -195,8 +195,8 @@ class RawData:
         array_type (str): Type of Illumina array.
         sample_ids (list): List of sample IDs corresponding to the IDAT files.
         illumina_ids (array): Array of probe IDs.
-        _grn (array): Array of raw intensity values from the green channel.
-        _red (array): Array of raw intensity values from the red channel.
+        green (array): Array of raw intensity values from the green channel.
+        red (array): Array of raw intensity values from the red channel.
 
     Example:
         >>> idat_basepath0 = directory_path / "200925700125_R07C01"
@@ -210,8 +210,8 @@ class RawData:
     manifest: Manifest
     sample_ids: list[str]
 
-    _grn: np.ndarray
-    _red: np.ndarray
+    green: np.ndarray
+    red: np.ndarray
 
     def __init__(
         self,
@@ -258,13 +258,13 @@ class RawData:
             for arr in all_illumina_ids
         ):
             self.illumina_ids = all_illumina_ids[0]
-            self._grn = np.array([idat.probe_means for idat in grn_idat])
-            self._red = np.array([idat.probe_means for idat in red_idat])
+            self.green = np.array([idat.probe_means for idat in grn_idat])
+            self.red = np.array([idat.probe_means for idat in red_idat])
         else:
             self.illumina_ids = reduce(
                 np.intersect1d, [idat.illumina_ids for idat in grn_idat]
             )
-            self._grn = np.array(
+            self.green = np.array(
                 [
                     idat.probe_means[
                         np.isin(
@@ -276,7 +276,7 @@ class RawData:
                     for idat in grn_idat
                 ]
             )
-            self._red = np.array(
+            self.red = np.array(
                 [
                     idat.probe_means[
                         np.isin(
@@ -290,20 +290,20 @@ class RawData:
             )
 
     @property
-    def grn(self) -> pd.DataFrame:
+    def green_df(self) -> pd.DataFrame:
         """DataFrame: Green channel raw intensity indexed by probe IDs."""
         return pd.DataFrame(
-            self._grn.T,
+            self.green.T,
             index=self.illumina_ids,
             columns=self.sample_ids,
             dtype="int32",
         )
 
     @property
-    def red(self) -> pd.DataFrame:
+    def red_df(self) -> pd.DataFrame:
         """DataFrame: Red channel raw intensity indexed by probe IDs."""
         return pd.DataFrame(
-            self._red.T,
+            self.red.T,
             index=self.illumina_ids,
             columns=self.sample_ids,
             dtype="int32",
@@ -317,10 +317,10 @@ class RawData:
             f"manifest: {self.manifest.array_type}",
             f"sample_ids:\n{self.sample_ids}",
             f"illumina_ids:\n{self.illumina_ids}",
-            f"_grn:\n{self._grn}",
-            f"_red:\n{self._red}",
-            f"grn:\n{self.grn}",
+            f"green:\n{self.green}",
             f"red:\n{self.red}",
+            f"green_df:\n{self.green_df}",
+            f"red_df:\n{self.red_df}",
         ]
         return "\n\n".join(lines)
 
@@ -357,7 +357,7 @@ def _overlap_indices(
 
 @memoize
 def _get_sex_indices(
-    sample_probes: np.ndarray, manifest_id: ArrayType
+    sample_probes: np.ndarray, array_type: ArrayType
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return probe indices for X and Y chromosomes in a sample array.
 
@@ -369,7 +369,7 @@ def _get_sex_indices(
             - indices of X-chromosome probes in sample_probes
             - indices of Y-chromosome probes in sample_probes
     """
-    manifest_df = Manifest(manifest_id).data_frame
+    manifest_df = Manifest(array_type).data_frame
 
     x_probes = manifest_df[manifest_df.Chromosome == Chromosome.CHRX][
         "IlmnID"
@@ -416,15 +416,15 @@ class MethylData:
     data: RawData
     illumina_ids: np.ndarray
     manifest: Manifest
-    methyl: np.ndarray
-    methyl_ilmnid: np.ndarray
-    methyl_index: np.ndarray
+    methylated: np.ndarray
+    probe_ids: np.ndarray
+    probe_idx: np.ndarray
     sample_ids: list[str]
     seed: int | None
-    unmethyl: np.ndarray
+    unmethylated: np.ndarray
 
-    _grn: np.ndarray
-    _red: np.ndarray
+    green: np.ndarray
+    red: np.ndarray
     _intensity: np.ndarray | None
     _log_intensity_fit: np.ndarray | None
 
@@ -445,13 +445,12 @@ class MethylData:
             msg = "'data' is not of type 'RawData'."
             raise ValueError(msg)
         self.seed = seed
-        self._grn = data._grn
-        self._red = data._red
+        self.green = data.green
+        self.red = data.red
         self.array_type = data.array_type
         self.illumina_ids = data.illumina_ids
         self.manifest = data.manifest
         self.sample_ids = data.sample_ids
-        self.data = data
         self._intensity = None
         self._log_intensity_fit = None
         if prep == "illumina":
@@ -467,51 +466,51 @@ class MethylData:
             raise ValueError(msg)
 
     @property
-    def grn(self) -> pd.DataFrame:
+    def green_df(self) -> pd.DataFrame:
         """DataFrame: Normalized green intensity by probe ID."""
         return pd.DataFrame(
-            self._grn.T,
+            self.green.T,
             index=self.illumina_ids,
             columns=self.sample_ids,
             dtype="float32",
         )
 
     @property
-    def red(self) -> pd.DataFrame:
+    def red_df(self) -> pd.DataFrame:
         """DataFrame: Normalized red intensity by probe ID."""
         return pd.DataFrame(
-            self._red.T,
+            self.red.T,
             index=self.illumina_ids,
             columns=self.sample_ids,
             dtype="float32",
         )
 
     @property
-    def methylated(self) -> pd.DataFrame:
+    def methylated_df(self) -> pd.DataFrame:
         """DataFrame: Methylated intensity values indexed by IlmnID."""
         return pd.DataFrame(
-            self.methyl.T,
-            index=self.methyl_ilmnid,
+            self.methylated.T,
+            index=self.probe_ids,
             columns=self.sample_ids,
             dtype="float32",
         ).rename_axis("IlmnID")
 
     @property
-    def unmethylated(self) -> pd.DataFrame:
+    def unmethylated_df(self) -> pd.DataFrame:
         """DataFrame: Unmethylated intensity values indexed by IlmnID."""
         return pd.DataFrame(
-            self.unmethyl.T,
-            index=self.methyl_ilmnid,
+            self.unmethylated.T,
+            index=self.probe_ids,
             columns=self.sample_ids,
             dtype="float32",
         ).rename_axis("IlmnID")
 
     @property
-    def intensity_array(self) -> np.ndarray:
+    def intensity(self) -> np.ndarray:
         """Calculates numpy intensity values from methylation data."""
         if self._intensity is None:
             logger.debug("Setting intensity for: %s", self.sample_ids)
-            intensity = self.methyl + self.unmethyl
+            intensity = self.methylated + self.unmethylated
 
             # Replace NaN values with 1
             nan_indices = np.isnan(intensity)
@@ -550,7 +549,7 @@ class MethylData:
         Shape: (n_probes, n_samples + 1) - intercept in last column.
         """
         if self._log_intensity_fit is None:
-            log_intensity = np.log2(self.intensity_array)
+            log_intensity = np.log2(self.intensity)
             self._log_intensity_fit = np.hstack(
                 [
                     log_intensity.T,
@@ -568,12 +567,12 @@ class MethylData:
         self._intensity = None
 
     @property
-    def intensity(self) -> pd.DataFrame:
+    def intensity_df(self) -> pd.DataFrame:
         """Calculates DataFrame intensity values from methylation data."""
         return pd.DataFrame(
-            self.intensity_array.T,
+            self.intensity.T,
             columns=self.sample_ids,
-            index=self.methyl_ilmnid,
+            index=self.probe_ids,
         )
 
     def preprocess_illumina(self) -> None:
@@ -603,11 +602,11 @@ class MethylData:
     ) -> None:
         """Performs normalization using control probes."""
         grn_average = np.mean(
-            self._grn[:, ci["ids_cg_cont"]],
+            self.green[:, ci["ids_cg_cont"]],
             axis=1,
         )
         red_average = np.mean(
-            self._red[:, ci["ids_at_cont"]],
+            self.red[:, ci["ids_at_cont"]],
             axis=1,
         )
 
@@ -615,24 +614,24 @@ class MethylData:
         grn_factor = ref / grn_average
         red_factor = ref / red_average
 
-        self._grn = grn_factor[:, np.newaxis] * self._grn
-        self._red = red_factor[:, np.newaxis] * self._red
+        self.green = grn_factor[:, np.newaxis] * self.green
+        self.red = red_factor[:, np.newaxis] * self.red
 
     def _illumina_bg_correction(self, ci: dict) -> None:
         """Performs background normalization using negative control probes."""
         if len(ci["ids_ng_cont"]) <= 30:
             return
 
-        grn_bg = np.partition(self._grn[:, ci["ids_ng_cont"]], 30)[:, 30]
-        red_bg = np.partition(self._red[:, ci["ids_ng_cont"]], 30)[:, 30]
+        grn_bg = np.partition(self.green[:, ci["ids_ng_cont"]], 30)[:, 30]
+        red_bg = np.partition(self.red[:, ci["ids_ng_cont"]], 30)[:, 30]
 
         # Subtract and threshold at zero, using in-place operations
-        np.subtract(self._grn, grn_bg[:, np.newaxis], out=self._grn)
-        np.maximum(self._grn, 0, out=self._grn)
+        np.subtract(self.green, grn_bg[:, np.newaxis], out=self.green)
+        np.maximum(self.green, 0, out=self.green)
 
         # Subtract and threshold at zero, using in-place operations
-        np.subtract(self._red, red_bg[:, np.newaxis], out=self._red)
-        np.maximum(self._red, 0, out=self._red)
+        np.subtract(self.red, red_bg[:, np.newaxis], out=self.red)
+        np.maximum(self.red, 0, out=self.red)
 
     def _preprocess_raw_uncached(self) -> None:
         """Calculates methylated/unmethylated arrays without preprocessing.
@@ -670,19 +669,23 @@ class MethylData:
         t2: pd.DataFrame,
     ) -> None:
         """Calculates methylated data frame without preprocessing."""
-        red = self.red
-        grn = self.grn
+        red_df = self.red_df
+        green_df = self.green_df
         result = pd.DataFrame(
             np.nan,
             index=man_idx_np,
-            columns=red.columns,
+            columns=red_df.columns,
         )
-        result.loc[t1_red.index] = red.loc[t1_red["AddressB_ID"].values].values
-        result.loc[t1_grn.index] = grn.loc[t1_grn["AddressB_ID"].values].values
-        result.loc[t2.index] = grn.loc[t2["AddressA_ID"].values].values
+        result.loc[t1_red.index] = red_df.loc[
+            t1_red["AddressB_ID"].values
+        ].values
+        result.loc[t1_grn.index] = green_df.loc[
+            t1_grn["AddressB_ID"].values
+        ].values
+        result.loc[t2.index] = green_df.loc[t2["AddressA_ID"].values].values
         result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
-        self.methyl_ilmnid = result.index.to_numpy()
-        self.methyl = result.to_numpy().T
+        self.probe_ids = result.index.to_numpy()
+        self.methylated = result.to_numpy().T
 
     def _preprocess_raw_unmethylated(
         self,
@@ -692,20 +695,24 @@ class MethylData:
         t2: pd.DataFrame,
     ) -> None:
         """Calculates unmethylated data frame without preprocessing."""
-        red = self.red
-        grn = self.grn
+        red_df = self.red_df
+        green_df = self.green_df
         result = pd.DataFrame(
             np.nan,
             index=man_idx_np,
-            columns=red.columns,
+            columns=red_df.columns,
             dtype="float32",
         )
-        result.loc[t1_red.index] = red.loc[t1_red["AddressA_ID"].values].values
-        result.loc[t1_grn.index] = grn.loc[t1_grn["AddressA_ID"].values].values
-        result.loc[t2.index] = red.loc[t2["AddressA_ID"].values].values
+        result.loc[t1_red.index] = red_df.loc[
+            t1_red["AddressA_ID"].values
+        ].values
+        result.loc[t1_grn.index] = green_df.loc[
+            t1_grn["AddressA_ID"].values
+        ].values
+        result.loc[t2.index] = red_df.loc[t2["AddressA_ID"].values].values
         result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
         result = result.set_index("IlmnID")
-        self.unmethyl = result.to_numpy().T
+        self.unmethylated = result.to_numpy().T
 
     @memoize
     def _cached_indices(
@@ -799,51 +806,65 @@ class MethylData:
 
     def _preprocess_raw_old(self, ci: dict) -> None:
         """Same as _preprocess_raw just slower and cleaner."""
-        self.methyl = np.full((len(self.sample_ids), len(ci["idx"])), np.nan)
-        self.methyl[:, ci["idx_1_red__"]] = self._red[:, ci["ids_1_red_b"]]
-        self.methyl[:, ci["idx_1_grn__"]] = self._grn[:, ci["ids_1_grn_b"]]
-        self.methyl[:, ci["idx_2______"]] = self._grn[:, ci["ids_2_____a"]]
-        self.unmethyl = np.full((len(self.sample_ids), len(ci["idx"])), np.nan)
-        self.unmethyl[:, ci["idx_1_red__"]] = self._red[:, ci["ids_1_red_a"]]
-        self.unmethyl[:, ci["idx_1_grn__"]] = self._grn[:, ci["ids_1_grn_a"]]
-        self.unmethyl[:, ci["idx_2______"]] = self._red[:, ci["ids_2_____a"]]
-        self.methyl_index = ci["idx"]
-        self.methyl_ilmnid = ci["ilmnid"]
+        self.methylated = np.full(
+            (len(self.sample_ids), len(ci["idx"])), np.nan
+        )
+        self.methylated[:, ci["idx_1_red__"]] = self.red[:, ci["ids_1_red_b"]]
+        self.methylated[:, ci["idx_1_grn__"]] = self.green[
+            :, ci["ids_1_grn_b"]
+        ]
+        self.methylated[:, ci["idx_2______"]] = self.green[
+            :, ci["ids_2_____a"]
+        ]
+        self.unmethylated = np.full(
+            (len(self.sample_ids), len(ci["idx"])), np.nan
+        )
+        self.unmethylated[:, ci["idx_1_red__"]] = self.red[
+            :, ci["ids_1_red_a"]
+        ]
+        self.unmethylated[:, ci["idx_1_grn__"]] = self.green[
+            :, ci["ids_1_grn_a"]
+        ]
+        self.unmethylated[:, ci["idx_2______"]] = self.red[
+            :, ci["ids_2_____a"]
+        ]
+        self.probe_idx = ci["idx"]
+        self.probe_ids = ci["ilmnid"]
 
     def _preprocess_raw(self, ci: dict) -> None:
         """Internal preprocess logic."""
         methyl_shape = (len(self.sample_ids), len(ci["idx"]))
-        self.methyl = np.full(methyl_shape, np.nan)
-        self.unmethyl = np.full(methyl_shape, np.nan)
-        self.methyl[:, ci["idx_1_red__"]] = np.take(
-            self._red, ci["ids_1_red_b"], axis=1
+        self.methylated = np.full(methyl_shape, np.nan)
+        self.unmethylated = np.full(methyl_shape, np.nan)
+        self.methylated[:, ci["idx_1_red__"]] = np.take(
+            self.red, ci["ids_1_red_b"], axis=1
         )
-        self.methyl[:, ci["idx_1_grn__"]] = np.take(
-            self._grn, ci["ids_1_grn_b"], axis=1
+        self.methylated[:, ci["idx_1_grn__"]] = np.take(
+            self.green, ci["ids_1_grn_b"], axis=1
         )
-        self.methyl[:, ci["idx_2______"]] = np.take(
-            self._grn, ci["ids_2_____a"], axis=1
+        self.methylated[:, ci["idx_2______"]] = np.take(
+            self.green, ci["ids_2_____a"], axis=1
         )
-        self.unmethyl[:, ci["idx_1_red__"]] = np.take(
-            self._red, ci["ids_1_red_a"], axis=1
+        self.unmethylated[:, ci["idx_1_red__"]] = np.take(
+            self.red, ci["ids_1_red_a"], axis=1
         )
-        self.unmethyl[:, ci["idx_1_grn__"]] = np.take(
-            self._grn, ci["ids_1_grn_a"], axis=1
+        self.unmethylated[:, ci["idx_1_grn__"]] = np.take(
+            self.green, ci["ids_1_grn_a"], axis=1
         )
-        self.unmethyl[:, ci["idx_2______"]] = np.take(
-            self._red, ci["ids_2_____a"], axis=1
+        self.unmethylated[:, ci["idx_2______"]] = np.take(
+            self.red, ci["ids_2_____a"], axis=1
         )
-        self.methyl_index = ci["idx"]
-        self.methyl_ilmnid = ci["ilmnid"]
+        self.probe_idx = ci["idx"]
+        self.probe_ids = ci["ilmnid"]
 
     def _swan_bg_intensity(self, ci: dict) -> np.ndarray:
         """Intensity background normalization used for SWAN preprocessing."""
         grn_med = np.median(
-            self._grn[:, ci["ids_ng_cont"]],
+            self.green[:, ci["ids_ng_cont"]],
             axis=1,
         )
         red_med = np.median(
-            self._red[:, ci["ids_ng_cont"]],
+            self.red[:, ci["ids_ng_cont"]],
             axis=1,
         )
         return np.mean([grn_med, red_med], axis=0)
@@ -851,13 +872,13 @@ class MethylData:
     @staticmethod
     def _swan_indices(
         manifest: Manifest,
-        methyl_index: np.ndarray,
+        probe_idx: np.ndarray,
         seed: int | None = None,
     ) -> tuple[dict, dict]:
         rng = np.random.default_rng(seed)
         all_ncpgs = (
             manifest.data_frame[["Probe_Type", "N_CpG"]]
-            .loc[methyl_index]
+            .loc[probe_idx]
             .reset_index(drop=True)
         )
         subset_sizes = all_ncpgs.groupby(
@@ -871,12 +892,12 @@ class MethylData:
         all_indices = {}
         random_subset_indices = {}
         for probe_type in [ProbeType.ONE, ProbeType.TWO]:
-            all_ncpts_type = all_ncpgs[all_ncpgs.Probe_Type == probe_type]
-            all_indices[probe_type] = all_ncpts_type.index.values
-            all_ncpts_type = all_ncpts_type.reset_index(drop=True)
+            all_ncpgs_type = all_ncpgs[all_ncpgs.Probe_Type == probe_type]
+            all_indices[probe_type] = all_ncpgs_type.index.values
+            all_ncpgs_type = all_ncpgs_type.reset_index(drop=True)
             indices = []
             for ncpgs in range(1, 4):
-                ids = all_ncpts_type.index[all_ncpts_type.N_CpG == ncpgs]
+                ids = all_ncpgs_type.index[all_ncpgs_type.N_CpG == ncpgs]
                 ids_subset = rng.permutation(ids)[:subset_size]
                 indices.append(ids_subset)
             random_subset_indices[probe_type] = np.sort(
@@ -924,13 +945,13 @@ class MethylData:
         self._preprocess_raw(ci)
         bg_intensity = self._swan_bg_intensity(ci)
         all_indices, random_subset_indices = MethylData._swan_indices(
-            self.manifest, self.methyl_index, self.seed
+            self.manifest, self.probe_idx, self.seed
         )
-        self.methyl = MethylData._preprocess_swan_main(
-            self.methyl, bg_intensity, all_indices, random_subset_indices
+        self.methylated = MethylData._preprocess_swan_main(
+            self.methylated, bg_intensity, all_indices, random_subset_indices
         )
-        self.unmethyl = MethylData._preprocess_swan_main(
-            self.unmethyl, bg_intensity, all_indices, random_subset_indices
+        self.unmethylated = MethylData._preprocess_swan_main(
+            self.unmethylated, bg_intensity, all_indices, random_subset_indices
         )
 
     @staticmethod
@@ -1010,22 +1031,25 @@ class MethylData:
         self._preprocess_raw(ci)
 
         grn_oob = np.concatenate(
-            [self._grn[:, ci["ids_1_red_a"]], self._grn[:, ci["ids_1_red_b"]]],
+            [
+                self.green[:, ci["ids_1_red_a"]],
+                self.green[:, ci["ids_1_red_b"]],
+            ],
             axis=1,
         )
         red_oob = np.concatenate(
-            [self._red[:, ci["ids_1_grn_a"]], self._red[:, ci["ids_1_grn_b"]]],
+            [self.red[:, ci["ids_1_grn_a"]], self.red[:, ci["ids_1_grn_b"]]],
             axis=1,
         )
 
-        methyl = self.methyl
-        unmethyl = self.unmethyl
-        methyl[methyl <= 0] = 1
-        unmethyl[unmethyl <= 0] = 1
+        methylated = self.methylated
+        unmethylated = self.unmethylated
+        methylated[methylated <= 0] = 1
+        unmethylated[unmethylated <= 0] = 1
 
-        grn_m = methyl[:, ci["idx_1_grn__"]]
-        grn_u = unmethyl[:, ci["idx_1_grn__"]]
-        grn_2 = methyl[:, ci["idx_2______"]]
+        grn_m = methylated[:, ci["idx_1_grn__"]]
+        grn_u = unmethylated[:, ci["idx_1_grn__"]]
+        grn_2 = methylated[:, ci["idx_2______"]]
 
         xf_grn = np.concatenate([grn_m, grn_u, grn_2], axis=1)
         xs_grn = normexp_get_xs(xf_grn, controls=grn_oob, offset=offset)
@@ -1035,9 +1059,9 @@ class MethylData:
         slice_grn_u = slice(cumsum[1], cumsum[2])
         slice_grn_2 = slice(cumsum[2], cumsum[3])
 
-        red_m = methyl[:, ci["idx_1_red__"]]
-        red_u = unmethyl[:, ci["idx_1_red__"]]
-        red_2 = unmethyl[:, ci["idx_2______"]]
+        red_m = methylated[:, ci["idx_1_red__"]]
+        red_u = unmethylated[:, ci["idx_1_red__"]]
+        red_2 = unmethylated[:, ci["idx_2______"]]
 
         xf_red = np.concatenate([red_m, red_u, red_2], axis=1)
         xs_red = normexp_get_xs(xf_red, controls=red_oob, offset=offset)
@@ -1047,19 +1071,19 @@ class MethylData:
         slice_red_u = slice(cumsum[1], cumsum[2])
         slice_red_2 = slice(cumsum[2], cumsum[3])
 
-        methyl[:, ci["idx_1_grn__"]] = xs_grn["xs"][:, slice_grn_m]
-        unmethyl[:, ci["idx_1_grn__"]] = xs_grn["xs"][:, slice_grn_u]
+        methylated[:, ci["idx_1_grn__"]] = xs_grn["xs"][:, slice_grn_m]
+        unmethylated[:, ci["idx_1_grn__"]] = xs_grn["xs"][:, slice_grn_u]
 
-        methyl[:, ci["idx_1_red__"]] = xs_red["xs"][:, slice_red_m]
-        unmethyl[:, ci["idx_1_red__"]] = xs_red["xs"][:, slice_red_u]
+        methylated[:, ci["idx_1_red__"]] = xs_red["xs"][:, slice_red_m]
+        unmethylated[:, ci["idx_1_red__"]] = xs_red["xs"][:, slice_red_u]
 
-        methyl[:, ci["idx_2______"]] = xs_grn["xs"][:, slice_grn_2]
-        unmethyl[:, ci["idx_2______"]] = xs_red["xs"][:, slice_red_2]
+        methylated[:, ci["idx_2______"]] = xs_grn["xs"][:, slice_grn_2]
+        unmethylated[:, ci["idx_2______"]] = xs_red["xs"][:, slice_red_2]
 
         # Dye correction
 
-        grn_control = self._grn[:, ci["ids_ctr"]]
-        red_control = self._red[:, ci["ids_ctr"]]
+        grn_control = self.green[:, ci["ids_ctr"]]
+        red_control = self.red[:, ci["ids_ctr"]]
 
         xcs_grn = normexp_get_xs(
             grn_control, param=xs_grn["param"], offset=offset
@@ -1089,18 +1113,18 @@ class MethylData:
             raise ValueError(msg)
 
         red_factor = red_factor.reshape(-1, 1)
-        methyl[:, ci["idx_1_red__"]] *= red_factor
-        unmethyl[:, ci["idx_1_red__"]] *= red_factor
-        unmethyl[:, ci["idx_2______"]] *= red_factor
+        methylated[:, ci["idx_1_red__"]] *= red_factor
+        unmethylated[:, ci["idx_1_red__"]] *= red_factor
+        unmethylated[:, ci["idx_2______"]] *= red_factor
 
         if dye_method == "reference":
             grn_factor = grn_factor.reshape(-1, 1)
-            methyl[:, ci["idx_1_grn__"]] *= grn_factor
-            unmethyl[:, ci["idx_1_grn__"]] *= grn_factor
-            methyl[:, ci["idx_2______"]] *= grn_factor
+            methylated[:, ci["idx_1_grn__"]] *= grn_factor
+            unmethylated[:, ci["idx_1_grn__"]] *= grn_factor
+            methylated[:, ci["idx_2______"]] *= grn_factor
 
-        self.methyl = methyl
-        self.unmethyl = unmethyl
+        self.methylated = methylated
+        self.unmethylated = unmethylated
 
     def poobah(
         self,
@@ -1149,15 +1173,15 @@ class MethylData:
         # NOTE: sesame additionaly filteres probes with backgroundMask
         grn_oob = np.concatenate(
             [
-                self._grn[:, ci["ids_1_red_a"]],
-                self._grn[:, ci["ids_1_red_b"]],
+                self.green[:, ci["ids_1_red_a"]],
+                self.green[:, ci["ids_1_red_b"]],
             ],
             axis=1,
         )
         red_oob = np.concatenate(
             [
-                self._red[:, ci["ids_1_grn_a"]],
-                self._red[:, ci["ids_1_grn_b"]],
+                self.red[:, ci["ids_1_grn_a"]],
+                self.red[:, ci["ids_1_grn_b"]],
             ],
             axis=1,
         )
@@ -1175,22 +1199,22 @@ class MethylData:
             oob_r = np.sort(red_oob[s])
 
             # Type I Red probes
-            m_1red = self._red[s, ci["ids_1_red_b"]]
-            u_1red = self._red[s, ci["ids_1_red_a"]]
+            m_1red = self.red[s, ci["ids_1_red_b"]]
+            u_1red = self.red[s, ci["ids_1_red_a"]]
             pvals[s, ci["idx_1_red__"]] = 1.0 - np.maximum(
                 ecdf(m_1red, oob_r), ecdf(u_1red, oob_r)
             )
 
             # Type I Green probes
-            m_1grn = self._grn[s, ci["ids_1_grn_b"]]
-            u_1grn = self._grn[s, ci["ids_1_grn_a"]]
+            m_1grn = self.green[s, ci["ids_1_grn_b"]]
+            u_1grn = self.green[s, ci["ids_1_grn_a"]]
             pvals[s, ci["idx_1_grn__"]] = 1.0 - np.maximum(
                 ecdf(m_1grn, oob_g), ecdf(u_1grn, oob_g)
             )
 
             # Type II probes
-            m_2 = self._grn[s, ci["ids_2_____a"]]
-            u_2 = self._red[s, ci["ids_2_____a"]]
+            m_2 = self.green[s, ci["ids_2_____a"]]
+            u_2 = self.red[s, ci["ids_2_____a"]]
             pvals[s, ci["idx_2______"]] = 1.0 - np.maximum(
                 ecdf(m_2, oob_g), ecdf(u_2, oob_r)
             )
@@ -1211,8 +1235,8 @@ class MethylData:
         with unusually low median intensities may indicate poor DNA quality or
         assay failure.
         """
-        log2_med_m = np.log2(np.nanmedian(self.methyl, axis=1))
-        log2_med_u = np.log2(np.nanmedian(self.unmethyl, axis=1))
+        log2_med_m = np.log2(np.nanmedian(self.methylated, axis=1))
+        log2_med_u = np.log2(np.nanmedian(self.unmethylated, axis=1))
 
         return pd.DataFrame(
             {
@@ -1255,8 +1279,8 @@ class MethylData:
         ctrl_idx = ci["ids_ng_cont"]
 
         # Background statistics
-        r_bg = self._red[:, ctrl_idx]
-        g_bg = self._grn[:, ctrl_idx]
+        r_bg = self.red[:, ctrl_idx]
+        g_bg = self.green[:, ctrl_idx]
 
         r_mu = np.median(r_bg, axis=1)
         # Median absolute deviation scaled for normal distribution
@@ -1273,7 +1297,7 @@ class MethylData:
         pvals = np.full((n_samples, n_probes), np.nan)
 
         # Type I Red
-        m = self._red[:, ci["ids_1_red_a"]] + self._red[:, ci["ids_1_red_b"]]
+        m = self.red[:, ci["ids_1_red_a"]] + self.red[:, ci["ids_1_red_b"]]
         pvals[:, ci["idx_1_red__"]] = norm.sf(
             m,
             loc=2 * r_mu[:, None],
@@ -1281,7 +1305,7 @@ class MethylData:
         )
 
         # Type I Green
-        m = self._grn[:, ci["ids_1_grn_a"]] + self._grn[:, ci["ids_1_grn_b"]]
+        m = self.green[:, ci["ids_1_grn_a"]] + self.green[:, ci["ids_1_grn_b"]]
         pvals[:, ci["idx_1_grn__"]] = norm.sf(
             m,
             loc=2 * g_mu[:, None],
@@ -1289,7 +1313,7 @@ class MethylData:
         )
 
         # Type II
-        m = self._red[:, ci["ids_2_____a"]] + self._grn[:, ci["ids_2_____a"]]
+        m = self.red[:, ci["ids_2_____a"]] + self.green[:, ci["ids_2_____a"]]
         pvals[:, ci["idx_2______"]] = norm.sf(
             m,
             loc=(r_mu + g_mu)[:, None],
@@ -1305,9 +1329,9 @@ class MethylData:
     @property
     def betas(self) -> pd.DataFrame:
         """Returns beta values."""
-        betas = self._get_beta(self.methyl, self.unmethyl)
+        betas = self._get_beta(self.methylated, self.unmethylated)
         return pd.DataFrame(
-            betas.T, columns=self.sample_ids, index=self.methyl_ilmnid
+            betas.T, columns=self.sample_ids, index=self.probe_ids
         )
 
     def betas_at(
@@ -1331,9 +1355,9 @@ class MethylData:
         """
         if cpgs is None:
             cpgs = self.manifest.methylation_probes
-        betas = self._get_beta(self.methyl, self.unmethyl)
+        betas = self._get_beta(self.methylated, self.unmethylated)
         converted = np.full((len(self.sample_ids), len(cpgs)), fill)
-        left_idx, right_idx = _overlap_indices(cpgs, self.methyl_ilmnid)
+        left_idx, right_idx = _overlap_indices(cpgs, self.probe_ids)
         converted[:, left_idx] = betas[:, right_idx]
         converted[np.isnan(converted)] = fill
         return pd.DataFrame(converted.T, columns=self.sample_ids, index=cpgs)
@@ -1373,9 +1397,9 @@ class MethylData:
     @property
     def mvalues(self) -> pd.DataFrame:
         """Returns M-values."""
-        mvals = self._get_m_value(self.methyl, self.unmethyl)
+        mvals = self._get_m_value(self.methylated, self.unmethylated)
         return pd.DataFrame(
-            mvals.T, columns=self.sample_ids, index=self.methyl_ilmnid
+            mvals.T, columns=self.sample_ids, index=self.probe_ids
         )
 
     def mvalues_at(
@@ -1400,10 +1424,10 @@ class MethylData:
         if cpgs is None:
             cpgs = self.manifest.methylation_probes
 
-        mvals = self._get_m_value(self.methyl, self.unmethyl)
+        mvals = self._get_m_value(self.methylated, self.unmethylated)
 
         converted = np.full((len(self.sample_ids), len(cpgs)), fill)
-        left_idx, right_idx = _overlap_indices(cpgs, self.methyl_ilmnid)
+        left_idx, right_idx = _overlap_indices(cpgs, self.probe_ids)
         converted[:, left_idx] = mvals[:, right_idx]
 
         converted[np.isnan(converted)] = fill
@@ -1452,12 +1476,12 @@ class MethylData:
         """
         # TODO: Refine algorithm
         x_idx, y_idx = _get_sex_indices(
-            sample_probes=self.methyl_ilmnid,
-            manifest_id=self.manifest.array_type,
+            sample_probes=self.probe_ids,
+            array_type=self.manifest.array_type,
         )
 
-        x_log = np.log2(self.intensity_array[:, x_idx] + 1)
-        y_log = np.log2(self.intensity_array[:, y_idx] + 1)
+        x_log = np.log2(self.intensity[:, x_idx] + 1)
+        y_log = np.log2(self.intensity[:, y_idx] + 1)
 
         x_median = np.median(x_log, axis=1)
         y_median = np.median(y_log, axis=1)
@@ -1527,7 +1551,7 @@ class MethylData:
         else:
             sample_ids = list(sample_id)
 
-        intens_df = self.intensity
+        intens_df = self.intensity_df
         betas_df = self.betas
 
         n_samples = len(sample_ids)
@@ -1601,8 +1625,8 @@ class MethylData:
         global_max = 0.0
 
         for sample_id in self.sample_ids:
-            red = self.red[sample_id].to_numpy()
-            grn = self.grn[sample_id].to_numpy()
+            red = self.red_df[sample_id].to_numpy()
+            grn = self.green_df[sample_id].to_numpy()
 
             red = np.sort(red)
             grn = np.sort(grn)
@@ -1652,13 +1676,13 @@ class MethylData:
             f"array_type: {self.array_type}",
             f"manifest: {self.manifest.array_type}",
             f"sample_ids:\n{self.sample_ids}",
-            f"_grn:\n{self._grn}",
-            f"_red:\n{self._red}",
-            f"grn:\n{self.grn}",
+            f"green:\n{self.green}",
             f"red:\n{self.red}",
-            f"intensity:\n{self.intensity}",
-            f"methylated:\n{self.methylated}",
-            f"unmethylated:\n{self.unmethylated}",
+            f"green_df:\n{self.green_df}",
+            f"red_df:\n{self.red_df}",
+            f"intensity_df:\n{self.intensity_df}",
+            f"methylated_df:\n{self.methylated_df}",
+            f"unmethylated_df:\n{self.unmethylated_df}",
         ]
         return "\n\n".join(lines)
 

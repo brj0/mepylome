@@ -210,12 +210,12 @@ def _test_raw_data(
         raw_data.illumina_ids, ids, err_msg="Mismatch in IDs array"
     )
     npt.assert_array_equal(
-        raw_data._grn,
+        raw_data.green,
         np.array([pair.data_grn["probe_means"] for pair in idat_pairs]),
         err_msg="Mismatch in Green channel array",
     )
     npt.assert_array_equal(
-        raw_data._red,
+        raw_data.red,
         np.array([pair.data_red["probe_means"] for pair in idat_pairs]),
         err_msg="Mismatch in Red channel array",
     )
@@ -246,7 +246,7 @@ def _test_methyl_data_raw(raw_data: RawData) -> None:
             [19, 2, 15, 1, 10, 18, 7, 15, 10, 21, 14, 18, 9, 14, 7, 20],
         ]
     )
-    npt.assert_array_equal(methyl_data.methyl, expected_methyl)
+    npt.assert_array_equal(methyl_data.methylated, expected_methyl)
 
     expected_unmethyl = np.array(
         [
@@ -254,7 +254,7 @@ def _test_methyl_data_raw(raw_data: RawData) -> None:
             [1, 5, 22, 4, 18, 1, 14, 14, 10, 15, 16, 8, 2, 4, 17, 13],
         ]
     )
-    npt.assert_array_equal(methyl_data.unmethyl, expected_unmethyl)
+    npt.assert_array_equal(methyl_data.unmethylated, expected_unmethyl)
 
 
 def _test_methyl_data_illumina(raw_data: RawData) -> None:
@@ -268,7 +268,7 @@ def _test_methyl_data_illumina(raw_data: RawData) -> None:
         ]
     )
     npt.assert_almost_equal(
-        methyl_data.methyl[:, [1, 5, 7, 13]], expected_methyl
+        methyl_data.methylated[:, [1, 5, 7, 13]], expected_methyl
     )
 
     expected_unmethyl = np.array(
@@ -278,7 +278,7 @@ def _test_methyl_data_illumina(raw_data: RawData) -> None:
         ]
     )
     npt.assert_almost_equal(
-        methyl_data.unmethyl[:, [1, 5, 7, 13]], expected_unmethyl
+        methyl_data.unmethylated[:, [1, 5, 7, 13]], expected_unmethyl
     )
 
 
@@ -293,7 +293,7 @@ def _test_methyl_data_noob(raw_data: RawData) -> None:
         ]
     )
     npt.assert_almost_equal(
-        methyl_data.methyl[:, [1, 5, 7, 13]], expected_methyl
+        methyl_data.methylated[:, [1, 5, 7, 13]], expected_methyl
     )
 
     expected_unmethyl = np.array(
@@ -303,7 +303,7 @@ def _test_methyl_data_noob(raw_data: RawData) -> None:
         ]
     )
     npt.assert_almost_equal(
-        methyl_data.unmethyl[:, [1, 5, 7, 13]], expected_unmethyl
+        methyl_data.unmethylated[:, [1, 5, 7, 13]], expected_unmethyl
     )
 
 
@@ -315,14 +315,14 @@ def _test_methyl_data_swan(raw_data: RawData) -> None:
         [[5.0, 18.5, 13.5, 13.5], [6.0, 19.5, 14.5, 14.5]]
     )
     npt.assert_almost_equal(
-        methyl_data.methyl[:, [1, 5, 7, 13]], expected_methyl
+        methyl_data.methylated[:, [1, 5, 7, 13]], expected_methyl
     )
 
     expected_unmethyl = np.array(
         [[8.42857143, 10.0, 13.0, 5.0], [9.42857143, 11.0, 14.0, 6.0]]
     )
     npt.assert_almost_equal(
-        methyl_data.unmethyl[:, [1, 5, 7, 13]], expected_unmethyl
+        methyl_data.unmethylated[:, [1, 5, 7, 13]], expected_unmethyl
     )
 
 
