@@ -1863,6 +1863,10 @@ class MethylAnalysis:
             raise ValueError(msg)
 
         self.set_betas()
+        if not self.load_full_betas:
+            raise ValueError(
+                "For visualization 'load_full_betas' must be True"
+            )
         assert self.betas_all is not None
 
         # 'set_betas' silently drops samples whose IDAT extraction failed,
