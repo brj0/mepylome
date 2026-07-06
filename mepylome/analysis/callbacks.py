@@ -64,9 +64,9 @@ def build_layout(app: Dash, analysis: MethylAnalysis) -> None:
         prep=analysis.prep,
         precalculate=analysis.precalculate_cnv,
         cpg_selection=analysis.cpg_selection,
-        n_neighbors=analysis.umap_parms["n_neighbors"],
-        metric=analysis.umap_parms["metric"],
-        min_dist=analysis.umap_parms["min_dist"],
+        n_neighbors=analysis.umap_params["n_neighbors"],
+        metric=analysis.umap_params["metric"],
+        min_dist=analysis.umap_params["min_dist"],
         use_discrete_colors=analysis._use_discrete_colors,
         custom_clfs=analysis.classifiers,
     )
@@ -506,9 +506,9 @@ def register_callbacks(app: Dash, analysis: MethylAnalysis) -> None:
         metric: str,
         min_dist: float,
     ) -> None:
-        analysis.umap_parms["n_neighbors"] = n_neighbors
-        analysis.umap_parms["metric"] = metric
-        analysis.umap_parms["min_dist"] = min_dist
+        analysis.umap_params["n_neighbors"] = n_neighbors
+        analysis.umap_params["metric"] = metric
+        analysis.umap_params["min_dist"] = min_dist
 
     @app.callback(
         [

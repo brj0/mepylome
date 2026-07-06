@@ -614,7 +614,7 @@ analysis = MethylAnalysis(
     cpgs="450k+epic+epicv2",
     debug=False,
     do_seg=True,
-    umap_parms={
+    umap_params={
         "n_neighbors": 5,
         "metric": "manhattan",
         "min_dist": 0.1,

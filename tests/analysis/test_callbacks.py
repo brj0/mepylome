@@ -37,7 +37,7 @@ def mock_analysis() -> MagicMock:
     analysis.prep = "functional"
     analysis.precalculate_cnv = False
     analysis.cpg_selection = "top"
-    analysis.umap_parms = {
+    analysis.umap_params = {
         "n_neighbors": 15,
         "metric": "euclidean",
         "min_dist": 0.1,
@@ -212,9 +212,9 @@ def test_update_umap_parms(
 
     update_parms(30, "cosine", 0.2)
 
-    assert mock_analysis.umap_parms["n_neighbors"] == 30
-    assert mock_analysis.umap_parms["metric"] == "cosine"
-    assert mock_analysis.umap_parms["min_dist"] == 0.2
+    assert mock_analysis.umap_params["n_neighbors"] == 30
+    assert mock_analysis.umap_params["metric"] == "cosine"
+    assert mock_analysis.umap_params["min_dist"] == 0.2
 
 
 def test_on_umap_start_button_click_validation_errors(

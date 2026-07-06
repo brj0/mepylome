@@ -369,7 +369,7 @@ class MethylAnalysis:
         debug (bool): Flag to enable debug mode for the Dash application
             (default: False).
 
-        umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
+        umap_params (dict): Parameters for UMAP algorithm (default: {'metric':
             'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
         use_gpu (bool): Whether to use GPU acceleration for UMAP via cuML and
@@ -500,7 +500,7 @@ class MethylAnalysis:
         umap_df (pandas.DataFrame): Dataframe containing UMAP data, initially
             set to empty data frame.
 
-        umap_parms (dict): Parameters for UMAP algorithm (default: {'metric':
+        umap_params (dict): Parameters for UMAP algorithm (default: {'metric':
             'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
         use_gpu (bool): Whether to use GPU acceleration for UMAP via cuML and
@@ -585,7 +585,7 @@ class MethylAnalysis:
     umap_cpgs: np.ndarray | None
     umap_df: pd.DataFrame | None
     umap_dir: Path
-    umap_parms: dict[str, Any]
+    umap_params: dict[str, Any]
     umap_plot: go.Figure
     umap_plot_path: Path
     use_gpu: bool
@@ -631,7 +631,7 @@ class MethylAnalysis:
         host: str = "localhost",
         port: int = 8050,
         debug: bool = False,
-        umap_parms: dict[str, Any] | None = None,
+        umap_params: dict[str, Any] | None = None,
         use_gpu: bool = False,
         verbose: int = 1,
         balancing_feature: str | None = None,
@@ -686,7 +686,7 @@ class MethylAnalysis:
         self.test_ids = _to_list(test_ids)
         self.umap_cpgs = None
         self.umap_df = None
-        self.umap_parms = MethylAnalysis._get_umap_parms(umap_parms)
+        self.umap_params = MethylAnalysis._get_umap_parms(umap_params)
         self.umap_plot = EMPTY_FIGURE
         self.use_gpu = use_gpu
 
@@ -883,17 +883,17 @@ class MethylAnalysis:
 
     @staticmethod
     def _get_umap_parms(
-        umap_parms: dict[str, Any] | None,
+        umap_params: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Returns UMAP parameters with defaults if not provided."""
-        umap_parms = {} if umap_parms is None else umap_parms
+        umap_params = {} if umap_params is None else umap_params
         default = {
             "metric": "manhattan",
             "min_dist": 0.1,
             "n_neighbors": 15,
             "verbose": True,
         }
-        return {**default, **umap_parms}
+        return {**default, **umap_params}
 
     def _get_cpgs_hash(self) -> str:
         """Returns or computes and caches the hash of the CpG array."""
@@ -1205,7 +1205,7 @@ class MethylAnalysis:
         )
 
         with DualOutput(LOG_FILE):
-            umap_2d = UMAP(**self.umap_parms).fit_transform(matrix_to_use)
+            umap_2d = UMAP(**self.umap_params).fit_transform(matrix_to_use)
 
         if self.use_gpu:
             umap_2d = cp.asnumpy(umap_2d)

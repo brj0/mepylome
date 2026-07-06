@@ -447,7 +447,7 @@ class IdatHandler:
 
     def _set_annotation_index_and_convert_ids(
         self,
-        id_missmatch: bool,
+        id_mismatch: bool,
         col_name: str | None,
     ) -> None:
         """Set annotation index and convert IDs to Sentrix format if needed."""
@@ -458,7 +458,7 @@ class IdatHandler:
             )
             return
 
-        if not id_missmatch:
+        if not id_mismatch:
             self.annotation_df = self.annotation_df.set_index(col_name)
             logger.info("Setting '%s' as annotation index", col_name)
             return

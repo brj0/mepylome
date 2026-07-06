@@ -363,7 +363,7 @@ analysis = MethylAnalysis(
     cpg_blacklist=blacklist,
     debug=False,
     do_seg=True,
-    umap_parms={
+    umap_params={
         "n_neighbors": 8,
         "metric": "manhattan",
         "min_dist": 0.3,

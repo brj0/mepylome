@@ -37,7 +37,7 @@ __all__ = ["Manifest"]
 DOWNLOAD_DIR = MEPYLOME_TMP_DIR / "manifests"
 MANIFEST_VERSION = "v0"
 
-NONE = -1
+MISSING_VALUE = -1
 
 
 PROBES_COLUMNS = [
@@ -563,7 +563,7 @@ class Manifest:
                 data_frame["AlleleA_ProbeSeq"].fillna("").str.count("R")
             )
 
-        data_frame["N_CpG"] = NONE
+        data_frame["N_CpG"] = MISSING_VALUE
         if "Infinium_Design_Type" in data_frame.columns:
             is_type_I = (
                 data_frame["Infinium_Design_Type"] == InfiniumDesignType.TYPE_I
@@ -592,7 +592,9 @@ class Manifest:
         ]
         for col in int_cols:
             if col in data_frame.columns:
-                data_frame[col] = data_frame[col].fillna(NONE).astype("int32")
+                data_frame[col] = (
+                    data_frame[col].fillna(MISSING_VALUE).astype("int32")
+                )
 
         if "Start" in data_frame.columns:
             data_frame["End"] = data_frame["Start"]

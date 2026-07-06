@@ -254,7 +254,7 @@ def add_genes(plot: go.Figure, genes: pd.DataFrame) -> go.Figure:
     return plot
 
 
-def add_highlited_bins(
+def add_highlighted_bins(
     plot: go.Figure,
     highlighted_bins: pd.DataFrame,
 ) -> go.Figure:
@@ -459,7 +459,7 @@ def cnv_plot_from_data(
     genes_x_range = selected_genes_df["Range"].explode().tolist()
 
     highlighted_bins = bins.loc[genes_x_range, ["X_mid", "Median"]]
-    plot = add_highlited_bins(plot, highlighted_bins)
+    plot = add_highlighted_bins(plot, highlighted_bins)
 
     # Add all added and important genes
     genes_to_plot = genes_fix + genes_sel

@@ -360,7 +360,7 @@ analysis = MethylAnalysis(
     cpg_blacklist=blacklist,
     debug=False,
     do_seg=True,
-    umap_parms={
+    umap_params={
         "metric": "manhattan",
     },
 )
