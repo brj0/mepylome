@@ -76,5 +76,5 @@ class ArrayType(Enum):
     def from_idat(cls, path: str | Path) -> "ArrayType":
         """Infers array type from idat_file."""
         valid_path = _find_valid_path(path)
-        probe_count = IdatParser(valid_path, array_type_only=True).n_snps_read
+        probe_count = IdatParser(valid_path, mode="array_type").n_snps_read
         return ArrayType.from_probe_count(probe_count)

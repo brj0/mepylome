@@ -208,9 +208,10 @@ def test_read_string_multi_byte_length() -> None:
 def test_read_array_eof_raises() -> None:
     """Raises EOFError when the file ends before all data is read."""
     # Ask for 4 int32s (16 bytes) but supply only 4 bytes
+    _D_INT32 = np.dtype("<i4")
     buf = io.BytesIO(b"\x00" * 4)
     with pytest.raises(EOFError, match="End of file"):
-        read_array(buf, "<i4", 4)
+        read_array(buf, _D_INT32, 4)
 
 
 # ---------------------------------------------------------------------------
@@ -329,15 +330,15 @@ def test_idatparser_file_size_nonzero(idat_parser: IdatParser) -> None:
 
 
 # ---------------------------------------------------------------------------
-# IdatParser – intensity_only=True (lines 188-192 early return in _parse_body)
+# IdatParser – mode="intensity" (lines 188-192 early return in _parse_body)
 # ---------------------------------------------------------------------------
 
 
 def test_idatparser_intensity_only_skips_extra_fields(
     idat_bytes: bytes,
 ) -> None:
-    """intensity_only=True parses ids and means but not std_dev/beads/etc."""
-    parser = IdatParser(io.BytesIO(idat_bytes), intensity_only=True)
+    """mode="intensity" parses ids and means but not std_dev/beads/etc."""
+    parser = IdatParser(io.BytesIO(idat_bytes), mode="intensity")
     np.testing.assert_array_equal(parser.probe_means, [100, 200, 300])
     assert not hasattr(parser, "std_dev")
     assert not hasattr(parser, "n_beads")
@@ -345,15 +346,15 @@ def test_idatparser_intensity_only_skips_extra_fields(
 
 
 # ---------------------------------------------------------------------------
-# IdatParser – array_type_only=True
+# IdatParser – mode="array_type"
 # ---------------------------------------------------------------------------
 
 
 def test_idatparser_array_type_only_reads_n_snps_only(
     idat_bytes: bytes,
 ) -> None:
-    """array_type_only=True reads only n_snps_read and returns early."""
-    parser = IdatParser(io.BytesIO(idat_bytes), array_type_only=True)
+    """mode="array_type" reads only n_snps_read and returns early."""
+    parser = IdatParser(io.BytesIO(idat_bytes), mode="array_type")
     assert parser.n_snps_read == 3
     assert not hasattr(parser, "illumina_ids")
     assert not hasattr(parser, "probe_means")
@@ -387,7 +388,7 @@ def test_idatparser_reads_gzipped_file(
 
 
 # ---------------------------------------------------------------------------
-# IdatParser.__repr__ – full repr (lines 280-293) and intensity_only branch
+# IdatParser.__repr__ – full repr (lines 280-293) and mode="intensity" branch
 # ---------------------------------------------------------------------------
 
 
@@ -411,8 +412,8 @@ def test_repr_full(idat_parser: IdatParser) -> None:
 
 
 def test_repr_intensity_only(idat_bytes: bytes) -> None:
-    """With intensity_only=True returns the short form ending in ')'."""
-    parser = IdatParser(io.BytesIO(idat_bytes), intensity_only=True)
+    """With mode="intensity" returns the short form ending in ')'."""
+    parser = IdatParser(io.BytesIO(idat_bytes), mode="intensity")
     r = repr(parser)
     assert r.endswith(")")
     assert "std_dev" not in r

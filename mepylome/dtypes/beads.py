@@ -228,11 +228,11 @@ class RawData:
         grn_idat_files, red_idat_files = idat_paths_from_basenames(_basenames)
 
         grn_idat = [
-            IdatParser(str(filepath), intensity_only=True)
+            IdatParser(str(filepath), mode="intensity")
             for filepath in grn_idat_files
         ]
         red_idat = [
-            IdatParser(str(filepath), intensity_only=True)
+            IdatParser(str(filepath), mode="intensity")
             for filepath in red_idat_files
         ]
 
@@ -1465,7 +1465,7 @@ class MethylData:
 
         return mvals
 
-    def pred_sex(self) -> np.ndarray:
+    def predict_sex(self) -> np.ndarray:
         """Predict sex from X/Y chromosome methylation intensities.
 
         Uses median log2 intensity difference between Y and X probes.
