@@ -31,6 +31,7 @@ from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.idat import IdatParser
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.probes import Channel, ProbeType
+from mepylome.dtypes.purity import predict_purity
 from mepylome.utils.varia import MEPYLOME_CACHE_DIR, normexp_get_xs
 
 logger = logging.getLogger(__name__)
@@ -1472,6 +1473,16 @@ class MethylData:
         Threshold-based classifier trained/validated on ~3k tumor samples,
         achieving ~95% accuracy. Algorithm needs to be refined in future
         versions.
+
+
+        Returns:
+            pd.Series:
+                Predicted sex (``"male"`` or ``"female"``), indexed by sample
+                name.
+
+        Notes:
+            This algorithm is experimental and may be refined in future
+            releases.
         """
         # TODO: Refine algorithm
         x_idx, y_idx = _get_sex_indices(
@@ -1488,7 +1499,60 @@ class MethylData:
         diff_yx = y_median - x_median
         threshold = -2.5602695724074866
 
-        return np.where(diff_yx > threshold, "male", "female")
+        return pd.Series(
+            np.where(diff_yx > threshold, "male", "female"),
+            index=self.sample_ids,
+            name="sex",
+        )
+
+    def predict_purity(
+        self,
+        method: Literal["absolute", "estimate"] = "absolute",
+        fill: float = 0.5,
+    ) -> pd.Series:
+        """Estimate tumor purity from DNA methylation data.
+
+        Uses RFpurify random forest models to estimate tumor purity from the
+        methylation beta values stored in this object. In RFpurify the
+
+        Available models:
+
+            ``"absolute"``:
+                Model trained against purity estimates from the ABSOLUTE study.
+
+            ``"estimate"``:
+                Model trained against purity estimates from the ESTIMATE study.
+
+        Reference:
+            Sill et al. (2019)
+            https://github.com/mwsill/RFpurify
+            https://doi.org/10.1186/s12859-019-3014-z
+
+        Args:
+            method:
+                RFpurify model to use. Supported values are ``"absolute"`` and
+                ``"estimate"``.
+
+            fill:
+                Beta value used for CpG probes required by the model but
+                missing from the input data. RFpurify was trained on Illumina
+                450k and EPIC arrays; missing probes may occur when applying it
+                to newer arrays such as EPIC v2.
+
+        Returns:
+            pd.Series:
+                Predicted tumor purity values in the range [0, 1], indexed by
+                sample name.
+
+        Raises:
+            ValueError:
+                If ``method`` is not ``"absolute"`` or ``"estimate"``.
+        """
+        return predict_purity(
+            self.betas,
+            method=method,
+            fill=fill,
+        )
 
     def plot_betas_density(self, bins: int = 256) -> None:
         """Plot beta-value density distributions."""
