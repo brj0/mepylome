@@ -1549,7 +1549,7 @@ class MethylData:
                 If ``method`` is not ``"absolute"`` or ``"estimate"``.
         """
         return predict_purity(
-            self.betas,
+            self.betas.T,
             method=method,
             fill=fill,
         )

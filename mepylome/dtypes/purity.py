@@ -57,7 +57,7 @@ def predict_purity(
 
     Args:
         betas:
-            DataFrame with CpG probe IDs as index and sample names as columns.
+            DataFrame with sample IDs as index and CpG proge IDs as columns.
 
         method:
             RFpurify model to use.
@@ -89,12 +89,11 @@ def predict_purity(
     model = model_entry["model"]
     features = model_entry["features"]
 
-    betas = betas.reindex(features).fillna(fill)
-
-    scores = model.predict(betas.T)
+    X = betas.reindex(columns=features).fillna(fill)
+    scores = model.predict(X)
 
     return pd.Series(
         scores,
-        index=betas.columns,
+        index=betas.index,
         name=f"purity_{method}",
     )

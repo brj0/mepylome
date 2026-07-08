@@ -52,13 +52,13 @@ def betas() -> pd.DataFrame:
     """Return a minimal beta-value test dataset."""
     return pd.DataFrame(
         {
-            "sample1": [0.1, 0.2, 0.3],
-            "sample2": [0.4, 0.5, 0.6],
+            "cg000001": [0.1, 0.4],
+            "cg000002": [0.2, 0.5],
+            "cg000003": [0.3, 0.6],
         },
         index=[
-            "cg000001",
-            "cg000002",
-            "cg000003",
+            "sample1",
+            "sample2",
         ],
     )
 
@@ -99,11 +99,11 @@ def test_missing_probes_are_filled(
     """Missing CpG probes are filled with the requested value."""
     betas = pd.DataFrame(
         {
-            "sample": [0.2, 0.4],
+            "cg000001": [0.2],
+            "cg000003": [0.4],
         },
         index=[
-            "cg000001",
-            "cg000003",
+            "sample",
         ],
     )
 
@@ -132,12 +132,12 @@ def test_probe_order_is_corrected(
     """Input CpG probe order does not affect prediction."""
     betas = pd.DataFrame(
         {
-            "sample": [0.3, 0.1, 0.2],
+            "cg000003": [0.3],
+            "cg000001": [0.1],
+            "cg000002": [0.2],
         },
         index=[
-            "cg000003",
-            "cg000001",
-            "cg000002",
+            "sample",
         ],
     )
 
@@ -160,5 +160,5 @@ def test_invalid_method_raises(
     ):
         predict_purity(
             betas,
-            method="ABSOLUTE", # type: ignore[arg-type]
+            method="ABSOLUTE",  # type: ignore[arg-type]
         )
