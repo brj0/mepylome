@@ -264,20 +264,20 @@ def normexp_get_xs(
     Adapted from
     https://github.com/hansenlab/minfi/blob/devel/R/preprocessNoob.R
     """
-    n_probes = xf.shape[0]
+    n_samples = xf.shape[0]
     if param is None:
         if controls is None:
             msg = "'controls' or 'param' must be given"
             raise ValueError(msg)
-        alpha = np.empty(n_probes)
-        mu = np.empty(n_probes)
-        sigma = np.empty(n_probes)
-        for i in range(n_probes):
+        alpha = np.empty(n_samples)
+        mu = np.empty(n_samples)
+        sigma = np.empty(n_samples)
+        for i in range(n_samples):
             mu[i], sigma[i] = huber(controls[i, :])
             alpha[i] = max(huber(xf[i, :])[0] - mu[i], 10)
         param = np.column_stack((mu, np.log(sigma), np.log(alpha)))
     result = np.empty(xf.shape)
-    for i in range(n_probes):
+    for i in range(n_samples):
         result[i, :] = normexp_signal(param[i], xf[i, :])
     return {
         "xs": result + offset,
