@@ -15,7 +15,7 @@ import webbrowser
 from collections import Counter
 from collections.abc import Iterable, Sequence, Sized
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -67,6 +67,7 @@ from mepylome.dtypes import (
     is_valid_idat_basepath,
     read_cnv_data_from_disk,
 )
+from mepylome.dtypes.purity import get_purity_features, predict_purity
 from mepylome.utils import (
     CONFIG,
     ensure_directory_exists,
@@ -1275,6 +1276,32 @@ class MethylAnalysis:
             except AttributeError:
                 logger.info("Probable dimension mismatch")
 
+    def _get_betas(
+        self,
+        cpgs: np.ndarray,
+        ids: Sequence[str] | None = None,
+    ) -> pd.DataFrame:
+        """Reads beta values for arbitrary `cpgs` directly from disk.
+
+        Args:
+            cpgs (np.ndarray): CpG identifiers to retrieve.
+            ids (Sequence[str] or None): Sample IDs to restrict to. If None,
+                all samples in `idat_handler` are used.
+
+        Returns:
+            pd.DataFrame: Beta values, samples x CpGs.
+        """
+        logger.info("Retrieving beta values...")
+        assert self.betas_dir is not None
+        return get_betas(
+            idat_handler=self.idat_handler,
+            ids=ids,
+            cpgs=cpgs,
+            prep=self.prep,
+            betas_dir=self.betas_dir,
+            pbar=self._prog_bar,
+        )
+
     def set_betas(self) -> None:
         """Sets the beta values DataFrame ('betas_sel') for further analysis.
 
@@ -1302,20 +1329,9 @@ class MethylAnalysis:
                 )
             )
 
-        def _get_betas(cpgs: np.ndarray) -> pd.DataFrame:
-            logger.info("Retrieving beta values...")
-            assert self.betas_dir is not None
-            return get_betas(
-                idat_handler=self.idat_handler,
-                cpgs=cpgs,
-                prep=self.prep,
-                betas_dir=self.betas_dir,
-                pbar=self._prog_bar,
-            )
-
         # Load all beta values if necessary
         if self.betas_all is None and self.load_full_betas:
-            self.betas_all = _get_betas(self.cpgs)
+            self.betas_all = self._get_betas(self.cpgs)
             self._sorted_cpgs, self._sorted_cpgs_var = (
                 reordered_cpgs_by_variance(self.betas_all)
             )
@@ -1341,7 +1357,7 @@ class MethylAnalysis:
             self.betas_sel = (
                 extract_sub_dataframe(self.betas_all, self.umap_cpgs)
                 if self.betas_all is not None
-                else _get_betas(self.umap_cpgs)
+                else self._get_betas(self.umap_cpgs)
             )
 
         elif self.cpg_selection == "top":
@@ -1350,7 +1366,7 @@ class MethylAnalysis:
             self.betas_sel = (
                 self.betas_all[self.umap_cpgs]
                 if self.betas_all is not None
-                else _get_betas(self.umap_cpgs)
+                else self._get_betas(self.umap_cpgs)
             )
 
         elif self.cpg_selection == "balanced":
@@ -1385,7 +1401,7 @@ class MethylAnalysis:
             self.betas_sel = (
                 self.betas_all[self.umap_cpgs]
                 if self.betas_all is not None
-                else _get_betas(self.umap_cpgs)
+                else self._get_betas(self.umap_cpgs)
             )
 
         else:
@@ -1726,17 +1742,9 @@ class MethylAnalysis:
         if values_only and cpgs_path.exists():
             cpgs = np.load(cpgs_path)
 
-            if ids and len(ids):
-                values = get_betas(
-                    idat_handler=self.idat_handler,
-                    ids=ids,
-                    cpgs=cpgs,
-                    prep=self.prep,
-                    betas_dir=self.betas_dir,
-                    pbar=self._prog_bar,
-                )
-            else:
-                values = None
+            values = (
+                self._get_betas(cpgs, ids=ids) if ids and len(ids) else None
+            )
 
             return None, None, values
 
@@ -2003,6 +2011,58 @@ class MethylAnalysis:
             fig.show()
             return None
         return fig
+
+    def predict_purity(
+        self,
+        method: Literal["absolute", "estimate"] = "absolute",
+        fill: float = 0.5,
+    ) -> pd.Series:
+        """Estimate tumor purity from DNA methylation data.
+
+        Uses RFpurify random forest models to estimate tumor purity from the
+        methylation beta values stored in this object. In RFpurify the
+
+        Available models:
+
+            ``"absolute"``:
+                Model trained against purity estimates from the ABSOLUTE study.
+
+            ``"estimate"``:
+                Model trained against purity estimates from the ESTIMATE study.
+
+        Reference:
+            Sill et al. (2019)
+            https://github.com/mwsill/RFpurify
+            https://doi.org/10.1186/s12859-019-3014-z
+
+        Args:
+            method:
+                RFpurify model to use. Supported values are ``"absolute"`` and
+                ``"estimate"``.
+
+            fill:
+                Beta value used for CpG probes required by the model but
+                missing from the input data. RFpurify was trained on Illumina
+                450k and EPIC arrays; missing probes may occur when applying it
+                to newer arrays such as EPIC v2.
+
+        Returns:
+            pd.Series:
+                Predicted tumor purity values in the range [0, 1], indexed by
+                sample name.
+
+        Raises:
+            ValueError:
+                If ``method`` is not ``"absolute"`` or ``"estimate"``.
+        """
+        cpgs = get_purity_features(method)
+        if self.betas_all is not None and not set(cpgs) - set(
+            self.betas_all.columns
+        ):
+            betas = self.betas_all[cpgs]
+        else:
+            betas = self._get_betas(cpgs)
+        return predict_purity(betas, method=method, fill=fill)
 
     def get_app(self) -> Dash:
         """Returns a Dash application object for methylation analysis."""

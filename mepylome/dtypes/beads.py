@@ -31,7 +31,7 @@ from mepylome.dtypes.chromosome import Chromosome
 from mepylome.dtypes.idat import IdatParser
 from mepylome.dtypes.manifests import Manifest
 from mepylome.dtypes.probes import Channel, ProbeType
-from mepylome.dtypes.purity import predict_purity
+from mepylome.dtypes.purity import get_purity_features, predict_purity
 from mepylome.utils.varia import MEPYLOME_CACHE_DIR, normexp_get_xs
 
 logger = logging.getLogger(__name__)
@@ -1548,8 +1548,9 @@ class MethylData:
             ValueError:
                 If ``method`` is not ``"absolute"`` or ``"estimate"``.
         """
+        cpgs = get_purity_features(method)
         return predict_purity(
-            self.betas.T,
+            self.betas_at(cpgs).T,
             method=method,
             fill=fill,
         )

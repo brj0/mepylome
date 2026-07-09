@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Literal
 
 import joblib
+import numpy as np
 import pandas as pd
 
 from mepylome.utils.files import download_file
@@ -46,6 +47,14 @@ def _load_models() -> dict:
         download_file(url, model_path)
 
     return joblib.load(model_path)
+
+
+def get_purity_features(
+    method: Literal["absolute", "estimate"] = "absolute",
+) -> np.ndarray:
+    """Returns the CpGs the `method` model was trained on."""
+    model_entry = _load_models()[method]
+    return np.array(model_entry["features"])
 
 
 def predict_purity(
