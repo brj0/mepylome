@@ -129,7 +129,7 @@ def patch_core_dependencies(
     )
     # Pretend the optional segmentation backend (cbseg/ruptures/...) is
     # unavailable, matching a typical minimal test environment.
-    monkeypatch.setattr(core, "_get_cgsegment", lambda: None)
+    monkeypatch.setattr(core, "_get_segmentation_fn", lambda: None)
     monkeypatch.setattr(
         core,
         "input_args_id",
@@ -388,7 +388,7 @@ def test_init_resolves_string_paths_to_path_objects(tmp_path: Path) -> None:
 def test_init_disables_segmentation_when_dependency_missing(
     make_analysis: AnalysisFactory,
 ) -> None:
-    # patch_core_dependencies forces _get_cgsegment() -> None
+    # patch_core_dependencies forces _get_segmentation_fn() -> None
     analysis = make_analysis(do_seg=True)
     assert analysis.do_seg is False
 
@@ -396,7 +396,7 @@ def test_init_disables_segmentation_when_dependency_missing(
 def test_init_respects_do_seg_when_dependency_available(
     make_analysis: AnalysisFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(core, "_get_cgsegment", lambda: object())
+    monkeypatch.setattr(core, "_get_segmentation_fn", lambda: object())
     analysis = make_analysis(do_seg=True)
     assert analysis.do_seg is True
 
@@ -815,7 +815,7 @@ def test_cn_summary_raises_when_segmentation_disabled(
     make_analysis: AnalysisFactory,
 ) -> None:
     analysis = make_analysis()
-    assert analysis.do_seg is False  # forced by patched _get_cgsegment
+    assert analysis.do_seg is False  # forced by patched _get_segmentation_fn
     with pytest.raises(ValueError, match="do_seg"):
         analysis.cn_summary(["sample1"])
 
@@ -1242,7 +1242,7 @@ def test_get_cnv_returns_none_tuple_when_zip_missing(
 def test_cn_summary_returns_plot_and_dataframe(
     make_analysis: AnalysisFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(core, "_get_cgsegment", lambda: object())
+    monkeypatch.setattr(core, "_get_segmentation_fn", lambda: object())
     analysis = make_analysis(do_seg=True)
     analysis.idat_handler.id_to_basename = {"s1": "s1_base", "s2": "s2_base"}
     monkeypatch.setattr(analysis, "precompute_cnvs", lambda ids: None)

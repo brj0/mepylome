@@ -60,7 +60,7 @@ from mepylome.dtypes import (
     Chromosome,
     Manifest,
     PrepType,
-    _get_cgsegment,
+    _get_segmentation_fn,
     _overlap_indices,
     get_cn_summary,
     input_args_id,
@@ -729,7 +729,7 @@ class MethylAnalysis:
             logger.info("No annotation file found")
 
         logger.info("Try to import cbseg, linear_segment or ruptures...")
-        self.do_seg = False if _get_cgsegment() is None else do_seg
+        self.do_seg = False if _get_segmentation_fn() is None else do_seg
 
         # Set test dir, as it is needed by _get_cpgs
         self._set_test_dir()

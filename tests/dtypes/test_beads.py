@@ -9,9 +9,9 @@ import pytest
 from mepylome.dtypes import ArrayType, Manifest, MethylData, PrepType, RawData
 from mepylome.tests.helpers import TempIdatFilePair, TempManifest
 
-ENDING_GRN = "_Grn.idat"
-ENDING_RED = "_Red.idat"
-ENDING_GZ = ".gz"
+GRN_SUFFIX = "_Grn.idat"
+RED_SUFFIX = "_Red.idat"
+GZ_SUFFIX = ".gz"
 
 from mepylome.dtypes.beads import (
     idat_basepaths,
@@ -23,11 +23,11 @@ from mepylome.dtypes.beads import (
 def create_idat_pair(base: Path, gz: bool = False) -> None:
     """Create a valid Grn/Red file pair."""
     if gz:
-        (base.parent / (base.name + ENDING_GRN + ENDING_GZ)).touch()
-        (base.parent / (base.name + ENDING_RED + ENDING_GZ)).touch()
+        (base.parent / (base.name + GRN_SUFFIX + GZ_SUFFIX)).touch()
+        (base.parent / (base.name + RED_SUFFIX + GZ_SUFFIX)).touch()
     else:
-        (base.parent / (base.name + ENDING_GRN)).touch()
-        (base.parent / (base.name + ENDING_RED)).touch()
+        (base.parent / (base.name + GRN_SUFFIX)).touch()
+        (base.parent / (base.name + RED_SUFFIX)).touch()
 
 
 # ----------------------------------------------------------------------------
@@ -57,7 +57,7 @@ def test_is_valid_multiple_paths(tmp_path: Path) -> None:
 
 def test_is_valid_basepath_false(tmp_path: Path) -> None:
     base = tmp_path / "sample"
-    (tmp_path / ("sample" + ENDING_GRN)).touch()
+    (tmp_path / ("sample" + GRN_SUFFIX)).touch()
     assert is_valid_idat_basepath(base) is False
 
 
@@ -81,8 +81,8 @@ def test_idat_basepaths_strip_suffix(tmp_path: Path) -> None:
     base = tmp_path / "sample"
     create_idat_pair(base)
     files = [
-        tmp_path / ("sample" + ENDING_GRN),
-        tmp_path / ("sample" + ENDING_RED),
+        tmp_path / ("sample" + GRN_SUFFIX),
+        tmp_path / ("sample" + RED_SUFFIX),
     ]
     result = idat_basepaths(files)
     assert result == [base]
@@ -92,7 +92,7 @@ def test_idat_basepaths_only_valid(tmp_path: Path) -> None:
     base_valid = tmp_path / "valid"
     base_invalid = tmp_path / "invalid"
     create_idat_pair(base_valid)
-    (tmp_path / ("invalid" + ENDING_GRN)).touch()
+    (tmp_path / ("invalid" + GRN_SUFFIX)).touch()
     result = idat_basepaths([base_valid, base_invalid], only_valid=True)
     assert result == [base_valid]
 
@@ -101,8 +101,8 @@ def test_idat_basepaths_deduplicates(tmp_path: Path) -> None:
     base = tmp_path / "sample"
     create_idat_pair(base)
     files = [
-        tmp_path / ("sample" + ENDING_GRN),
-        tmp_path / ("sample" + ENDING_RED),
+        tmp_path / ("sample" + GRN_SUFFIX),
+        tmp_path / ("sample" + RED_SUFFIX),
     ]
     result = idat_basepaths(files)
     assert result == [base]
@@ -117,8 +117,8 @@ def test_idat_paths_from_basenames_success(tmp_path: Path) -> None:
     base = tmp_path / "test"
     create_idat_pair(base)
     grn, red = idat_paths_from_basenames([base])
-    assert grn[0] == base.with_name(base.name + ENDING_GRN)
-    assert red[0] == base.with_name(base.name + ENDING_RED)
+    assert grn[0] == base.with_name(base.name + GRN_SUFFIX)
+    assert red[0] == base.with_name(base.name + RED_SUFFIX)
 
 
 def test_idat_paths_from_basenames_gz(tmp_path: Path) -> None:
@@ -131,7 +131,7 @@ def test_idat_paths_from_basenames_gz(tmp_path: Path) -> None:
 
 def test_idat_paths_from_basenames_missing_file_raises(tmp_path: Path) -> None:
     base = tmp_path / "missing"
-    (tmp_path / ("missing" + ENDING_GRN)).touch()
+    (tmp_path / ("missing" + GRN_SUFFIX)).touch()
     with pytest.raises(FileNotFoundError):
         idat_paths_from_basenames([base])
 

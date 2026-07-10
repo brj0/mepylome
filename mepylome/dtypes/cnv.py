@@ -41,7 +41,7 @@ GAPS = PACKAGE_DIR / CONFIG["paths"]["gaps"]
 GENES = PACKAGE_DIR / CONFIG["paths"]["genes"]
 
 
-def _get_cgsegment() -> Callable[[list[float]], list[list[int]]] | None:
+def _get_segmentation_fn() -> Callable[[list[float]], list[list[int]]] | None:
     try:
         import ruptures
 
@@ -713,7 +713,9 @@ class CNV:
         logger.info("%s Performing fit...", self.sample_id)
 
         y = np.log2(self.sample.intensity)[:, self._idx["fit_sample"]].ravel()
-        X = self.reference.log_intensity_fit[self._idx["fit_reference"]]
+        X = self.reference._log_intensity_design_matrix[
+            self._idx["fit_reference"]
+        ]
         correlation = np.corrcoef(y, X[:, :-1].T)[0, 1:]
         if any(correlation >= 0.99):
             logger.info(
@@ -794,7 +796,7 @@ class CNV:
                 chromosome, start position, and end position.
 
         """
-        cbsegment = _get_cgsegment()
+        cbsegment = _get_segmentation_fn()
         assert cbsegment is not None
         bin_values = df["Median"].values
         seg = cbsegment(bin_values)
@@ -811,7 +813,7 @@ class CNV:
         It calculates the CNV segments for each chromosome and stores them
         in the 'segments' attribute of the object.
         """
-        if _get_cgsegment() is None:
+        if _get_segmentation_fn() is None:
             return
         logger.info("%s Setting segments...", self.sample_id)
         segments = pr.PyRanges(

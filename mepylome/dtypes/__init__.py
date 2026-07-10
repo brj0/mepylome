@@ -13,7 +13,7 @@ from .beads import (
 )
 from .cache import clear_cache, get_id_tuple, input_args_id, memoize
 from .chromosome import Chromosome
-from .cnv import CNV, ZIP_ENDING, Annotation, _get_cgsegment
+from .cnv import CNV, ZIP_ENDING, Annotation, _get_segmentation_fn
 from .idat import IdatParser
 from .manifests import Manifest
 from .plots import (
@@ -51,6 +51,6 @@ __all__ = [
     "is_valid_idat_basepath",
     "memoize",
     "_overlap_indices",
-    "_get_cgsegment",
+    "_get_segmentation_fn",
     "read_cnv_data_from_disk",
 ]

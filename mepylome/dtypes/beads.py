@@ -36,9 +36,9 @@ from mepylome.utils.varia import MEPYLOME_CACHE_DIR, normexp_get_xs
 
 logger = logging.getLogger(__name__)
 
-ENDING_GRN = "_Grn.idat"
-ENDING_RED = "_Red.idat"
-ENDING_GZ = ".gz"
+GRN_SUFFIX = "_Grn.idat"
+RED_SUFFIX = "_Red.idat"
+GZ_SUFFIX = ".gz"
 ENDING_SUFFIXES = ("_Grn.idat", "_Red.idat", "_Grn.idat.gz", "_Red.idat.gz")
 
 EPSILON = 1e-6
@@ -59,12 +59,12 @@ def is_valid_idat_basepath(
 
     return all(
         (
-            os.path.exists(x + ENDING_GRN)
-            or os.path.exists(x + ENDING_GRN + ENDING_GZ)
+            os.path.exists(x + GRN_SUFFIX)
+            or os.path.exists(x + GRN_SUFFIX + GZ_SUFFIX)
         )
         and (
-            os.path.exists(x + ENDING_RED)
-            or os.path.exists(x + ENDING_RED + ENDING_GZ)
+            os.path.exists(x + RED_SUFFIX)
+            or os.path.exists(x + RED_SUFFIX + GZ_SUFFIX)
         )
         for x in basepaths
     )
@@ -157,16 +157,16 @@ def idat_paths_from_basenames(
         FileNotFoundError: If any IDAT file is not found.
     """
     grn_idat_files = np.array(
-        [Path(str(name) + ENDING_GRN) for name in basenames]
+        [Path(str(name) + GRN_SUFFIX) for name in basenames]
     )
     red_idat_files = np.array(
-        [Path(str(name) + ENDING_RED) for name in basenames]
+        [Path(str(name) + RED_SUFFIX) for name in basenames]
     )
 
     def check_and_fix(files: np.ndarray) -> Path | None:
         not_existing = [i for i, path in enumerate(files) if not path.exists()]
         files[not_existing] = [
-            x.parent / (x.name + ENDING_GZ) for x in files[not_existing]
+            x.parent / (x.name + GZ_SUFFIX) for x in files[not_existing]
         ]
         return next((x for x in files[not_existing] if not x.exists()), None)
 
@@ -175,7 +175,7 @@ def idat_paths_from_basenames(
         check_and_fix(red_idat_files) if not_found is None else not_found
     )
     if not_found is not None:
-        idat_file = str(not_found).replace(ENDING_GZ, "")
+        idat_file = str(not_found).replace(GZ_SUFFIX, "")
         msg = f"IDAT file not found: {idat_file}."
         raise FileNotFoundError(msg)
     return grn_idat_files, red_idat_files
@@ -223,7 +223,7 @@ class RawData:
         _basenames = idat_basepaths(basenames)
 
         self.sample_ids = [
-            path.name.replace(ENDING_GZ, "") for path in _basenames
+            path.name.replace(GZ_SUFFIX, "") for path in _basenames
         ]
 
         grn_idat_files, red_idat_files = idat_paths_from_basenames(_basenames)
@@ -426,7 +426,7 @@ class MethylData:
     green: np.ndarray
     red: np.ndarray
     _intensity: np.ndarray | None
-    _log_intensity_fit: np.ndarray | None
+    _log_intensity_design_matrix_cache: np.ndarray | None
 
     def __init__(
         self,
@@ -452,7 +452,7 @@ class MethylData:
         self.manifest = data.manifest
         self.sample_ids = data.sample_ids
         self._intensity = None
-        self._log_intensity_fit = None
+        self._log_intensity_design_matrix_cache = None
         if prep == "illumina":
             self.preprocess_illumina()
         elif prep == "swan":
@@ -543,14 +543,14 @@ class MethylData:
         return self._intensity
 
     @property
-    def log_intensity_fit(self) -> np.ndarray:
+    def _log_intensity_design_matrix(self) -> np.ndarray:
         """log2 intensity with appended intercept column for linear regression.
 
         Shape: (n_probes, n_samples + 1) - intercept in last column.
         """
-        if self._log_intensity_fit is None:
+        if self._log_intensity_design_matrix_cache is None:
             log_intensity = np.log2(self.intensity)
-            self._log_intensity_fit = np.hstack(
+            self._log_intensity_design_matrix_cache = np.hstack(
                 [
                     log_intensity.T,
                     np.ones(
@@ -559,11 +559,11 @@ class MethylData:
                     ),
                 ]
             )
-        return self._log_intensity_fit
+        return self._log_intensity_design_matrix_cache
 
-    def load_log_intensity(self) -> None:
+    def _load_log_intensity(self) -> None:
         """Calculates log_intensity so this can be saved to disk."""
-        _ = self.log_intensity_fit
+        _ = self._log_intensity_design_matrix
         self._intensity = None
 
     @property
@@ -803,33 +803,6 @@ class MethylData:
             self.manifest, self.bead_addresses, "raw"
         )
         self._preprocess_raw(ci)
-
-    def _preprocess_raw_old(self, ci: dict) -> None:
-        """Same as _preprocess_raw just slower and cleaner."""
-        self.methylated = np.full(
-            (len(self.sample_ids), len(ci["idx"])), np.nan
-        )
-        self.methylated[:, ci["idx_1_red__"]] = self.red[:, ci["ids_1_red_b"]]
-        self.methylated[:, ci["idx_1_grn__"]] = self.green[
-            :, ci["ids_1_grn_b"]
-        ]
-        self.methylated[:, ci["idx_2______"]] = self.green[
-            :, ci["ids_2_____a"]
-        ]
-        self.unmethylated = np.full(
-            (len(self.sample_ids), len(ci["idx"])), np.nan
-        )
-        self.unmethylated[:, ci["idx_1_red__"]] = self.red[
-            :, ci["ids_1_red_a"]
-        ]
-        self.unmethylated[:, ci["idx_1_grn__"]] = self.green[
-            :, ci["ids_1_grn_a"]
-        ]
-        self.unmethylated[:, ci["idx_2______"]] = self.red[
-            :, ci["ids_2_____a"]
-        ]
-        self.probe_idx = ci["idx"]
-        self.probe_ids = ci["ilmnid"]
 
     def _preprocess_raw(self, ci: dict) -> None:
         """Internal preprocess logic."""
@@ -1859,7 +1832,7 @@ class ReferenceMethylData:
                 self._methyl_data[array_type] = MethylData(
                     raw_data, prep=self.prep
                 )
-                self._methyl_data[array_type].load_log_intensity()
+                self._methyl_data[array_type]._load_log_intensity()
 
             if self.save_to_disk:
                 # Save saving to disk

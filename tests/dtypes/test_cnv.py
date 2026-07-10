@@ -15,7 +15,7 @@ from mepylome.dtypes.beads import MethylData
 from mepylome.dtypes.cnv import (
     CNV,
     Annotation,
-    _get_cgsegment,
+    _get_segmentation_fn,
     _linear_regression,
 )
 
@@ -27,7 +27,7 @@ N_GENES: int = 5
 
 def test_get_cgsegment_returns_callable_or_none() -> None:
     """Backend detection returns a callable or None."""
-    seg = _get_cgsegment()
+    seg = _get_segmentation_fn()
 
     assert seg is None or callable(seg)
 
@@ -55,7 +55,9 @@ def ref_mock(probe_ids: np.ndarray) -> MagicMock:
     mock.sample_ids = [f"REF_{i:03d}" for i in range(N_REFS)]
     mock.array_type = ArrayType.ILLUMINA_450K
     log_X: np.ndarray = np.log2(rng.uniform(500, 5000, (N_PROBES, N_REFS)))
-    mock.log_intensity_fit = np.hstack([log_X, np.ones((N_PROBES, 1))])
+    mock._log_intensity_design_matrix = np.hstack(
+        [log_X, np.ones((N_PROBES, 1))]
+    )
     mock.probe_ids = pd.Index(probe_ids)
     return mock
 
