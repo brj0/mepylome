@@ -32,9 +32,6 @@ def _sample_indices(n: int) -> tuple[int, ...]:
 def np_hash(array: Sequence) -> bytes | tuple:
     """Generates a hashable key for a NumPy array or pandas ExtensionArray.
 
-    Returns raw bytes for numeric dtypes (zero-copy), or a sampled tuple
-    for object arrays (where .tobytes() is unsafe).
-
     Args:
         array (numpy.ndarray, Any): The input array for which to generate the
             hashable key.
@@ -51,7 +48,7 @@ def np_hash(array: Sequence) -> bytes | tuple:
     """
     # numpy arrays
     if isinstance(array, np.ndarray) and array.dtype != np.dtype(object):
-        return array.tobytes()
+        return xxhash.xxh64(array).intdigest()
 
     n = len(array)
     idx = _sample_indices(n)
@@ -63,18 +60,35 @@ def pd_hash(data_frame: pd.DataFrame) -> tuple:
     return tuple(np_hash(data_frame[col].values) for col in data_frame)
 
 
-def index_hash(idx: pd.Index) -> bytes | tuple:
+def index_hash(idx: pd.Index) -> int | tuple:
     """Generates a hashable key for pandas Index.
 
     Collisions may occur in theory.
     """
     values = idx.values
     if isinstance(values, np.ndarray):
-        return values.tobytes()
+        return xxhash.xxh64(values).intdigest()
     # pandas StringArray / ExtensionArray fallback
     n = len(values)
     idx = _sample_indices(n)
     return tuple(values[i] for i in idx), n
+
+
+_TYPE_MAP: dict[str, Callable] = {
+    "ArrayType": str,
+    "Manifest": lambda x: x.cache_key,
+    "PosixPath": str,
+    "WindowsPath": str,
+    "Path": str,
+    "bool": str,
+    "int": str,
+    "NoneType": str,
+    "str": str,
+    "RangeIndex": lambda x: (x.start, x.stop, x.step),
+    "Index": index_hash,
+    "ndarray": np_hash,
+    "DataFrame": pd_hash,
+}
 
 
 def cache_key(*args: Any) -> Any | tuple[Any, ...]:
@@ -92,22 +106,7 @@ def cache_key(*args: Any) -> Any | tuple[Any, ...]:
         If an argument is a numpy array of object type, the key may not be
         unique.
     """
-    type_map: dict[str, Callable] = {
-        "ArrayType": str,
-        "Manifest": lambda x: x.cache_key,
-        "PosixPath": str,
-        "WindowsPath": str,
-        "Path": str,
-        "bool": str,
-        "int": str,
-        "NoneType": str,
-        "str": str,
-        "RangeIndex": lambda x: x.values.tobytes(),
-        "Index": index_hash,
-        "ndarray": np_hash,
-        "DataFrame": pd_hash,
-    }
-    keys = tuple(type_map.get(type(arg).__name__, id)(arg) for arg in args)
+    keys = tuple(_TYPE_MAP.get(type(arg).__name__, id)(arg) for arg in args)
     return keys[0] if len(args) == 1 else keys
 
 
@@ -120,8 +119,7 @@ def get_id_tuple(
 
     This function creates a tuple that uniquely identifies a function call
     based on the function reference, its positional arguments, and keyword
-    arguments. The keyword arguments are sorted by key to ensure a consistent
-    order.
+    arguments.
 
     Args:
         f: The function reference.
@@ -139,8 +137,7 @@ def get_id_tuple(
     """
     id_list = [cache_key(f)]
     id_list.extend(cache_key(arg) for arg in args)
-    # Sort keyword arguments by key to ensure consistent order
-    sorted_kwargs = sorted((k, v) for k, v in kwargs.items() if k != "verbose")
+    sorted_kwargs = [(k, v) for k, v in kwargs.items() if k != "verbose"]
     id_list.extend((key, cache_key(value)) for key, value in sorted_kwargs)
     return tuple(id_list)
 
@@ -218,32 +215,36 @@ def input_args_id(
     components = []
     hasher = xxhash.xxh64()
 
-    def _encode_arg(arg: Any) -> bytes:
-        if isinstance(arg, np.ndarray):
-            return arg.tobytes()
-        if isinstance(arg, pd.DataFrame):
-            # If there are columns of type object choose the slower encoding
-            if not arg.select_dtypes(include=["object"]).empty:
-                return pd.util.hash_pandas_object(
-                    arg, index=True
-                ).values.tobytes()
-            return arg.values.tobytes()
-        if isinstance(arg, Path):
-            components.append(arg.name)
-            return str(arg).encode()
-        if isinstance(arg, list | tuple):
-            return ",".join(map(str, arg)).encode()
-        if hasattr(arg, "steps"):
-            value = "-".join(str(x[1])[:15] for x in arg.steps)
-            components.append(value)
-            return str(arg).encode()
-        components.append(str(arg))
-        return str(arg).encode()
-
     for arg in args:
-        hasher.update(_encode_arg(arg))
+        if isinstance(arg, np.ndarray):
+            data = arg if arg.flags.c_contiguous else np.ascontiguousarray(arg)
+            hasher.update(data)
+        elif isinstance(arg, pd.DataFrame):
+            if any(d.kind == "O" for d in arg.dtypes):
+                # Object columns can't be hashed as raw bytes
+                hasher.update(
+                    pd.util.hash_pandas_object(arg, index=True).values
+                )
+            else:
+                vals = arg.values
+                if not vals.flags.c_contiguous:
+                    vals = np.ascontiguousarray(vals)
+                hasher.update(vals)
+        elif isinstance(arg, Path):
+            components.append(arg.name)
+            hasher.update(str(arg).encode())
+        elif isinstance(arg, list | tuple):
+            hasher.update(",".join(map(str, arg)).encode())
+        elif hasattr(arg, "steps"):
+            components.append("-".join(str(x[1])[:15] for x in arg.steps))
+            hasher.update(str(arg).encode())
+        else:
+            components.append(str(arg))
+            hasher.update(str(arg).encode())
+
     if extra_hash:
         hasher.update(",".join(map(str, extra_hash)).encode())
+
     arg_hash = hasher.hexdigest()
     suffix = "-".join(components)[:suffix_limit]
     filename = f"{suffix}-{arg_hash}" if suffix else arg_hash
