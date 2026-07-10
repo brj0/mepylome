@@ -137,8 +137,8 @@ def get_id_tuple(
     """
     id_list = [cache_key(f)]
     id_list.extend(cache_key(arg) for arg in args)
-    sorted_kwargs = [(k, v) for k, v in kwargs.items() if k != "verbose"]
-    id_list.extend((key, cache_key(value)) for key, value in sorted_kwargs)
+    kwargs_list = [(k, v) for k, v in kwargs.items() if k != "verbose"]
+    id_list.extend((key, cache_key(value)) for key, value in kwargs_list)
     return tuple(id_list)
 
 
