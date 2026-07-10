@@ -226,30 +226,37 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
         >>> normexp_signal([1, np.log(2), np.log(3)], 4)
         2.3735035872302235
     """
-    from scipy.stats import norm
+    from scipy.special import log_ndtr
 
     mu = par[0]
     sigma = np.exp(par[1])
     sigma2 = sigma * sigma
     alpha = np.exp(par[2])
     if alpha <= 0:
-        msg = "alpha must be positive"
-        raise ValueError(msg)
+        raise ValueError("alpha must be positive")
     if sigma <= 0:
-        msg = "sigma must be positive"
-        raise ValueError(msg)
+        raise ValueError("sigma must be positive")
+
     mu_sf = x - mu - sigma2 / alpha
-    log_dnorm = norm.logpdf(0, loc=mu_sf, scale=sigma)
-    log_pnorm = norm.logsf(0, loc=mu_sf, scale=sigma)
+    z = mu_sf / sigma
+
+    # norm.logpdf(0, loc=mu_sf, scale=sigma)
+    log_dnorm = -0.5 * z * z - np.log(sigma) - 0.5 * np.log(2 * np.pi)
+
+    # norm.logsf(0, loc=mu_sf, scale=sigma)
+    log_pnorm = log_ndtr(z)
+
     signal = mu_sf + sigma2 * np.exp(log_dnorm - log_pnorm)
-    z = ~np.isnan(signal)
-    if np.any(signal[z] < 0):
+
+    zmask = ~np.isnan(signal)
+    if np.any(signal[zmask] < 0):
         logger.warning(
             "Limit of numerical accuracy reached with very low intensity or "
             "very high background:\nsetting adjusted intensities to small "
             "value"
         )
-        signal[z] = np.maximum(signal[z], 1e-6)
+        signal[zmask] = np.maximum(signal[zmask], 1e-6)
+
     return signal
 
 
