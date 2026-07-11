@@ -198,10 +198,10 @@ def test_extract_sub_dataframe_no_overlap_all_filled() -> None:
 
 
 def test_extract_sub_dataframe_default_fill() -> None:
-    """Default fill value of 0.49 is used when not specified."""
+    """Default fill value of 0.5 is used when not specified."""
     df = pd.DataFrame({"a": [1.0]}, index=["s1"])
     result = extract_sub_dataframe(df, np.array(["missing"]))
-    assert result.loc["s1", "missing"] == 0.49
+    assert result.loc["s1", "missing"] == 0.5
 
 
 def test_extract_sub_dataframe_preserves_row_count() -> None:

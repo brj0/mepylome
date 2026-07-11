@@ -128,7 +128,7 @@ class DualOutput:
 def extract_sub_dataframe(
     data_frame: pd.DataFrame,
     columns: np.ndarray,
-    fill: float = 0.49,
+    fill: float = 0.5,
 ) -> pd.DataFrame:
     """Extracts a sub-dataframe based on the intersection of provided columns.
 
