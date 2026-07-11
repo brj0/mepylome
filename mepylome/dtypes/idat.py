@@ -125,8 +125,7 @@ def get_file_object(
     Supports plain and gzipped IDAT files.
 
     Args:
-        file: Path to the file (str or Path) or an already open file-like
-            object.
+        file: Path to the file or an already open file-like object.
 
     Yields:
         A binary file-like object.
@@ -151,11 +150,12 @@ class IdatParser:
     Stores all extracted values from the IDAT file as attributes.
 
     Args:
-        file (str or file-like object): Path to the IDAT file or
-            a file-like object. Can also be a gzipped IDAT file.
-        mode (str): Controls parsing depth. Options are 'full' (reads the
-            entire file), 'intensity' (reads only intensity values), or
-            'array_type' (reads only structural metadata). Defaults to 'full'.
+        file: Path to the IDAT file or a file-like object. Can also be a
+            gzipped IDAT file.
+
+        mode: Controls parsing depth. Options are 'full' (reads the entire
+            file), 'intensity' (reads only intensity values), or 'array_type'
+            (reads only structural metadata).
 
     Examples:
         >>> filepath = "/path/to/idat/file_Grn.idat"

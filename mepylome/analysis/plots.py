@@ -69,13 +69,16 @@ def random_color(
     Ensures the color is unique and distributed across the hue spectrum.
 
     Args:
-        string (str): The input string to generate the color for.
-        i (int): The index of the current string-name.
-        n_strings (int): The total number of string-names.
-        rand (int): A random offset
+        string: The input string to generate the color for.
+
+        i: The index of the current string-name.
+
+        n_strings: The total number of string-names.
+
+        rand: A random offset
 
     Returns:
-        tuple: The RGB color as a tuple of integers.
+        The RGB color as a tuple of integers.
     """
     hash_value = hash_from_str(string)
     hue = (360 * i // n_strings + rand) % 360
@@ -132,8 +135,8 @@ def umap_plot_from_data(
     Args:
         umap_df: pandas data frame containing UMAP matrix and
             attributes. First row,w corresponds to sample.
+
         use_discrete_colors: Wheather to use discrete or continuous colors.
-            Defaults to True.
 
     Returns:
         UMAP plot as plotly object.
@@ -264,15 +267,21 @@ def write_cnv_to_disk(
     multi-threading for multiple samples.
 
     Args:
-        sample_path (list): Paths to sample IDAT files.
-        reference_dir (str): Directory with CNV neural reference data.
-        cnv_dir (str): Directory to save CNV data.
-        prep (str): Prepreparation method for MethylData.
-        do_seg (bool): If segments should be calculated as well (slow)
-        pbar (optional): Progress bar for tracking progress.
-        n_cores (int, optional): Number of CPU cores to use. If None, a
-            reasonable number of cores will be automatically chosen based on
-            the system and workload.
+        sample_path: Paths to sample IDAT files.
+
+        reference_dir: Directory with CNV neural reference data.
+
+        cnv_dir: Directory to save CNV data.
+
+        prep: Prepreparation method for MethylData.
+
+        do_seg: If segments should be calculated as well (slow)
+
+        pbar: Progress bar for tracking progress.
+
+        n_cores: Number of CPU cores to use. If None, a reasonable number of
+            cores will be automatically chosen based on the system and
+            workload.
     """
     new_idat_paths = [
         x
@@ -336,15 +345,20 @@ def get_cnv_plot(
     """Generate and return a CNV plot for a given sample.
 
     Args:
-        sample_path (Path): Path to the sample IDAT file.
-        reference_dir (str): Directory with reference data.
-        prep (str): Prepreparation method for MethylData.
-        cnv_dir (str): Directory to save CNV data.
-        genes_sel (list): List of genes to highlight in the plot.
-        do_seg (bool): If segments should be calculated as well (slow)
+        sample_path: Path to the sample IDAT file.
+
+        reference_dir: Directory with reference data.
+
+        prep: Prepreparation method for MethylData.
+
+        cnv_dir: Directory to save CNV data.
+
+        genes_sel: List of genes to highlight in the plot.
+
+        do_seg: If segments should be calculated as well (slow)
 
     Returns:
-        plotly.graph_objs.Figure: CNV plotly figure.
+        CNV plotly figure.
     """
     sample_id = sample_path.name
     write_cnv_to_disk(
@@ -376,14 +390,19 @@ class GenomicInfo:
     """Genomic information about a gene and its array CpG probes.
 
     Attributes:
-        cpgs (np.ndarray): Illumina probe IDs located within the gene, ordered
-            by ascending genomic start position.
-        positions (pd.Series): Genomic start position for each CpG in ``cpgs``,
-            indexed by CpG ID.
-        chromosome (Chromosome): Chromosome of the gene.
-        start (int): Genomic start position of the gene body.
-        end (int): Genomic end position of the gene body.
-        strand (str): Strand of the gene ("+" or "-").
+        cpgs: Illumina probe IDs located within the gene, ordered by ascending
+            genomic start position.
+
+        positions: Genomic start position for each CpG in ``cpgs``, indexed by
+            CpG ID.
+
+        chromosome: Chromosome of the gene.
+
+        start: Genomic start position of the gene body.
+
+        end: Genomic end position of the gene body.
+
+        strand: Strand of the gene ("+" or "-").
     """
 
     cpgs: np.ndarray
@@ -418,10 +437,11 @@ def get_gene_info(
     probes of the given array type.
 
     Args:
-        gene (str): Gene symbol (e.g. "MLH1", "EGFR"). Must match a gene name
-            in the bundled gene annotation (case-sensitive).
-        array_type (str or ArrayType): The Illumina array type used to
-            determine the corresponding manifest.
+        gene: Gene symbol (e.g. "MLH1", "EGFR"). Must match a gene name in the
+            bundled gene annotation (case-sensitive).
+
+        array_type: The Illumina array type used to determine the corresponding
+            manifest.
 
     Returns:
         ``GenomicInfo`` of the given gene.
@@ -462,8 +482,11 @@ def get_region_info(
 
     Args:
         chromosome: Chromosome of the region.
+
         start: Genomic start position.
+
         end: Genomic end position.
+
         array_type: Illumina array type.
 
     Returns:
@@ -516,26 +539,32 @@ def region_methylation_plot(
     CpG IDs remain available via hover either way.
 
     Args:
-        betas (pd.DataFrame): Beta values with samples as index and CpG
-            probe IDs as columns, columns already ordered by genomic
-            position.
-        region_name (str): Name used in the title/label (e.g. a gene
-            symbol), used when ``chromosome`` is not given.
-        cpg_positions (pd.Series): Genomic start position for each CpG
-            in ``betas.columns``.
-        region_start (int): Genomic start position of the region/gene.
-        region_end (int): Genomic end position of the region/gene.
-        strand (str): Strand ("+" or "-"), used for the direction arrow.
-        chromosome (Chromosome, optional): If given, the title/label
-            shows "<chromosome>:<region_start>-<region_end>" instead of
+        betas: Beta values with samples as index and CpG probe IDs as columns,
+            columns already ordered by genomic position.
+
+        region_name: Name used in the title/label (e.g. a gene symbol), used
+            when ``chromosome`` is not given.
+
+        cpg_positions: Genomic start position for each CpG in
+            ``betas.columns``.
+        region_start: Genomic start position of the region/gene.
+
+        region_end: Genomic end position of the region/gene.
+
+        strand: Strand ("+" or "-"), used for the direction arrow.
+
+        chromosome: If given, the title/label shows
+            "<chromosome>:<region_start>-<region_end>" instead of
             ``region_name``.
-        max_width (int): Maximum heatmap width in pixels.
-        max_tick_labels (int): Maximum number of CpG names drawn on the
+
+        max_width: Maximum heatmap width in pixels.
+
+        max_tick_labels: Maximum number of CpG names drawn on the
             x-axis before labels are thinned out.
 
     Returns:
-        go.Figure: Plotly figure with the region track stacked above the
-        methylation heatmap.
+        Plotly figure with the region track stacked above the methylation
+        heatmap.
     """
     cpgs = list(betas.columns)
     n = len(cpgs)

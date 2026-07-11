@@ -89,30 +89,37 @@ class Annotation:
     """Genomic annotations for CNV such as as binning and gene locations.
 
     Args:
-        manifest (Manifest, optional): The manifest containing annotation
-            details. Can be determined from array_type.
-        array_type (str, optional): The type of array used for annotation.
-            Can be determined from manifest.
-        gap (pyranges.PyRanges): The genomic gaps. If unset default values
-            will be used.
-        detail (pyranges.PyRanges, optional): Detailed annotation (usually
-            genes).
-        bin_size (int, optional): The base-pair size of annotation bins.
-            Defaults to 50000.
-        min_probes_per_bin (int, optional): The minimum number of probes
-            per bin. Defaults to 15.
+        manifest: The manifest containing annotation details. Can be determined
+            from array_type.
+
+        array_type: The type of array used for annotation. Can be determined
+            from manifest.
+
+        gap: The genomic gaps. If unset default values will be used.
+
+        detail: Detailed annotation (usually genes).
+
+        bin_size: The base-pair size of annotation bins.
+
+        min_probes_per_bin: The minimum number of probes per bin.
 
     Attributes:
-        manifest (Manifest): The manifest to use.
-        array_type (str): The array type of the manifest.
-        probes (list): The Illumina ID's of the manifest after adjusting the
-            manifest to relevant genomic ranges.
-        gap (pyranges.PyRanges): The genomic gaps except for the CNV analysis.
-        detail (pyranges.PyRanges): Detailed annotation information (usually
-            genes).
-        bin_size (int): The base-pair size of the bins.
-        min_probes_per_bin (int): The minimum number of probes per bin.
-        chromsizes (dict): Dictionary containing chromosome sizes.
+        manifest: The manifest to use.
+
+        array_type: The array type of the manifest.
+
+        probes: The Illumina ID's of the manifest after adjusting the manifest
+            to relevant genomic ranges.
+
+        gap: The genomic gaps except for the CNV analysis.
+
+        detail: Detailed annotation information (usually genes).
+
+        bin_size: The base-pair size of the bins.
+
+        min_probes_per_bin: The minimum number of probes per bin.
+
+        chromsizes: Dictionary containing chromosome sizes.
     """
 
     _cache: dict[Any, "Annotation"] = {}
@@ -344,13 +351,14 @@ class Annotation:
         """Merges adjacent bins until all contain a minimum of probes.
 
         Args:
-            bin_df (DataFrame): DataFrame containing bin information for a
-                single chromosome.
-            min_probes_per_bin (int): Minimum number of probes per bin required
-                for merging.
+            bin_df: DataFrame containing bin information for a single
+                chromosome.
+
+            min_probes_per_bin: Minimum number of probes per bin required for
+                merging.
 
         Returns:
-            DataFrame: Merged bins in the chromosome.
+            Merged bins in the chromosome.
         """
         I_START, I_END, I_N_PROBES, I_LEFT, I_RIGHT = range(5)
         INVALID = np.iinfo(np.int64).max
@@ -449,8 +457,8 @@ class Annotation:
         """Loads specified annotation into memory.
 
         Args:
-            array_types (list or ArrayType, optional): List of array types or
-                a single array type to load. Defaults to all available types.
+            array_types: List of array types or a single array type to load.
+                Defaults to all available types.
 
         Examples:
             >>> # Load all annotations:
@@ -501,8 +509,8 @@ def _linear_regression(
         y: Target vector of shape (n,).
 
     Returns:
-        y_pred: Clipped predictions of shape (n,).
-        coef: Coefficients of shape (m,), intercept excluded.
+        Clipped predictions of shape (n,). coef: Coefficients of shape (m,),
+        intercept excluded.
     """
     res = np.linalg.lstsq(X, y, rcond=None)[0]
     _coef = res[:-1]
@@ -515,30 +523,40 @@ class CNV:
     """Class for Copy Number Variation (CNV) analysis.
 
     Attributes:
-        sample (MethylData): MethylData object representing the sample.
-        reference (MethylData): MethylData object representing the CNV-
-            neutral references.
-        annotation (Annotation): Annotation object containing genomic
-            annotation information.
-        bins (PyRanges): PyRanges object representing genomic bins.
-        probes (Index): Index of probe IDs.
+        sample: MethylData object representing the sample.
+
+        reference: MethylData object representing the CNV- neutral references.
+
+        annotation: Annotation object containing genomic annotation
+            information.
+
+        bins: PyRanges object representing genomic bins.
+
+        probes: Index of probe IDs.
+
         coef: Coefficient of linear regression.
+
         _ratio: Difference between observed sample intensity and expected
             intensity calculated by linear regression from references.
+
         ratio: The values from _ratio as DataFrame with Illumina ID's as
             indices.
+
         noise: Noise level. A quality measure for the sample bead.
+
         detail: Detailed information (usually Genes).
+
         segments: Segments calculated by circular binary segmentation.
 
     Args:
-        sample (MethylData): MethylData object representing the sample.
-        reference (MethylData or ReferenceMethylData): MethylData object
-            representing the reference, or ReferenceMethylData object for
-            multiple references.
-        annotation (Annotation, optional): Annotation object containing
-            genomic annotation information. Defaults to annotation
-            associated with the sample array type.
+        sample: MethylData object representing the sample.
+
+        reference: MethylData object representing the reference, or
+            ReferenceMethylData object for multiple references.
+
+        annotation: Annotation object containing genomic annotation
+            information. Defaults to annotation associated with the sample
+            array type.
 
     Examples:
         >>> sample = MethylData(file="path/to/idat/file")
@@ -633,19 +651,20 @@ class CNV:
         """Create a CNV object and perform CNV analysis.
 
         Args:
-            sample (MethylData): MethylData object representing the sample.
-            reference (MethylData or ReferenceMethylData): MethylData object
-                representing the reference, or ReferenceMethylData object for
-                multiple references.
-            annotation (Annotation, optional): Annotation object containing
-                genomic annotation information. Defaults to annotation
-                associated with the sample array type.
-            do_seg (bool, optional): Indicates whether to perform
-                segmentation, which can be computationally intensive. Defaults
-                to True.
+            sample: MethylData object representing the sample.
+
+            reference: MethylData object representing the reference, or
+                ReferenceMethylData object for multiple references.
+
+            annotation: Annotation object containing genomic annotation
+                information. Defaults to annotation associated with the sample
+                array type.
+
+            do_seg: Indicates whether to perform segmentation, which can be
+                computationally intensive.
 
         Returns:
-            CNV: CNV object with fitted data and optionally segmented.
+            CNV object with fitted data and optionally segmented.
 
         Examples:
             >>> cnv = CNV.set_all(sample, reference, do_seg=do_seg)
@@ -788,13 +807,11 @@ class CNV:
         intensity values.
 
         Args:
-            df (DataFrame): DataFrame containing the median values of
-                genomic bins.
+            df: DataFrame containing the median values of genomic bins.
 
         Returns:
-            DataFrame: DataFrame containing CNV segments with columns for
-                chromosome, start position, and end position.
-
+            DataFrame containing CNV segments with columns for chromosome,
+            start position, and end position.
         """
         cbsegment = _get_segmentation_fn()
         assert cbsegment is not None
@@ -855,10 +872,11 @@ class CNV:
         file, such as bins, detail, segments, and metadata.
 
         Args:
-            path (str): The path to save the zip file.
-            data (str or list of str, optional): Specifies which data to
-                include in the zip file. Valid options are "all", "bins",
-                "detail", "segments", and "metadata". Defaults to "all".
+            path: The path to save the zip file.
+
+            data: Specifies which data to include in the zip file. Valid
+                options are "all", "bins", "detail", "segments", and
+                "metadata".
 
         Raises:
             ValueError: If an invalid data option is specified.

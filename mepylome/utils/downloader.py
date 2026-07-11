@@ -199,18 +199,23 @@ def download_geo_metadata(
     """Download and extract the MINiML (family XML) for a GEO series.
 
     Args:
-        series_id (str): The GEO accession ID of the dataset to download
-            (e.g., "GSE1234").
-        save_dir (Path): Directory path where the metadata will be saved.
-        show_progress (bool, optional): If True, displays logging messages and
-            progress bar during download. Defaults to True.
-        samples (Iterable[str]): Optional iterable of Sample_ID bases (e.g.
+        series_id: The GEO accession ID of the dataset to download (e.g.,
+            "GSE1234").
+
+        save_dir: Directory path where the metadata will be saved.
+
+        show_progress: If True, displays logging messages and progress bar
+            during download.
+
+        samples: Optional iterable of Sample_ID bases (e.g.
             "GSM4429896_201503470062_R02C01"). If provided, restrict the CSV to
             those Sample_IDs only.
-        subdir (str | None): Optional subdirectory name under `save_dir` for
-            the dataset folder. Defaults to "series_id" if None.
-        meta (str | None): Optional base name for the output annotation file
-            (without extension). Defaults to "annotation" if None.
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to "series_id" if None.
+
+        meta: Optional base name for the output annotation file (without
+            extension). Defaults to "annotation" if None.
     """
     subdir = subdir or series_id
     samples_dir = save_dir / subdir
@@ -247,13 +252,16 @@ def download_geo_idat_all_files(
     """Download and extract the RAW IDAT archive for a GEO series.
 
     Args:
-        series_id (str): The GEO accession ID of the dataset to download
-            (e.g., "GSE1234").
-        save_dir (Path): Directory path where the metadata will be saved.
-        show_progress (bool, optional): If True, displays logging messages and
-            progress bar during download. Defaults to True.
-        subdir (str | None): Optional subdirectory name under `save_dir` for
-            the dataset folder. Defaults to "series_id" if None.
+        series_id: The GEO accession ID of the dataset to download (e.g.,
+            "GSE1234").
+
+        save_dir: Directory path where the metadata will be saved.
+
+        show_progress: If True, displays logging messages and progress bar
+            during download.
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to "series_id" if None.
     """
     subdir = subdir or series_id
     samples_dir = Path(save_dir) / subdir
@@ -308,13 +316,17 @@ def download_geo_idat_single_files(
 
     Args:
         series_id: GEO series accession (used to build save path).
+
         save_dir: base directory where series folder will be created.
+
         samples: iterable of sample base names like
             "GSM4180454_201904410008_R05C01".
-        show_progress (bool, optional): If True, displays logging messages and
-            progress bar during download. Defaults to True.
-        subdir (str | None): Optional subdirectory name under `save_dir` for
-            the dataset folder. Defaults to "series_id" if None.
+
+        show_progress: If True, displays logging messages and
+            progress bar during download.
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to "series_id" if None.
     """
     subdir = subdir or series_id
     samples_dir = Path(save_dir) / subdir
@@ -354,17 +366,21 @@ def download_geo_idat(
     per-sample download.
 
     Args:
-        series_id (str): The GEO accession ID of the dataset to download
-            (e.g., "GSE1234").
-        save_dir (Path): Directory path where the metadata will be saved.
-        show_progress (bool, optional): If True, displays logging messages and
-            progress bar during download. Defaults to True.
-        samples (Iterable[str]): Optional iterable of Sample_ID bases (e.g.
+        series_id: The GEO accession ID of the dataset to download (e.g.,
+            "GSE1234").
+
+        save_dir: Directory path where the metadata will be saved.
+
+        show_progress: If True, displays logging messages and progress bar
+            during download.
+
+        samples: Optional iterable of Sample_ID bases (e.g.
             "GSM4429896_201503470062_R02C01"). If provided, restricts download
             to those Sample_IDs only (downloads per-sample Grn/Red idat .gz
             files).
-        subdir (str | None): Optional subdirectory name under `save_dir` for
-            the dataset folder. Defaults to "series_id" if None.
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to "series_id" if None.
     """
     if not samples or samples == "all":
         download_geo_idat_all_files(
@@ -394,18 +410,23 @@ def download_arrayexpress_metadata(
     """Download the SDRF metadata file and save as simplified CSV.
 
     Args:
-        series_id (str): The ArrayExpress accession ID of the dataset to
-            download (e.g., "E-MTAB-1234").
-        save_dir (Path): Directory path where the metadata will be saved.
-        samples (Iterable[str]): Optional iterable of Sample_ID bases (e.g.
+        series_id: The ArrayExpress accession ID of the dataset to download
+            (e.g., "E-MTAB-1234").
+
+        save_dir: Directory path where the metadata will be saved.
+
+        samples: Optional iterable of Sample_ID bases (e.g.
             "201503470062_R02C01"). If provided, restrict the CSV to those
             Sample_IDs only.
-        show_progress (bool, optional): If True, displays logging messages and
-            progress bar during download. Defaults to True.
-        subdir (str | None): Optional subdirectory name under `save_dir` for
-            the dataset folder. Defaults to "series_id" if None.
-        meta (str | None): Optional base name for the output annotation file
-            (without extension). Defaults to "annotation" if None.
+
+        show_progress: If True, displays logging messages and progress bar
+            during download.
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to "series_id" if None.
+
+        meta: Optional base name for the output annotation file (without
+            extension). Defaults to "annotation" if None.
     """
     subdir = subdir or series_id
     samples_dir = save_dir / subdir
@@ -460,16 +481,20 @@ def download_arrayexpress_idat(
     """Download all IDAT files for a given ArrayExpress ID.
 
     Args:
-        series_id (str): The ArrayExpress accession ID of the dataset to
-            download (e.g., "E-MTAB-1234").
-        save_dir (Path): Directory path where the metadata will be saved.
-        samples (Iterable[str]): Optional iterable of Sample_ID bases (e.g.
+        series_id: The ArrayExpress accession ID of the dataset to download
+            (e.g., "E-MTAB-1234").
+
+        save_dir: Directory path where the metadata will be saved.
+
+        samples: Optional iterable of Sample_ID bases (e.g.
             "201503470062_R02C01"). If provided, restricts download to those
             Sample_IDs only.
-        show_progress (bool, optional): If True, displays logging messages and
-            progress bar during download. Defaults to True.
-        subdir (str | None): Optional subdirectory name under `save_dir` for
-            the dataset folder. Defaults to "series_id" if None.
+
+        show_progress: If True, displays logging messages and progress bar
+            during download.
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to "series_id" if None.
     """
     subdir = subdir or series_id
     samples_dir = save_dir / subdir
@@ -533,14 +558,18 @@ def make_tcga_metadata(
     """Build merged TCGA annotation DataFrame and saves to disk.
 
     Args:
-        save_dir (Path): directory where output CSV will be written (if
-            write_csv True).
-        metadata_cart (Path): path to metadata.cart JSON from GDC.
-        metadata_clinical (Path): path to clinical TSV (tab-separated).
-        subdir (str | None): Optional subdirectory name under `save_dir` for
-            the dataset folder. Defaults to "TCGA_<hash>" if None.
-        meta (str | None): Optional base name for the output annotation file
-            (without extension). Defaults to "annotation" if None.
+        save_dir: directory where output CSV will be written (if write_csv
+            True).
+
+        metadata_cart: path to metadata.cart JSON from GDC.
+
+        metadata_clinical: path to clinical TSV (tab-separated).
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to "TCGA_<hash>" if None.
+
+        meta: Optional base name for the output annotation file (without
+            extension). Defaults to "annotation" if None.
     """
     save_dir = Path(save_dir).expanduser()
     subdir = subdir or _get_tcga_series(metadata_cart)
@@ -621,11 +650,14 @@ def download_tcga_idat(
     filenames required for download.
 
     Args:
-        save_dir (Path): Directory to store idat files.
-        metadata_cart (Path): Path to CSV manifest listing 'id' and 'filename'.
-        show_progress (bool): Whether to show download progress.
-        subdir (str | None): Optional subdirectory name under `save_dir` for
-            the dataset folder. Defaults to "TCGA_<hash>" if None.
+        save_dir: Directory to store idat files.
+
+        metadata_cart: Path to CSV manifest listing 'id' and 'filename'.
+
+        show_progress: Whether to show download progress.
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to "TCGA_<hash>" if None.
     """
     subdir = subdir or _get_tcga_series(metadata_cart)
     samples_dir = save_dir / subdir
@@ -865,11 +897,13 @@ def download_idats(
             - A single string (series or sample)
             - A dict describing a dataset
             - A list of strings and/or dicts
-        save_dir (str or Path): Directory where downloaded files and metadata
+
+        save_dir: Directory where downloaded files and metadata
             will be saved.
-        idat (bool): If True, download IDAT files (default: True).
-        metadata (bool): If True, download or generate metadata/annotation
-            files (default: True).
+
+        idat: If True, download IDAT files.
+
+        metadata: If True, download or generate metadata/annotation files.
 
     Examples:
         # Download a single GEO series
@@ -932,10 +966,9 @@ def setup_tutorial_files(
     reference.
 
     Args:
-        analysis_dir (str or Path): Path to the directory for storing analysis
-            files.
-        reference_dir (str or Path): Path to the directory for storing
-            reference files.
+        analysis_dir: Path to the directory for storing analysis files.
+
+        reference_dir: Path to the directory for storing reference files.
     """
     tutorial_csv_path = get_resource_path("mepylome", "data/tutorial.csv.gz")
 

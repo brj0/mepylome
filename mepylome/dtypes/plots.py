@@ -156,7 +156,9 @@ def cnv_bins_plot(
 
     Args:
         data_frame: DataFrame with columns 'x', 'y', and 'hover_data'
+
         title: Title of plot
+
         labels: Touple of labels for x-axis and y-axis.
     """
     scatter_trace = go.Scattergl(
@@ -210,7 +212,8 @@ def add_genes(plot: go.Figure, genes: pd.DataFrame) -> go.Figure:
 
     Args:
         plot: The plot to which genes will be added.
-        genes (DataFrame): A DataFrame of genes to be added to the plot.
+
+        genes: A DataFrame of genes to be added to the plot.
     """
     # Draw NaN's with value 0
     genes["Median"] = genes["Median"].fillna(0)
@@ -278,12 +281,13 @@ def find_genes_within_bins(
     """Determine genes overlapping with each bin and add them as a column.
 
     Args:
-        bins (DataFrame): DataFrame containing bin information.
-        detail (DataFrame): DataFrame containing gene information.
+        bins: DataFrame containing bin information.
+
+        detail: DataFrame containing gene information.
 
     Returns:
-        Tuple(DataFrame, DataFrame): A tuple containing the bins DataFrame with
-            assigned genes and the modified detail DataFrame.
+        A tuple containing the bins DataFrame with assigned genes and the
+        modified detail DataFrame.
 
     Raises:
         ValueError: If the 'bins' DataFrame is not sorted.
@@ -409,16 +413,21 @@ def cnv_plot_from_data(
     """Generate a CNV plot from data calculated by the class CNV.
 
     Args:
-        sample_id (str): The sample ID for the plot.
-        bins (DataFrame): DataFrame containing bin information.
-        detail (DataFrame): DataFrame containing gene information.
-        segments (DataFrame): DataFrame containing segment information.
-        genes_fix (list): List of genes to include in the plot.
-        genes_sel (list): List of genes to include in the plot and highlight
-            all associated bins.
+        sample_id: The sample ID for the plot.
+
+        bins: DataFrame containing bin information.
+
+        detail: DataFrame containing gene information.
+
+        segments: DataFrame containing segment information.
+
+        genes_fix: List of genes to include in the plot.
+
+        genes_sel: List of genes to include in the plot and highlight all
+            associated bins.
 
     Returns:
-        Plotly Figure: A Plotly figure representing the CNV plot.
+        A Plotly figure representing the CNV plot.
     """
     logger.info("Make CNV plot: prepare data...")
     bins_Genes, detail_Range = find_genes_within_bins(
@@ -479,14 +488,18 @@ class CNVPlot:
     (CNV) data, including highlighting interactively genes.
 
     Attributes:
-        cnv_dir (str): Path to the directory containing CNV data.
-        cnv_file (str): Name of the CNV file in the directory.
-        genes_fix (list): List of genes to highlight. Defaults to
+        cnv_dir: Path to the directory containing CNV data.
+
+        cnv_file: Name of the CNV file in the directory.
+
+        genes_fix: List of genes to highlight. Defaults to
             CONFIG["genes"]["default_genes_list"].
-        host (str): Host address for running the Dash app. Defaults to
-            "localhost".
-        port (int): Port number for running the Dash app. Defaults to 8050.
-        app (Dash): Dash application object created for the CNV plot.
+
+        host: Host address for running the Dash app.
+
+        port: Port number for running the Dash app.
+
+        app: Dash application object created for the CNV plot.
     """
 
     def __init__(
@@ -500,14 +513,16 @@ class CNVPlot:
         """Initializes a CNVPlot object.
 
         Args:
-            cnv_dir (str): Path to the directory containing CNV data.
-            cnv_file (str): Name of the CNV file in the directory.
-            genes (list, optional): List of genes to highlight. Defaults to
+            cnv_dir: Path to the directory containing CNV data.
+
+            cnv_file: Name of the CNV file in the directory.
+
+            genes: List of genes to highlight. Defaults to
                 CONFIG["genes"]["default_genes_list"].
-            host (str, optional): Host address for running the Dash app.
-                Defaults to "localhost".
-            port (int, optional): Port number for running the Dash app.
-                Defaults to 8050.
+
+            host: Host address for running the Dash app.
+
+            port: Port number for running the Dash app.
         """
         self.cnv_dir = cnv_dir
         self.cnv_file = cnv_file
@@ -649,15 +664,13 @@ def get_cn_summary(
     plot of gain/loss ratios across chromosomes.
 
     Args:
-        cnv_dir (str or Path): The directory path where CNV data files are
-            stored.
-        sample_ids (list of str): A list of sample IDs to process.
+        cnv_dir: The directory path where CNV data files are stored.
+
+        sample_ids: A list of sample IDs to process.
 
     Returns:
-        plot (plotly.graph_objects.Figure): A Plotly figure object containing
-            the gain/loss ratio plot.
-        df_cn_summary (pd.DataFrame): A pandas DataFrame containing the
-            data used for the plot.
+        - A Plotly figure object containing the gain/loss ratio plot.
+        - A pandas DataFrame containing the data used for the plot.
     """
     segment_list = []
     for sample_id in sample_ids:

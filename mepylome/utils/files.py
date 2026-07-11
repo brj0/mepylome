@@ -60,13 +60,19 @@ def download_file(
     Retries the download up to `max_attempts` times if it fails.
 
     Args:
-        url (str): The URL from which the file will be downloaded.
-        save_path (path_like): The path where the file will be saved.
-        overwrite (bool): If True, overwrite existing file. Defaults to False.
-        show_progress (bool): Display logs and progress bar. Defaults to True.
-        chunk_size (int): Chunk size in bytes. Defaults to 8192.
-        max_attempts (int): Number of times to retry on failure. Defaults to 3.
-        retry_delay (float): Seconds to wait between retries. Defaults to 3.0.
+        url: The URL from which the file will be downloaded.
+
+        save_path: The path where the file will be saved.
+
+        overwrite: If True, overwrite existing file.
+
+        show_progress: Display logs and progress bar.
+
+        chunk_size: Chunk size in bytes.
+
+        max_attempts: Number of times to retry on failure.
+
+        retry_delay: Seconds to wait between retries.
     """
     save_path = Path(save_path)
     ensure_directory_exists(save_path.parent)
@@ -167,11 +173,15 @@ def download_files(
     """Download multiple files in parallel with optional progress bar.
 
     Args:
-        urls (Iterable[str]): URLs to download.
-        save_paths (Iterable[str | Path]): Corresponding save paths.
-        overwrite (bool): Overwrite existing files.
-        show_progress (bool): Show progress bars.
-        max_workers (int | None): Number of parallel downloads.
+        urls: URLs to download.
+
+        save_paths: Corresponding save paths.
+
+        overwrite: Overwrite existing files.
+
+        show_progress: Show progress bars.
+
+        max_workers: Number of parallel downloads.
     """
     # Convert to list to allow len() and zip()
     urls = list(urls)

@@ -133,13 +133,14 @@ def extract_sub_dataframe(
     """Extracts a sub-dataframe based on the intersection of provided columns.
 
     Args:
-        data_frame (pd.DataFrame): The original DataFrame.
-        columns (list or array): The column names to be extracted.
-        fill (float, optional): The value to fill for non-overlapping columns.
-            Defaults to 0.49.
+        data_frame: The original DataFrame.
+
+        columns: The column names to be extracted.
+
+        fill: The value to fill for non-overlapping columns.
 
     Returns:
-        pd.DataFrame: The sub-dataframe with the specified columns.
+        The sub-dataframe with the specified columns.
     """
     result_np = np.full((len(data_frame.index), len(columns)), fill)
     left_idx, right_idx = _overlap_indices(columns, data_frame.columns)
@@ -154,11 +155,12 @@ def get_balanced_indices(
     """Returns indices of a balanced selection of feature labels.
 
     Args:
-        feature_labels (list or array-like): Labels of features to balance.
-        seed (int, optional): Random seed for reproducibility.
+        feature_labels: Labels of features to balance.
+
+        seed: Random seed for reproducibility.
 
     Returns:
-        np.ndarray: Sorted indices of the balanced selection.
+        Sorted indices of the balanced selection.
     """
     feature_labels_array = np.array(feature_labels)
     class_frequencies = Counter(feature_labels_array)
@@ -213,35 +215,31 @@ class MethylAnalysis:
     web application for data visualization.
 
     Args:
-        analysis_dir (str or Path): Directory containing IDAT files for
-            analysis.
+        analysis_dir: Directory containing IDAT files for analysis.
 
-        annotation (str or Path): Path to an annotation spreadsheet used to map
-            sample files located in both `analysis_dir` and `test_dir`. One of
-            the columns must contain the ID corresponding to the IDAT files
-            (such as SentrixID or ID from files downloaded from GEO). If not
-            provided, the system will attempt to identify the correct column
+        annotation: Path to an annotation spreadsheet used to map sample files
+            located in both `analysis_dir` and `test_dir`. One of the columns
+            must contain the ID corresponding to the IDAT files (such as
+            SentrixID or ID from files downloaded from GEO). If not provided,
+            the system will attempt to identify the correct column
             automatically. If the annotation file is missing, it will search
-            for a spreadsheet within the `analysis_dir` if available. (default:
-            None)
+            for a spreadsheet within the `analysis_dir` if available.
 
-        reference_dir (str or Path): Directory containing CNV neutral reference
-            IDAT files. Must be provided if you wanna generate CNV plots.
-            (default: None)
+        reference_dir: Directory containing CNV neutral reference IDAT files.
+            Must be provided if you wanna generate CNV plots.
 
-        output_dir (str or Path): Directory where output files will be saved
+        output_dir: Directory where output files will be saved.
             (default: "/tmp/mepylome/analysis").
 
-        test_dir (Path or None): Directory for test files, including new cases
-            for analysis or validation. Files uploaded via the GUI will be
-            placed here. If set to `None`, the application will automatically
-            use a temporary directory. (default: None)
+        test_dir: Directory for test files, including new cases for analysis or
+            validation. Files uploaded via the GUI will be placed here. If set
+            to `None`, the application will automatically use a temporary
+            directory.
 
-        prep (str): Prepreparation method used for methylation microarrays:
-            'illumina', 'swan', or 'noob (default: 'illumina').
+        prep: Prepreparation method used for methylation microarrays:
+            'illumina', 'swan', or 'noob.
 
-        cpgs (str, np.ndarray, list, set, or Path, optional): Specifies the CpG
-            sites to analyze. Possible values:
+        cpgs: Specifies the CpG sites to analyze. Possible values:
 
             1. A list, set, or NumPy array of official Illumina CpG site names.
             2. A path to a CSV file containing the CpG sites.
@@ -260,28 +258,25 @@ class MethylAnalysis:
                 - `'epic+epicv2'`: CpG sites both in the EPIC and EPICv2
                   arrays.
 
-            5. `'auto'` (default): Automatically detects all array types from
+            5. `'auto'`: Automatically detects all array types from
             IDAT files in `analysis_dir` and returns the intersection of CpG
             sites. This process may take longer as all files need to be read
             and, if necessary, decompressed.
 
-        cpg_blacklist (set or list, optional): A list or set of CpG sites to
-            exclude. Default is None.
+        cpg_blacklist: A list or set of CpG sites to exclude.
 
-        n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
+        n_cpgs: Number of CpG sites to select for UMAP.
 
-        classifiers (object or list of objects, optional): Classifier model(s)
-            (default: None).
-            Each classifier can be provided as:
+        classifiers: Classifier model(s). Each classifier can
+            be provided as:
 
             - A dictionary containing:
 
-                - 'model' (object): The classifier model object as defined
+                - 'model': The classifier model object as defined
                   below (required).
-                - 'name' (str, optional): A name for the classifier (default:
-                  "Custom_Classifier_<index>").
-                - 'cv' (int or cross-validation generator, optional):
-                  Cross-validation strategy (default: `self.cv_default`).
+                - 'name': A name for the classifier (default:
+                    "Custom_Classifier_<index>").
+                - 'cv': Cross-validation strategy (default: `self.cv_default`).
 
             - A classifier model object (e.g., `RandomForestClassifier()`,
               `vtl-kbest-rf`), in which case the 'name' and 'cv' are
@@ -294,54 +289,49 @@ class MethylAnalysis:
                   `mepylome.analysis.classifiers` for all valid values.
                 - A custom class, that inherits from `TrainedClassifier`.
 
-        cv_default (int or cross-validation generator, optional): Determines
-            the default cross-validation splitting strategy (default: 5).
+        cv_default : Determines the default cross-validation splitting
+            strategy.
 
-        n_jobs_clf (int): Number of parallel processes to run for classifying
-            (default: 1). Choose -1 for using all available cores.
+        n_jobs_clf: Number of parallel processes to run for classifying.
+            Choose -1 for using all available cores.
 
-        n_jobs_cnv (int, optional): Number of parallel processes to use for CNV
-            precalculation. If None, a reasonable number of cores will be
-            automatically chosen based on the system and workload. (default:
-            None)
+        n_jobs_cnv: Number of parallel processes to use for CNV precalculation.
+            If None, a reasonable number of cores will be automatically chosen
+            based on the system and workload.
 
-        precalculate_cnv (bool): If set to `True`, CNV data will be
-            precalculated before the main analysis. This process takes
-            approximately 2-5 seconds per case initially, but it will improve
-            performance during runtime by reducing computation time. (default:
-            False)
+        precalculate_cnv: If set to `True`, CNV data will be precalculated
+            before the main analysis. This process takes approximately 2-5
+            seconds per case initially, but it will improve performance during
+            runtime by reducing computation time.
 
-        load_full_betas (bool): If True, loads beta values for all CpG sites
-            into memory (when needed),  enabling fast random access to the full
+        load_full_betas: If True, loads beta values for all CpG sites into
+            memory (when needed),  enabling fast random access to the full
             methylation matrix. This can significantly increase  memory usage.
 
             If False, only the specified `n_cpgs` CpG sites are loaded on
             demand. For supervised  classifier training, the same reduced
             matrix (`betas_sel`) used for UMAP visualization  is used. This
             greatly reduces memory consumption and is typically sufficient,
-            though it may be slightly slower (default: True).
+            though it may be slightly slower.
 
-        feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
-            user-provided feature matrix to be used for UMAP dimensionality
-            reduction. If provided, this matrix will be used instead of
-            `betas_sel`. If not provided (default is None), the `betas_sel`
-            containing methylation beta values will be used for UMAP. (default:
-            None)
+        feature_matrix: A user-provided feature matrix to be used for UMAP
+            dimensionality reduction. If provided, this matrix will be used
+            instead of `betas_sel`. If not provided, the `betas_sel` containing
+            methylation beta values will be used for UMAP.
 
-        overlap (bool): Flag to analyze only samples that are both in the
-            analysis directory and within the annotation file (default: False).
+        overlap: Flag to analyze only samples that are both in the analysis
+            directory and within the annotation file.
 
-        analysis_ids (list, optional): A list of sample IDs. If provided, the
-            analysis will be restricted to these samples only. If `None`, the
-            analysis will include all available samples. (default: None)
+        analysis_ids: A list of sample IDs. If provided, the analysis will be
+            restricted to these samples only. If `None`, the analysis will
+            include all available samples.
 
-        test_ids (list, optional): A list of sample IDs within `test_dir`.
+        test_ids: A list of sample IDs within `test_dir`.
             - If provided, only these samples will be used.
             - If `None`, all available IDAT files in `test_dir` will be used.
-            (default: None)
 
-        cpg_selection (str): Method to select CpG sites for UMAP ('top',
-            'random', or 'balanced') (default: 'top').
+        cpg_selection: Method to select CpG sites for UMAP ('top', 'random', or
+            'balanced').
 
             - 'top': Selects CpG sites with the highest variance.
             - 'random': Selects CpG sites randomly.
@@ -353,35 +343,33 @@ class MethylAnalysis:
               dataset is **imbalanced**, where some  groups have significantly
               more samples than others.
 
-        balancing_feature (str): Column in `self.annotation` used for
-            balancing when `cpg_selection='balanced'`. The balancing feature
-            determines the groups/categories used to create a stratified
-            selection of CpG sites.
+        balancing_feature: Column in `self.annotation` used for balancing when
+            `cpg_selection='balanced'`. The balancing feature determines the
+            groups/categories used to create a stratified selection of CpG
+            sites.
 
-        do_seg (bool): If set, enables segmentation analysis on CNV data and
-            adds horizontal segmentation lines to the CNV plot. This will take
-            an additional 2-5 seconds per sample. (default: False)
+        do_seg: If set, enables segmentation analysis on CNV data and adds
+            horizontal segmentation lines to the CNV plot. This will take an
+            additional 2-5 seconds per sample.
 
-        host (str): Host address for the Dash application (default:
-            'localhost').
+        host: Host address for the Dash application.
 
-        port (int): Port number for the Dash application (default: 8050).
+        port: Port number for the Dash application.
 
-        debug (bool): Flag to enable debug mode for the Dash application
-            (default: False).
+        debug: Flag to enable debug mode for the Dash application.
 
-        umap_params (dict): Parameters for UMAP algorithm (default: {'metric':
+        umap_params: Parameters for UMAP algorithm (default: {'metric':
             'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
-        use_gpu (bool): Whether to use GPU acceleration for UMAP via cuML and
-            CuPy (default: False). Set to True to enable GPU-backed UMAP
-            computations, which can significantly speed up large datasets. This
-            requires the `cuml` and `cupy` libraries to be installed, along
-            with appropriate NVIDIA drivers and a working CUDA setup.
+        use_gpu: Whether to use GPU acceleration for UMAP via cuML and CuPy.
+            Set to True to enable GPU-backed UMAP computations, which can
+            significantly speed up large datasets. This requires the `cuml` and
+            `cupy` libraries to be installed, along with appropriate NVIDIA
+            drivers and a working CUDA setup.
 
-        verbose (int): Sets the (global) logging verbosity level:
+        verbose: Sets the (global) logging verbosity level:
             - 0: Errors and warnings only.
-            - 1: Info, warnings, and errors (default).
+            - 1: Info, warnings, and errors.
             - 2: Debug, info, warnings, and errors.
 
     Note:
@@ -389,47 +377,44 @@ class MethylAnalysis:
         initialization, but not all.
 
     Attributes:
-        analysis_dir (Path): Path to the directory containing IDAT files for
-            analysis.
+        analysis_dir: Path to the directory containing IDAT files for analysis.
 
-        annotation (str or Path): Path to an annotation spreadsheet used to map
-            sample files located in both `analysis_dir` and `test_dir`.
+        annotation: Path to an annotation spreadsheet used to map sample files
+            located in both `analysis_dir` and `test_dir`.
 
-        overlap (bool): Flag to analyze only samples that are both in the
-            analysis directory and within the annotation file (default: False).
+        overlap: Flag to analyze only samples that are both in the analysis
+            directory and within the annotation file.
 
-        analysis_ids (list): A list of sample IDs. The analysis will be
-            restricted to these samples only. If `None`, the analysis will
-            include all available samples.
+        analysis_ids: A list of sample IDs. The analysis will be restricted to
+            these samples only. If `None`, the analysis will include all
+            available samples.
 
-        test_ids (list): A list of sample IDs in 'test_dir' that will
-            be used.
+        test_ids: A list of sample IDs in 'test_dir' that will be used.
 
-        n_cpgs (int): Number of CpG sites to select for UMAP (default: 25000).
+        n_cpgs: Number of CpG sites to select for UMAP.
 
-        n_jobs_clf (int): Number of parallel processes to run for classifying.
-            If equal to -1 all available cores will be used.
+        n_jobs_clf: Number of parallel processes to run for classifying. If
+            equal to -1 all available cores will be used.
 
-        n_jobs_cnv (int): Number of parallel processes to use for CNV
-            precalculation. If None, a reasonable number of cores will be
-            automatically chosen based on the system and workload.
+        n_jobs_cnv: Number of parallel processes to use for CNV precalculation.
+            If None, a reasonable number of cores will be automatically chosen
+            based on the system and workload.
 
-        reference_dir (str or Path): Directory containing CNV neutral reference
-            IDAT files. Must be provided if you wanna generate CNV plots.
+        reference_dir: Directory containing CNV neutral reference IDAT files.
+            Must be provided if you wanna generate CNV plots.
 
-        output_dir (Path): Path to the directory where output files will be
-            saved (default: "/tmp/mepylome/analysis").
+        output_dir: Path to the directory where output files will be saved.
 
-        test_dir (Path or None): Directory for test files, including new cases
-            for analysis or validation. Files uploaded via the GUI will be
-            placed here. If set to `None`, the application will automatically
-            use a temporary directory.
+        test_dir: Directory for test files, including new cases for analysis or
+            validation. Files uploaded via the GUI will be placed here. If set
+            to `None`, the application will automatically use a temporary
+            directory.
 
-        prep (str): Prepreparation method used for methylation microarrays:
-            'illumina', 'swan', or 'noob (default: 'illumina').
+        prep: Prepreparation method used for methylation microarrays:
+            'illumina', 'swan', or 'noob.
 
-        cpg_selection (str): Method to select CpG sites for UMAP ('top',
-            'random', or 'balanced') (default: 'top').
+        cpg_selection: Method to select CpG sites for UMAP ('top', 'random', or
+            'balanced').
 
             - 'top': Selects CpG sites with the highest variance.
             - 'random': Selects CpG sites randomly.
@@ -441,93 +426,83 @@ class MethylAnalysis:
               dataset is **imbalanced**, where some  groups have significantly
               more samples than others.
 
-        balancing_feature (str): Column in `annotation` used for
-            balancing when `cpg_selection='balanced'`. The balancing feature
-            determines the groups/categories used to create a stratified
-            selection of CpG sites.
+        balancing_feature: Column in `annotation` used for balancing when
+            `cpg_selection='balanced'`. The balancing feature determines the
+            groups/categories used to create a stratified selection of CpG
+            sites.
 
-        host (str): Host address for the Dash application (default:
-            'localhost').
+        host: Host address for the Dash application.
 
-        port (int): Port number for the Dash application (default: 8050).
+        port: Port number for the Dash application.
 
-        debug (bool): Flag to enable debug mode for the Dash application
-            (default: False).
+        debug: Flag to enable debug mode for the Dash application.
 
-        cnv_dir (Path): Directory for CNV (Copy Number Variation) data,
-            initially set to None.
+        cnv_dir: Directory for CNV (Copy Number Variation) data, initially set
+            to None.
 
-        umap_dir (Path): Directory for UMAP (Uniform Manifold Approximation
-            and Projection) data, initially set to None.
+        umap_dir: Directory for UMAP (Uniform Manifold Approximation and
+            Projection) data, initially set to None.
 
-        umap_cpgs (numpy.array): CpG sites for UMAP analysis, initially set to
-            None.
+        umap_cpgs: CpG sites for UMAP analysis, initially set to None.
 
-        precalculate_cnv (bool): Flag to precalculate CNV information by
-            invoking 'precompute_cnvs' (default: False).
+        precalculate_cnv: Flag to precalculate CNV information by invoking
+            'precompute_cnvs'.
 
-        load_full_betas (bool): If True, loads beta values for all CpG sites
-            into memory (when needed),  enabling fast random access to the full
+        load_full_betas: If True, loads beta values for all CpG sites into
+            memory (when needed),  enabling fast random access to the full
             methylation matrix. This can significantly increase  memory usage.
 
             If False, only the specified `n_cpgs` CpG sites are loaded on
             demand. For supervised  classifier training, the same reduced
             matrix (`betas_sel`) used for UMAP visualization  is used. This
             greatly reduces memory consumption and is typically sufficient,
-            though it may be slightly slower (default: True).
+            though it may be slightly slower.
 
-        betas_sel (pandas.DataFrame): DataFrame containing a selected subset of
-            beta values used for dimensionality reduction. Initially set to
+        betas_sel: DataFrame containing a selected subset of beta values used
+            for dimensionality reduction. Initially set to None.
+
+        betas_all: Dataframe containing beta values for all CpG sites,
+            initially set to None.
+
+        feature_matrix: A user-provided feature matrix to be used for UMAP
+            dimensionality reduction. If provided, this matrix will be used
+            instead of `betas_sel` for UMAP plots and instead of `betas_all`
+            for classifying.
+
+        betas_dir: Path to the betas directory, initially set to None.
+
+        umap_plot: Plot for UMAP, initially set to EMPTY_FIGURE.
+
+        umap_plot_path: Path to the CSV file containing the UMAP plot data,
+            initially set to None.
+
+        umap_df: Dataframe containing UMAP data, initially set to empty data
+            frame.
+
+        umap_params: Parameters for UMAP algorithm.
+
+        use_gpu: Whether to use GPU acceleration for UMAP via cuML and CuPy.
+            Set to True to enable GPU-backed UMAP computations, which can
+            significantly speed up large datasets. This requires the `cuml` and
+            `cupy` libraries to be installed, along with appropriate NVIDIA
+            drivers and a working CUDA setup.
+
+        raw_umap_plot: Raw UMAP plot data, initially set to None.
+
+        cnv_plot: Plot for CNV (Copy Number Variation) visualization, initially
+            set to EMPTY_FIGURE.
+
+        cnv_id: ID for CNV (Copy Number Variation) sample, initially set to
             None.
 
-        betas_all (pandas.DataFrame): Dataframe containing beta values for all
-            CpG sites, initially set to None.
+        dropdown_id: ID for dropdown selection, initially set to None.
 
-        feature_matrix (pandas.DataFrame or numpy.ndarray, optional): A
-            user-provided feature matrix to be used for UMAP dimensionality
-            reduction. If provided, this matrix will be used instead of
-            `betas_sel` for UMAP plots and instead of `betas_all` for
-            classifying (default: None).
+        ids: List of IDs, initially empty.
 
-        betas_dir (Path): Path to the betas directory, initially set to
-            None.
+        ids_to_highlight: IDs to highlight in the plot, initially set to empty
+            list.
 
-        umap_plot (plotly.Figure): Plot for UMAP, initially set to
-            EMPTY_FIGURE.
-
-        umap_plot_path (Path): Path to the CSV file containing the UMAP
-            plot data, initially set to None.
-
-        umap_df (pandas.DataFrame): Dataframe containing UMAP data, initially
-            set to empty data frame.
-
-        umap_params (dict): Parameters for UMAP algorithm (default: {'metric':
-            'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
-
-        use_gpu (bool): Whether to use GPU acceleration for UMAP via cuML and
-            CuPy (default: False). Set to True to enable GPU-backed UMAP
-            computations, which can significantly speed up large datasets. This
-            requires the `cuml` and `cupy` libraries to be installed, along
-            with appropriate NVIDIA drivers and a working CUDA setup.
-
-        raw_umap_plot (plotly.Figure): Raw UMAP plot data, initially set to
-            None.
-
-        cnv_plot (plotly.Figure): Plot for CNV (Copy Number Variation)
-            visualization, initially set to EMPTY_FIGURE.
-
-        cnv_id (str): ID for CNV (Copy Number Variation) sample, initially
-            set to None.
-
-        dropdown_id (list): ID for dropdown selection, initially set to
-            None.
-
-        ids (list): List of IDs, initially empty.
-
-        ids_to_highlight (list): IDs to highlight in the plot, initially
-            set to empty list.
-
-        app (dash.dash.Dash): Dash application object, initially set to None.
+        app: Dash application object, initially set to None.
 
 
     Raises:
@@ -768,8 +743,7 @@ class MethylAnalysis:
         """Handles the management of IDAT files and associated metadata.
 
         Returns:
-            IdatHandler: An instance of IdatHandler configured with current
-            settings.
+            An instance of IdatHandler configured with current settings.
         """
         if self._idat_handler is not None:
             self._old_selected_columns = self._idat_handler.selected_columns
@@ -813,14 +787,14 @@ class MethylAnalysis:
         This property returns a list of dictionaries, where each dictionary
         includes:
 
-        - 'name' (str): A human-readable name for the classifier
+        - 'name': A human-readable name for the classifier
           (e.g., 'Random Forest').
-        - 'model' (object): The classifier model instance.
-        - 'cv' (int or cross-validation generator): Determines the
+        - 'model': The classifier model instance.
+        - 'cv': Determines the
           cross-validation splitting strategy.
 
         Returns:
-            list of dict: Classifier configurations.
+            Classifier configurations.
         """
         return self._get_classifiers(self._classifiers)
 
@@ -834,11 +808,10 @@ class MethylAnalysis:
         default values for 'name' and 'cv'.
 
         Args:
-            classifiers (object or list of objects): A classifier model or a
-                list of classifier models and configurations. This argument is
-                handled the same way as `self.classifiers`. For full details on
-                the format and options, refer to the docstring for
-                `self.classifiers`.
+            classifiers: A classifier model or a list of classifier models and
+                configurations. This argument is handled the same way as
+                `self.classifiers`. For full details on the format and options,
+                refer to the docstring for `self.classifiers`.
 
         Examples:
             >>> clf = {
@@ -1284,12 +1257,13 @@ class MethylAnalysis:
         """Reads beta values for arbitrary `cpgs` directly from disk.
 
         Args:
-            cpgs (np.ndarray): CpG identifiers to retrieve.
-            ids (Sequence[str] or None): Sample IDs to restrict to. If None,
-                all samples in `idat_handler` are used.
+            cpgs: CpG identifiers to retrieve.
+
+            ids: Sample IDs to restrict to. If None, all samples in
+                `idat_handler` are used.
 
         Returns:
-            pd.DataFrame: Beta values, samples x CpGs.
+            Beta values, samples x CpGs.
         """
         logger.info("Retrieving beta values...")
         assert self.betas_dir is not None
@@ -1470,9 +1444,9 @@ class MethylAnalysis:
         optionally highlights specific genes within the plot.
 
         Args:
-            sample_id (str): ID of the sample for which CNV plot is generated.
-            genes_sel (list or None, optional): List of specific genes to
-                highlight in the plot.
+            sample_id: ID of the sample for which CNV plot is generated.
+
+            genes_sel: List of specific genes to highlight in the plot.
 
         Raises:
             FileNotFoundError: If the specified sample ID is not found in the
@@ -1505,9 +1479,8 @@ class MethylAnalysis:
         will compute CNVs for all samples found in the `analysis_dir`.
 
         Args:
-            ids (list, optional): A list of sample IDs to process. If
-                `None`, the function will compute CNVs for all samples in the
-                `analysis_dir`. Default is `None`.
+            ids: A list of sample IDs to process. If `None`, the function will
+                compute CNVs for all samples in the `analysis_dir`.
 
         Note:
             Precalculating CNVs improves performance but requires additional
@@ -1541,9 +1514,10 @@ class MethylAnalysis:
         available, and reads the resulting CNV information from disk.
 
         Args:
-            sample_id (str): The identifier for the sample whose CNV data is to
-                be retrieved.
-            extract (list): Specifies the data to extract from the CNV
+            sample_id: The identifier for the sample whose CNV data is to be
+                retrieved.
+
+            extract: Specifies the data to extract from the CNV
                 analysis. Available options include:
                 - "bins": Raw CNV data at the bin level.
                 - "detail": Detailed CNV information (generally genes).
@@ -1551,10 +1525,10 @@ class MethylAnalysis:
                 - "metadata": CNV analysis metadata.
 
         Returns:
-            tuple: A tuple containing the following elements:
-                - bins (DataFrame): Data representing CNV bins.
-                - detail (DataFrame): Gene CNV information.
-                - segments (DataFrame): Segmented CNV data.
+            A tuple containing the following elements:
+                - bins: Data representing CNV bins.
+                - detail: Gene CNV information.
+                - segments: Segmented CNV data.
 
                 If CNV data is not found or cannot be generated, returns None
                 for each extract value.
@@ -1586,14 +1560,12 @@ class MethylAnalysis:
         and the data used to generate it.
 
         Args:
-            ids (list of str): A list of sample IDs to include in the CNV
-            summary.
+            ids: A list of sample IDs to include in the CNV summary.
 
         Returns:
-            plot (plotly.graph_objects.Figure): A Plotly figure showing CNV
-                summary results.
-            df_cn_summary (pd.DataFrame): A DataFrame containing the data
-                behind the plot.
+            A tuple containing:
+            - A Plotly figure showing CNV summary results.
+            - A DataFrame containing the data behind the plot.
 
         Raises:
             ValueError: If `do_seg` is not True. CNV summary plots require
@@ -1628,38 +1600,36 @@ class MethylAnalysis:
         predictions and performance reports.
 
         Args:
-            ids (str, list, tuple, or None): Sample IDs for
-                prediction/classification. If `values` is provided, `ids` must
-                be `None`.
-            values (pd.DataFrame, np.ndarray, or None): Feature matrix for
-                prediction/classification. If `ids` is provided, `values` must
-                be `None`.
-            clf_list (object or list of objects): A classifier model or a
-                list of classifier models and configurations. This argument is
-                handled the same way as `self.classifiers`. For full details on
-                the format and options, refer to the docstring for
-                `self.classifiers`.
+            ids: Sample IDs for prediction/classification. If `values` is
+                provided, `ids` must be `None`.
+
+            values: Feature matrix for prediction/classification. If `ids` is
+                provided, `values` must be `None`.
+
+            clf_list: A classifier model or a list of classifier models and
+                configurations. This argument is handled the same way as
+                `self.classifiers`. For full details on the format and options,
+                refer to the docstring for `self.classifiers`.
 
         Returns:
-            list[ClassifierResult]: A list of ClassifierResult objects, each
-            containing the following attributes:
+            A list of ClassifierResult objects, each containing the following
+            attributes:
 
-                - prediction (pd.DataFrame): A DataFrame containing the
-                  predicted labels with their associated probabilities.
-                - model (sklearn.base.BaseEstimator or TrainedClassifier): The
-                  trained classifier object used for prediction.
-                - metrics (dict): A dictionary of evaluation metrics for the
+                - prediction: A DataFrame containing the predicted labels with
+                  their associated probabilities.
+                - model: The trained classifier object used for prediction.
+                - metrics: A dictionary of evaluation metrics for the
                   classifier, such as accuracy, precision, recall, etc.
-                - reports (dict): A dictionary containing textual and HTML
-                  reports of the classifier's performance. The keys are:
+                - reports: A dictionary containing textual and HTML reports of
+                  the classifier's performance. The keys are:
 
                     - "txt": A plain-text report (e.g., classification report).
                     - "html": An HTML-formatted report for richer
                       visualization.
 
         Outputs:
-            Log file: Contains training time, classifier performance metrics,
-                and evaluation results for each classifier.
+            Log file containing training time, classifier performance metrics,
+            and evaluation results for each classifier.
 
         Raises:
             ValueError: If not exactly one if `ids` or `values` is set.
@@ -1795,10 +1765,10 @@ class MethylAnalysis:
         """Generate MLH1 promoter methylation report HTML pages.
 
         Parameters:
-            ids (list of str): Sample IDs.
+            ids: Sample IDs.
 
         Returns:
-            list of str: HTML reports, one per sample.
+            HTML reports, one per sample.
         """
         prev_cpg_blacklist = self.cpg_blacklist
         prev_cpgs = self.cpgs
@@ -1921,21 +1891,22 @@ class MethylAnalysis:
         evenly-spaced column in the heatmap below.
 
         Args:
-            gene (str): Gene symbol (e.g. "EGFR", "MLH1", "CDKN2A"). Must
-                match a gene name in the bundled gene annotation
-                (case-sensitive).
-            array_type (str or ArrayType, optional): Array type used to
-                look up the gene's CpGs. Defaults to the type detected
-                from the selected samples (must be a single, common type).
-            ids (list of str, optional): Sample IDs to include. Defaults
-                to all samples found in ``analysis_dir``/``test_dir``.
-            show (bool): If True (default), displays the figure immediately
-                and returns None. If False, returns the figure without
-                displaying it.
+            gene: Gene symbol (e.g. "EGFR", "MLH1", "CDKN2A"). Must match a
+                gene name in the bundled gene annotation (case-sensitive).
+
+            array_type: Array type used to look up the gene's CpGs. Defaults to
+                the type detected from the selected samples (must be a single,
+                common type).
+
+            ids: Sample IDs to include. Defaults to all samples found in
+                ``analysis_dir``/``test_dir``.
+
+            show: If True, displays the figure immediately and returns None. If
+                False, returns the figure without displaying it.
 
         Returns:
-            go.Figure or None: The methylation heatmap with gene track, or
-            None if ``show`` is True.
+            The methylation heatmap with gene track, or None if ``show`` is
+            True.
 
         Raises:
             ValueError: If no sample IDs are available, the gene is
@@ -1970,21 +1941,25 @@ class MethylAnalysis:
         without a gene annotation, or custom regions of interest.
 
         Args:
-            chromosome (str or Chromosome): Chromosome (e.g. "chr3" or "3").
-            start (int): Region start position (genomic coordinate).
-            end (int): Region end position (genomic coordinate).
-            array_type (str or ArrayType, optional): Array type used to
-                look up CpGs in the region. Defaults to the type detected
-                from the selected samples (must be a single, common type).
-            ids (list of str, optional): Sample IDs to include. Defaults
-                to all samples found in ``analysis_dir``/``test_dir``.
-            show (bool): If True (default), displays the figure immediately
-                and returns None. If False, returns the figure without
-                displaying it.
+            chromosome: Chromosome (e.g. "chr3" or "3").
+
+            start: Region start position (genomic coordinate).
+
+            end: Region end position (genomic coordinate).
+
+            array_type: Array type used to look up CpGs in the region. Defaults
+                to the type detected from the selected samples (must be a
+                single, common type).
+
+            ids: Sample IDs to include. Defaults to all samples found in
+                ``analysis_dir``/``test_dir``.
+
+            show: If True, displays the figure immediately and returns None. If
+                False, returns the figure without displaying it.
 
         Returns:
-            go.Figure or None: The methylation heatmap with region track,
-            or None if ``show`` is True.
+            The methylation heatmap with region track, or None if ``show`` is
+            True.
 
         Raises:
             ValueError: If ``chromosome`` is invalid, no sample IDs are
@@ -2036,24 +2011,20 @@ class MethylAnalysis:
             https://doi.org/10.1186/s12859-019-3014-z
 
         Args:
-            method:
-                RFpurify model to use. Supported values are ``"absolute"`` and
-                ``"estimate"``.
+            method: RFpurify model to use. Supported values are ``"absolute"``
+                and ``"estimate"``.
 
-            fill:
-                Beta value used for CpG probes required by the model but
+            fill: Beta value used for CpG probes required by the model but
                 missing from the input data. RFpurify was trained on Illumina
                 450k and EPIC arrays; missing probes may occur when applying it
                 to newer arrays such as EPIC v2.
 
         Returns:
-            pd.Series:
-                Predicted tumor purity values in the range [0, 1], indexed by
-                sample name.
+            Predicted tumor purity values in the range [0, 1], indexed by
+            sample name.
 
         Raises:
-            ValueError:
-                If ``method`` is not ``"absolute"`` or ``"estimate"``.
+            ValueError: If ``method`` is not ``"absolute"`` or ``"estimate"``.
         """
         cpgs = get_purity_features(method)
         if self.betas_all is not None and not set(cpgs) - set(
@@ -2085,8 +2056,8 @@ class MethylAnalysis:
         """Runs the mepylome Dash application.
 
         Args:
-            open_tab (bool, optional): Whether to automatically open a new
-                browser tab with the application URL. Defaults to False.
+            open_tab: Whether to automatically open a new browser tab with the
+                application URL.
         """
         self.app = self.get_app()
         free_port = get_free_port(self.port)

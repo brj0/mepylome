@@ -141,17 +141,18 @@ class Manifest:
     session, all loaded manifests are cached in memory.
 
     Args:
-        array_type (str or ArrayType): The type of array to process. Use either
-            ArrayType (ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC,
+        array_type: The type of array to process. Use either ArrayType
+            (ArrayType.ILLUMINA_450K, ArrayType.ILLUMINA_EPIC,
             ArrayType.ILLUMINA_EPIC_V2) or corresponding string ('450k',
             'epic', 'epicv2', 'msa48')
-        proc_path (str or Path): The path to the local processed manifest file
-            (default: None).
-        raw_path (str or Path, optional): Path to the raw manifest file.
-            Default is None.
-        download_proc (bool, optional): If True and there is no locally saved
-            processed manifest file, attempts to download the processed
-            manifest file instead of the raw one. Defaults to True.
+
+        proc_path: The path to the local processed manifest file.
+
+        raw_path: Path to the raw manifest file.
+
+        download_proc: If True and there is no locally saved processed manifest
+            file, attempts to download the processed manifest file instead of
+            the raw one.
 
     Examples:
         >>> # To initialize a manifest object for Illumina 450k array:
@@ -366,8 +367,8 @@ class Manifest:
         """Loads specified manifests into memory.
 
         Args:
-            array_types (list or ArrayType, optional): List of array types or
-                a single array type to load. Defaults to all available types.
+            array_types: List of array types or a single array type to load.
+                Defaults to all available types.
 
         Examples:
             >>> # Load all manifests:
@@ -455,9 +456,8 @@ class Manifest:
         details to local files with pathnames `probes_path` and `ctrl_path`.
 
         Args:
-            csv_filename (str, optional): Name of the manifest file inside the
-                archive. If not provided, it defaults to the name of the
-                raw_path file.
+            csv_filename: Name of the manifest file inside the archive. If not
+                provided, it defaults to the name of the raw_path file.
         """
         logger.info("Process raw manifest %s", self.raw_path)
         assert self.proc_path is not None
@@ -719,14 +719,11 @@ class Manifest:
         """Retrieves information about probes of a specified type and channel.
 
         Args:
-            probe_type (ProbeType): The type of probe (I, II, SnpI, SnpII,
-                Control).
-            channel (Channel, optional): The color channel (RED or GRN).
-                Defaults to None.
+            probe_type: The type of probe (I, II, SnpI, SnpII, Control).
+            channel: The color channel (RED or GRN).
 
         Returns:
-            DataFrame: DataFrame containing information about the specified
-                probes.
+            DataFrame containing information about the specified probes.
 
         Raises:
             ValueError: If probe_type is not a valid ProbeType or if channel is

@@ -54,12 +54,12 @@ class ProbeType(IntEnum):
         """Method to determine ProbeType based on name and design type.
 
         Args:
-            name (str): Probe name.
-            infinium_type (str | int | InfiniumDesignType): Infinium design
-                type ('I' or 'II').
+            name: Probe name.
+
+            infinium_type: Infinium design type ('I' or 'II').
 
         Returns:
-            str: Probe type.
+            Probe type.
         """
         if name.startswith("rs"):
             if infinium_type == InfiniumDesignType.TYPE_I:

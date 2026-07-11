@@ -393,7 +393,7 @@ def parse_args() -> argparse.Namespace:
         "--save_dir",
         type=absolute_path,
         default=".",
-        help="Directory to save downloaded files (default: current folder)",
+        help="Directory to save downloaded files",
     )
     download_parser.add_argument(
         "-i",

@@ -151,15 +151,16 @@ def huber(
     https://github.com/cran/MASS/blob/master/R/huber.R
 
     Args:
-        y (array-like): Vector of data values.
-        k (float, optional): Winsorizes at `k` standard deviations. Default is
-            1.5.
-        tol (float, optional): Convergence tolerance. Default is 1.0e-6.
+        y: Vector of data values.
+
+        k: Winsorizes at `k` standard deviations.
+
+        tol: Convergence tolerance.
 
     Returns:
-        tuple: A tuple containing:
-            - mu (float): Location estimate (mean).
-            - s (float): MAD scale estimate (standard deviation).
+        A tuple containing:
+        - mu (float): Location estimate (mean).
+        - s (float): MAD scale estimate (standard deviation).
 
     Raises:
         ValueError: If the scale (MAD) is zero for the given sample.
@@ -197,15 +198,16 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     https://github.com/gangwug/limma/blob/master/R/background-normexp.R
 
     Args:
-        par (array-like): Numeric vector containing the parameters of the
-            Normal+Exp distribution.
+        par: Numeric vector containing the parameters of the Normal+Exp
+            distribution.
                 - par[0]: mu
                 - par[1]: log sigma
                 - par[2]: log alpha
-        x (array-like): Numeric vector of (background corrected) intensities.
+
+        x: Numeric vector of (background corrected) intensities.
 
     Returns:
-        array-like: Numeric vector containing adjusted intensities.
+        Numeric vector containing adjusted intensities.
 
     Raises:
         ValueError: If alpha or sigma are non-positive.

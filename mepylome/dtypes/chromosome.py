@@ -25,13 +25,6 @@ class Chromosome(IntEnum):
     - 24: Chromosome Y
     - 25: Mitochondrial Chromosome (MT)
     - -1: Invalid Chromosome
-
-    Methods:
-        - is_valid_chromosome(chrom): Checks if the given chromosome is valid.
-        - pd_from_string(col): Converts chromosome strings to Chromosome enum
-            values.
-        - pd_to_string(col): Converts Chromosome enum values to chromosome
-            strings.
     """
 
     CHR0 = 0

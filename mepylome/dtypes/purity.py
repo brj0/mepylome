@@ -65,11 +65,9 @@ def predict_purity(
     """Predict tumor purity using a RFpurify random forest model.
 
     Args:
-        betas:
-            DataFrame with sample IDs as index and CpG proge IDs as columns.
+        betas: DataFrame with sample IDs as index and CpG proge IDs as columns.
 
-        method:
-            RFpurify model to use.
+        method: RFpurify model to use.
 
             ``"absolute"``:
                 Model trained against purity estimates from the ABSOLUTE study.
@@ -77,12 +75,10 @@ def predict_purity(
             ``"estimate"``:
                 Model trained against purity estimates from the ESTIMATE study.
 
-        fill:
-            Beta value used for missing CpG probes.
+        fill: Beta value used for missing CpG probes.
 
     Returns:
-        pd.Series:
-            Purity scores in the range [0, 1], indexed by sample name.
+        Purity scores in the range [0, 1], indexed by sample name.
 
     Raises:
         ValueError:

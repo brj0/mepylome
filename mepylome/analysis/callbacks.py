@@ -47,6 +47,7 @@ def build_layout(app: Dash, analysis: MethylAnalysis) -> None:
 
     Args:
         app: The Dash application instance to populate.
+
         analysis: The active MethylAnalysis instance whose current state
             (directories, cpgs, umap parameters) seeds the initial UI values.
     """
@@ -123,6 +124,7 @@ def register_callbacks(app: Dash, analysis: MethylAnalysis) -> None:
 
     Args:
         app: The Dash application instance to register callbacks on.
+
         analysis: The active MethylAnalysis instance. Callbacks read and write
             its attributes directly (e.g. ``analysis.prep``,
             ``analysis.umap_plot``) to keep analysis state in sync with the UI.

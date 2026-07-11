@@ -86,12 +86,13 @@ class TrainedClassifier(ABC):
         new samples are computed using the trained classifier.
 
         Args:
-            betas (array-like): Input samples to predict probabilities.
-            id_ (sequence of str, optional): Sample identifiers used to reuse
-                cross-validation probabilities when available.
+            betas: Input samples to predict probabilities.
+
+            id_ : Sample identifiers used to reuse cross-validation
+                probabilities when available.
 
         Returns:
-            np.ndarray: Predicted probabilities for each sample.
+            Predicted probabilities for each sample.
         """
 
     @abstractmethod
@@ -99,7 +100,7 @@ class TrainedClassifier(ABC):
         """Returns the list of classes for which predictions can be made.
 
         Returns:
-            array-like: The classes the classifier can predict.
+            The classes the classifier can predict.
         """
 
     def info(self, output_format: str = "txt") -> str:
@@ -109,7 +110,7 @@ class TrainedClassifier(ABC):
         contain classifier name and classifier metrics.
 
         Returns:
-            str: A description of the classifier or its components.
+            A description of the classifier or its components.
         """
         return ""
 
@@ -539,15 +540,16 @@ def make_reports(
     """Generates detailed reports from classifier predictions.
 
     Args:
-        prediction (pd.DataFrame): DataFrame containing predicted probabilities
-            for each class, indexed by sample IDs.
-        info (str): A description of the classifier such as its name and
-            metrics. Will be printed before predictions.
-        output_format (str): The format of the report ('txt' or 'html').
-            Defaults to 'txt'.
+        prediction: DataFrame containing predicted probabilities for each
+            class, indexed by sample IDs.
+
+        info: A description of the classifier such as its name and metrics.
+            Will be printed before predictions.
+
+        output_format: The format of the report ('txt' or 'html').
 
     Returns:
-        list[str]: A list of detailed string reports, one for each sample.
+        A list of detailed string reports, one for each sample.
     """
     reports = []
     for sample_id, row in prediction.iterrows():
@@ -598,12 +600,13 @@ def make_classifier_report_page(
     """Generates an HTML page for multiple classifier reports.
 
     Args:
-        reports (list of str): A list of HTML reports obtained from
+        reports: A list of HTML reports obtained from
             'MethylAnalysis.classify'.
-        itle (str): Title of the report page. Defaults to 'None'.
+
+        itle: Title of the report page.
 
     Returns:
-        str: A formatted HTML string.
+        A formatted HTML string.
     """
     title_str = f"<h1>{title}</h1><hr>" if title else ""
     body_string = "\n<hr>\n".join(reports)
@@ -778,16 +781,18 @@ def train_clf(
     saves it to disk.
 
     Args:
-        clf (classifier): The classifier to train or load.
-        X (array-like): The feature matrix.
-        y (array-like): The target labels.
-        cv (int or cross-validation generator): Determines the cross-validation
-            splitting strategy.
-        n_jobs (int): Number of parallel processes to run.
+        clf: The classifier to train or load.
+
+        X: The feature matrix.
+
+        y: The target labels.
+
+        cv: Determines the cross-validation splitting strategy.
+
+        n_jobs: Number of parallel processes to run.
 
     Returns:
-        TrainedSklearnClassifier or TrainedSklearnCVClassifier: The trained
-            classifier object.
+        The trained classifier object.
     """
     n_splits = cv if isinstance(cv, int) else cv.n_splits
 
@@ -858,14 +863,17 @@ def fit_and_evaluate_clf(
     the sample. Output will be written to disk.
 
     Args:
-        X (pd.DataFrame): Feature matrix (rows as samples, columns as
-            features).
-        y (array-like): Class labels.
-        X_test (array-like): Value of the sample to be evaluated.
-        id_test (str): Unique identifiers for the test samples to be evaluated.
-        save_path (str or Path): Path where the classifiers and results
-            will be saved/cached.
-        clf (list): Classifier to use. Can be:
+        X: Feature matrix (rows as samples, columns as features).
+
+        y: Class labels.
+
+        X_test: Value of the sample to be evaluated.
+
+        id_test: Unique identifiers for the test samples to be evaluated.
+
+        save_path: Path where the classifiers and results will be saved/cached.
+
+        clf: Classifier to use. Can be:
 
             - A scikit-learn classifier object or pipeline (trained or
               untrained).
@@ -918,9 +926,9 @@ def fit_and_evaluate_clf(
 
             - A custom class, that inherits from `TrainedClassifier`.
 
-        cv (int or cross-validation generator): Determines the cross-validation
-            splitting strategy.
-        n_jobs (int): Number of parallel processes to run.
+        cv: Determines the cross-validation splitting strategy.
+
+        n_jobs: Number of parallel processes to run.
 
     Returns:
         ClassifierResult:

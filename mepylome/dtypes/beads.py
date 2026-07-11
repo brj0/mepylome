@@ -82,14 +82,14 @@ def idat_basepaths(
     and maintains the order of the files as they appear in the input.
 
     Args:
-        files (path or list): A file or directory path or a list of file paths.
-        only_valid (bool): If True, only returns basepaths that point to valid
-            IDAT file pairs. Defaults is 'False'.
+        files: A file or directory path or a list of file paths.
+
+        only_valid: If True, only returns basepaths that point to valid IDAT
+            file pairs.
 
     Returns:
-        list: A list of unique basepaths corresponding to the provided IDAT
-            files. If a directory is provided, all IDAT files are recursively
-            considered.
+        A list of unique basepaths corresponding to the provided IDAT files. If
+        a directory is provided, all IDAT files are recursively considered.
 
     Example:
         >>> idat_basepaths("/path/to/dir")
@@ -148,10 +148,10 @@ def idat_paths_from_basenames(
     """Returns paths to green and red IDAT files.
 
     Args:
-        basenames (list): List of basepaths for IDAT files.
+        basenames: List of basepaths for IDAT files.
 
     Returns:
-        tuple: Paths to green and red IDAT files.
+        Paths to green and red IDAT files.
 
     Raises:
         FileNotFoundError: If any IDAT file is not found.
@@ -188,16 +188,21 @@ class RawData:
     them to extract raw intensity data from the green and red channels.
 
     Args:
-        basenames (list): List of basepaths to IDAT files.
-        manifest (Manifest, optional): The manifest associated with the array.
-            If not provided, it will be determined from the probe count.
+        basenames: List of basepaths to IDAT files.
+
+        manifest: The manifest associated with the array. If not provided, it
+            will be determined from the probe count.
 
     Attributes:
-        array_type (str): Type of Illumina array.
-        sample_ids (list): List of sample IDs corresponding to the IDAT files.
-        bead_addresses (array): Bead addresses.
-        green (array): Array of raw intensity values from the green channel.
-        red (array): Array of raw intensity values from the red channel.
+        array_type: Type of Illumina array.
+
+        sample_ids: List of sample IDs corresponding to the IDAT files.
+
+        bead_addresses: Bead addresses.
+
+        green: Array of raw intensity values from the green channel.
+
+        red: Array of raw intensity values from the red channel.
 
     Example:
         >>> idat_basepath0 = directory_path / "200925700125_R07C01"
@@ -366,9 +371,9 @@ def _get_sex_indices(
     within a given sample probe array.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]:
-            - indices of X-chromosome probes in sample_probes
-            - indices of Y-chromosome probes in sample_probes
+        Tuple containing:
+        - indices of X-chromosome probes in sample_probes
+        - indices of Y-chromosome probes in sample_probes
     """
     manifest_df = Manifest(array_type).data_frame
 
@@ -392,13 +397,15 @@ class MethylData:
     computing beta values from methylated and unmethylated intensities.
 
     Args:
-        data (RawData): RawData object containing raw intensity data.
-        file (str): Path to file or dir or list of paths containing raw
-            intensity data.
-        prep (str): Preprocessing method. Options: "illumina", "swan",
-            "noob".
-        seed (int, optional): Seed value used for random number generation in
-            the SWAN preprocessing method. Default is None.
+        data: RawData object containing raw intensity data.
+
+        file: Path to file or dir or list of paths containing raw intensity
+            data.
+
+        prep: Preprocessing method. Options: "illumina", "swan", "noob".
+
+        seed: Seed value used for random number generation in the SWAN
+            preprocessing method.
 
     Note:
         If 'data' is not provided, it will attempt to create a RawData object
@@ -723,14 +730,16 @@ class MethylData:
         """Cache the indices required for data processing.
 
         Args:
-            manifest (Manifest): Manifest object.
-            bead_addresses (array): Array of Illumina bead addresses.
-            prep (str): Preprocessing method. Options: "illumina", "noob",
-                "swan", "raw".
+            manifest: Manifest object.
+
+            bead_addresses: Array of Illumina bead addresses.
+
+            prep: Preprocessing method. Options: "illumina", "noob", "swan",
+                "raw".
 
         Returns:
-            dict: Cached indices including probe indices, Illumina IDs indices,
-                and probe type indices.
+            Cached indices including probe indices, Illumina IDs indices, and
+            probe type indices.
         """
         type_1 = manifest.probe_info(ProbeType.ONE)
         type_2 = manifest.probe_info(ProbeType.TWO)
@@ -983,10 +992,10 @@ class MethylData:
             method with dye-bias normalization.
 
         Args:
-            offset (float): An offset for the normexp background correction.
-            dye_method (str): How should dye bias correction be done: "single"
-                for single sample approach, or "reference" for a reference
-                array.
+            offset: An offset for the normexp background correction.
+
+            dye_method: How should dye bias correction be done: "single" for
+                single sample approach, or "reference" for a reference array.
 
         References:
             TJ Triche, DJ Weisenberger, D Van Den Berg, PW Laird and KD
@@ -1118,9 +1127,8 @@ class MethylData:
         p-value is greater than a threshold (usually 0.05).
 
         Returns:
-            pandas.DataFrame:
-                Detection p-values (0–1), shape (n_probes × n_samples),
-                indexed by IlmnID. NaN indicates missing probes.
+            Detection p-values (0–1), shape (n_probes × n_samples), indexed by
+            IlmnID. NaN indicates missing probes.
 
         Note:
             In SeSAMe, some probes are filtered using `backgroundMask`. This
@@ -1230,8 +1238,7 @@ class MethylData:
         many high p-values (failed probes) may be low quality.
 
         Returns:
-            pd.DataFrame: Detection p-values (n_probes × n_samples), indexed by
-                IlmnID.
+            Detection p-values (n_probes × n_samples), indexed by IlmnID.
 
         Notes:
             - Background is derived from negative control probes.
@@ -1315,13 +1322,13 @@ class MethylData:
         """Calculates beta values for specified CpG sites.
 
         Args:
-            cpgs (array-like): Array of CpG IDs.
-            fill (float): Value to fill for CpGs not found in the used
-                manifest or equal to NaN.
+            cpgs: Array of CpG IDs.
+
+            fill: Value to fill for CpGs not found in the used manifest or
+                equal to NaN.
 
         Returns:
-            pandas.DataFrame: DataFrame containing beta values for specified
-                CpGs.
+            DataFrame containing beta values for specified CpGs.
 
         Note:
             If 'cpgs' is None, all CpGs from the used manifest are considered.
@@ -1383,13 +1390,13 @@ class MethylData:
         """Calculates m-values for specified CpG sites.
 
         Args:
-            cpgs (array-like): Array of CpG IDs.
-            fill (float): Value to fill for CpGs not found in the used
-                manifest or equal to NaN.
+            cpgs: Array of CpG IDs.
+
+            fill: Value to fill for CpGs not found in the used manifest or
+                equal to NaN.
 
         Returns:
-            pandas.DataFrame: DataFrame containing m-values for specified
-                CpGs.
+            DataFrame containing m-values for specified CpGs.
 
         Note:
             If 'cpgs' is None, all CpGs from the used manifest are considered.
@@ -1419,12 +1426,15 @@ class MethylData:
 
         Args:
             methylated: methylated intensities
+
             unmethylated: unmethylated intensities
+
             offset: small constant to prevent log(0)
+
             min_zero: clamp negative intensities to zero
 
         Returns:
-            np.ndarray of M-values
+            M-values
         """
         if offset < 0:
             raise ValueError("'offset' must be non-negative")
@@ -1449,9 +1459,7 @@ class MethylData:
 
 
         Returns:
-            pd.Series:
-                Predicted sex (``"male"`` or ``"female"``), indexed by sample
-                name.
+            Predicted sex (``"male"`` or ``"female"``), indexed by sample name.
 
         Notes:
             This algorithm is experimental and may be refined in future
@@ -1502,24 +1510,20 @@ class MethylData:
             https://doi.org/10.1186/s12859-019-3014-z
 
         Args:
-            method:
-                RFpurify model to use. Supported values are ``"absolute"`` and
-                ``"estimate"``.
+            method: RFpurify model to use. Supported values are ``"absolute"``
+                and ``"estimate"``.
 
-            fill:
-                Beta value used for CpG probes required by the model but
+            fill: Beta value used for CpG probes required by the model but
                 missing from the input data. RFpurify was trained on Illumina
                 450k and EPIC arrays; missing probes may occur when applying it
                 to newer arrays such as EPIC v2.
 
         Returns:
-            pd.Series:
-                Predicted tumor purity values in the range [0, 1], indexed by
-                sample name.
+            Predicted tumor purity values in the range [0, 1], indexed by
+            sample name.
 
         Raises:
-            ValueError:
-                If ``method`` is not ``"absolute"`` or ``"estimate"``.
+            ValueError: If ``method`` is not ``"absolute"`` or ``"estimate"``.
         """
         cpgs = get_purity_features(method)
         return predict_purity(
@@ -1576,10 +1580,10 @@ class MethylData:
         """Plot total signal intensity vs beta value.
 
         Args:
-            sample_id (str, list, optional): Sample(s) to plot. Defaults to
-                all samples (one subplot per sample).
-            n_cols (int): Number of subplot columns when plotting multiple
-                samples. Defaults to 3.
+            sample_id: Sample(s) to plot. Defaults to all samples (one subplot
+                per sample).
+
+            n_cols: Number of subplot columns when plotting multiple samples.
         """
         if sample_id is None:
             sample_ids = list(self.sample_ids)
@@ -1655,7 +1659,7 @@ class MethylData:
         quantile downsampling.
 
         Args:
-            n_points (int): Number of quantile-subsampled points per sample.
+            n_points: Number of quantile-subsampled points per sample.
         """
         fig = go.Figure()
 
@@ -1732,12 +1736,13 @@ class ReferenceMethylData:
     neutral reference cases used in CNV calculation.
 
     Args:
-        file (list): List of file paths to IDAT files or directory containing
-            IDAT files.
-        prep (str): Preprocessing method. Options: "illumina", "swan", "noob".
+        file: List of file paths to IDAT files or directory containing IDAT
+            files.
+
+        prep: Preprocessing method. Options: "illumina", "swan", "noob".
 
     Attributes:
-        _methyl_data (dict): Internal dictionary to cache MethylData objects
+        _methyl_data: Internal dictionary to cache MethylData objects
             for each array type.
 
     Raises:

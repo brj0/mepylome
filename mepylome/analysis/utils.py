@@ -48,10 +48,13 @@ class ProgressBar:
     """A thread-safe progress bar.
 
     Attributes:
-        cur_value (int): The current value of the progress bar.
-        max_value (int): The maximum value of the progress bar.
-        text (str): Optional text to display alongside the progress.
-        lock (threading.Lock): A lock to ensure thread safety.
+        cur_value: The current value of the progress bar.
+
+        max_value: The maximum value of the progress bar.
+
+        text: Optional text to display alongside the progress.
+
+        lock: A lock to ensure thread safety.
     """
 
     def __init__(self, max_value: int = 100, text: str = "") -> None:
@@ -112,12 +115,13 @@ def read_dataframe(path: str | Path, **kwargs: Any) -> pd.DataFrame:
     tsv formats.
 
     Args:
-        path (str): The file path to read the DataFrame from.
+        path: The file path to read the DataFrame from.
+
         **kwargs: Additional keyword arguments to pass to the underlying pandas
             read function.
 
     Returns:
-        pd.DataFrame: The loaded DataFrame.
+        The loaded DataFrame.
 
     Raises:
         ValueError: If the file format is not supported.
@@ -204,66 +208,69 @@ class IdatHandler:
     description lookups for methylation classes.
 
     Args:
-        analysis_dir (str or Path): The directory where the IDAT files are
-            located.
+        analysis_dir: The directory where the IDAT files are located.
+
         annotation (str or Path, optional): The path to the annotation
-            file. Defaults to None.
-        test_dir (Path or None, optional): Directory for test files, including
-            new cases or validation IDAT files or other test cases. Defaults to
-            `None`.
-        overlap (bool, optional): If True, restricts the sample paths to only
-            those present in both the IDAT files and the annotation file.
-            Defaults to False.
-        analysis_ids (list, optional): A list of sample IDs within
-            `analysis_dir`.
+            file.
+
+        test_dir: Directory for test files, including new cases or validation
+            IDAT files or other test cases.
+
+        overlap: If True, restricts the sample paths to only those present in
+            both the IDAT files and the annotation file.
+
+        analysis_ids: A list of sample IDs within `analysis_dir`.
 
             - If provided, only these samples will be used.
 
             - If `None`, all available IDAT files in `analysis_dir` will be
               used.
 
-            Defaults to None.
-
             **Note:** The IDs may be converted to Sentrix format during
             initialization if the IDs in the annotation and IDs in analysis_dir
             do not match directly.
 
-        test_ids (list, optional): A list of sample IDs within `test_dir`.
+        test_ids: A list of sample IDs within `test_dir`.
 
             - If provided, only these samples will be used.
 
             - If `None`, all available IDAT files in `test_dir` will be used.
-              Defaults to None.
 
             **Note:** The IDs may be converted to Sentrix format during
             initialization if the IDs in the annotation and IDs in analysis_dir
             do not match directly.
 
     Attributes:
-        analysis_dir (Path): The directory path where the IDAT files are
-            located.
-        test_dir (Path or None, optional): Directory for test files, including
-            new cases or validation IDAT files or other test cases. Defaults to
-            `None`.
-        overlap (bool): A flag indicating whether to restrict sample paths to
+        analysis_dir: The directory path where the IDAT files are located.
+
+        test_dir: Directory for test files, including new cases or validation
+            IDAT files or other test cases.
+
+        overlap: A flag indicating whether to restrict sample paths to
             only those present in both the IDAT files and the annotation file.
-        id_to_path (dict): A dictionary where the keys are sample IDs and the
+
+        id_to_path: A dictionary where the keys are sample IDs and the
             values are the file paths of IDAT files (from both `analysis_dir`
             and `test_dir`).
-        annotation (Path): The path to the annotation file. Defaults to
-            None. If not provided, the first spreadsheet file found in
-            `self.analysis_dir` will be used as the annotation.
-        annotation_df (pandas.DataFrame or None): A DataFrame containing the
-            annotation data, if loaded.
-        samples_annotated (pandas.DataFrame or None): A DataFrame containing
-            the samples as index and the annotation in the columns.
-        selected_columns (list): A list of selected columns from the annotated
+
+        annotation: The path to the annotation file. If not provided, the first
+            spreadsheet file found in `self.analysis_dir` will be used as the
+            annotation.
+
+        annotation_df: A DataFrame containing the annotation data, if loaded.
+
+        samples_annotated: A DataFrame containing the samples as index and the
+            annotation in the columns.
+
+        selected_columns: A list of selected columns from the annotated
             samples, initialized with the first column.
-        analysis_ids (list): A list of sample IDs from `analysis_dir` that are
+
+        analysis_ids: A list of sample IDs from `analysis_dir` that are
             actually used after filtering and optional conversion to Sentrix
             IDs.
-        test_ids (list): A list of sample IDs from `test_dir` that are actually
-            used after filtering and optional conversion to Sentrix IDs.
+
+        test_ids: A list of sample IDs from `test_dir` that are actually used
+            after filtering and optional conversion to Sentrix IDs.
 
     Raises:
         ValueError:
@@ -383,11 +390,11 @@ class IdatHandler:
         the Sentrix ID.
 
         Returns:
-            tuple: A tuple (is_sentrix, column_name), where:
-                - is_sentrix (bool): True if a matching column is found and
-                  matches only when Sentrix IDs are extracted from both.
-                - column_name (str or None): The name of the matching column,
-                  or None if no match is found.
+            A tuple (is_sentrix, column_name), where:
+                - is_sentrix: True if a matching column is found and matches
+                  only when Sentrix IDs are extracted from both.
+                - column_name: The name of the matching column, or None if no
+                  match is found.
         """
         analysis_samples = set(self.analysis_id_to_path.keys())
         sentrix_analysis_samples = convert_to_sentrix_ids(analysis_samples)
@@ -586,16 +593,14 @@ class IdatHandler:
         separator.
 
         Args:
-            columns (list, str, or None): List of column names (or a single
-                column name) to use for creating the label. If None, defaults
-                to the first column in `samples_annotated` or
-                `selected_columns` if not None.
-            separator (str): The separator used to join values from the
-                columns. Default is "|".
+            columns: List of column names (or a single column name) to use for
+                creating the label. If None, defaults to the first column in
+                `samples_annotated` or `selected_columns` if not None.
+
+            separator: The separator used to join values from the columns.
 
         Returns:
-            pd.Series:
-                A Series of combined labels, indexed by sample IDs.
+            A Series of combined labels, indexed by sample IDs.
 
         Example:
             >>> idat_handler.features(columns=["GEO", "CNVs"])
@@ -685,17 +690,19 @@ class BetasHandler:
     """Manages storage and retrieval of beta values.
 
     Args:
-        directory (str or Path): Directory path where beta files ara stored.
-        array_cpgs (dict, optional): Dictionary mapping ArrayType names to CpG
-            arrays. If not provided, CpG arrays are fetched using default
-            method.
+        directory: Directory path where beta files ara stored.
+
+        array_cpgs: Dictionary mapping ArrayType names to CpG arrays. If not
+            provided, CpG arrays are fetched using default method.
 
     Attributes:
-        basedir (Path): Path to the directory containing beta files.
-        error_dir (dict): Dictionary where errors are written.
-        beta_paths (dict): Dictionary of all beta file paths.
-        error_paths (dict): Dictionary of error file paths.
+        basedir: Path to the directory containing beta files.
 
+        error_dir: Dictionary where errors are written.
+
+        beta_paths: Dictionary of all beta file paths.
+
+        error_paths: Dictionary of error file paths.
     """
 
     def __init__(
@@ -937,14 +944,18 @@ def ensure_betas_exist(
     """Ensures all beta files are extracted and available.
 
     Args:
-        idat_handler (IdatHandler): Handler for IDAT file paths and metadata.
-        cpgs (list): List of CpGs to include in the output matrix.
-        prep (str): Prepreparation method for the MethylData.
-        betas_dir (Path): Path the directory to save/load the betas.
-        pbar (ProgressBar): Progress bar for tracking progress.
+        idat_handler: Handler for IDAT file paths and metadata.
+
+        cpgs: List of CpGs to include in the output matrix.
+
+        prep: Prepreparation method for the MethylData.
+
+        betas_dir: Path the directory to save/load the betas.
+
+        pbar: Progress bar for tracking progress.
 
     Returns:
-        BetasHandler: The corresponding BetasHandler object.
+        The corresponding BetasHandler object.
     """
     # Loading manifests here prevents race conditions
     Manifest.load()
@@ -990,16 +1001,21 @@ def get_betas(
     folder to facilitate quicker subsequent extractions.
 
     Args:
-        idat_handler (IdatHandler): Handler for IDAT file paths and metadata.
-        cpgs (list): List of CpGs to include in the output matrix.
-        prep (str): Prepreparation method for the MethylData.
-        betas_dir (Path): Path the directory to save/load the betas.
-        pbar (ProgressBar): Progress bar for tracking progress.
-        ids (list, optional): A list of IDs to retrieve. If not provided
-            (default), all IDs will be retrieved.
+        idat_handler: Handler for IDAT file paths and metadata.
+
+        cpgs: List of CpGs to include in the output matrix.
+
+        prep: Prepreparation method for the MethylData.
+
+        betas_dir: Path the directory to save/load the betas.
+
+        pbar: Progress bar for tracking progress.
+
+        ids: A list of IDs to retrieve. If not provided, all IDs will be
+            retrieved.
 
     Returns:
-        pd.DataFrame: DataFrame containing the beta values for the specified
+        DataFrame containing the beta values for the specified
             CpGs.
     """
     betas_handler = ensure_betas_exist(
@@ -1024,7 +1040,7 @@ def get_columnwise_variance(
     """Computes column-wise variance of beta values for specified CpGs.
 
     Returns:
-        numpy.ndarray: Variance per CpG.
+        Variance per CpG.
     """
     betas_handler = ensure_betas_exist(
         idat_handler=idat_handler,
@@ -1194,13 +1210,13 @@ def make_single_mlh1_report_page(probes: pd.Series) -> str:
     """Generate an HTML report for MLH1 promoter methylation of a sample.
 
     Args:
-        probes (pd.Series): A pandas Series (row) containing CpG probe beta
-            values. The Series index should be probe names, and its `.name`
-            should be the sample ID.
+        probes: A pandas Series (row) containing CpG probe beta values. The
+            Series index should be probe names, and its `.name` should be the
+            sample ID.
 
     Returns:
-        str: HTML string representing the methylation report with embedded
-            Plotly plot.
+        HTML string representing the methylation report with embedded Plotly
+            plot.
     """
     id_ = probes.name
     mean = probes.mean().round(2)

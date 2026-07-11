@@ -33,11 +33,10 @@ def np_hash(array: Sequence) -> bytes | tuple:
     """Generates a hashable key for a NumPy array or pandas ExtensionArray.
 
     Args:
-        array (numpy.ndarray, Any): The input array for which to generate the
-            hashable key.
+        array: The input array for which to generate the hashable key.
 
     Returns:
-        tuple: A hashable key representing the array.
+        A hashable key representing the array.
 
     Note:
         If 'array' is an object, collisions are possible.
@@ -96,8 +95,8 @@ def cache_key(*args: Any) -> Any | tuple[Any, ...]:
 
     Args:
         arg: The input arguments, which can be of various types such as
-            ArrayType, Manifest, Path, bool, int, NoneType, str,
-            RangeIndex, Index, or ndarray.
+            ArrayType, Manifest, Path, bool, int, NoneType, str, RangeIndex,
+            Index, or ndarray.
 
     Returns:
         The cache key for the arguments.
@@ -123,13 +122,14 @@ def get_id_tuple(
 
     Args:
         f: The function reference.
+
         args: A list of positional arguments passed to the function.
+
         kwargs: A dictionary of keyword arguments passed to the function. The
             keyword argument 'verbose' is excluded from the identifier.
 
     Returns:
-        tuple: A tuple representing the unique identifier for the function
-            call.
+        A tuple representing the unique identifier for the function call.
 
     Warning:
         If arg is a numpy array of object type (used in IlmnID), the key may
@@ -161,11 +161,10 @@ def memoize(f: Callable) -> CachedCallable:
         returns the cached instance or result instead of creating a new one.
 
     Args:
-        f (class | function): The class or function to be decorated with
-        memoization.
+        f: The class or function to be decorated with memoization.
 
     Returns:
-        Memoize: A memoized version of the input class or function.
+        A memoized version of the input class or function.
 
     Note:
         Adapted from:
