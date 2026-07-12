@@ -11,6 +11,7 @@ import pickle
 import threading
 import zipfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -519,6 +520,16 @@ def _linear_regression(
     return y_pred, _coef
 
 
+@dataclass(slots=True)
+class CNVIndices:
+    """Class for caching multiple indices."""
+
+    sample: np.ndarray
+    reference: np.ndarray
+    bins: np.ndarray
+    detail: np.ndarray
+
+
 class CNV:
     """Class for Copy Number Variation (CNV) analysis.
 
@@ -593,7 +604,7 @@ class CNV:
     segments: pd.DataFrame | None
 
     _ratio: np.ndarray
-    _idx_cached: dict | None
+    _ci_cached: CNVIndices | None
 
     def __init__(
         self,
@@ -635,7 +646,7 @@ class CNV:
         self.probes = self.annotation._adjusted_manifest.IlmnID
         self.detail = None
         self.segments = None
-        self._idx_cached = None
+        self._ci_cached = None
 
         self.fit()
 
@@ -699,29 +710,29 @@ class CNV:
         probes_ids: np.ndarray,
         bins_ids: np.ndarray,
         detail_ids: np.ndarray,
-    ) -> dict[str, np.ndarray]:
+    ) -> CNVIndices:
         """Cached indices for CNV pipeline steps."""
         sample_idx = pd.Index(sample_ids)
         reference_idx = pd.Index(reference_ids)
         probes_idx = pd.Index(probes_ids)
-        return {
-            "fit_sample": sample_idx.get_indexer(probes_ids),
-            "fit_reference": reference_idx.get_indexer(probes_ids),
-            "bins": probes_idx.get_indexer(bins_ids),
-            "detail": probes_idx.get_indexer(detail_ids),
-        }
+        return CNVIndices(
+            sample=sample_idx.get_indexer(probes_ids),
+            reference=reference_idx.get_indexer(probes_ids),
+            bins=probes_idx.get_indexer(bins_ids),
+            detail=probes_idx.get_indexer(detail_ids),
+        )
 
     @property
-    def _idx(self) -> dict[str, np.ndarray]:
-        if self._idx_cached is None:
-            self._idx_cached = CNV._cached_indices(
+    def _ci(self) -> CNVIndices:
+        if self._ci_cached is None:
+            self._ci_cached = CNV._cached_indices(
                 sample_ids=self.sample.probe_ids,
                 reference_ids=self.reference.probe_ids,
                 probes_ids=self.probes.values,
                 bins_ids=self.annotation._cpg_bins.IlmnID.values,
                 detail_ids=self.annotation._cpg_detail.IlmnID.values,
             )
-        return self._idx_cached
+        return self._ci_cached
 
     def fit(self) -> None:
         """Fits linear regression model to calculate CNV at every CpG site.
@@ -731,10 +742,8 @@ class CNV:
         """
         logger.info("%s Performing fit...", self.sample_id)
 
-        y = np.log2(self.sample.intensity)[:, self._idx["fit_sample"]].ravel()
-        X = self.reference._log_intensity_design_matrix[
-            self._idx["fit_reference"]
-        ]
+        y = np.log2(self.sample.intensity)[:, self._ci.sample].ravel()
+        X = self.reference._log_intensity_design_matrix[self._ci.reference]
         correlation = np.corrcoef(y, X[:, :-1].T)[0, 1:]
         if any(correlation >= 0.99):
             logger.info(
@@ -759,7 +768,7 @@ class CNV:
         """
         logger.info("%s Setting bins...", self.sample_id)
         cpg_bins = self.annotation._cpg_bins
-        cpg_bins["ratio"] = self._ratio[self._idx["bins"]]
+        cpg_bins["ratio"] = self._ratio[self._ci.bins]
         result = cpg_bins.groupby("bins_index", dropna=False)["ratio"].agg(
             ["median", "var"]
         )
@@ -780,7 +789,7 @@ class CNV:
         """
         logger.info("%s Setting detail...", self.sample_id)
         cpg_detail = self.annotation._cpg_detail
-        cpg_detail["ratio"] = self._ratio[self._idx["detail"]]
+        cpg_detail["ratio"] = self._ratio[self._ci.detail]
         result = cpg_detail.groupby("Name", dropna=False)["ratio"].agg(
             ["median", "var", "count"]
         )

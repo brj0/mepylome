@@ -125,7 +125,7 @@ def fitted_cnv(
     obj.probes = annotation_mock._adjusted_manifest.IlmnID
     obj.detail = None
     obj.segments = None
-    obj._idx_cached = None
+    obj._ci_cached = None
     obj.fit()
     return obj
 
