@@ -1714,6 +1714,7 @@ class ReferenceMethylData:
     """
 
     _cache: dict[Any, "ReferenceMethylData"] = {}
+    # Prevents a non-finished instance from being loaded.
     _lock_new = threading.Lock()
     _lock_init = threading.Lock()
 
