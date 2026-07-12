@@ -394,6 +394,7 @@ def _get_sex_indices(
 @dataclass(slots=True)
 class MethylIndices:
     """Class for caching multiple indices."""
+
     # Probes IDs and probe index relative to position in manifest dataframe
     probe_idx: np.ndarray
     probe_ids: np.ndarray
@@ -657,7 +658,7 @@ class MethylData:
 
     def _illumina_bg_correction(self, ci: MethylIndices) -> None:
         """Performs background normalization using negative control probes."""
-        if len(ci.bead_neg) <= 30: # type: ignore[arg-type]
+        if len(ci.bead_neg) <= 30:  # type: ignore[arg-type]
             return
 
         grn_bg = np.partition(self.green[:, ci.bead_neg], 30)[:, 30]
@@ -671,93 +672,12 @@ class MethylData:
         np.subtract(self.red, red_bg[:, np.newaxis], out=self.red)
         np.maximum(self.red, 0, out=self.red)
 
-    def _preprocess_raw_uncached(self) -> None:
-        """Calculates methylated/unmethylated arrays without preprocessing.
-
-        Converts the Red/Green channel for an Illumina methylation array
-        into methylation signal, without using any normalization.
-
-        Note:
-            Uncached, slower version of ``preprocess_raw``.
-        """
-        type_1 = self.manifest.probe_info(ProbeType.ONE)
-        type_2 = self.manifest.probe_info(ProbeType.TWO)
-        type_1_red = type_1[type_1.Color_Channel.values == Channel.RED.value]
-        type_1_grn = type_1[type_1.Color_Channel.values == Channel.GRN.value]
-        man_idx_np = np.sort(
-            np.concatenate(
-                [
-                    type_1.IlmnID.index,
-                    type_2.IlmnID.index,
-                ]
-            )
-        )
-        self._preprocess_raw_methylated(
-            man_idx_np, type_1_grn, type_1_red, type_2
-        )
-        self._preprocess_raw_unmethylated(
-            man_idx_np, type_1_grn, type_1_red, type_2
-        )
-
-    def _preprocess_raw_methylated(
-        self,
-        man_idx_np: np.ndarray,
-        t1_grn: pd.DataFrame,
-        t1_red: pd.DataFrame,
-        t2: pd.DataFrame,
-    ) -> None:
-        """Calculates methylated data frame without preprocessing."""
-        red_df = self.red_df
-        green_df = self.green_df
-        result = pd.DataFrame(
-            np.nan,
-            index=man_idx_np,
-            columns=red_df.columns,
-        )
-        result.loc[t1_red.index] = red_df.loc[
-            t1_red["AddressB_ID"].values
-        ].values
-        result.loc[t1_grn.index] = green_df.loc[
-            t1_grn["AddressB_ID"].values
-        ].values
-        result.loc[t2.index] = green_df.loc[t2["AddressA_ID"].values].values
-        result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
-        self.probe_ids = result.index.to_numpy()
-        self.methylated = result.to_numpy().T
-
-    def _preprocess_raw_unmethylated(
-        self,
-        man_idx_np: np.ndarray,
-        t1_grn: pd.DataFrame,
-        t1_red: pd.DataFrame,
-        t2: pd.DataFrame,
-    ) -> None:
-        """Calculates unmethylated data frame without preprocessing."""
-        red_df = self.red_df
-        green_df = self.green_df
-        result = pd.DataFrame(
-            np.nan,
-            index=man_idx_np,
-            columns=red_df.columns,
-            dtype="float32",
-        )
-        result.loc[t1_red.index] = red_df.loc[
-            t1_red["AddressA_ID"].values
-        ].values
-        result.loc[t1_grn.index] = green_df.loc[
-            t1_grn["AddressA_ID"].values
-        ].values
-        result.loc[t2.index] = red_df.loc[t2["AddressA_ID"].values].values
-        result["IlmnID"] = self.manifest.data_frame.IlmnID.values[man_idx_np]
-        result = result.set_index("IlmnID")
-        self.unmethylated = result.to_numpy().T
-
     @memoize
     def _cached_indices(
         manifest: Manifest,
         bead_addresses: np.ndarray,
         prep: PrepType = "illumina",
-        ) -> MethylIndices:
+    ) -> MethylIndices:
         """Cache the indices required for data processing.
 
         Args:
