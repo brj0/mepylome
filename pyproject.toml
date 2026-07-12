@@ -36,6 +36,7 @@ dependencies = [
     "plotly",
     "psutil",
     "pyranges1",
+    "ruptures",
     "scikit-learn",
     "tqdm",
     "toml",
@@ -46,9 +47,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-seg = [
-  "ruptures",                 # segmentation algorithm
-]
 dev = [
   "build",                    # PEP 517 build frontend (python -m build)
   "ipython",                  # interactive REPL
@@ -62,7 +60,6 @@ dev = [
   "pytest",                   # test code
   "pytest-cov",               # Coverate rate of tests via pytest --cov=mepylome
   "ruff",                     # fast linter
-  "ruptures",                 # segmentation algorithm
   "sphinx",                   # docs generator
   "sphinx-rtd-theme",         # ReadTheDocs theme for HTML docs
   "sphinx-autodoc-typehints", # for docs

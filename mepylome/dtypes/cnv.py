@@ -80,8 +80,7 @@ def _get_segmentation_fn() -> Callable[[list[float]], list[list[int]]] | None:
     except Exception:
         logger.warning(
             "**Warning**: Segmentation won't be calculated due to missing "
-            "'linear_segment', 'cbseg' or 'ruptures' package. See "
-            "documentation"
+            "segmentation altorithm ('ruptures', 'linear_segment' or 'cbseg')."
         )
         return None
 

@@ -44,14 +44,13 @@
 #
 # To run the tutorial, install the following Python packages:
 # - `mepylome` - the main toolkit for DNA-methylation analysis.
-# - `ruptures` - used for segmentation calculations in CNV plots.
 #
 #
 # Install these packages (may take 1 to 2 minutes) using the command below:
 
 # %% language="bash"
 #
-# pip install -q mepylome ruptures
+# pip install -q mepylome
 
 
 # %% [markdown]

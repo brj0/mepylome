@@ -51,7 +51,7 @@ version = "0.0.0"
 reference_dir = "~/mepylome/data/cnv_references"
 cpgs = []
 
-# Adds horozontal segmentation line. Must install `pip install ruptures`
+# Adds horozontal segmentation line.
 do_seg = true
 
 

@@ -44,7 +44,7 @@ diagnostic_config:
     methyl_analysis:
       reference_dir: "~/mepylome/data/cnv_references"
       cpgs: []
-      do_seg: true  # Adds horizontal segmentation line (requires ruptures)
+      do_seg: true  # Adds horizontal segmentation line
 
   # ===========================
   # MLH1 methylation configurations

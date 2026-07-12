@@ -1472,6 +1472,7 @@ dependencies = [
     { name = "plotly" },
     { name = "psutil" },
     { name = "pyranges1" },
+    { name = "ruptures" },
     { name = "scikit-learn" },
     { name = "toml" },
     { name = "tqdm" },
@@ -1494,16 +1495,12 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
-    { name = "ruptures" },
     { name = "sphinx" },
     { name = "sphinx-autodoc-typehints" },
     { name = "sphinx-rtd-theme" },
     { name = "tuna" },
     { name = "twine" },
     { name = "ty" },
-]
-seg = [
-    { name = "ruptures" },
 ]
 
 [package.metadata]
@@ -1530,8 +1527,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "ruptures", marker = "extra == 'dev'" },
-    { name = "ruptures", marker = "extra == 'seg'" },
+    { name = "ruptures" },
     { name = "scikit-learn" },
     { name = "sphinx", marker = "extra == 'dev'" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'dev'" },
@@ -1545,7 +1541,7 @@ requires-dist = [
     { name = "xlrd" },
     { name = "xxhash" },
 ]
-provides-extras = ["seg", "dev"]
+provides-extras = ["dev"]
 
 [[package]]
 name = "mistune"
