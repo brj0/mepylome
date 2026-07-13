@@ -189,30 +189,39 @@ def test_predict_purity_epic_dummy_profiles() -> None:
         columns=cpgs,
     )
 
-    scores = predict_purity(betas)
-
-    expected = pd.Series(
-        [
+    expected = {
+        "absolute": [
             0.711382,
             0.650700,
             0.526507,
             0.629469,
             0.734478,
         ],
-        index=[
-            "zero",
-            "low",
-            "middle",
-            "high",
-            "full",
+        "estimate": [
+            0.909285,
+            0.825635,
+            0.701035,
+            0.761754,
+            0.805248,
         ],
-        name="purity_absolute",
-    )
+    }
 
-    pd.testing.assert_series_equal(
-        scores,
-        expected,
-        check_exact=False,
-        atol=1e-6,
-        rtol=1e-6,
-    )
+    for method, values in expected.items():
+        scores = predict_purity(
+            betas,
+            method=method, # type: ignore[arg-type]
+        )
+
+        expected_scores = pd.Series(
+            values,
+            index=betas.index,
+            name=f"purity_{method}",
+        )
+
+        pd.testing.assert_series_equal(
+            scores,
+            expected_scores,
+            check_exact=False,
+            atol=1e-6,
+            rtol=1e-6,
+        )
