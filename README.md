@@ -28,8 +28,7 @@ substantial speed improvements over existing methylation analysis pipelines.**
 - 📊 CNV analysis with interactive Plotly visualizations
 - 🧹 Clean API for large-scale cohort processing
 - 🖥️ Optional GUI for UMAP + CNV exploration
-- 🎯 Data inference: tumor purity estimation (RFpurify), MLH1 promoter
-  methylation reports
+- 🎯 Data inference: tumor purity estimation, MLH1 promoter methylation reports
 - 🧪 Built-in QC including **pOOBAH detection and quality metrics**
 
 
@@ -68,9 +67,7 @@ substantial speed improvements over existing methylation analysis pipelines.**
 Derived, higher-level results computed from methylation data, beyond raw
 signals and CNV:
 
-- Tumor purity estimation from methylation beta values using
-  [RFpurify](https://github.com/mwsill/RFpurify) random
-  forest models
+- Tumor purity estimation from methylation beta values
 - MLH1 promoter methylation report pages (e.g. for Lynch syndrome /
   mismatch-repair-deficiency workups)
 - Interactive visualization of methylation across a gene or an arbitrary

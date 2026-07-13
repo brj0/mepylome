@@ -30,8 +30,7 @@ Mepylome is open source, and hosted at github: https://github.com/brj0/mepylome
 - 📊 CNV analysis with interactive Plotly visualizations
 - 🧹 Clean API for large-scale cohort processing
 - 🖥️ Optional GUI for UMAP + CNV exploration
-- 🎯 Data inference: tumor purity estimation (RFpurify), MLH1 promoter
-  methylation reports
+- 🎯 Data inference: tumor purity estimation, MLH1 promoter methylation reports
 - 🧪 Built-in QC including **pOOBAH detection and quality metrics**
 
 
@@ -59,8 +58,7 @@ Features
   - `sesame <https://github.com/zwdzwd/sesame>`_
 - pOOBAH-based probe filtering
 - Sample- and probe-level quality metrics
-- Tumor purity estimation from methylation beta values using
-  `RFpurify <https://github.com/mwsill/RFpurify>`_ random forest models
+- Tumor purity estimation from methylation beta values
 - MLH1 promoter methylation report pages
 - Interactive visualization of methylation across a gene or an arbitrary
   genomic region
