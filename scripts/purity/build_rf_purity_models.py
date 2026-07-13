@@ -7,16 +7,19 @@ Usage:
     python build_rfpurify_models.py \
         --absolute rfpurify_ABSOLUTE.json \
         --estimate rfpurify_ESTIMATE.json \
-        --output   rfpurify_models.pkl.gz
+        --output   rfpurify_models.npz
 """
 
 import argparse
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from sklearn.tree._tree import NODE_DTYPE, TREE_LEAF, TREE_UNDEFINED
+from sklearn.tree._tree import TREE_LEAF, TREE_UNDEFINED
+
+from mepylome.dtypes.purity import _trees_to_rf
 
 # ---------------------------------------------------------------------------
 # Tree helpers
@@ -24,7 +27,15 @@ from sklearn.tree._tree import NODE_DTYPE, TREE_LEAF, TREE_UNDEFINED
 
 
 def _compute_max_depth(left: np.ndarray, right: np.ndarray) -> int:
-    """BFS over node children to find the maximum depth."""
+    """BFS over node children to find the maximum depth.
+
+    Args:
+        left: Left child indices for each node.
+        right: Right child indices for each node.
+
+    Returns:
+        Maximum depth of the tree.
+    """
     depth = 0
     stack = [(0, 0)]
     while stack:
@@ -36,27 +47,6 @@ def _compute_max_depth(left: np.ndarray, right: np.ndarray) -> int:
     return depth
 
 
-def _build_node_array(
-    left: np.ndarray,
-    right: np.ndarray,
-    feature: np.ndarray,
-    threshold: np.ndarray,
-    n_nodes: int,
-) -> np.ndarray:
-    nodes = np.zeros(n_nodes, dtype=NODE_DTYPE)
-    nodes["left_child"] = left
-    nodes["right_child"] = right
-    nodes["feature"] = feature
-    nodes["threshold"] = threshold
-    nodes["impurity"] = 0.0
-    nodes["n_node_samples"] = 1
-    nodes["weighted_n_node_samples"] = 1.0
-    # missing_go_to_left added in newer sklearn; default 0 (False) is fine
-    if "missing_go_to_left" in NODE_DTYPE.names:
-        nodes["missing_go_to_left"] = 0
-    return nodes
-
-
 # ---------------------------------------------------------------------------
 # Core conversion
 # ---------------------------------------------------------------------------
@@ -66,7 +56,21 @@ def _r_tree_to_params(
     r_tree: dict,
     n_features: int,
 ) -> dict[str, Any]:
-    """Convert a single R getTree() dict to raw numpy arrays."""
+    """Convert a single R getTree() dict to primitive numpy arrays.
+
+    NODE_DTYPE structured arrays are intentionally NOT stored here; they are
+    reconstructed at load time (in purity.py) against the currently installed
+    sklearn so the bundle stays version-independent.
+
+    Args:
+        r_tree: Single tree dict as exported by R's getTree().
+        n_features: Number of input features in the forest.
+
+    Returns:
+        Dict with keys ``left``, ``right``, ``feature``, ``threshold``,
+        ``values``, ``max_depth``, ``node_count``, ``n_features`` — all plain
+        int64 / float64 numpy arrays or Python ints.
+    """
     left = np.array(r_tree["left"], dtype=np.intp)
     right = np.array(r_tree["right"], dtype=np.intp)
     feature = np.array(r_tree["feature"], dtype=np.intp)
@@ -87,25 +91,33 @@ def _r_tree_to_params(
     feature[is_leaf] = TREE_UNDEFINED  # -2
     threshold[is_leaf] = TREE_UNDEFINED  # -2
 
-    # --- assemble sklearn Tree -----------------------------------------------
-    nodes = _build_node_array(left, right, feature, threshold, n_nodes)
     values = value.reshape(
         n_nodes, 1, 1
     )  # (n_nodes, n_outputs, max_n_classes)
-
     max_depth = _compute_max_depth(left, right)
 
     return {
-        "nodes": nodes,
+        "left": left,
+        "right": right,
+        "feature": feature,
+        "threshold": threshold,
         "values": values,
-        "max_depth": max_depth,
-        "node_count": n_nodes,
-        "n_features": n_features,
+        "max_depth": int(max_depth),
+        "node_count": int(n_nodes),
+        "n_features": int(n_features),
     }
 
 
 def json_to_params(json_path: Path) -> dict[str, Any]:
-    """Return raw parameters + feature list (no sklearn objects)."""
+    """Load an RFpurify JSON export and return primitive tree params.
+
+    Args:
+        json_path: Path to the JSON file exported by R's getTree().
+
+    Returns:
+        Dict with keys ``trees`` (list of param dicts) and ``features``
+        (list of CpG probe IDs).
+    """
     json_path = Path(json_path)
     with json_path.open() as f:
         data = json.load(f)
@@ -122,12 +134,41 @@ def json_to_params(json_path: Path) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Sanity-check: run one prediction to catch shape / dtype issues early
+# ---------------------------------------------------------------------------
+
+
+def _smoke_test(
+    trees_params: list[dict[str, Any]], features: list[str]
+) -> None:
+    """Build a temporary RF and verify predictions are in [0, 1].
+
+    Args:
+        trees_params: List of primitive param dicts as returned by
+            ``_r_tree_to_params``.
+        features: CpG probe IDs the model was trained on.
+    """
+    rf = _trees_to_rf(trees_params, features)["model"]
+
+    rng = np.random.default_rng(42)
+    X = rng.uniform(0, 1, size=(3, len(features))).astype(np.float32)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message="X does not have valid feature names"
+        )
+        out = rf.predict(X)
+    assert out.shape == (3,), f"Unexpected output shape {out.shape}"
+    assert np.all((out >= 0) & (out <= 1)), f"Predictions out of [0,1]: {out}"
+    print(f"    smoke-test predictions: {out.round(4)}")
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    """Convert random forest exported from R to json into raw numpy arrays."""
+    """Convert R JSON tree exports into a version-independent .npz bundle."""
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -150,8 +191,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    print("Building ABSOLUTE model ...")
     abs_data = json_to_params(args.absolute)
+    _smoke_test(abs_data["trees"], abs_data["features"])
+
+    print("Building ESTIMATE model ...")
     est_data = json_to_params(args.estimate)
+    _smoke_test(est_data["trees"], est_data["features"])
 
     print(f"Saving to {args.output} ...")
     np.savez_compressed(
