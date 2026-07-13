@@ -1,10 +1,34 @@
 """Tests for normexp_signal."""
 
+from importlib.metadata import PackageNotFoundError
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 from scipy.stats import norm
 
-from mepylome.utils.varia import huber, normexp_get_xs, normexp_signal
+from mepylome.utils.varia import (
+    get_app_version,
+    huber,
+    normexp_get_xs,
+    normexp_signal,
+)
+
+
+def test_get_app_version_returns_string() -> None:
+    assert isinstance(get_app_version(), str)
+
+
+def test_get_app_version_returns_unknown_on_missing_package() -> None:
+    with patch(
+        "mepylome.utils.varia.version", side_effect=PackageNotFoundError
+    ):
+        assert get_app_version() == "unknown"
+
+
+def test_get_app_version_returns_mocked_version() -> None:
+    with patch("mepylome.utils.varia.version", return_value="1.2.3"):
+        assert get_app_version() == "1.2.3"
 
 
 @pytest.mark.parametrize(

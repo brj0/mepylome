@@ -23,9 +23,8 @@ import mepylome
 from mepylome import Manifest
 from mepylome.analysis import MethylAnalysis
 from mepylome.analysis.classifiers import make_classifier_report_page
-from mepylome.cli import get_app_version
 from mepylome.dtypes.manifests import DOWNLOAD_DIR
-from mepylome.utils.varia import CONFIG
+from mepylome.utils.varia import CONFIG, get_app_version
 
 IMG_HEIGHT = 2000
 FONTSIZE = 23

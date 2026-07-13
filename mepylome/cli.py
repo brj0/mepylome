@@ -13,16 +13,9 @@ Usage:
 import argparse
 import re
 import textwrap
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-
-def get_app_version() -> str:
-    """Retrieve the app version from the package metadata."""
-    try:
-        return version("mepylome")
-    except PackageNotFoundError:
-        return "unknown"
+from mepylome.utils.varia import get_app_version
 
 
 def print_welcome_message() -> None:

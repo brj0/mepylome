@@ -29,6 +29,14 @@ mepylome.dtypes.cnv
 .. automodule:: mepylome.dtypes.cnv
    :members:
 
+
+mepylome.dtypes.purity
+-----------------------
+ 
+.. automodule:: mepylome.dtypes.purity
+   :members:
+
+
 mepylome.analysis.core
 ----------------------
 

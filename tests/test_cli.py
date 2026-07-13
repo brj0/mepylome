@@ -1,7 +1,6 @@
 """Pytest tests for mepylome/cli.py."""
 
 import argparse
-from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,30 +9,10 @@ import pytest
 from mepylome.cli import (
     SmartFormatter,
     absolute_path,
-    get_app_version,
     parse_args,
     print_welcome_message,
     start_mepylome,
 )
-
-# ---------------------------------------------------------------------------
-# get_app_version
-# ---------------------------------------------------------------------------
-
-
-def test_get_app_version_returns_string() -> None:
-    assert isinstance(get_app_version(), str)
-
-
-def test_get_app_version_returns_unknown_on_missing_package() -> None:
-    with patch("mepylome.cli.version", side_effect=PackageNotFoundError):
-        assert get_app_version() == "unknown"
-
-
-def test_get_app_version_returns_mocked_version() -> None:
-    with patch("mepylome.cli.version", return_value="1.2.3"):
-        assert get_app_version() == "1.2.3"
-
 
 # ---------------------------------------------------------------------------
 # print_welcome_message
