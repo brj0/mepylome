@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 import mepylome.dtypes.purity as purity_module
+from mepylome.dtypes.beads import Manifest
 from mepylome.dtypes.purity import predict_purity
 
 
@@ -162,3 +163,56 @@ def test_invalid_method_raises(
             betas,
             method="ABSOLUTE",  # type: ignore[arg-type]
         )
+
+
+def test_predict_purity_epic_dummy_profiles() -> None:
+    """Predict purity for synthetic EPIC beta profiles."""
+    cpgs = Manifest("epic").data_frame.IlmnID
+
+    betas = pd.DataFrame(
+        np.vstack(
+            [
+                np.full(len(cpgs), 0.0),
+                np.full(len(cpgs), 0.25),
+                np.full(len(cpgs), 0.5),
+                np.full(len(cpgs), 0.75),
+                np.full(len(cpgs), 1.0),
+            ]
+        ),
+        index=[
+            "zero",
+            "low",
+            "middle",
+            "high",
+            "full",
+        ],
+        columns=cpgs,
+    )
+
+    scores = predict_purity(betas)
+
+    expected = pd.Series(
+        [
+            0.711382,
+            0.650700,
+            0.526507,
+            0.629469,
+            0.734478,
+        ],
+        index=[
+            "zero",
+            "low",
+            "middle",
+            "high",
+            "full",
+        ],
+        name="purity_absolute",
+    )
+
+    pd.testing.assert_series_equal(
+        scores,
+        expected,
+        check_exact=False,
+        atol=1e-6,
+        rtol=1e-6,
+    )

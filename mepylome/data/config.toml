@@ -1,6 +1,6 @@
 [urls]
 processed_manifests = "https://raw.githubusercontent.com/brj0/mepylome-data/main/%s/"
-purity = "https://raw.githubusercontent.com/brj0/mepylome-data/main/purity/rfpurify_models.pkl.gz"
+purity = "https://raw.githubusercontent.com/brj0/mepylome-data/main/purity/rfpurify_models.npz"
 
 [urls.manifest]
 27k = "https://webdata.illumina.com/downloads/ProductFiles/HumanMethylation27/humanmethylation27_270596_v1-2.bpm"

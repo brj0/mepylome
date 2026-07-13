@@ -12,14 +12,11 @@ Usage:
 
 import argparse
 import json
-import warnings
 from pathlib import Path
+from typing import Any
 
-import joblib
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.tree._tree import NODE_DTYPE, TREE_LEAF, TREE_UNDEFINED, Tree
+from sklearn.tree._tree import NODE_DTYPE, TREE_LEAF, TREE_UNDEFINED
 
 # ---------------------------------------------------------------------------
 # Tree helpers
@@ -65,17 +62,18 @@ def _build_node_array(
 # ---------------------------------------------------------------------------
 
 
-def _r_tree_to_sklearn_dt(
-    r_tree: dict, n_features: int
-) -> DecisionTreeRegressor:
-    """Convert a single R getTree() dict to a fitted sklearn object."""
-    # --- raw arrays from JSON ------------------------------------------------
+def _r_tree_to_params(
+    r_tree: dict,
+    n_features: int,
+) -> dict[str, Any]:
+    """Convert a single R getTree() dict to raw numpy arrays."""
     left = np.array(r_tree["left"], dtype=np.intp)
     right = np.array(r_tree["right"], dtype=np.intp)
     feature = np.array(r_tree["feature"], dtype=np.intp)
     threshold = np.array(r_tree["threshold"], dtype=np.float64)
     is_leaf = np.array(r_tree["is_leaf"], dtype=bool)
     value = np.array(r_tree["value"], dtype=np.float64)
+
     n_nodes = len(left)
 
     # --- convert R 1-based indices -> 0-based, apply sklearn sentinels -------
@@ -95,69 +93,32 @@ def _r_tree_to_sklearn_dt(
         n_nodes, 1, 1
     )  # (n_nodes, n_outputs, max_n_classes)
 
-    tree = Tree(n_features, np.array([1], dtype=np.intp), 1)
-    tree.__setstate__(
-        {
-            "max_depth": _compute_max_depth(left, right),
-            "node_count": n_nodes,
-            "nodes": nodes,
-            "values": values,
-        }
-    )
+    max_depth = _compute_max_depth(left, right)
 
-    # --- wrap in a DecisionTreeRegressor skeleton ----------------------------
-    dt = DecisionTreeRegressor()
-    # Attributes checked by check_is_fitted / _validate_X_predict
-    dt.n_features_in_ = n_features
-    dt.n_outputs_ = 1
-    dt.max_features_ = n_features  # not used at predict time, satisfies checks
-    dt.tree_ = tree
-    return dt
+    return {
+        "nodes": nodes,
+        "values": values,
+        "max_depth": max_depth,
+        "node_count": n_nodes,
+        "n_features": n_features,
+    }
 
 
-def json_to_sklearn_rf(
-    json_path: str | Path,
-) -> tuple[RandomForestRegressor, list[str]]:
-    """Load an RFpurify JSON export and return (sklearn RF, feature list)."""
+def json_to_params(json_path: Path) -> dict[str, Any]:
+    """Return raw parameters + feature list (no sklearn objects)."""
     json_path = Path(json_path)
-    print(f"  Loading {json_path} ...", end=" ", flush=True)
-
-    with open(json_path) as f:
+    with json_path.open() as f:
         data = json.load(f)
 
     features = data["features"]
     n_features = len(features)
-    r_trees = data["trees"]
-    n_trees = len(r_trees)
-    print(f"{n_trees} trees, {n_features} features")
 
-    estimators = [_r_tree_to_sklearn_dt(t, n_features) for t in r_trees]
+    print(
+        f"{json_path.name}: {len(data['trees'])} trees, {n_features} features"
+    )
 
-    rf = RandomForestRegressor(n_estimators=n_trees)
-    rf.estimators_ = estimators
-    rf.n_features_in_ = n_features
-    rf.n_outputs_ = 1
-    rf.feature_names_in_ = np.array(features)
-    return rf, features
-
-
-# ---------------------------------------------------------------------------
-# Sanity-check: run one prediction to catch shape / dtype issues early
-# ---------------------------------------------------------------------------
-
-
-def _smoke_test(rf: RandomForestRegressor, n_features: int) -> None:
-    rng = np.random.default_rng(42)
-    X = rng.uniform(0, 1, size=(3, n_features)).astype(np.float32)
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message="X does not have valid feature names",
-        )
-        out = rf.predict(X)
-    assert out.shape == (3,), f"Unexpected output shape {out.shape}"
-    assert np.all((out >= 0) & (out <= 1)), f"Predictions out of [0,1]: {out}"
-    print(f"    smoke-test predictions: {out.round(4)}")
+    trees = [_r_tree_to_params(t, n_features) for t in data["trees"]]
+    return {"trees": trees, "features": features}
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +127,7 @@ def _smoke_test(rf: RandomForestRegressor, n_features: int) -> None:
 
 
 def main() -> None:
-    """Convert random forest exported from R to json into sklean object."""
+    """Convert random forest exported from R to json into raw numpy arrays."""
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -183,41 +144,26 @@ def main() -> None:
     )
     parser.add_argument(
         "--output",
-        default="rfpurify_models.pkl.gz",
-        help="Output bundle path (default: rfpurify_models.pkl.gz)",
-    )
-    parser.add_argument(
-        "--compress",
-        type=int,
-        default=3,
-        help="gzip compression level 1-9 (default: 3)",
+        default="rfpurify_models.npz",
+        type=Path,
+        help="Output bundle path (default: rfpurify_models.npz)",
     )
     args = parser.parse_args()
 
-    print("Building ABSOLUTE model ...")
-    rf_abs, feat_abs = json_to_sklearn_rf(args.absolute)
-    _smoke_test(rf_abs, len(feat_abs))
+    abs_data = json_to_params(args.absolute)
+    est_data = json_to_params(args.estimate)
 
-    print("Building ESTIMATE model ...")
-    rf_est, feat_est = json_to_sklearn_rf(args.estimate)
-    _smoke_test(rf_est, len(feat_est))
+    print(f"Saving to {args.output} ...")
+    np.savez_compressed(
+        args.output,
+        absolute_trees=abs_data["trees"],
+        estimate_trees=est_data["trees"],
+        absolute_features=abs_data["features"],
+        estimate_features=est_data["features"],
+    )
 
-    bundle = {
-        "absolute": {
-            "model": rf_abs,
-            "features": feat_abs,
-        },
-        "estimate": {
-            "model": rf_est,
-            "features": feat_est,
-        },
-    }
-
-    out = Path(args.output)
-    print(f"Saving to {out} (gzip level {args.compress}) ...")
-    joblib.dump(bundle, out, compress=("gzip", args.compress))
-    size_mb = out.stat().st_size / 1e6
-    print(f"Done — {size_mb:.1f} MB")
+    size = args.output.stat().st_size / (1024 * 1024)
+    print(f"Done — {size:.1f} MB")
 
 
 if __name__ == "__main__":

@@ -24,11 +24,13 @@ from __future__ import annotations
 import logging
 from functools import cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-import joblib
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.tree._tree import Tree
 
 from mepylome.utils.files import download_file
 from mepylome.utils.varia import CONFIG, MEPYLOME_CACHE_DIR
@@ -36,9 +38,65 @@ from mepylome.utils.varia import CONFIG, MEPYLOME_CACHE_DIR
 logger = logging.getLogger(__name__)
 
 
+def _params_to_decision_tree(params: dict[str, Any]) -> DecisionTreeRegressor:
+    """Convert raw parameters to a sklearn DecisionTreeRegressor."""
+    tree = Tree(
+        params["n_features"],
+        np.array([1], dtype=np.intp),  # n_classes
+        1,  # n_outputs
+    )
+
+    tree.__setstate__(
+        {
+            "max_depth": params["max_depth"],
+            "node_count": params["node_count"],
+            "nodes": params["nodes"],
+            "values": params["values"],
+        }
+    )
+
+    # --- wrap in a DecisionTreeRegressor skeleton ----------------------------
+    dt = DecisionTreeRegressor()
+    # Attributes checked by check_is_fitted / _validate_X_predict
+    dt.n_features_in_ = params["n_features"]
+    dt.n_outputs_ = 1
+    dt.max_features_ = params["n_features"]
+    dt.tree_ = tree
+
+    return dt
+
+
+def _load_from_npz(
+    path: Path,
+) -> dict[str, dict[str, Any]]:
+    """Internal function: load from .npz file."""
+    data = np.load(path, allow_pickle=True)
+
+    def build_model(name: str) -> dict[str, Any]:
+        trees_params: list[dict[str, Any]] = data[f"{name}_trees"].tolist()
+        features: list[str] = data[f"{name}_features"].tolist()
+
+        estimators = [_params_to_decision_tree(p) for p in trees_params]
+
+        rf = RandomForestRegressor(n_estimators=len(estimators))
+        rf.estimators_ = estimators
+        rf.n_features_in_ = len(features)
+        rf.n_outputs_ = 1
+        rf.feature_names_in_ = np.asarray(features)
+
+        return {"model": rf, "features": features}
+
+    models = {
+        "absolute": build_model("absolute"),
+        "estimate": build_model("estimate"),
+    }
+
+    return models
+
+
 @cache
-def _load_models() -> dict:
-    """Load RFpurify models from the local cache."""
+def _load_models() -> dict[str, Any]:
+    """Load RFpurify models from the local cache (version-agnostic)."""
     url = CONFIG["urls"]["purity"]
     model_path = MEPYLOME_CACHE_DIR / Path(url).name
 
@@ -46,7 +104,8 @@ def _load_models() -> dict:
         logger.info("Downloading purity model")
         download_file(url, model_path)
 
-    return joblib.load(model_path)
+    print(f"Loading RFpurify models from {model_path.name} ...")
+    return _load_from_npz(model_path)
 
 
 def get_purity_features(
