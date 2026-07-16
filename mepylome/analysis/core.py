@@ -1770,12 +1770,6 @@ class MethylAnalysis:
         Returns:
             HTML reports, one per sample.
         """
-        prev_cpg_blacklist = self.cpg_blacklist
-        prev_cpgs = self.cpgs
-        self.cpg_blacklist = set()
-        self.cpgs = list(MLH1_CPGS)
-        self.set_betas()
-        assert self.betas_all is not None
         array_types = {
             id_: str(ArrayType.from_idat(self.idat_handler.id_to_path[id_]))
             for id_ in ids
@@ -1784,15 +1778,13 @@ class MethylAnalysis:
             k: list(set(MLH1_CPGS).intersection(Manifest(k).data_frame.IlmnID))
             for k in ["450k", "epic", "epicv2", "msa48"]
         }
-        probes_df = self.betas_all.loc[ids]
+        betas_mlh1 = self._get_betas(ids=ids, cpgs=np.array(MLH1_CPGS))
         result = []
         for id_ in ids:
             array_type = array_types[id_]
             cpg_overlap = mlh1_overlap[array_type]
-            probes = probes_df.loc[id_][cpg_overlap]
-            result.append(make_single_mlh1_report_page(probes))
-        self.cpg_blacklist = prev_cpg_blacklist
-        self.cpgs = prev_cpgs
+            betas_mlh1_id_ = betas_mlh1.loc[id_][cpg_overlap]
+            result.append(make_single_mlh1_report_page(betas_mlh1_id_))
         self._update_paths()
         return result
 

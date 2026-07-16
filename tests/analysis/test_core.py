@@ -1321,16 +1321,20 @@ def test_mlh1_report_pages_generates_report_per_sample(
     monkeypatch.setattr(core, "MLH1_CPGS", ["cpg1", "cpg2"])
     analysis = make_analysis()
 
-    def fake_set_betas() -> None:
-        analysis.betas_all = pd.DataFrame(
-            {"cpg1": [0.1, 0.2], "cpg2": [0.3, 0.4]}, index=["s1", "s2"]
-        )
+    monkeypatch.setattr(
+        analysis,
+        "_get_betas",
+        lambda ids, cpgs: pd.DataFrame(
+            {"cpg1": [0.1, 0.2], "cpg2": [0.3, 0.4]},
+            index=["s1", "s2"],
+        ),
+    )
 
-    monkeypatch.setattr(analysis, "set_betas", fake_set_betas)
     analysis.idat_handler.id_to_path = {
         "s1": Path("/x/s1"),
         "s2": Path("/x/s2"),
     }
+
     monkeypatch.setattr(core.ArrayType, "from_idat", lambda path: "450k")
 
     class FakeManifestDF:
@@ -1341,6 +1345,7 @@ def test_mlh1_report_pages_generates_report_per_sample(
             self.data_frame = FakeManifestDF()
 
     monkeypatch.setattr(core, "Manifest", FakeManifest)
+
     monkeypatch.setattr(
         core,
         "make_single_mlh1_report_page",
