@@ -342,3 +342,176 @@ def test_raw_data(tmp_path: Path) -> None:
     manifest.proc_path.unlink()
     manifest.ctrl_path.unlink()
     manifest._pickle_path.unlink()
+
+
+# ----------------------------------------------------------------------------
+# Tests for CHROME chondrosarcoma risk prediction
+# ----------------------------------------------------------------------------
+
+
+def _mock_chrome_methyl_data(
+    array_type: ArrayType,
+    values: dict[str, float],
+) -> MethylData:
+    """Create minimal MethylData object for CHROME testing."""
+    obj = object.__new__(MethylData)
+
+    obj.array_type = array_type
+    obj.sample_ids = ["sample_1"]
+
+    probes = list(values.keys())
+    obj.probe_ids = np.array(probes)
+    obj.prep = "noob"
+
+    # Intensity matrices in mepylome have shape (n_samples, n_probes)
+    obj.methylated = np.array([list(values.values())])
+    obj.unmethylated = np.ones_like(obj.methylated)
+
+    return obj
+
+
+def test_predict_chondrosarcoma_risk_epic_values() -> None:
+    """Test CHROME EPIC calculation accuracy and risk categories."""
+    probe_values = {
+        "cg06031622": 1.0,
+        "cg08030922": 2.0,
+        "cg09678323": 3.0,
+        "cg23242862": 4.0,
+        "cg06597895": 5.0,
+        "cg05391318": 6.0,
+        "cg07323648": 7.0,
+        "cg00253658": 8.0,
+    }
+    methyl_data = _mock_chrome_methyl_data(
+        ArrayType.ILLUMINA_EPIC, probe_values
+    )
+
+    result = methyl_data.predict_chondrosarcoma_risk()
+
+    # Get the exact probe order and M-values used internally by prediction
+    chrome_probes = [
+        "cg06031622",
+        "cg08030922",
+        "cg09678323",
+        "cg23242862",
+        "cg06597895",
+        "cg05391318",
+        "cg07323648",
+        "cg00253658",
+    ]
+    m_df = methyl_data.mvalues_at(cpgs=chrome_probes)
+    m_vals = m_df.loc[chrome_probes, "sample_1"].to_numpy()
+
+    weights = np.array(
+        [
+            -0.03142363,
+            -0.24067993,
+            -0.01348094,
+            0.11434405,
+            -0.08337541,
+            0.04522507,
+            0.08220902,
+            0.17099035,
+        ]
+    )
+    expected_numeric = float(weights @ m_vals)
+
+    assert result.shape == (1, 3)
+    assert result.index.tolist() == ["sample_1"]
+    assert result.loc["sample_1", "numeric_risk"] == pytest.approx(
+        expected_numeric, abs=1e-5
+    )
+    assert result.loc["sample_1", "categorical_risk"] == "high"
+
+
+def test_predict_chondrosarcoma_risk_450k_values() -> None:
+    """Test CHROME 450K calculation accuracy and risk categories."""
+    probe_values = {
+        "cg25336892": 1.0,
+        "cg08030922": 2.0,
+        "cg10663897": 3.0,
+        "cg23242862": 4.0,
+        "cg06597895": 5.0,
+        "cg05391318": 6.0,
+        "cg07323648": 7.0,
+        "cg00253658": 8.0,
+    }
+    methyl_data = _mock_chrome_methyl_data(
+        ArrayType.ILLUMINA_450K, probe_values
+    )
+
+    result = methyl_data.predict_chondrosarcoma_risk()
+
+    chrome_450k_probes = [
+        "cg25336892",
+        "cg08030922",
+        "cg10663897",
+        "cg23242862",
+        "cg06597895",
+        "cg05391318",
+        "cg07323648",
+        "cg00253658",
+    ]
+    m_df = methyl_data.mvalues_at(cpgs=chrome_450k_probes)
+    m_vals = m_df.loc[chrome_450k_probes, "sample_1"].to_numpy()
+
+    weights = np.array(
+        [
+            -0.03142363,
+            -0.24067993,
+            -0.01348094,
+            0.11434405,
+            -0.08337541,
+            0.04522507,
+            0.08220902,
+            0.17099035,
+        ]
+    )
+    expected_numeric = float(weights @ m_vals)
+
+    assert result.loc["sample_1", "numeric_risk"] == pytest.approx(
+        expected_numeric, abs=1e-5
+    )
+
+
+def test_predict_chondrosarcoma_risk_low_risk_classification() -> None:
+    """Test that a score below the -0.9 cutoff triggers 'low' risk."""
+    low_risk_probes = {
+        "cg06031622": 10000.0,
+        "cg08030922": 10000.0,
+        "cg09678323": 10000.0,
+        "cg23242862": 0.01,
+        "cg06597895": 10000.0,
+        "cg05391318": 0.01,
+        "cg07323648": 0.01,
+        "cg00253658": 0.01,
+    }
+    methyl_data = _mock_chrome_methyl_data(
+        ArrayType.ILLUMINA_EPIC, low_risk_probes
+    )
+
+    result = methyl_data.predict_chondrosarcoma_risk()
+
+    chrome_probes = list(low_risk_probes.keys())
+    m_df = methyl_data.mvalues_at(cpgs=chrome_probes)
+    m_vals = m_df.loc[chrome_probes, "sample_1"].to_numpy()
+
+    weights = np.array(
+        [
+            -0.03142363,
+            -0.24067993,
+            -0.01348094,
+            0.11434405,
+            -0.08337541,
+            0.04522507,
+            0.08220902,
+            0.17099035,
+        ]
+    )
+    expected_numeric = float(weights @ m_vals)
+
+    assert expected_numeric < -0.9
+    assert result.loc["sample_1", "numeric_risk"] == pytest.approx(
+        expected_numeric, abs=1e-5
+    )
+    assert result.loc["sample_1", "categorical_risk"] == "low"

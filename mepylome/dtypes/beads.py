@@ -48,6 +48,31 @@ NEUTRAL_M_VALUE = 0.0
 
 PrepType = Literal["raw", "illumina", "swan", "noob"]
 
+CHROME_450K = {
+    "cg25336892": -0.03142363,
+    "cg08030922": -0.24067993,
+    "cg10663897": -0.01348094,
+    "cg23242862": 0.11434405,
+    "cg06597895": -0.08337541,
+    "cg05391318": 0.04522507,
+    "cg07323648": 0.08220902,
+    "cg00253658": 0.17099035,
+}
+
+
+CHROME_EPIC = {
+    "cg06031622": -0.03142363,
+    "cg08030922": -0.24067993,
+    "cg09678323": -0.01348094,
+    "cg23242862": 0.11434405,
+    "cg06597895": -0.08337541,
+    "cg05391318": 0.04522507,
+    "cg07323648": 0.08220902,
+    "cg00253658": 0.17099035,
+}
+
+CHROME_CUTOFF = -0.9
+
 
 def is_valid_idat_basepath(
     basepath: str | Path | Sequence[str | Path],
@@ -461,6 +486,7 @@ class MethylData:
     sample_ids: list[str]
     seed: int | None
     unmethylated: np.ndarray
+    prep: PrepType
 
     green: np.ndarray
     red: np.ndarray
@@ -624,6 +650,7 @@ class MethylData:
         Details:
             This implementation is adapted from 'minfi'.
         """
+        self.prep = "illumina"
         if self.array_type == ArrayType.ILLUMINA_27K:
             raise ValueError(f"{self.array_type} requires raw mode.")
 
@@ -762,6 +789,7 @@ class MethylData:
         Converts the Red/Green channel for an Illumina methylation array
         into methylation signal, without using any normalization.
         """
+        self.prep = "raw"
         ci = MethylData._cached_indices(
             self.manifest, self.bead_addresses, "raw"
         )
@@ -872,6 +900,7 @@ class MethylData:
             Within-Array Normalization for Illumina Infinium
             HumanMethylation450 BeadChips. Genome Biology 13, R44.
         """
+        self.prep = "swan"
         if self.array_type == ArrayType.ILLUMINA_27K:
             raise ValueError(f"{self.array_type} requires raw mode.")
 
@@ -953,10 +982,11 @@ class MethylData:
 
         References:
             TJ Triche, DJ Weisenberger, D Van Den Berg, PW Laird and KD
-            Siegmund _Low-level processing of Illumina Infinium DNA
+            Siegmund. Low-level processing of Illumina Infinium DNA
             Methylation BeadArrays.  Nucleic Acids Res (2013) 41, e90.
             doi:10.1093/nar/gkt090.
         """
+        self.prep = "noob"
         if self.array_type == ArrayType.ILLUMINA_27K:
             raise ValueError(f"{self.array_type} requires raw mode.")
 
@@ -1482,6 +1512,104 @@ class MethylData:
             self.betas_at(cpgs).T,
             method=method,
             fill=fill,
+        )
+
+    def predict_chondrosarcoma_risk(
+        self,
+        force_450k: bool = False,
+        allow_non_noob: bool = False,
+    ) -> pd.DataFrame:
+        """Compute CHROME chondrosarcoma risk score.
+
+        Calculates the Chondrosarcoma Risk Outcome from Methylation (CHROME)
+        score, an 8-probe linear risk score derived by LASSO Cox regression
+        that stratifies central conventional chondrosarcoma patients into
+        High/Low risk of recurrence, metastasis, and death.
+
+        The probe set is selected automatically from the detected array type:
+        EPIC/EPICv2 use the original 8-probe set; 450k uses the 450k-compatible
+        variant, where two probes absent from that platform are replaced by
+        their most-correlated surrogates. ``force_450k`` applies the
+        450k-compatible set to EPIC/EPICv2 data too.
+
+        Args:
+            force_450k:
+                Use the 450k-compatible probe set regardless of array type. No
+                effect for 450k arrays.
+            allow_non_noob:
+                If False (default), raise when ``self.prep != "noob"``. If
+                True, proceed with a warning instead. Only for exploratory use.
+
+        Returns:
+            DataFrame indexed by sample ID with columns ``sample_id``,
+            ``numeric_risk``, and ``categorical_risk`` ("high"/"low").
+
+        Raises:
+            ValueError:
+                If ``self.array_type`` is unsupported, if ``self.prep`` is not
+                "noob" and ``allow_non_noob`` is False.
+
+        Note:
+            Coefficients and cutoff were fit on Noob-normalized (``prep=
+            "noob"``) M-values only; other preprocessing is unvalidated (see
+            ``allow_non_noob``).
+
+        References:
+            S Cardoso, B Ameline, S Venneker, DM Meijer, ZB Erdem, D Ruano, BE
+            van den Akker, AM Cleton-Jansen, J Brugger et al. Accurate
+            Prediction of Central Conventional Chondrosarcoma Risk and Outcome
+            Using Methylation Profiling: CHROME. Genes, Chromosomes and Cancer
+            (2026). doi:10.1002/gcc.70160
+        """
+        if self.array_type not in {
+            ArrayType.ILLUMINA_450K,
+            ArrayType.ILLUMINA_EPIC,
+            ArrayType.ILLUMINA_EPIC_V2,
+        }:
+            raise ValueError(
+                "CHROME supports only Illumina 450k, EPIC, and EPICv2 arrays; "
+                f"got {self.array_type!r}"
+            )
+
+        if self.prep != "noob":
+            if not allow_non_noob:
+                raise ValueError(
+                    f"CHROME risk score requires 'noob' preprocessing (got "
+                    f"'{self.prep}'). The model's coefficients and the -0.9 "
+                    "cutoff were fit exclusively on Noob-normalized M-values "
+                    "(Cardoso et al. 2026, doi:10.1002/gcc.70160); results "
+                    "from other preprocessing are unvalidated. Pass "
+                    "allow_non_noob=True to override at your own risk."
+                )
+            logger.warning(
+                "Computing CHROME with non-Noob preprocessing ('%s'); "
+                "results are not validated.",
+                self.prep,
+            )
+
+        use_450k = force_450k or self.array_type == ArrayType.ILLUMINA_450K
+
+        coefficients = CHROME_450K if use_450k else CHROME_EPIC
+
+        probes = list(coefficients)
+        m_values = self.mvalues.loc[probes]
+
+        weights = np.array(list(coefficients.values()))
+        numeric_risk = weights @ m_values.to_numpy()
+
+        categorical_risk = np.where(
+            numeric_risk > CHROME_CUTOFF,
+            "high",
+            "low",
+        )
+
+        return pd.DataFrame(
+            {
+                "sample_id": m_values.columns,
+                "numeric_risk": numeric_risk,
+                "categorical_risk": categorical_risk,
+            },
+            index=m_values.columns,
         )
 
     def plot_betas_density(self, bins: int = 256) -> None:
