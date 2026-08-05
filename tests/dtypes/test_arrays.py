@@ -70,7 +70,7 @@ def test_array_type_str_values() -> None:
         (999999, ArrayType.UNKNOWN),
         (2000000, ArrayType.UNKNOWN),
     ],
-    ids=lambda x: str(x),
+    ids=str,
 )
 def test_from_probe_count(probe_count: int, expected: ArrayType) -> None:
     assert ArrayType.from_probe_count(probe_count) == expected

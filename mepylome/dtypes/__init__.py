@@ -43,7 +43,6 @@ __all__ = [
     "RawData",
     "ReferenceMethylData",
     "ZIP_ENDING",
-    "cache",
     "cnv_plot_from_data",
     "get_cn_summary",
     "get_id_tuple",

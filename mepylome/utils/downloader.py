@@ -579,7 +579,7 @@ def make_tcga_metadata(
     # local helper: extract dataframe from JSON content
     def _extract_case_file_df(json_path: Path) -> pd.DataFrame:
         """Extracts a dictionary mapping from IDAT IDs to case IDs."""
-        with json_path.open() as f:
+        with json_path.open(encoding="utf-8") as f:
             data = json.load(f)
         rows = []
         n_suffix = len("_Grn.idat")

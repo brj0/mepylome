@@ -30,7 +30,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.tree import DecisionTreeRegressor
-from sklearn.tree._tree import NODE_DTYPE, Tree
+from sklearn.tree._tree import NODE_DTYPE, Tree  # noqa: PLC2701
 
 from mepylome.utils.files import download_file
 from mepylome.utils.varia import CONFIG, MEPYLOME_CACHE_DIR
@@ -234,7 +234,7 @@ def predict_purity(
     Raises:
         ValueError: If ``method`` is not ``"absolute"`` or ``"estimate"``.
     """
-    if method not in ("absolute", "estimate"):
+    if method not in {"absolute", "estimate"}:
         raise ValueError(
             f"method must be 'absolute' or 'estimate', got {method!r}"
         )

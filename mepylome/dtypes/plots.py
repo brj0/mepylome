@@ -83,7 +83,9 @@ def get_df_from_zip(
         for filename in extract:
             try:
                 with zip_ref.open(csv_file_templ % filename) as file_:
-                    extracted_dfs.append(pd.read_csv(io.TextIOWrapper(file_)))
+                    extracted_dfs.append(
+                        pd.read_csv(io.TextIOWrapper(file_, encoding="utf-8"))
+                    )
             except KeyError:
                 extracted_dfs.append(None)
     return extracted_dfs
@@ -106,7 +108,7 @@ def cnv_grid() -> go.Figure:
 
     # Check if grid exists and return if available.
     if CNV_GRID.exists():
-        with CNV_GRID.open() as f:
+        with CNV_GRID.open(encoding="utf-8") as f:
             return from_json(f.read())
 
     grid = go.Figure()

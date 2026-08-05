@@ -396,7 +396,7 @@ def test_init_disables_segmentation_when_dependency_missing(
 def test_init_respects_do_seg_when_dependency_available(
     make_analysis: AnalysisFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(core, "_get_segmentation_fn", lambda: object())
+    monkeypatch.setattr(core, "_get_segmentation_fn", object)
     analysis = make_analysis(do_seg=True)
     assert analysis.do_seg is True
 
@@ -1035,8 +1035,8 @@ def test_compute_umap_uses_gpu_backend_when_enabled(
     tmp_path: Path,
 ) -> None:
     fake_cupy = types.ModuleType("cupy")
-    fake_cupy.asarray = lambda x: np.asarray(x)  # type: ignore[attr-defined]
-    fake_cupy.asnumpy = lambda x: np.asarray(x)  # type: ignore[attr-defined]
+    fake_cupy.asarray = np.asarray  # type: ignore[attr-defined]
+    fake_cupy.asnumpy = np.asarray  # type: ignore[attr-defined]
     fake_cuml_manifold = types.ModuleType("cuml.manifold")
     fake_cuml_manifold.UMAP = _FakeUMAP  # type: ignore[attr-defined]
     fake_cuml = types.ModuleType("cuml")
@@ -1242,7 +1242,7 @@ def test_get_cnv_returns_none_tuple_when_zip_missing(
 def test_cn_summary_returns_plot_and_dataframe(
     make_analysis: AnalysisFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(core, "_get_segmentation_fn", lambda: object())
+    monkeypatch.setattr(core, "_get_segmentation_fn", object)
     analysis = make_analysis(do_seg=True)
     analysis.idat_handler.id_to_basename = {"s1": "s1_base", "s2": "s2_base"}
     monkeypatch.setattr(analysis, "precompute_cnvs", lambda ids: None)
@@ -1417,7 +1417,7 @@ def test_run_app_opens_browser_tab_when_requested(
         def run(self, **kwargs: Any) -> None:
             pass
 
-    monkeypatch.setattr(analysis, "get_app", lambda: FakeApp())
+    monkeypatch.setattr(analysis, "get_app", FakeApp)
     monkeypatch.setattr(core, "get_free_port", lambda port: port)
 
     opened: dict[str, str] = {}

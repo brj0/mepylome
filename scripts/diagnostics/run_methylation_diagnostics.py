@@ -38,7 +38,7 @@ def load_config(config_path: Path) -> dict[str, Any]:
     ) as file:
         if config_path.suffix == ".json":
             return json.load(file)
-        if config_path.suffix in [".yaml", ".yml"]:
+        if config_path.suffix in {".yaml", ".yml"}:
             return yaml.safe_load(file)
         if config_path.suffix == ".toml":
             return tomllib.load(file)

@@ -20,7 +20,7 @@ def parse_print_block(lines: list[str]) -> list[str]:
 
 def convert_py_to_rst(py_path: Path, rst_path: Path) -> None:
     """Converts a python file with comments to a rst file."""
-    with open(py_path) as py_file:
+    with open(py_path, encoding="utf-8") as py_file:
         py_lines = py_file.readlines()
     rst_lines = []
     code_block = False
@@ -47,7 +47,7 @@ def convert_py_to_rst(py_path: Path, rst_path: Path) -> None:
                 rst_lines.append("    >>> " + line.replace("##", "#", 1))
             else:
                 rst_lines.append("    >>> " + line)
-    with open(rst_path, "w") as rst_file:
+    with open(rst_path, "w", encoding="utf-8") as rst_file:
         rst_file.writelines(rst_lines)
 
 

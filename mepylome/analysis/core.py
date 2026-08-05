@@ -96,7 +96,7 @@ class DualOutput:
 
     def __init__(self, filename: str | Path) -> None:
         self.terminal = sys.stdout
-        self.log = open(filename, "a")
+        self.log = open(filename, "a", encoding="utf-8")
 
     def write(self, message: str) -> None:
         self.terminal.write(message)
@@ -686,7 +686,7 @@ class MethylAnalysis:
         for handler in main_logger.handlers:
             handler.setLevel(VERBOSITY_LEVELS.get(verbose, logging.INFO))
 
-        if self.cpg_selection not in ["top", "balanced", "random"]:
+        if self.cpg_selection not in {"top", "balanced", "random"}:
             msg = (
                 "Invalid 'cpg_selection' (expected: 'top', 'balanced', or "
                 "'random')"
@@ -1312,7 +1312,7 @@ class MethylAnalysis:
 
         # Load all ordered CpG's if load_full_betas if False
         if self._sorted_cpgs is None and (
-            self.cpg_selection in ["top", "balanced"]
+            self.cpg_selection in {"top", "balanced"}
         ):
             assert self.betas_dir is not None
             self._sorted_cpgs, self._sorted_cpgs_var = (

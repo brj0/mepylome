@@ -127,7 +127,7 @@ def read_dataframe(path: str | Path, **kwargs: Any) -> pd.DataFrame:
         ValueError: If the file format is not supported.
     """
     path = Path(path)
-    if path.suffix in [".xlsx", ".xls"]:
+    if path.suffix in {".xlsx", ".xls"}:
         return pd.read_excel(path, **kwargs)
     if path.suffix == ".ods":
         return pd.read_excel(path, engine="odf", **kwargs)

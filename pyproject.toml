@@ -136,12 +136,32 @@ ignore = [
     "PLR0913",
     # Too many statements
     "PLR0915",
+    # use not instead of string == 0
+    "PLC1901",
+    # Class functions must use the self variable no-self-use
+    "PLR6301",
+    # Too many positional arguments
+    "PLR0917",
+    # Too many local variables
+    "PLR0914",
+    # Too many public methods
+    "PLR0904",
+
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"examples/**" = ["ANN", "B018", "D100", "D101", "E402", "E501"]
+"examples/**" = [
+  "ANN",
+  "B018",
+  "D100",
+  "D101",
+  "E402",
+  "E501",
+  "E266",
+  "PLR0914",
+]
 "scripts/**" = ["ANN", "D103"]
-"tests/**" = ["E402", "D103"]
+"tests/**" = ["E402", "D103", "PLC2701", "PLC2801"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

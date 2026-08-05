@@ -553,7 +553,7 @@ def register_callbacks(app: Dash, analysis: MethylAnalysis) -> None:
             n_top = 50
             last_lines = lines if len(lines) <= n_top else lines[-n_top:]
             for line in last_lines:
-                log_str = log_str + line
+                log_str += line
         with analysis._clf_log.open("r") as file:
             clf_str = file.readlines()
         return progress, out_str, log_str, log_str, clf_str

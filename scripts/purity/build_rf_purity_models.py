@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from sklearn.tree._tree import TREE_LEAF, TREE_UNDEFINED
+from sklearn.tree._tree import TREE_LEAF, TREE_UNDEFINED  # noqa: PLC2701
 
-from mepylome.dtypes.purity import _trees_to_rf
+from mepylome.dtypes.purity import _trees_to_rf  # noqa: PLC2701
 
 # ---------------------------------------------------------------------------
 # Tree helpers

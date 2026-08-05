@@ -209,7 +209,7 @@ def test_predict_purity_epic_dummy_profiles() -> None:
     for method, values in expected.items():
         scores = predict_purity(
             betas,
-            method=method, # type: ignore[arg-type]
+            method=method,  # type: ignore[arg-type]
         )
 
         expected_scores = pd.Series(

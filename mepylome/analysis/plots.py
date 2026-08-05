@@ -231,7 +231,7 @@ def write_single_cnv_to_disk(
             "file."
         )
         logger.error(error_message)
-        with Path(cnv_dir, cnv_filename).open("w") as f:
+        with Path(cnv_dir, cnv_filename).open("w", encoding="utf-8") as f:
             f.write(error_message)
 
 
