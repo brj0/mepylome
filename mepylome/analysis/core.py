@@ -1248,6 +1248,8 @@ class MethylAnalysis:
                 self.make_umap_plot()
             except AttributeError:
                 logger.info("Probable dimension mismatch")
+            except KeyError:
+                logger.info("Probably deleted IDAT files")
 
     def _get_betas(
         self,
