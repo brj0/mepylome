@@ -470,14 +470,10 @@ def start_mepylome() -> None:
             tutorial_dir = Path.home() / "mepylome" / "tutorial"
             cli_args["analysis_dir"] = tutorial_dir / "tutorial_analysis"
             cli_args["reference_dir"] = tutorial_dir / "tutorial_reference"
-            if (
-                not cli_args["analysis_dir"].exists()
-                and not cli_args["reference_dir"].exists()
-            ):
-                # Download Tutorial IDAT files
-                setup_tutorial_files(
-                    cli_args["analysis_dir"], cli_args["reference_dir"]
-                )
+            # Download Tutorial IDAT files
+            setup_tutorial_files(
+                cli_args["analysis_dir"], cli_args["reference_dir"]
+            )
 
         cli_args.pop("tutorial", None)
 

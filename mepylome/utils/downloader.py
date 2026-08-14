@@ -1010,6 +1010,7 @@ def setup_tutorial_files(
         unzip_and_remove_gz_files(target_dir, use_sentrix_id=True)
 
     missing_analysis = _missing_files(analysis_dir, tutorial_df["Geo_File_ID"])
+    logger.info("Missing %d tutorial analysis files", len(missing_analysis))
     _fetch_and_place(missing_analysis, analysis_dir)
 
     control = "Control (muscle tissue)"
@@ -1017,4 +1018,5 @@ def setup_tutorial_files(
     missing_reference = _missing_files(
         reference_dir, tutorial_df[is_control]["Geo_File_ID"]
     )
+    logger.info("Missing %d tutorial reference files", len(missing_reference))
     _fetch_and_place(missing_reference, reference_dir)
