@@ -14,7 +14,6 @@ from importlib.resources import files
 from pathlib import Path
 from typing import IO, cast
 
-import requests
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -74,6 +73,8 @@ def download_file(
 
         retry_delay: Seconds to wait between retries.
     """
+    import requests
+
     save_path = Path(save_path)
     ensure_directory_exists(save_path.parent)
 

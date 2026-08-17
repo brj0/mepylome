@@ -51,7 +51,6 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import requests
 
 from mepylome.utils.files import (
     download_file,
@@ -496,6 +495,8 @@ def download_arrayexpress_idat(
         subdir: Optional subdirectory name under `save_dir` for the dataset
             folder. Defaults to "series_id" if None.
     """
+    import requests
+
     subdir = subdir or series_id
     samples_dir = save_dir / subdir
     idat_dir = samples_dir / "idat"
