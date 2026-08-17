@@ -24,16 +24,16 @@ from __future__ import annotations
 import logging
 from functools import cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.tree._tree import NODE_DTYPE, Tree  # noqa: PLC2701
 
 from mepylome.utils.files import download_file
 from mepylome.utils.varia import CONFIG, MEPYLOME_CACHE_DIR
+
+if TYPE_CHECKING:
+    from sklearn.tree import DecisionTreeRegressor
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,8 @@ def _build_node_array(
         Structured numpy array with dtype NODE_DTYPE compatible with the
         currently installed sklearn version.
     """
+    from sklearn.tree._tree import NODE_DTYPE  # noqa: PLC2701
+
     nodes = np.zeros(n_nodes, dtype=NODE_DTYPE)
     nodes["left_child"] = left
     nodes["right_child"] = right
@@ -90,6 +92,9 @@ def _params_to_decision_tree(params: dict[str, Any]) -> DecisionTreeRegressor:
     Returns:
         A fitted DecisionTreeRegressor with the tree structure from params.
     """
+    from sklearn.tree import DecisionTreeRegressor
+    from sklearn.tree._tree import Tree  # noqa: PLC2701
+
     n_features = params["n_features"]
     n_nodes = params["node_count"]
 
@@ -141,6 +146,8 @@ def _trees_to_rf(
         Dict with keys ``"model"`` (RandomForestRegressor) and ``"features"``
         (list of CpG probe IDs).
     """
+    from sklearn.ensemble import RandomForestRegressor
+
     estimators = [_params_to_decision_tree(p) for p in trees_params]
 
     rf = RandomForestRegressor(n_estimators=len(estimators))
