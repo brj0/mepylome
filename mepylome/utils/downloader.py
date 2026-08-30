@@ -63,11 +63,12 @@ logger = logging.getLogger(__name__)
 
 
 GEO_RAW_IDAT_URL = (
-    "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/{geo_group}/{acc}/suppl/"
+    "{acc}_RAW.tar"
 )
 GEO_SINGLE_IDAT_URL = (
-    "https://www.ncbi.nlm.nih.gov/geo/download/?acc={acc}&format=file"
-    "&file={filename}"
+    "https://ftp.ncbi.nlm.nih.gov/geo/samples/{geo_group}/{acc}/suppl/"
+    "{filename}"
 )
 GEO_MINIML_URL = (
     "https://ftp.ncbi.nlm.nih.gov/geo/series/{geo_group}/{acc}/miniml/"
@@ -80,11 +81,13 @@ TCGA_URL = "https://api.gdc.cancer.gov/data/{file_id}"
 
 
 def _geo_group(geo_id: str) -> str:
-    """Compute the GEO series group folder used on the FTP server.
+    """Compute the GEO series/sample group folder used on the FTP server.
 
     Example:
         >>> _geo_group('GSE12345')
         'GSE12nnn'
+        >>> _geo_group('GSM4180454')
+        'GSM4180nnn'
     """
     if len(geo_id) < 4:
         raise ValueError(f"geo_id seems too short: {geo_id}")
@@ -272,8 +275,11 @@ def download_geo_idat_all_files(
         return
     samples_dir.mkdir(parents=True, exist_ok=True)
 
-    # Download the RAW tarball
-    tar_idat_url = GEO_RAW_IDAT_URL.format(acc=series_id)
+    # Download the RAW tarball (via GEO's FTP mirror, not the web/CGI
+    # endpoint, which is gated behind a reCAPTCHA challenge for non-browser
+    # clients).
+    geo_group = _geo_group(series_id)
+    tar_idat_url = GEO_RAW_IDAT_URL.format(geo_group=geo_group, acc=series_id)
     tar_idat_path = samples_dir / f"{series_id}_RAW.tar"
     download_file(tar_idat_url, tar_idat_path, show_progress=show_progress)
     idat_dir.mkdir(parents=True, exist_ok=True)
@@ -338,11 +344,11 @@ def download_geo_idat_single_files(
     paths = []
     for file in samples:
         geo_acc = file.split("_", 1)[0]
+        geo_group = _geo_group(geo_acc)
         for color in ("Grn", "Red"):
             filename = f"{file}_{color}.idat.gz"
-            encoded_filename = filename.replace("_", "%5F").replace(".", "%2E")
             url = GEO_SINGLE_IDAT_URL.format(
-                acc=geo_acc, filename=encoded_filename
+                geo_group=geo_group, acc=geo_acc, filename=filename
             )
             idat_path = idat_dir / filename
             urls.append(url)
