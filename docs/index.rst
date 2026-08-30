@@ -30,7 +30,8 @@ Mepylome is open source, and hosted at github: https://github.com/brj0/mepylome
 - 📊 CNV analysis with interactive Plotly visualizations
 - 🧹 Clean API for large-scale cohort processing
 - 🖥️ Optional GUI for UMAP + CNV exploration
-- 🎯 Data inference: tumor purity estimation, MLH1 promoter methylation reports
+- 🎯 Data inference: tumor purity estimation, MLH1 promoter methylation
+  reports, sex prediction, chondrosarcoma risk prediction (CHROME)
 - 🧪 Built-in QC including **pOOBAH detection and quality metrics**
 
 
