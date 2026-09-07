@@ -418,7 +418,7 @@ class TopVarianceSelector(BaseEstimator, TransformerMixin):
         if self.n_top > X_array.shape[1]:
             msg = (
                 f"n_top={self.n_top} exceeds number of features "
-                "{X_array.shape[1]}"
+                f"{X_array.shape[1]}"
             )
             raise ValueError(msg)
         self.top_indices_ = np.argsort(self.variances_)[-self.n_top :]
