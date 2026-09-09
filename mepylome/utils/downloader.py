@@ -80,6 +80,10 @@ ARRAY_EXPRESS_URL = (
 TCGA_URL = "https://api.gdc.cancer.gov/data/{file_id}"
 
 
+# -------------------------------------
+# GEO
+# -------------------------------------
+
 def _geo_group(geo_id: str) -> str:
     """Compute the GEO series/sample group folder used on the FTP server.
 
@@ -404,6 +408,10 @@ def download_geo_idat(
         )
 
 
+# -------------------------------------
+# ArrayExpress
+# -------------------------------------
+
 def download_arrayexpress_metadata(
     series_id: str,
     save_dir: Path,
@@ -545,6 +553,10 @@ def download_arrayexpress_idat(
         show_progress=show_progress,
     )
 
+
+# -------------------------------------
+# TCGA
+# -------------------------------------
 
 def _get_tcga_series(path: Path) -> str:
     """Return an 8-byte BLAKE2b hex digest for the file at `path`."""
@@ -715,6 +727,10 @@ def download_tcga_idat(
             idat_dir,
         )
 
+
+# -------------------------------------
+# Assembly
+# -------------------------------------
 
 def make_dataset(
     dataset: dict[str, str | list[str]] | Iterable[str] | str,
