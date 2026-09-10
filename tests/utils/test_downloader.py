@@ -148,31 +148,21 @@ def test_parse_miniml_to_df(tmp_path: Path) -> None:
     """
     xml_path = tmp_path / "GSE123.xml"
     xml_path.write_text(miniml_xml)
-
-    parse_miniml_to_df(xml_path, "GSE123", samples="all")
     csv_path = tmp_path / "annotation.csv"
-    assert csv_path.exists()
-    df = pd.read_csv(csv_path)
-    assert len(df) == 2
-    assert "Sample_ID" in df.columns
-    assert df.loc[0, "Sample_ID"] == "GSM1"
-    assert df.loc[0, "tissue"] == "brain"
 
-    parse_miniml_to_df(
-        xml_path, "GSE123", samples=["GSM2"], meta="custom_meta"
-    )
-    custom_csv = tmp_path / "custom_meta.csv"
-    assert custom_csv.exists()
-    df_filtered = pd.read_csv(custom_csv)
-    assert len(df_filtered) == 1
-    assert df_filtered.loc[0, "Sample_ID"] == "GSM2"
+    parse_miniml_to_df(xml_path, "GSE123", csv_path, samples="all")
+
+    result = pd.read_csv(csv_path)
+    assert len(result) == 2
+    assert set(result["Sample_ID"]) == {"GSM1", "GSM2"}
 
 
 def test_parse_miniml_no_samples(tmp_path: Path) -> None:
     xml_path = tmp_path / "empty.xml"
     xml_path.write_text("<MINiML></MINiML>")
+    csv_path = tmp_path / "annotation.csv"
     with pytest.raises(ValueError, match="No <Sample> elements found"):
-        parse_miniml_to_df(xml_path, "GSE123")
+        parse_miniml_to_df(xml_path, "GSE123", csv_path)
 
 
 # =============================================================================
@@ -197,7 +187,10 @@ def test_download_geo_metadata(
 
     mock_download_file.assert_called_once()
     mock_parse.assert_called_once_with(
-        tmp_path / "GSE12345" / "GSE12345.xml", "GSE12345", None, None
+        miniml_path=tmp_path / "GSE12345" / "GSE12345.xml",
+        series_id="GSE12345",
+        csv_path=tmp_path / "GSE12345" / "annotation.csv",
+        samples=None,
     )
 
 

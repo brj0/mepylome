@@ -182,8 +182,8 @@ def _unique_add(key: str, value: str, dictionary: dict[str, Any]) -> None:
 def parse_miniml_to_df(
     miniml_path: Path,
     series_id: str,
+    csv_path: Path,
     samples: Iterable[str] | None = None,
-    meta: str | None = None,
 ) -> None:
     """Parse a GEO MINiML family XML and save as spreadsheet to disk."""
     tree = ET.parse(miniml_path)
@@ -235,8 +235,6 @@ def parse_miniml_to_df(
         )
         result_df = filtered
 
-    annotation_name = meta or "annotation"
-    csv_path = miniml_path.parent / f"{annotation_name}.csv"
     result_df.to_csv(csv_path, index=False)
 
 
@@ -271,6 +269,11 @@ def download_geo_metadata(
     """
     subdir = subdir or series_id
     samples_dir = save_dir / subdir
+    annotation_name = meta or "annotation"
+    csv_path = samples_dir / f"{annotation_name}.csv"
+    if csv_path.exists():
+        logger.info("Metadata already exists: %s. Skipping.", csv_path)
+        return
     miniml_path = samples_dir / f"{series_id}.xml"
     miniml_tar_path = samples_dir / f"{series_id}_family.xml.tgz"
     samples_dir.mkdir(parents=True, exist_ok=True)
@@ -282,18 +285,20 @@ def download_geo_metadata(
 
     # Extract the XML inside the tarball.
     try:
-        if not miniml_path.exists():
-            with tarfile.open(miniml_tar_path, "r:gz") as tar:
-                member_name = miniml_tar_path.stem
-                tar.extract(
-                    member=member_name, path=samples_dir, filter="data"
-                )
-                miniml_tar_path.with_suffix("").rename(miniml_path)
+        with tarfile.open(miniml_tar_path, "r:gz") as tar:
+            member_name = miniml_tar_path.stem
+            tar.extract(member=member_name, path=samples_dir, filter="data")
+            miniml_tar_path.with_suffix("").rename(miniml_path)
     except Exception:
         logger.exception("Could not unzip %s", miniml_tar_path)
         raise
 
-    parse_miniml_to_df(miniml_path, series_id, samples, meta)
+    parse_miniml_to_df(
+        miniml_path=miniml_path,
+        series_id=series_id,
+        csv_path=csv_path,
+        samples=samples,
+    )
     miniml_tar_path.unlink(missing_ok=True)
     miniml_path.unlink(missing_ok=True)
 
@@ -546,6 +551,9 @@ def download_arrayexpress_metadata(
     samples_dir = save_dir / subdir
     annotation_name = meta or "annotation"
     csv_path = samples_dir / f"{annotation_name}.csv"
+    if csv_path.exists():
+        logger.info("Metadata already exists: %s. Skipping.", csv_path)
+        return
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     # Locate the .sdrf.txt file in the study's manifest via API
@@ -992,6 +1000,14 @@ def make_tcga_metadata(
     samples_dir = save_dir / subdir
     samples_dir.mkdir(parents=True, exist_ok=True)
 
+    annotation_name = meta or "annotation"
+    annotation_csv_path = samples_dir / f"{annotation_name}.csv"
+    if include_clinical and annotation_csv_path.exists():
+        logger.info(
+            "Metadata already exists: %s. Skipping.", annotation_csv_path
+        )
+        return
+
     if project:
         download_df = query_tcga_project_files(project, samples=samples)
     elif metadata_cart:
@@ -1055,8 +1071,6 @@ def make_tcga_metadata(
         lead_cols + [c for c in annotation.columns if c not in lead_cols]
     ]
 
-    annotation_name = meta or "annotation"
-    annotation_csv_path = samples_dir / f"{annotation_name}.csv"
     annotation.to_csv(annotation_csv_path, index=False)
 
 
