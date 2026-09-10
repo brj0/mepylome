@@ -437,7 +437,7 @@ def start_mepylome() -> None:
         download_idat = args.idat or both_unspecified
         download_metadata = args.metadata or both_unspecified
 
-        dataset = list(args.dataset or [])
+        dataset = [d.rstrip("/") for d in (args.dataset or [])]
 
         # If TCGA info is provided, validate and add dictionary
         if args.tcga_cart or args.tcga_clinical:
