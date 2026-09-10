@@ -385,6 +385,14 @@ def parse_args() -> argparse.Namespace:
         formatter_class=SmartFormatter,
     )
     download_parser.add_argument(
+        "-L",
+        "--list-tcga-projects",
+        action="store_true",
+        help=(
+            "List TCGA project IDs that have methylation IDAT data, then exit"
+        ),
+    )
+    download_parser.add_argument(
         "-d",
         "--dataset",
         type=str,
@@ -433,6 +441,15 @@ def start_mepylome() -> None:
     args = parse_args()
 
     if args.command == "download":
+        if args.list_tcga_projects:
+            from mepylome.utils.downloader import (
+                list_tcga_methylation_projects,
+            )
+
+            for project_id in list_tcga_methylation_projects():
+                print(project_id)
+            return
+
         both_unspecified = not (args.idat or args.metadata)
         download_idat = args.idat or both_unspecified
         download_metadata = args.metadata or both_unspecified

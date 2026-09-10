@@ -734,6 +734,47 @@ def _gdc_post(
     return hits
 
 
+def list_tcga_methylation_projects() -> list[str]:
+    """List TCGA project IDs that have methylation IDAT files on GDC."""
+    import requests
+
+    filters = {
+        "op": "and",
+        "content": [
+            {
+                "op": "in",
+                "content": {
+                    "field": "cases.project.program.name",
+                    "value": ["TCGA"],
+                },
+            },
+            {
+                "op": "in",
+                "content": {"field": "data_format", "value": ["IDAT"]},
+            },
+            {
+                "op": "in",
+                "content": {
+                    "field": "experimental_strategy",
+                    "value": ["Methylation Array"],
+                },
+            },
+        ],
+    }
+    payload: dict[str, Any] = {
+        "filters": filters,
+        "facets": "cases.project.project_id",
+        "size": 0,
+        "format": "JSON",
+    }
+    response = requests.post(TCGA_FILES_URL, json=payload, timeout=60)
+    response.raise_for_status()
+    buckets = response.json()["data"]["aggregations"][
+        "cases.project.project_id"
+    ]["buckets"]
+    return sorted(b["key"] for b in buckets if b.get("doc_count", 0) > 0)
+
+
 def query_tcga_project_files(
     project_id: str,
     samples: Iterable[str] | None = None,
