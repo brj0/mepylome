@@ -11,7 +11,6 @@ import pytest
 from mepylome.utils.downloader import (
     _first_attr_value,
     _geo_group,
-    _get_tcga_series,
     _get_val,
     _strip_ns,
     _text_of,
@@ -82,14 +81,6 @@ def test_unique_add() -> None:
     assert d["key_2"] == "val3"
 
 
-def test_get_tcga_series(tmp_path: Path) -> None:
-    test_file = tmp_path / "test.json"
-    test_file.write_bytes(b"tcga_mock_data")
-    series_name = _get_tcga_series(test_file)
-    assert series_name.startswith("TCGA_")
-    assert len(series_name) == 21  # 'TCGA_' + 16 hex chars
-
-
 # =============================================================================
 # 2. Dataset Normalization Tests (make_dataset)
 # =============================================================================
@@ -111,7 +102,7 @@ def test_make_dataset_mixed_iterable() -> None:
 
     assert res[0] == {
         "source": "geo",
-        "series": "GSE_MIXED",
+        "series": "GEO",
         "samples": ["GSM111", "GSM222"],
     }
     assert res[1] == {
@@ -346,16 +337,12 @@ def test_download_tcga_idat(
     cart_json = tmp_path / "dummy_cart.json"
     cart_json.write_text("[]")
 
-    download_tcga_idat(
-        save_dir=tmp_path, metadata_cart=cart_json, subdir=subdir
-    )
+    download_tcga_idat(save_dir=tmp_path, subdir=subdir)
     assert mock_download_files.called
 
     (samples_dir / "manifest.csv").unlink()
     with pytest.raises(FileNotFoundError):
-        download_tcga_idat(
-            save_dir=tmp_path, metadata_cart=cart_json, subdir=subdir
-        )
+        download_tcga_idat(save_dir=tmp_path, subdir=subdir)
 
 
 # =============================================================================

@@ -25,7 +25,23 @@ Examples:
         metadata=True,
     )
 
-    # Download a TCGA dataset
+    # Download a whole TCGA project (IDATs + clinical metadata from GDC)
+    download_idats("TCGA-LUAD", save_dir="~/mepylome/data")
+
+    # Download only a subset of cases from a TCGA project
+    download_idats(
+        dataset={
+            "source": "tcga",
+            "project": "TCGA-LUAD",
+            "samples": ["TCGA-05-4244", "TCGA-05-4245"],
+        },
+        save_dir="~/mepylome/data",
+        idat=True,
+        metadata=True,
+    )
+
+    # TCGA dataset from a manually pre-downloaded GDC cart +
+    # clinical TSV
     download_idats(
         dataset={
             "source": "tcga",
@@ -39,7 +55,6 @@ Examples:
 """
 
 import gzip
-import hashlib
 import json
 import logging
 import re
@@ -74,15 +89,47 @@ GEO_MINIML_URL = (
     "https://ftp.ncbi.nlm.nih.gov/geo/series/{geo_group}/{acc}/miniml/"
     "{acc}_family.xml.tgz"
 )
+
 ARRAY_EXPRESS_URL = (
     "https://ftp.ebi.ac.uk/biostudies/fire/E-MTAB-/{ae_group}/{acc}/Files/"
 )
-TCGA_URL = "https://api.gdc.cancer.gov/data/{file_id}"
+
+TCGA_DATA_URL = "https://api.gdc.cancer.gov/data/{file_id}"
+TCGA_FILES_URL = "https://api.gdc.cancer.gov/files"
+TCGA_CASES_URL = "https://api.gdc.cancer.gov/cases"
+TCGA_CLINICAL_FIELDS = [
+    "case_id",
+    "submitter_id",
+    "project.project_id",
+    "demographic.gender",
+    "demographic.race",
+    "demographic.ethnicity",
+    "demographic.vital_status",
+    "demographic.age_at_index",
+    "demographic.days_to_death",
+    "diagnoses.primary_diagnosis",
+    "diagnoses.classification_of_tumor",
+    "diagnoses.morphology",
+    "diagnoses.tissue_or_organ_of_origin",
+    "diagnoses.site_of_resection_or_biopsy",
+    "diagnoses.tumor_grade",
+    "diagnoses.ajcc_pathologic_stage",
+    "diagnoses.ajcc_pathologic_t",
+    "diagnoses.ajcc_pathologic_n",
+    "diagnoses.ajcc_pathologic_m",
+    "diagnoses.residual_disease",
+    "diagnoses.prior_malignancy",
+    "diagnoses.days_to_last_follow_up",
+    "diagnoses.days_to_recurrence",
+    "diagnoses.progression_or_recurrence",
+    "diagnoses.last_known_disease_status",
+]
 
 
 # -------------------------------------
 # GEO
 # -------------------------------------
+
 
 def _geo_group(geo_id: str) -> str:
     """Compute the GEO series/sample group folder used on the FTP server.
@@ -231,6 +278,7 @@ def download_geo_metadata(
 
     # Download the miniml tarball
     geo_group = _geo_group(series_id)
+    # BUG: If user inputs GSE1234/ instead of GSE1234 error
     miniml_tar_url = GEO_MINIML_URL.format(geo_group=geo_group, acc=series_id)
     download_file(miniml_tar_url, miniml_tar_path, show_progress=show_progress)
 
@@ -412,6 +460,7 @@ def download_geo_idat(
 # ArrayExpress
 # -------------------------------------
 
+
 def download_arrayexpress_metadata(
     series_id: str,
     save_dir: Path,
@@ -558,97 +607,312 @@ def download_arrayexpress_idat(
 # TCGA
 # -------------------------------------
 
-def _get_tcga_series(path: Path) -> str:
-    """Return an 8-byte BLAKE2b hex digest for the file at `path`."""
-    path = Path(path).expanduser()
-    with open(path, "rb") as f:
-        data = f.read()
-    hash_id = hashlib.blake2b(data, digest_size=8).hexdigest()
-    return f"TCGA_{hash_id}"
+
+def _gdc_post(
+    url: str,
+    filters: dict[str, Any],
+    fields: list[str],
+    expand: list[str] | None = None,
+    size: int = 50000,
+) -> list[dict[str, Any]]:
+    """POST a query to the GDC API and return the list of result hits."""
+    import requests
+
+    payload: dict[str, Any] = {
+        "filters": filters,
+        "fields": ",".join(fields),
+        "format": "JSON",
+        "size": size,
+    }
+    if expand:
+        payload["expand"] = ",".join(expand)
+    response = requests.post(url, json=payload, timeout=60)
+    response.raise_for_status()
+    return response.json()["data"]["hits"]
 
 
-def make_tcga_metadata(
-    save_dir: Path,
-    metadata_cart: Path,
-    metadata_clinical: Path,
-    subdir: str | None = None,
-    meta: str | None = None,
-) -> None:
-    """Build merged TCGA annotation DataFrame and saves to disk.
+def query_tcga_project_files(
+    project_id: str,
+    samples: Iterable[str] | None = None,
+) -> pd.DataFrame:
+    """Query for all Illumina methylation IDAT files of a TCGA project.
 
     Args:
-        save_dir: directory where output CSV will be written (if write_csv
-            True).
+        project_id: TCGA project ID, e.g. "TCGA-LUAD".
 
-        metadata_cart: path to metadata.cart JSON from GDC.
+        samples: Optional iterable of TCGA barcodes to restrict the query
+            to. If None or "all", all cases with IDAT files in the project
+            are returned. Accepts either case-level barcodes (e.g.
+            "TCGA-05-4244", returns *all* aliquots/samples of that case) or
+            sample-level barcodes (e.g. "TCGA-05-4244-01A", returns exactly
+            that one aliquot) — both can be mixed in the same list. Use
+            sample-level barcodes for precise, per-aliquot partial
+            downloads.
 
-        metadata_clinical: path to clinical TSV (tab-separated).
-
-        subdir: Optional subdirectory name under `save_dir` for the dataset
-            folder. Defaults to "TCGA_<hash>" if None.
-
-        meta: Optional base name for the output annotation file (without
-            extension). Defaults to "annotation" if None.
+    Returns:
+        DataFrame with columns 'id' (GDC file_id), 'filename', 'Sample_ID'
+        (Sentrix ID or GDC file UUID), 'md5sum', 'case_id', and
+        'sample_submitter_id' (the TCGA sample barcode, e.g.
+        "TCGA-05-4244-01A").
     """
-    save_dir = Path(save_dir).expanduser()
-    subdir = subdir or _get_tcga_series(metadata_cart)
-    samples_dir = save_dir / subdir
-    samples_dir.mkdir(parents=True, exist_ok=True)
+    filters: dict[str, Any] = {
+        "op": "and",
+        "content": [
+            {
+                "op": "in",
+                "content": {
+                    "field": "cases.project.project_id",
+                    "value": [project_id],
+                },
+            },
+            {
+                "op": "in",
+                "content": {"field": "data_format", "value": ["IDAT"]},
+            },
+            {
+                "op": "in",
+                "content": {
+                    "field": "experimental_strategy",
+                    "value": ["Methylation Array"],
+                },
+            },
+        ],
+    }
+    if samples and samples != "all":
+        # A given barcode may be case-level (matches cases.submitter_id) or
+        # sample-level (matches cases.samples.submitter_id) — match either,
+        # so callers can mix case- and sample-level barcodes freely.
+        filters["content"].append(
+            {
+                "op": "or",
+                "content": [
+                    {
+                        "op": "in",
+                        "content": {
+                            "field": "cases.submitter_id",
+                            "value": list(samples),
+                        },
+                    },
+                    {
+                        "op": "in",
+                        "content": {
+                            "field": "cases.samples.submitter_id",
+                            "value": list(samples),
+                        },
+                    },
+                ],
+            }
+        )
 
-    # local helper: extract dataframe from JSON content
-    def _extract_case_file_df(json_path: Path) -> pd.DataFrame:
-        """Extracts a dictionary mapping from IDAT IDs to case IDs."""
-        with json_path.open(encoding="utf-8") as f:
-            data = json.load(f)
-        rows = []
-        n_suffix = len("_Grn.idat")
-        for item in data:
-            case_id = item.get("associated_entities", [{}])[0].get(
-                "case_id", ""
-            )
-            row = {
-                "file_id": item.get("file_id"),
-                "file_name": item.get("file_name", ""),
+    hits = _gdc_post(
+        TCGA_FILES_URL,
+        filters=filters,
+        fields=[
+            "file_id",
+            "file_name",
+            "md5sum",
+            "cases.case_id",
+            "cases.samples.submitter_id",
+        ],
+        expand=["cases", "cases.samples"],
+    )
+
+    n_suffix = len("_Grn.idat")
+    rows = []
+    for hit in hits:
+        case = (hit.get("cases") or [{}])[0]
+        sample = (case.get("samples") or [{}])[0]
+        rows.append(
+            {
+                "id": hit.get("file_id"),
+                "filename": hit.get("file_name", ""),
+                "Sample_ID": hit.get("file_name", "")[:-n_suffix],
+                "md5sum": hit.get("md5sum"),
+                "case_id": case.get("case_id", ""),
+                "sample_submitter_id": sample.get("submitter_id", ""),
+            }
+        )
+    if not rows:
+        raise ValueError(
+            f"No methylation IDAT files found on GDC for project "
+            f"'{project_id}' (samples={samples!r})."
+        )
+    return pd.DataFrame(rows)
+
+
+def _get_nested(hit: dict, dotted_field: str) -> Any:
+    """Resolve a dotted GDC field path against one case hit."""
+    value: Any = hit
+    for part in dotted_field.split("."):
+        if isinstance(value, list):
+            value = value[0] if value else {}
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
+def query_tcga_clinical(project_id: str) -> pd.DataFrame:
+    """Query the GDC API for clinical metadata of a TCGA project.
+
+    Returns one row per case with the most important fields for methylation
+    research (tumor type, age, sex, tumor location, survival, staging), as
+    defined in `TCGA_CLINICAL_FIELDS`.
+    """
+    filters = {
+        "op": "in",
+        "content": {"field": "project.project_id", "value": [project_id]},
+    }
+    expand = sorted(
+        {field.split(".")[0] for field in TCGA_CLINICAL_FIELDS if "." in field}
+    )
+    hits = _gdc_post(
+        TCGA_CASES_URL,
+        filters=filters,
+        fields=TCGA_CLINICAL_FIELDS,
+        expand=expand,
+    )
+    rows = [
+        {
+            field.split(".")[-1]: _get_nested(hit, field)
+            for field in TCGA_CLINICAL_FIELDS
+        }
+        for hit in hits
+    ]
+    return pd.DataFrame(rows)
+
+
+def _extract_case_file_df(json_path: Path) -> pd.DataFrame:
+    """Extract a file/case mapping from a legacy GDC metadata.cart JSON."""
+    with json_path.open(encoding="utf-8") as f:
+        data = json.load(f)
+    rows = []
+    n_suffix = len("_Grn.idat")
+    for item in data:
+        case_id = item.get("associated_entities", [{}])[0].get("case_id", "")
+        rows.append(
+            {
+                "id": item.get("file_id"),
+                "filename": item.get("file_name", ""),
                 "Sample_ID": item.get("file_name", "")[:-n_suffix],
                 "md5sum": item.get("md5sum"),
                 "case_id": case_id,
             }
-            rows.append(row)
-        return pd.DataFrame(rows)
+        )
+    return pd.DataFrame(rows)
 
-    download_df = _extract_case_file_df(metadata_cart).rename(
-        columns={"file_id": "id", "file_name": "filename"}
-    )
 
-    # Deduplicate so we have one filename per case_id (keep first seen)
+def make_tcga_metadata(
+    save_dir: Path,
+    project: str | None = None,
+    samples: Iterable[str] | None = None,
+    metadata_cart: Path | None = None,
+    metadata_clinical: Path | None = None,
+    subdir: str | None = None,
+    meta: str | None = None,
+    include_clinical: bool = True,
+) -> None:
+    """Build the file manifest and clinical annotation and save both to disk.
+
+    Two modes are supported:
+
+    1. **Project mode** (recommended): pass `project` (e.g. "TCGA-LUAD").
+       The list of IDAT files and the clinical metadata are both fetched
+       live from the GDC API. Use `samples` to restrict to specific cases
+       (partial project download).
+
+    2. **Legacy mode**: pass a pre-downloaded `metadata_cart` (GDC cart
+       JSON) and `metadata_clinical` (clinical TSV) instead.
+
+    Args:
+        save_dir: directory where output CSVs will be written.
+
+        project: TCGA project ID, e.g. "TCGA-LUAD". Triggers project mode.
+
+        samples: Optional iterable of case submitter IDs to restrict a
+            project-mode download to (partial download).
+
+        metadata_cart: (legacy) path to metadata.cart JSON from GDC.
+
+        metadata_clinical: (legacy) path to clinical TSV (tab-separated).
+
+        subdir: Optional subdirectory name under `save_dir` for the dataset
+            folder. Defaults to `project` (or "TCGA" in legacy mode).
+
+        meta: Optional base name for the output annotation file (without
+            extension). Defaults to "annotation" if None.
+
+        include_clinical: If True, also fetch/write the clinical annotation
+            CSV. The file manifest (needed for IDAT download) is always
+            written.
+    """
+    save_dir = Path(save_dir).expanduser()
+    subdir = subdir or project or "TCGA"
+    samples_dir = save_dir / subdir
+    samples_dir.mkdir(parents=True, exist_ok=True)
+
+    if project:
+        download_df = query_tcga_project_files(project, samples=samples)
+    elif metadata_cart:
+        download_df = _extract_case_file_df(Path(metadata_cart).expanduser())
+    else:
+        raise ValueError(
+            "Either 'project' (e.g. 'TCGA-LUAD') or a legacy "
+            "'metadata_cart' must be provided."
+        )
+
+    download_csv_path = samples_dir / "manifest.csv"
+    download_df.to_csv(download_csv_path, index=False)
+
+    if not include_clinical:
+        return
+
+    if project:
+        clinical_df = query_tcga_clinical(project)
+    elif metadata_clinical:
+        clinical_df = pd.read_csv(
+            Path(metadata_clinical).expanduser(), sep="\t"
+        )
+        # TCGA changed case_id to cases.case_id
+        if "case_id" not in clinical_df.columns:
+            if "cases.case_id" in clinical_df.columns:
+                clinical_df = clinical_df.rename(
+                    columns={"cases.case_id": "case_id"}
+                )
+            else:
+                raise KeyError(
+                    "Neither 'case_id' nor 'cases.case_id' found in "
+                    "clinical TSV."
+                )
+    else:
+        raise ValueError(
+            "'metadata_clinical' is required in legacy mode when "
+            "include_clinical=True."
+        )
+
+    # Deduplicate to one row per aliquot (Grn/Red pair -> one Sample_ID).
+    id_cols = ["case_id", "Sample_ID"]
+    if "sample_submitter_id" in download_df.columns:
+        id_cols.append("sample_submitter_id")
     case_sample_df = download_df.drop_duplicates(
-        subset=["case_id"], keep="first"
-    )[["case_id", "Sample_ID"]]
-    clinical_df = pd.read_csv(metadata_clinical, sep="\t")
-
-    # TCGA changed case_id to cases.case_id
-    if "case_id" not in clinical_df.columns:
-        if "cases.case_id" in clinical_df.columns:
-            clinical_df = clinical_df.rename(
-                columns={"cases.case_id": "case_id"}
-            )
-        else:
-            raise KeyError(
-                "Neither 'case_id' nor 'cases.case_id' found in clinical TSV."
-            )
+        subset=["Sample_ID"], keep="first"
+    )[id_cols]
 
     annotation = (
-        clinical_df.merge(case_sample_df, on="case_id", how="left")
+        case_sample_df.merge(clinical_df, on="case_id", how="left")
         # Drop duplicates, replace '-- by NaN and drop empty entries
         .drop_duplicates(subset=["Sample_ID"], keep="first")
         .replace("'--", pd.NA)
         .dropna(axis=1, how="all")
     )
-    cols = ["Sample_ID"] + [c for c in annotation.columns if c != "Sample_ID"]
-    annotation = annotation[cols]
-
-    download_csv_path = samples_dir / "manifest.csv"
-    download_df.to_csv(download_csv_path, index=False)
+    lead_cols = [
+        c
+        for c in ("Sample_ID", "sample_submitter_id")
+        if c in annotation.columns
+    ]
+    annotation = annotation[
+        lead_cols + [c for c in annotation.columns if c not in lead_cols]
+    ]
 
     annotation_name = meta or "annotation"
     annotation_csv_path = samples_dir / f"{annotation_name}.csv"
@@ -657,9 +921,8 @@ def make_tcga_metadata(
 
 def download_tcga_idat(
     save_dir: Path,
-    metadata_cart: Path,
+    subdir: str,
     show_progress: bool = True,
-    subdir: str | None = None,
 ) -> None:
     """Download missing TCGA IDAT files listed in the manifest.
 
@@ -671,14 +934,11 @@ def download_tcga_idat(
     Args:
         save_dir: Directory to store idat files.
 
-        metadata_cart: Path to CSV manifest listing 'id' and 'filename'.
+        subdir: Subdirectory name under `save_dir` for the dataset folder
+            (must match the one used in `make_tcga_metadata`).
 
         show_progress: Whether to show download progress.
-
-        subdir: Optional subdirectory name under `save_dir` for the dataset
-            folder. Defaults to "TCGA_<hash>" if None.
     """
-    subdir = subdir or _get_tcga_series(metadata_cart)
     samples_dir = save_dir / subdir
     idat_dir = samples_dir / "idat"
     idat_dir.mkdir(parents=True, exist_ok=True)
@@ -704,7 +964,7 @@ def download_tcga_idat(
         return
 
     # Prepare download URLs and local paths
-    urls = [TCGA_URL.format(file_id=id_) for id_ in pending["id"]]
+    urls = [TCGA_DATA_URL.format(file_id=id_) for id_ in pending["id"]]
     paths = [idat_dir / fname for fname in pending["filename"]]
 
     # Download
@@ -732,6 +992,7 @@ def download_tcga_idat(
 # Assembly
 # -------------------------------------
 
+
 def make_dataset(
     dataset: dict[str, str | list[str]] | Iterable[str] | str,
 ) -> list[dict[str, str | list[str]]]:
@@ -739,7 +1000,7 @@ def make_dataset(
 
     Accepts E-MTAB*, GSE*, or GSM* identifiers.
     Groups all GSMs (including those in dicts) into one GEO dataset
-    with series='GSE_MIXED'.
+    with series='GEO'.
 
     Examples:
         >>> make_dataset("GSE1234")
@@ -748,7 +1009,7 @@ def make_dataset(
         >>> make_dataset(["E-MTAB-5678", "GSM1", "GSM2"])
         [
             {'source': 'ae', 'series': 'E-MTAB-5678', 'samples': 'all'},
-            {'source': 'geo', 'series': 'GSE_MIXED', 'samples': ['GSM1',
+            {'source': 'geo', 'series': 'GEO', 'samples': ['GSM1',
             'GSM2']}
         ]
     """
@@ -781,17 +1042,21 @@ def make_dataset(
             )
         elif name.startswith("GSM"):
             geo_samples.append(name)
+        elif name.startswith("TCGA-"):
+            datasets.append(
+                {"source": "tcga", "project": name, "samples": "all"}
+            )
         else:
             raise ValueError(
                 f"Unrecognized dataset prefix '{name}'. Must start with "
-                "'E-MTAB-', 'GSE', or 'GSM'."
+                "'E-MTAB-', 'GSE', 'GSM', or 'TCGA-' (e.g. 'TCGA-LUAD')."
             )
 
     # Group all GSMs into a single dataset
     if geo_samples:
         datasets.insert(
             0,
-            {"source": "geo", "series": "GSE_MIXED", "samples": geo_samples},
+            {"source": "geo", "series": "GEO", "samples": geo_samples},
         )
 
     return datasets
@@ -834,7 +1099,7 @@ def _download_single_dataset(
     elif source == "geo":
         assert isinstance(series_id, str)
         if metadata:
-            if series_id == "GSE_MIXED":
+            if series_id == "GEO":
                 logger.info(
                     "For mixed GEO files, annotation cannot be downloaded"
                 )
@@ -854,21 +1119,30 @@ def _download_single_dataset(
                 subdir=subdir,
             )
     elif source == "tcga":
-        metadata_cart = to_path(dataset["metadata_cart"])
-        metadata_clinical = to_path(dataset["metadata_clinical"])
+        project = dataset.get("project")
+        metadata_cart = dataset.get("metadata_cart")
+        metadata_clinical = dataset.get("metadata_clinical")
+        if not project and not metadata_cart:
+            raise ValueError(
+                "TCGA dataset requires either 'project' (e.g. "
+                "'TCGA-LUAD') or a legacy 'metadata_cart' "
+                "(+ 'metadata_clinical')."
+            )
+        subdir = subdir or project or "TCGA"
         make_tcga_metadata(
             save_dir=save_dir,
-            metadata_cart=metadata_cart,
-            metadata_clinical=metadata_clinical,
+            project=project,
+            samples=samples,
+            metadata_cart=to_path(metadata_cart) if metadata_cart else None,
+            metadata_clinical=(
+                to_path(metadata_clinical) if metadata_clinical else None
+            ),
             subdir=subdir,
             meta=meta,
+            include_clinical=metadata,
         )
         if idat:
-            download_tcga_idat(
-                save_dir=save_dir,
-                metadata_cart=metadata_cart,
-                subdir=subdir,
-            )
+            download_tcga_idat(save_dir=save_dir, subdir=subdir)
     else:
         raise ValueError(
             f"Invalid source: '{source}'. Expected 'ae', 'geo', or 'tcga'."
@@ -902,16 +1176,23 @@ def download_idats(
 
        TCGA dicts may include:
          - source: "tcga" (required)
+         - project: TCGA project ID, e.g. "TCGA-LUAD" (recommended; fetches
+           IDATs + clinical metadata live from the GDC API)
+         - samples: "all" or list of case submitter IDs, e.g.
+           "TCGA-05-4244" (optional, default "all"; enables partial
+           per-case downloads of a project)
+         - subdir: output folder under save_dir (optional, default
+           <project>)
+         - meta: annotation/metadata filename (optional, default "annotation")
+
+       Legacy TCGA dicts (pre-downloaded GDC cart) may include instead:
          - metadata_cart: path to GDC metadata JSON (required)
          - metadata_clinical: path to clinical TSV (required)
-         - subdir: output folder under save_dir (optional, default
-           "TCGA_<hash>")
-         - meta: annotation/metadata filename (optional, default "annotation")
 
     Notes:
         - All individual GEO sample IDs (`GSM*`) across strings or dicts are
           automatically grouped into a single GEO dataset with series
-          `"GSE_MIXED"`.
+          `"GEO"`.
         - Optional `subdir` and `meta` parameters allow the user to control the
           folder and annotation filename for each dataset.
 
@@ -932,8 +1213,21 @@ def download_idats(
         # Download a single GEO series
         >>> download_idats("GSE1234", "~/Downloads/geo_data")
 
-        # Download a single TCGA dataset with custom folder and annotation
-        # names
+        # Download a whole TCGA project (IDATs + clinical metadata via GDC)
+        >>> download_idats("TCGA-LUAD", "~/Downloads/tcga_data")
+
+        # Download only specific cases from a TCGA project (partial
+        # download), with a custom folder and annotation name
+        >>> download_idats({
+        ...     "source": "tcga",
+        ...     "project": "TCGA-LUAD",
+        ...     "samples": ["TCGA-05-4384-01A", "TCGA-38-4631-01A"],
+        ...     "subdir": "TCGA_NSCLC",
+        ...     "meta": "tcga_annotation"
+        ... }, "./tcga")
+
+        # Legacy: TCGA dataset from a manually pre-downloaded GDC cart +
+        # clinical TSV
         >>> download_idats({
         ...     "source": "tcga",
         ...     "metadata_cart": "cart.json",
@@ -942,17 +1236,16 @@ def download_idats(
         ...     "meta": "tcga_annotation"
         ... }, "./tcga")
 
-        # Download mixed datasets: AE, GEO series, individual GSM samples, and
-        # TCGA
+        # Download mixed datasets: AE, GEO series, individual GSM samples,
+        # and a TCGA project
         >>> download_idats([
         ...     "E-MTAB-8542",
         ...     "GSE147391",
         ...     "GSM4180453",
-        ...     {"source": "tcga",
-        ...      "metadata_cart": "cart.json",
-        ...      "metadata_clinical": "clinical.tsv"},
+        ...     "TCGA-LUAD",
         ...     "GSM4180454"
         ... ], "~/Downloads/mixed_data")
+
     """
     save_dir = Path(save_dir).expanduser()
     dataset_list: list[dict[str, str | list[str]]] = make_dataset(dataset)

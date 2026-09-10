@@ -359,15 +359,25 @@ def parse_args() -> argparse.Namespace:
                 mepylome download -d GSE12345 -s ./data
                 mepylome download -d E-MTAB-1234
 
-            2. TCGA (IDAT only):
+            2. TCGA project (IDATs + clinical metadata via GDC API):
+
+                mepylome download -d TCGA-LUAD -s ./data
+                mepylome download -d TCGA-LUAD -i    # IDAT only
+                mepylome download -d TCGA-LUAD -m    # clinical metadata only
+
+               Multiple projects, and mixing with GEO/AE, is also supported:
+
+                mepylome download -d TCGA-LUAD TCGA-LUSC GSE12345
+
+            3. TCGA (legacy: pre-downloaded GDC cart, IDAT only):
 
                 mepylome download -c ~/data/cart.json -i
 
-            3. TCGA (metadata only):
+            4. TCGA (legacy: metadata only):
 
                 mepylome download -c ~/data/cart.json -l ~/data/clinical.tsv -m
 
-            4. TCGA (both IDAT + metadata):
+            5. TCGA (legacy: both IDAT + metadata):
 
                 mepylome download -c ~/data/cart.json -l ~/data/clinical.tsv
             """
