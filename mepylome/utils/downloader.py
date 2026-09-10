@@ -793,7 +793,7 @@ def query_tcga_clinical(project_id: str) -> pd.DataFrame:
     )
     rows = [
         {
-            field.split(".")[-1]: _get_nested(hit, field)
+            field: _get_nested(hit, field)
             for field in TCGA_CLINICAL_FIELDS
         }
         for hit in hits
