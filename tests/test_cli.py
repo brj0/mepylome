@@ -367,6 +367,7 @@ def _download_args(**overrides: object) -> argparse.Namespace:
         metadata=False,
         tcga_cart=None,
         tcga_clinical=None,
+        list_tcga_projects=False,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
