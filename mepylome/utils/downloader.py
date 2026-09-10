@@ -57,7 +57,6 @@ Examples:
 import gzip
 import json
 import logging
-import re
 import shutil
 import tarfile
 import xml.etree.ElementTree as ET
@@ -90,13 +89,13 @@ GEO_MINIML_URL = (
     "{acc}_family.xml.tgz"
 )
 
-ARRAY_EXPRESS_URL = (
-    "https://ftp.ebi.ac.uk/biostudies/fire/E-MTAB-/{ae_group}/{acc}/Files/"
-)
+BIOSTUDIES_API_URL = "https://www.ebi.ac.uk/biostudies/api/v1/studies/{acc}"
+BIOSTUDIES_FILE_URL = "https://www.ebi.ac.uk/biostudies/files/{acc}/{path}"
 
 TCGA_DATA_URL = "https://api.gdc.cancer.gov/data/{file_id}"
 TCGA_FILES_URL = "https://api.gdc.cancer.gov/files"
 TCGA_CASES_URL = "https://api.gdc.cancer.gov/cases"
+GDC_PAGE_SIZE = 10000
 TCGA_CLINICAL_FIELDS = [
     "case_id",
     "submitter_id",
@@ -290,8 +289,9 @@ def download_geo_metadata(
                     member=member_name, path=samples_dir, filter="data"
                 )
                 miniml_tar_path.with_suffix("").rename(miniml_path)
-    except Exception as exc:
-        logger.debug("Could not unzip %s: %s", miniml_tar_path, exc)
+    except Exception:
+        logger.exception("Could not unzip %s", miniml_tar_path)
+        raise
 
     parse_miniml_to_df(miniml_path, series_id, samples, meta)
 
@@ -326,6 +326,10 @@ def download_geo_idat_all_files(
         )
         return
     samples_dir.mkdir(parents=True, exist_ok=True)
+
+    # Clear any partial extraction left over from a previous failed run.
+    if part_dir.exists():
+        shutil.rmtree(part_dir)
 
     # Download the RAW tarball (via GEO's FTP mirror, not the web/CGI
     # endpoint, which is gated behind a reCAPTCHA challenge for non-browser
@@ -466,6 +470,47 @@ def download_geo_idat(
 # -------------------------------------
 
 
+def _get_arrayexpress_file_manifest(series_id: str) -> list[dict[str, Any]]:
+    """Query for all files associated with an ArrayExpress study."""
+    import requests
+
+    all_files: list[dict[str, Any]] = []
+    limit = 100
+    offset = 0
+
+    while True:
+        url = (
+            f"{BIOSTUDIES_API_URL.format(acc=series_id)}/files"
+            f"?limit={limit}&offset={offset}"
+        )
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, dict):
+            logger.warning(
+                "Unexpected BioStudies file-list response for %s", series_id
+            )
+            break
+
+        batch = data.get("items", [])
+        all_files.extend(batch)
+        offset += len(batch)
+
+        total = data.get("pagination", {}).get("total")
+        # Stop once the server-reported total is reached, once a page comes
+        # back short of the requested limit (the last page), or once a page
+        # is empty.
+        if (
+            not batch
+            or len(batch) < limit
+            or (total is not None and offset >= total)
+        ):
+            break
+
+    return all_files
+
+
 def download_arrayexpress_metadata(
     series_id: str,
     save_dir: Path,
@@ -501,10 +546,22 @@ def download_arrayexpress_metadata(
     csv_path = samples_dir / f"{annotation_name}.csv"
     samples_dir.mkdir(parents=True, exist_ok=True)
 
-    # Download SDRF file
-    url = ARRAY_EXPRESS_URL.format(ae_group=series_id[-3:], acc=series_id)
+    # Locate the .sdrf.txt file in the study's manifest via API
+    manifest = _get_arrayexpress_file_manifest(series_id)
+
+    sdrf_file_info = next(
+        (f for f in manifest if f.get("path", "").endswith(".sdrf.txt")),
+        None,
+    )
+    if sdrf_file_info is None:
+        raise ValueError(
+            f"No SDRF metadata file found for ArrayExpress study "
+            f"'{series_id}'."
+        )
+    rel_path = sdrf_file_info["path"]
+
     sdrf_filename = f"{series_id}.sdrf.txt"
-    sdrf_url = f"{url}{sdrf_filename}"
+    sdrf_url = BIOSTUDIES_FILE_URL.format(acc=series_id, path=rel_path)
     sdrf_path = samples_dir / sdrf_filename
     download_file(sdrf_url, sdrf_path, show_progress=show_progress)
 
@@ -563,43 +620,66 @@ def download_arrayexpress_idat(
         subdir: Optional subdirectory name under `save_dir` for the dataset
             folder. Defaults to "series_id" if None.
     """
-    import requests
-
     subdir = subdir or series_id
     samples_dir = save_dir / subdir
     idat_dir = samples_dir / "idat"
     samples_dir.mkdir(parents=True, exist_ok=True)
     idat_dir.mkdir(parents=True, exist_ok=True)
 
-    # Fetch file listing from ArrayExpress
-    url = ARRAY_EXPRESS_URL.format(ae_group=series_id[-3:], acc=series_id)
-    response = requests.get(url, timeout=20)
-    response.raise_for_status()
+    # Fetch file listing from ArrayExpress via BioStudies API
+    manifest = _get_arrayexpress_file_manifest(series_id)
 
-    # Find all hrefs that contain .idat
-    remote_idats = re.findall(
-        r'href=[\'"]?([^\'" >]+?\.idat[^\'" >]*)', response.text
-    )
+    # Extract all .idat file paths from the manifest. Guard against two
+    # different paths sharing the same basename (would otherwise silently
+    # overwrite one another and could download the wrong file under a
+    # given name).
+    remote_idat_map: dict[str, str] = {}
+    for f in manifest:
+        path = f.get("path", "")
+        if not path.lower().endswith(".idat"):
+            continue
+        name = Path(path).name
+        if name in remote_idat_map and remote_idat_map[name] != path:
+            logger.warning(
+                "Duplicate IDAT filename '%s' in ArrayExpress study '%s' "
+                "manifest; keeping '%s', ignoring '%s'.",
+                name,
+                series_id,
+                remote_idat_map[name],
+                path,
+            )
+            continue
+        remote_idat_map[name] = path
+
+    if not remote_idat_map:
+        raise ValueError(
+            f"No IDAT files found in ArrayExpress study '{series_id}'."
+        )
 
     if not samples or samples == "all":
-        idat_urls = sorted(url + filename for filename in remote_idats)
+        target_files = sorted(remote_idat_map.keys())
     else:
         bases = list(samples)
         requested_idats = [f"{id_}_Grn.idat" for id_ in bases] + [
             f"{id_}_Red.idat" for id_ in bases
         ]
-        missing = set(requested_idats) - set(remote_idats)
+        missing = set(requested_idats) - set(remote_idat_map.keys())
         if missing:
             missing_str = ", ".join(missing)
             raise ValueError(
                 f"The following files are not found remotely: {missing_str}"
             )
-        idat_urls = sorted(url + filename for filename in requested_idats)
+        target_files = sorted(requested_idats)
+
+    idat_urls = [
+        BIOSTUDIES_FILE_URL.format(acc=series_id, path=remote_idat_map[fname])
+        for fname in target_files
+    ]
+    save_paths = [idat_dir / fname for fname in target_files]
 
     # Download IDAT files
     logger.info("Downloading %d IDAT files to %s", len(idat_urls), idat_dir)
 
-    save_paths = [idat_dir / Path(url).name for url in idat_urls]
     download_files(
         urls=idat_urls,
         save_paths=save_paths,
@@ -619,14 +699,14 @@ def _gdc_post(
     fields: list[str],
     expand: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """POST a query to the GDC API and return all result hits."""
+    """POST a query to the GDC API and return all result hits (paginated)."""
     import requests
 
     payload: dict[str, Any] = {
         "filters": filters,
         "fields": ",".join(fields),
         "format": "JSON",
-        "size": 50000,
+        "size": GDC_PAGE_SIZE,
     }
     if expand:
         payload["expand"] = ",".join(expand)
@@ -643,12 +723,13 @@ def _gdc_post(
         batch = response.json()["data"]["hits"]
         hits.extend(batch)
 
-        if len(batch) < 50000:
+        if len(batch) < GDC_PAGE_SIZE:
             break
 
         from_ += len(batch)
 
     return hits
+
 
 def query_tcga_project_files(
     project_id: str,
@@ -792,10 +873,7 @@ def query_tcga_clinical(project_id: str) -> pd.DataFrame:
         expand=expand,
     )
     rows = [
-        {
-            field: _get_nested(hit, field)
-            for field in TCGA_CLINICAL_FIELDS
-        }
+        {field: _get_nested(hit, field) for field in TCGA_CLINICAL_FIELDS}
         for hit in hits
     ]
     return pd.DataFrame(rows)

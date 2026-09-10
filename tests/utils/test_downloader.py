@@ -185,12 +185,20 @@ def test_parse_miniml_no_samples(tmp_path: Path) -> None:
 def test_download_geo_metadata(
     mock_parse: MagicMock, mock_download_file: MagicMock, tmp_path: Path
 ) -> None:
-    with patch("tarfile.open"):
+    def _fake_extract(member: str, path: Path, filter: str) -> None:
+        (Path(path) / member).touch()
+
+    with patch("tarfile.open") as mock_tar_open:
+        mock_tar = MagicMock()
+        mock_tar.extract.side_effect = _fake_extract
+        mock_tar_open.return_value.__enter__.return_value = mock_tar
+
         download_geo_metadata("GSE12345", save_dir=tmp_path)
-        mock_download_file.assert_called_once()
-        mock_parse.assert_called_once_with(
-            tmp_path / "GSE12345" / "GSE12345.xml", "GSE12345", None, None
-        )
+
+    mock_download_file.assert_called_once()
+    mock_parse.assert_called_once_with(
+        tmp_path / "GSE12345" / "GSE12345.xml", "GSE12345", None, None
+    )
 
 
 @patch("mepylome.utils.downloader.download_file")
@@ -269,18 +277,25 @@ def test_download_arrayexpress_idat(
     mock_download_files: MagicMock, mock_get: MagicMock, tmp_path: Path
 ) -> None:
     series_id = "E-MTAB-1234"
+
+    # Mock the JSON payload returned by BioStudies REST API
     mock_response = MagicMock()
-    mock_response.text = (
-        '<a href="2015_R01C01_Grn.idat"></a>'
-        '<a href="2015_R01C01_Red.idat"></a>'
-    )
+    mock_response.json.return_value = {
+        "items": [
+            {"path": "2015_R01C01_Grn.idat"},
+            {"path": "2015_R01C01_Red.idat"},
+        ],
+        "pagination": {"offset": 0, "limit": 100, "total": 2},
+    }
     mock_get.return_value = mock_response
 
+    # Test downloading all samples
     download_arrayexpress_idat(series_id, save_dir=tmp_path, samples="all")
     assert mock_download_files.called
     urls = mock_download_files.call_args[1]["urls"]
     assert len(urls) == 2
 
+    # Test missing sample raises ValueError
     with pytest.raises(ValueError, match="not found remotely"):
         download_arrayexpress_idat(
             series_id, save_dir=tmp_path, samples=["MissingSample"]
