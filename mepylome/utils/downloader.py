@@ -294,6 +294,8 @@ def download_geo_metadata(
         raise
 
     parse_miniml_to_df(miniml_path, series_id, samples, meta)
+    miniml_tar_path.unlink(missing_ok=True)
+    miniml_path.unlink(missing_ok=True)
 
 
 def download_geo_idat_all_files(
@@ -593,6 +595,7 @@ def download_arrayexpress_metadata(
 
     # Save simplified CSV
     result_df.to_csv(csv_path, index=False)
+    sdrf_path.unlink(missing_ok=True)
 
 
 def download_arrayexpress_idat(
