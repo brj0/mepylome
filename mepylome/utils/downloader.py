@@ -278,7 +278,6 @@ def download_geo_metadata(
 
     # Download the miniml tarball
     geo_group = _geo_group(series_id)
-    # BUG: If user inputs GSE1234/ instead of GSE1234 error
     miniml_tar_url = GEO_MINIML_URL.format(geo_group=geo_group, acc=series_id)
     download_file(miniml_tar_url, miniml_tar_path, show_progress=show_progress)
 
@@ -320,6 +319,7 @@ def download_geo_idat_all_files(
     subdir = subdir or series_id
     samples_dir = Path(save_dir) / subdir
     idat_dir = samples_dir / "idat"
+    part_dir = samples_dir / "idat.part"
     if idat_dir.exists():
         logger.info(
             "IDAT directory already exists: %s. Skipping download.", idat_dir
@@ -334,15 +334,15 @@ def download_geo_idat_all_files(
     tar_idat_url = GEO_RAW_IDAT_URL.format(geo_group=geo_group, acc=series_id)
     tar_idat_path = samples_dir / f"{series_id}_RAW.tar"
     download_file(tar_idat_url, tar_idat_path, show_progress=show_progress)
-    idat_dir.mkdir(parents=True, exist_ok=True)
+    part_dir.mkdir(parents=True, exist_ok=True)
 
     # Extract idat files
     try:
         with tarfile.open(tar_idat_path, "r:*") as tar:
-            tar.extractall(path=idat_dir, filter="data")
+            tar.extractall(path=part_dir, filter="data")
 
         # Remove unwanted GPL*csv.gz manifest files if present
-        for file_path in idat_dir.rglob("*"):
+        for file_path in part_dir.rglob("*"):
             if file_path.is_file() and "idat" not in file_path.name.lower():
                 try:
                     file_path.unlink()
@@ -351,15 +351,20 @@ def download_geo_idat_all_files(
                     logger.debug(
                         "Could not delete non-IDAT file %s: %s", file_path, exc
                     )
-    finally:
-        # remove the RAW tar if extraction succeeded
-        try:
-            tar_idat_path.unlink()
 
-        except Exception:
-            logger.debug("Could not delete %s", tar_idat_path)
+        part_dir.rename(idat_dir)
 
-    logger.info("Extracted idat files to %s", idat_dir)
+    except Exception:
+        logger.exception(
+            "Failed to extract GEO IDAT archive: %s",
+            tar_idat_path,
+        )
+        raise
+
+    # Remove the archive after successful extraction.
+    tar_idat_path.unlink(missing_ok=True)
+
+    logger.info("Extracted IDAT files to %s", idat_dir)
 
 
 def download_geo_idat_single_files(
@@ -613,23 +618,37 @@ def _gdc_post(
     filters: dict[str, Any],
     fields: list[str],
     expand: list[str] | None = None,
-    size: int = 50000,
 ) -> list[dict[str, Any]]:
-    """POST a query to the GDC API and return the list of result hits."""
+    """POST a query to the GDC API and return all result hits."""
     import requests
 
     payload: dict[str, Any] = {
         "filters": filters,
         "fields": ",".join(fields),
         "format": "JSON",
-        "size": size,
+        "size": 50000,
     }
     if expand:
         payload["expand"] = ",".join(expand)
-    response = requests.post(url, json=payload, timeout=60)
-    response.raise_for_status()
-    return response.json()["data"]["hits"]
 
+    hits: list[dict[str, Any]] = []
+    from_ = 0
+
+    while True:
+        payload["from"] = from_
+
+        response = requests.post(url, json=payload, timeout=60)
+        response.raise_for_status()
+
+        batch = response.json()["data"]["hits"]
+        hits.extend(batch)
+
+        if len(batch) < 50000:
+            break
+
+        from_ += len(batch)
+
+    return hits
 
 def query_tcga_project_files(
     project_id: str,

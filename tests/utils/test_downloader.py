@@ -199,14 +199,18 @@ def test_download_geo_idat_all_files(
     mock_tar_open: MagicMock, mock_download_file: MagicMock, tmp_path: Path
 ) -> None:
     series_id = "GSE12345"
-    idat_dir = tmp_path / series_id / "idat"
 
     mock_tar = MagicMock()
     mock_tar_open.return_value.__enter__.return_value = mock_tar
 
     download_geo_idat_all_files(series_id, save_dir=tmp_path)
     mock_download_file.assert_called_once()
-    mock_tar.extractall.assert_called_once_with(path=idat_dir, filter="data")
+    part_dir = tmp_path / series_id / "idat.part"
+
+    mock_tar.extractall.assert_called_once_with(
+        path=part_dir,
+        filter="data",
+    )
 
 
 @patch("mepylome.utils.downloader.download_files")
