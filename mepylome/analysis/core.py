@@ -86,6 +86,18 @@ VERBOSITY_LEVELS = {
     2: logging.DEBUG,
 }
 
+RENDER_MODES = ("webgl", "svg")
+
+
+def _check_render_mode(render_mode: str) -> None:
+    """Validate that 'render_mode' is a value Plotly understands."""
+    if render_mode not in RENDER_MODES:
+        msg = (
+            f"Invalid 'render_mode' {render_mode!r}. Must be one of "
+            f"{RENDER_MODES}."
+        )
+        raise ValueError(msg)
+
 
 class DualOutput:
     """Enables to simultaneously write output to the terminal and file.
@@ -1198,17 +1210,28 @@ class MethylAnalysis:
         )
         self.umap_df.to_csv(self.umap_plot_path, sep="\t", index=True)
 
-    def make_umap_plot(self) -> None:
+    def make_umap_plot(
+        self, render_mode: Literal["webgl", "svg"] = "webgl"
+    ) -> None:
         """Generates a UMAP plot from the given 2D embedding.
 
         Generates the UMAP plot from the data provided in 'umap_df'. The
         scatter plot color is based on selected columns in
         'idat_handler.selected_columns'.
 
+        Args:
+            render_mode: Rendering mode for the plot's scatter traces
+                ('webgl' or 'svg'). Pass 'svg' to get a figure that can be
+                exported to SVG (e.g. via ``fig.write_image``) without WebGL
+                artifacts. Defaults to 'webgl', used for interactive
+                plotting.
+
         Raises:
             AttributeError: If a dimension mismatch occurs, or if 'umap_df' is
                 not set.
+            ValueError: If 'render_mode' is not one of 'webgl' or 'svg'.
         """
+        _check_render_mode(render_mode)
         logger.info("Make UMAP plot...")
         if self.umap_df is None:
             msg = "'umap_df' not set. Run 'make_umap' instead."
@@ -1227,7 +1250,7 @@ class MethylAnalysis:
         umap_color = umap_color_all.loc[self.ids]
         self.umap_df["Umap_color"] = umap_color.astype(str)
         self.umap_plot = umap_plot_from_data(
-            self.umap_df, self._use_discrete_colors
+            self.umap_df, self._use_discrete_colors, render_mode=render_mode
         )
         self.umap_plot = self.umap_plot.update_layout(
             margin={"l": 0, "r": 0, "t": 30, "b": 0},
@@ -1439,6 +1462,7 @@ class MethylAnalysis:
         self,
         sample_id: str,
         genes_sel: Sequence[str] | None = None,
+        render_mode: Literal["webgl", "svg"] = "webgl",
     ) -> None:
         """Generates a copy number variation (CNV) plot for a specific sample.
 
@@ -1450,11 +1474,19 @@ class MethylAnalysis:
 
             genes_sel: List of specific genes to highlight in the plot.
 
+            render_mode: Rendering mode for the plot's scatter traces
+                ('webgl' or 'svg'). Pass 'svg' to get a figure that can be
+                exported to SVG (e.g. via ``fig.write_image``) without WebGL
+                artifacts. Defaults to 'webgl', used for interactive
+                plotting.
+
         Raises:
             FileNotFoundError: If the specified sample ID is not found in the
                 analysis directory or if the reference directory does not
                 exist.
+            ValueError: If 'render_mode' is not one of 'webgl' or 'svg'.
         """
+        _check_render_mode(render_mode)
         idat_basepath = self.idat_handler.id_to_path[sample_id]
         if not is_valid_idat_basepath(idat_basepath):
             msg = f"Sample {sample_id} not found in {self.analysis_dir}"
@@ -1471,6 +1503,7 @@ class MethylAnalysis:
             cnv_dir=self.cnv_dir,
             genes_sel=genes_sel,
             do_seg=self.do_seg,
+            render_mode=render_mode,
         )
 
     def precompute_cnvs(self, ids: Sequence[str] | None = None) -> None:

@@ -129,6 +129,7 @@ def _mixed_sort_key(s: str | float) -> tuple[int, float | str]:
 def umap_plot_from_data(
     umap_df: pd.DataFrame,
     use_discrete_colors: bool = True,
+    render_mode: str = PLOTLY_RENDER_MODE,
 ) -> go.Figure:
     """Create and return umap plot from UMAP data.
 
@@ -137,6 +138,11 @@ def umap_plot_from_data(
             attributes. First row,w corresponds to sample.
 
         use_discrete_colors: Wheather to use discrete or continuous colors.
+
+        render_mode: Plotly scatter render mode ('webgl' or 'svg').
+            Pass 'svg' to get a figure that can be exported to SVG (e.g. via
+            ``fig.write_image``) without WebGL artifacts. Defaults to
+            'webgl'.
 
     Returns:
         UMAP plot as plotly object.
@@ -168,7 +174,7 @@ def umap_plot_from_data(
         hover_name=umap_df.index,
         category_orders=category_orders,
         hover_data=umap_df.columns[:n_hover],
-        render_mode=PLOTLY_RENDER_MODE,
+        render_mode=render_mode,
         template="simple_white",
     )
     umap_plot.update_yaxes(
@@ -341,6 +347,7 @@ def get_cnv_plot(
     cnv_dir: str | Path,
     genes_sel: Sequence[str],
     do_seg: bool,
+    render_mode: str = PLOTLY_RENDER_MODE,
 ) -> go.Figure:
     """Generate and return a CNV plot for a given sample.
 
@@ -356,6 +363,11 @@ def get_cnv_plot(
         genes_sel: List of genes to highlight in the plot.
 
         do_seg: If segments should be calculated as well (slow)
+
+        render_mode: Plotly scatter render mode ('webgl' or 'svg').
+            Pass 'svg' to get a figure that can be exported to SVG (e.g. via
+            ``fig.write_image``) without WebGL artifacts. Defaults to
+            'webgl'.
 
     Returns:
         CNV plotly figure.
@@ -379,6 +391,7 @@ def get_cnv_plot(
         segments,
         CONFIG["genes"]["default_genes_list"],
         list(genes_sel),
+        render_mode=render_mode,
     )
     return plot.update_layout(
         margin={"l": 0, "r": 0, "t": 30, "b": 0},

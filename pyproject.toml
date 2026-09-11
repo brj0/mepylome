@@ -53,7 +53,7 @@ dev = [
   "ipywidgets",               # interactive notebook widgets
   "jupyter",                  # notebook server & tools
   "jupytext",                 # sync notebooks and scripts
-  "kaleido==0.2.1",           # stable image export for Plotly
+  "kaleido",                  # stable image export for Plotly
   "mypy",                     # static type checking
   "nbstripout",               # strip outputs from committed notebooks
   "pillow",                   # image handling (capitalized PyPI name)

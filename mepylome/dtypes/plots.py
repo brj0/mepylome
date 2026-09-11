@@ -96,6 +96,16 @@ def add_offset(df: pd.DataFrame, chrom_nm: str, col: str) -> pd.Series:
     return df[col] + df[chrom_nm].map(offset)
 
 
+def _scatter_cls(render_mode: str) -> type[go.Scatter] | type[go.Scattergl]:
+    """Return the Scatter trace class matching the given render mode.
+
+    ``go.Scattergl`` renders via WebGL (fast, but cannot be exported to
+    SVG). ``go.Scatter`` renders via SVG and can be exported with
+    ``fig.write_image(..., format="svg")``.
+    """
+    return go.Scattergl if render_mode == "webgl" else go.Scatter
+
+
 def get_x_mid(df: pd.DataFrame) -> pd.Series:
     """Calculates the midpoint x-values of all chromosomes."""
     return df["Chromosome"].map(offset) + (df["Start"] + df["End"]) // 2
@@ -153,6 +163,7 @@ def cnv_bins_plot(
     data_frame: pd.DataFrame,
     title: str,
     labels: tuple[str, str],
+    render_mode: str = PLOTLY_RENDER_MODE,
 ) -> go.Figure:
     """Create CNV plot from CNV data.
 
@@ -162,8 +173,13 @@ def cnv_bins_plot(
         title: Title of plot
 
         labels: Touple of labels for x-axis and y-axis.
+
+        render_mode: Plotly scatter render mode ('webgl' or 'svg').
+            Use 'svg' if the resulting figure needs to be exported as SVG
+            (e.g. via ``fig.write_image``). Defaults to 'webgl' for
+            interactive-plot performance.
     """
-    scatter_trace = go.Scattergl(
+    scatter_trace = _scatter_cls(render_mode)(
         x=data_frame["x"],
         y=data_frame["y"],
         mode="markers",
@@ -190,12 +206,17 @@ def cnv_bins_plot(
     return plot
 
 
-def add_segments(plot: go.Figure, seg_df: pd.DataFrame | None) -> go.Figure:
+def add_segments(
+    plot: go.Figure,
+    seg_df: pd.DataFrame | None,
+    render_mode: str = PLOTLY_RENDER_MODE,
+) -> go.Figure:
     """Adds segments calculated by Circular Binary Segmentation (CBG)."""
     if seg_df is None:
         return plot
+    scatter_cls = _scatter_cls(render_mode)
     seg_lines = [
-        go.Scattergl(
+        scatter_cls(
             x=[seg["X_start"], seg["X_end"]],
             y=[seg["Median"], seg["Median"]],
             mode="lines",
@@ -209,17 +230,23 @@ def add_segments(plot: go.Figure, seg_df: pd.DataFrame | None) -> go.Figure:
     return plot
 
 
-def add_genes(plot: go.Figure, genes: pd.DataFrame) -> go.Figure:
+def add_genes(
+    plot: go.Figure,
+    genes: pd.DataFrame,
+    render_mode: str = PLOTLY_RENDER_MODE,
+) -> go.Figure:
     """Add genes to the plot as bars with central crosses.
 
     Args:
         plot: The plot to which genes will be added.
 
         genes: A DataFrame of genes to be added to the plot.
+
+        render_mode: Plotly scatter render mode ('webgl' or 'svg').
     """
     # Draw NaN's with value 0
     genes["Median"] = genes["Median"].fillna(0)
-    scatter_genes = go.Scattergl(
+    scatter_genes = _scatter_cls(render_mode)(
         customdata=genes[
             [
                 "Name",  # 0
@@ -262,9 +289,10 @@ def add_genes(plot: go.Figure, genes: pd.DataFrame) -> go.Figure:
 def add_highlighted_bins(
     plot: go.Figure,
     highlighted_bins: pd.DataFrame,
+    render_mode: str = PLOTLY_RENDER_MODE,
 ) -> go.Figure:
     """Changes the color of the specified bins."""
-    highlighted_bins_scatter = go.Scattergl(
+    highlighted_bins_scatter = _scatter_cls(render_mode)(
         x=highlighted_bins.X_mid,
         y=highlighted_bins.Median,
         marker_color="magenta",
@@ -411,6 +439,7 @@ def cnv_plot_from_data(
     segments: pd.DataFrame | None,
     genes_fix: list[str],
     genes_sel: list[str],
+    render_mode: str = PLOTLY_RENDER_MODE,
 ) -> go.Figure:
     """Generate a CNV plot from data calculated by the class CNV.
 
@@ -427,6 +456,11 @@ def cnv_plot_from_data(
 
         genes_sel: List of genes to include in the plot and highlight all
             associated bins.
+
+        render_mode: Plotly scatter render mode ('webgl' or 'svg').
+            Pass 'svg' to get a figure that can be exported to SVG (e.g. via
+            ``fig.write_image``) without WebGL artifacts. Defaults to
+            'webgl'.
 
     Returns:
         A Plotly figure representing the CNV plot.
@@ -447,6 +481,7 @@ def cnv_plot_from_data(
         data_frame=scatter_df,
         title=f"Sample ID: {sample_id}",
         labels=("", ""),
+        render_mode=render_mode,
     )
 
     # Highlight bins adjacent to the added genes
@@ -470,16 +505,18 @@ def cnv_plot_from_data(
     genes_x_range = selected_genes_df["Range"].explode().tolist()
 
     highlighted_bins = bins.loc[genes_x_range, ["X_mid", "Median"]]
-    plot = add_highlighted_bins(plot, highlighted_bins)
+    plot = add_highlighted_bins(
+        plot, highlighted_bins, render_mode=render_mode
+    )
 
     # Add all added and important genes
     genes_to_plot = genes_fix + genes_sel
     gene_detail = detail[detail["Name"].isin(genes_to_plot)].copy()
-    plot = add_genes(plot, gene_detail)
+    plot = add_genes(plot, gene_detail, render_mode=render_mode)
 
     # Draw the segments
     logger.info("Make CNV plot: segments...")
-    plot = add_segments(plot, segments)
+    plot = add_segments(plot, segments, render_mode=render_mode)
     return plot
 
 
