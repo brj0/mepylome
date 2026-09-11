@@ -1472,6 +1472,7 @@ class MethylAnalysis:
         sample_id: str,
         genes_sel: Sequence[str] | None = None,
         render_mode: Literal["webgl", "svg"] = "webgl",
+        highlight_bins: bool = True,
     ) -> None:
         """Generates a copy number variation (CNV) plot for a specific sample.
 
@@ -1488,6 +1489,11 @@ class MethylAnalysis:
                 exported to SVG (e.g. via ``fig.write_image``) without WebGL
                 artifacts. Defaults to 'webgl', used for interactive
                 plotting.
+
+            highlight_bins: Whether to visually highlight (in magenta) the
+                bins associated with 'genes_sel'. Set to False to omit
+                these markers, e.g. for publication-ready figures. Genes in
+                'genes_sel' are still drawn either way. Defaults to True.
 
         Raises:
             FileNotFoundError: If the specified sample ID is not found in the
@@ -1513,6 +1519,7 @@ class MethylAnalysis:
             genes_sel=genes_sel,
             do_seg=self.do_seg,
             render_mode=render_mode,
+            highlight_bins=highlight_bins,
         )
 
     def precompute_cnvs(self, ids: Sequence[str] | None = None) -> None:

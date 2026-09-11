@@ -440,6 +440,7 @@ def cnv_plot_from_data(
     genes_fix: list[str],
     genes_sel: list[str],
     render_mode: str = PLOTLY_RENDER_MODE,
+    highlight_bins: bool = True,
 ) -> go.Figure:
     """Generate a CNV plot from data calculated by the class CNV.
 
@@ -461,6 +462,12 @@ def cnv_plot_from_data(
             Pass 'svg' to get a figure that can be exported to SVG (e.g. via
             ``fig.write_image``) without WebGL artifacts. Defaults to
             'webgl'.
+
+        highlight_bins: Whether to visually highlight (in magenta) the
+            bins associated with 'genes_sel'. Genes in 'genes_sel' are
+            still validated and drawn either way; this only controls the
+            extra highlighted-bin markers, which can be distracting in
+            publication-ready figures. Defaults to True.
 
     Returns:
         A Plotly figure representing the CNV plot.
@@ -502,12 +509,12 @@ def cnv_plot_from_data(
         )
         raise ValueError(msg)
 
-    genes_x_range = selected_genes_df["Range"].explode().tolist()
-
-    highlighted_bins = bins.loc[genes_x_range, ["X_mid", "Median"]]
-    plot = add_highlighted_bins(
-        plot, highlighted_bins, render_mode=render_mode
-    )
+    if highlight_bins:
+        genes_x_range = selected_genes_df["Range"].explode().tolist()
+        highlighted_bins = bins.loc[genes_x_range, ["X_mid", "Median"]]
+        plot = add_highlighted_bins(
+            plot, highlighted_bins, render_mode=render_mode
+        )
 
     # Add all added and important genes
     genes_to_plot = genes_fix + genes_sel

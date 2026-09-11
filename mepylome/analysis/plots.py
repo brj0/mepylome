@@ -348,6 +348,7 @@ def get_cnv_plot(
     genes_sel: Sequence[str],
     do_seg: bool,
     render_mode: str = PLOTLY_RENDER_MODE,
+    highlight_bins: bool = True,
 ) -> go.Figure:
     """Generate and return a CNV plot for a given sample.
 
@@ -368,6 +369,10 @@ def get_cnv_plot(
             Pass 'svg' to get a figure that can be exported to SVG (e.g. via
             ``fig.write_image``) without WebGL artifacts. Defaults to
             'webgl'.
+
+        highlight_bins: Whether to visually highlight (in magenta) the
+            bins associated with 'genes_sel'. Set to False to omit these
+            markers, e.g. for publication-ready figures. Defaults to True.
 
     Returns:
         CNV plotly figure.
@@ -392,6 +397,7 @@ def get_cnv_plot(
         CONFIG["genes"]["default_genes_list"],
         list(genes_sel),
         render_mode=render_mode,
+        highlight_bins=highlight_bins,
     )
     return plot.update_layout(
         margin={"l": 0, "r": 0, "t": 30, "b": 0},
