@@ -75,6 +75,14 @@ Homepage = "https://github.com/brj0/mepylome"
 packages = { find = {} }
 include-package-data = true
 
+# rm -rf dist build *.egg-info
+# python -m build
+# twine upload dist/*
+# username: __token__
+# password: pypi-xxxxxxxxxxxxxxxx
+[tool.setuptools.package-data]
+mepylome = ["data/**/*"]
+
 [project.scripts]
 mepylome = "mepylome.cli:start_mepylome"
 
