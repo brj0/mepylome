@@ -986,7 +986,7 @@ def test_make_umap_calls_set_betas_compute_and_plot_in_order(
     monkeypatch.setattr(
         analysis,
         "make_umap_plot",
-        lambda: call_order.append("make_umap_plot"),
+        lambda *args, **kwargs: call_order.append("make_umap_plot"),
     )
     analysis.make_umap()
     assert call_order == ["set_betas", "compute_umap", "make_umap_plot"]

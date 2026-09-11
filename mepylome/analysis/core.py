@@ -1103,18 +1103,27 @@ class MethylAnalysis:
         # Update variables/hashes
         self._prev_vars = cur_vars
 
-    def make_umap(self) -> None:
+    def make_umap(
+        self, render_mode: Literal["webgl", "svg"] = "webgl"
+    ) -> None:
         """Generates the UMAP plot.
 
         This method extracts the beta values required for UMAP computation,
         computes the UMAP 2D embedding, and creates and displays the UMAP plot
         based on the computed embedding.
+
+        Args:
+            render_mode: Rendering mode for the plot's scatter traces
+                ('webgl' or 'svg'). Pass 'svg' to get a figure that can be
+                exported to SVG (e.g. via ``fig.write_image``) without WebGL
+                artifacts. Defaults to 'webgl', used for interactive
+                plotting.
         """
         self._prog_bar.reset(len(self.idat_handler), text="(betas)")
         self.set_betas()
         self._prog_bar.reset(1, 1)
         self.compute_umap()
-        self.make_umap_plot()
+        self.make_umap_plot(render_mode=render_mode)
 
     def compute_umap(self) -> None:
         """Applies the UMAP algorithm on 'betas_sel'.
