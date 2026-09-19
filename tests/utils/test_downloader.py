@@ -9,6 +9,10 @@ import pandas as pd
 import pytest
 
 from mepylome.utils.downloader import (
+    TCGA_CASES_URL,
+    TCGA_DATA_URL,
+    TCGA_FILES_URL,
+    _download_single_dataset,
     _first_attr_value,
     _geo_group,
     _get_val,
@@ -23,9 +27,12 @@ from mepylome.utils.downloader import (
     download_geo_metadata,
     download_idats,
     download_tcga_idat,
+    list_target_methylation_projects,
+    list_tcga_methylation_projects,
     make_dataset,
     make_tcga_metadata,
     parse_miniml_to_df,
+    query_tcga_project_files,
 )
 
 # =============================================================================
@@ -111,6 +118,22 @@ def test_make_dataset_mixed_iterable() -> None:
         "samples": "all",
     }
     assert res[2] == {"source": "tcga", "metadata_cart": "c.json"}
+
+
+def test_make_dataset_target_string() -> None:
+    res = make_dataset("TARGET-AML")
+    assert res == [
+        {"source": "target", "project": "TARGET-AML", "samples": "all"}
+    ]
+
+
+def test_make_dataset_tcga_and_target_mixed() -> None:
+    res = make_dataset(["TCGA-LUAD", "TARGET-NBL", "GSE1234"])
+    assert res == [
+        {"source": "tcga", "project": "TCGA-LUAD", "samples": "all"},
+        {"source": "target", "project": "TARGET-NBL", "samples": "all"},
+        {"source": "geo", "series": "GSE1234", "samples": "all"},
+    ]
 
 
 def test_make_dataset_errors() -> None:
@@ -358,7 +381,221 @@ def test_download_tcga_idat(
 
 
 # =============================================================================
-# 7. High-Level Hub Test (download_idats)
+# 7. TARGET Operational Tests (same GDC pipeline as TCGA)
+# =============================================================================
+
+
+def _filter_map(node: dict) -> dict:
+    """Flatten a nested GDC filter into a {field: values} mapping."""
+    if node["op"] in ("and", "or"):
+        out: dict = {}
+        for child in node["content"]:
+            out.update(_filter_map(child))
+        return out
+    return {node["content"]["field"]: node["content"]["value"]}
+
+
+def _gdc_file_hit(file_id: str, name: str, case: str, sample: str) -> dict:
+    return {
+        "file_id": file_id,
+        "file_name": name,
+        "md5sum": f"md5-{file_id}",
+        "cases": [
+            {"case_id": case, "samples": [{"submitter_id": sample}]},
+        ],
+    }
+
+
+@patch("requests.post")
+def test_list_methylation_projects_program(mock_post: MagicMock) -> None:
+    buckets = [
+        {"key": "TARGET-OS", "doc_count": 3},
+        {"key": "TARGET-AML", "doc_count": 5},
+        {"key": "TARGET-EMPTY", "doc_count": 0},
+    ]
+    mock_post.return_value.json.return_value = {
+        "data": {
+            "aggregations": {"cases.project.project_id": {"buckets": buckets}}
+        }
+    }
+
+    assert list_target_methylation_projects() == ["TARGET-AML", "TARGET-OS"]
+    fmap = _filter_map(mock_post.call_args.kwargs["json"]["filters"])
+    assert fmap["cases.project.program.name"] == ["TARGET"]
+    assert fmap["access"] == ["open"]
+
+    # Default program is unchanged (TCGA).
+    list_tcga_methylation_projects()
+    fmap = _filter_map(mock_post.call_args.kwargs["json"]["filters"])
+    assert fmap["cases.project.program.name"] == ["TCGA"]
+
+
+@patch("mepylome.utils.downloader._gdc_post")
+def test_query_project_files_target(mock_gdc_post: MagicMock) -> None:
+    mock_gdc_post.return_value = [
+        _gdc_file_hit(
+            "u1", "201234567890_R01C01_Grn.idat", "c1", "TARGET-20-AAAAAA-09A"
+        ),
+        _gdc_file_hit(
+            "u2", "201234567890_R01C01_Red.idat", "c1", "TARGET-20-AAAAAA-09A"
+        ),
+    ]
+
+    df = query_tcga_project_files(
+        "TARGET-AML", samples=["TARGET-20-AAAAAA", "TARGET-20-BBBBBB-14A"]
+    )
+
+    fmap = _filter_map(mock_gdc_post.call_args.kwargs["filters"])
+    assert fmap["cases.project.project_id"] == ["TARGET-AML"]
+    assert fmap["data_format"] == ["IDAT"]
+    assert fmap["experimental_strategy"] == ["Methylation Array"]
+    assert fmap["access"] == ["open"]
+    # Case- and sample-level barcodes are both matched.
+    wanted = ["TARGET-20-AAAAAA", "TARGET-20-BBBBBB-14A"]
+    assert fmap["cases.submitter_id"] == wanted
+    assert fmap["cases.samples.submitter_id"] == wanted
+
+    assert list(df["id"]) == ["u1", "u2"]
+    assert set(df["Sample_ID"]) == {"201234567890_R01C01"}
+    assert set(df["sample_submitter_id"]) == {"TARGET-20-AAAAAA-09A"}
+
+
+@patch("mepylome.utils.downloader.download_tcga_idat")
+@patch("mepylome.utils.downloader.make_tcga_metadata")
+def test_download_idats_target_routing(
+    mock_meta: MagicMock, mock_idat: MagicMock, tmp_path: Path
+) -> None:
+    download_idats("TARGET-AML", save_dir=tmp_path)
+    kwargs = mock_meta.call_args.kwargs
+    assert kwargs["project"] == "TARGET-AML"
+    assert kwargs["subdir"] == "TARGET-AML"
+    assert kwargs["samples"] == "all"
+    assert kwargs["include_clinical"] is True
+    mock_idat.assert_called_once_with(save_dir=tmp_path, subdir="TARGET-AML")
+
+    # idat=False skips the IDAT download, metadata=False skips clinical.
+    mock_meta.reset_mock()
+    mock_idat.reset_mock()
+    download_idats("TARGET-AML", save_dir=tmp_path, idat=False)
+    mock_idat.assert_not_called()
+    download_idats("TARGET-AML", save_dir=tmp_path, metadata=False)
+    assert mock_meta.call_args.kwargs["include_clinical"] is False
+    mock_idat.assert_called_once()
+
+
+@patch("mepylome.utils.downloader.download_tcga_idat")
+@patch("mepylome.utils.downloader.make_tcga_metadata")
+def test_download_single_dataset_target_options(
+    mock_meta: MagicMock, mock_idat: MagicMock, tmp_path: Path
+) -> None:
+    # Partial download with custom folder and annotation name.
+    _download_single_dataset(
+        {
+            "source": "target",
+            "project": "TARGET-AML",
+            "samples": ["TARGET-20-AAAAAA"],
+            "subdir": "my_target",
+            "meta": "my_annotation",
+        },
+        save_dir=tmp_path,
+    )
+    kwargs = mock_meta.call_args.kwargs
+    assert kwargs["samples"] == ["TARGET-20-AAAAAA"]
+    assert kwargs["subdir"] == "my_target"
+    assert kwargs["meta"] == "my_annotation"
+    mock_idat.assert_called_once_with(save_dir=tmp_path, subdir="my_target")
+
+    # Legacy (cart) mode falls back to a program-specific folder name.
+    _download_single_dataset(
+        {"source": "target", "metadata_cart": "cart.json"}, save_dir=tmp_path
+    )
+    kwargs = mock_meta.call_args.kwargs
+    assert kwargs["subdir"] == "TARGET"
+    assert kwargs["metadata_cart"] == Path("cart.json")
+    assert kwargs["project"] is None
+
+
+def test_download_single_dataset_errors(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="TARGET dataset requires"):
+        _download_single_dataset({"source": "target"}, save_dir=tmp_path)
+    with pytest.raises(ValueError, match="TCGA dataset requires"):
+        _download_single_dataset({"source": "tcga"}, save_dir=tmp_path)
+    with pytest.raises(ValueError, match="'tcga', or 'target'"):
+        _download_single_dataset({"source": "nope"}, save_dir=tmp_path)
+
+
+@patch("mepylome.utils.downloader.download_files")
+@patch("mepylome.utils.downloader._gdc_post")
+def test_download_idats_target_end_to_end(
+    mock_gdc_post: MagicMock, mock_download_files: MagicMock, tmp_path: Path
+) -> None:
+    """TARGET project -> manifest, annotation, IDAT downloads (mocked)."""
+    sample_a, sample_b = "TARGET-20-AAAAAA-09A", "TARGET-20-BBBBBB-09A"
+    file_hits = [
+        _gdc_file_hit("g1", "111_R01C01_Grn.idat", "c1", sample_a),
+        _gdc_file_hit("r1", "111_R01C01_Red.idat", "c1", sample_a),
+        _gdc_file_hit("g2", "222_R02C01_Grn.idat", "c2", sample_b),
+        _gdc_file_hit("r2", "222_R02C01_Red.idat", "c2", sample_b),
+    ]
+    case_hits = [
+        {
+            "case_id": "c1",
+            "submitter_id": "TARGET-20-AAAAAA",
+            "project": {"project_id": "TARGET-AML"},
+            "demographic": {"gender": "female", "vital_status": "Alive"},
+            "diagnoses": [
+                {
+                    "primary_diagnosis": "Acute myeloid leukemia, NOS",
+                    "age_at_diagnosis": 3000,
+                }
+            ],
+        },
+        {
+            "case_id": "c2",
+            "submitter_id": "TARGET-20-BBBBBB",
+            "project": {"project_id": "TARGET-AML"},
+            "demographic": {"gender": "male", "vital_status": "Dead"},
+            "diagnoses": [{"primary_diagnosis": "Acute myeloid leukemia"}],
+        },
+    ]
+
+    def fake_gdc_post(url: str, **_: object) -> list[dict]:
+        return {TCGA_FILES_URL: file_hits, TCGA_CASES_URL: case_hits}[url]
+
+    mock_gdc_post.side_effect = fake_gdc_post
+
+    download_idats("TARGET-AML", save_dir=tmp_path)
+
+    dataset_dir = tmp_path / "TARGET-AML"
+    manifest = pd.read_csv(dataset_dir / "manifest.csv")
+    assert list(manifest["filename"]) == [
+        "111_R01C01_Grn.idat",
+        "111_R01C01_Red.idat",
+        "222_R02C01_Grn.idat",
+        "222_R02C01_Red.idat",
+    ]
+
+    # One annotation row per Grn/Red pair, with clinical data merged in.
+    annotation = pd.read_csv(dataset_dir / "annotation.csv")
+    assert list(annotation["Sample_ID"]) == ["111_R01C01", "222_R02C01"]
+    assert list(annotation["sample_submitter_id"]) == [
+        "TARGET-20-AAAAAA-09A",
+        "TARGET-20-BBBBBB-09A",
+    ]
+    assert set(annotation["project.project_id"]) == {"TARGET-AML"}
+    assert list(annotation["demographic.gender"]) == ["female", "male"]
+    assert annotation.loc[0, "diagnoses.age_at_diagnosis"] == 3000
+
+    # IDATs are fetched from the GDC data endpoint into <subdir>/idat.
+    urls, paths = mock_download_files.call_args[0][:2]
+    expected_ids = ["g1", "r1", "g2", "r2"]
+    expected_urls = [TCGA_DATA_URL.format(file_id=i) for i in expected_ids]
+    assert list(urls) == expected_urls
+    assert {Path(p).parent for p in paths} == {dataset_dir / "idat"}
+
+
+# =============================================================================
+# 8. High-Level Hub Test (download_idats)
 # =============================================================================
 
 

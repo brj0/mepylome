@@ -1,8 +1,8 @@
-"""Downloader for GEO, ArrayExpress, and TCGA datasets.
+"""Downloader for GEO, ArrayExpress, TCGA, and TARGET datasets.
 
 Provides `download_idats()` to fetch IDAT files and/or metadata from GEO
-series/samples, ArrayExpress series, or TCGA datasets. Supports single strings,
-dicts, or lists of datasets.
+series/samples, ArrayExpress series, or TCGA/TARGET datasets (both hosted on
+the GDC). Supports single strings, dicts, or lists of datasets.
 
 Examples:
     # Download a GEO or AE series
@@ -34,6 +34,21 @@ Examples:
             "source": "tcga",
             "project": "TCGA-LUAD",
             "samples": ["TCGA-05-4244", "TCGA-05-4245"],
+        },
+        save_dir="~/mepylome/data",
+        idat=True,
+        metadata=True,
+    )
+
+    # Download a whole TARGET project (IDATs + clinical metadata from GDC)
+    download_idats("TARGET-AML", save_dir="~/mepylome/data")
+
+    # Download only a subset of cases from a TARGET project
+    download_idats(
+        dataset={
+            "source": "target",
+            "project": "TARGET-AML",
+            "samples": ["TARGET-20-XXXXXX", "TARGET-20-YYYYYY"],
         },
         save_dir="~/mepylome/data",
         idat=True,
@@ -92,10 +107,18 @@ GEO_MINIML_URL = (
 BIOSTUDIES_API_URL = "https://www.ebi.ac.uk/biostudies/api/v1/studies/{acc}"
 BIOSTUDIES_FILE_URL = "https://www.ebi.ac.uk/biostudies/files/{acc}/{path}"
 
+# TCGA and TARGET are both hosted on the NCI Genomic Data Commons (GDC) and are
+# queried through the same API, so the `TCGA_*` names, `query_tcga_*` and
+# `make_tcga_metadata` below serve both programs.
 TCGA_DATA_URL = "https://api.gdc.cancer.gov/data/{file_id}"
 TCGA_FILES_URL = "https://api.gdc.cancer.gov/files"
 TCGA_CASES_URL = "https://api.gdc.cancer.gov/cases"
 GDC_PAGE_SIZE = 10000
+# Downloads are unauthenticated, so only open-access files can be fetched.
+GDC_OPEN_ACCESS_FILTER = {
+    "op": "in",
+    "content": {"field": "access", "value": ["open"]},
+}
 TCGA_CLINICAL_FIELDS = [
     "case_id",
     "submitter_id",
@@ -107,6 +130,7 @@ TCGA_CLINICAL_FIELDS = [
     "demographic.age_at_index",
     "demographic.days_to_death",
     "diagnoses.primary_diagnosis",
+    "diagnoses.age_at_diagnosis",
     "diagnoses.classification_of_tumor",
     "diagnoses.morphology",
     "diagnoses.tissue_or_organ_of_origin",
@@ -742,8 +766,12 @@ def _gdc_post(
     return hits
 
 
-def list_tcga_methylation_projects() -> list[str]:
-    """List TCGA project IDs that have methylation IDAT files on GDC."""
+def list_tcga_methylation_projects(program: str = "TCGA") -> list[str]:
+    """List project IDs of a GDC program that have methylation IDAT files.
+
+    Args:
+        program: GDC program name, e.g. "TCGA" (default) or "TARGET".
+    """
     import requests
 
     filters = {
@@ -753,7 +781,7 @@ def list_tcga_methylation_projects() -> list[str]:
                 "op": "in",
                 "content": {
                     "field": "cases.project.program.name",
-                    "value": ["TCGA"],
+                    "value": [program],
                 },
             },
             {
@@ -767,6 +795,7 @@ def list_tcga_methylation_projects() -> list[str]:
                     "value": ["Methylation Array"],
                 },
             },
+            GDC_OPEN_ACCESS_FILTER,
         ],
     }
     payload: dict[str, Any] = {
@@ -783,20 +812,28 @@ def list_tcga_methylation_projects() -> list[str]:
     return sorted(b["key"] for b in buckets if b.get("doc_count", 0) > 0)
 
 
+def list_target_methylation_projects() -> list[str]:
+    """List TARGET project IDs that have methylation IDAT files on GDC."""
+    return list_tcga_methylation_projects(program="TARGET")
+
+
 def query_tcga_project_files(
     project_id: str,
     samples: Iterable[str] | None = None,
 ) -> pd.DataFrame:
-    """Query for all Illumina methylation IDAT files of a TCGA project.
+    """Query for all open-access methylation IDAT files of a GDC project.
+
+    Works for TCGA and TARGET projects alike.
 
     Args:
-        project_id: TCGA project ID, e.g. "TCGA-LUAD".
+        project_id: GDC project ID, e.g. "TCGA-LUAD" or "TARGET-AML".
 
-        samples: Optional iterable of TCGA barcodes to restrict the query
-            to. If None or "all", all cases with IDAT files in the project
-            are returned. Accepts either case-level barcodes (e.g.
-            "TCGA-05-4244", returns *all* aliquots/samples of that case) or
-            sample-level barcodes (e.g. "TCGA-05-4244-01A", returns exactly
+        samples: Optional iterable of barcodes to restrict the query to. If
+            None or "all", all cases with IDAT files in the project are
+            returned. Accepts either case-level barcodes (e.g.
+            "TCGA-05-4244" or "TARGET-20-XXXXXX", returns *all*
+            aliquots/samples of that case) or sample-level barcodes (e.g.
+            "TCGA-05-4244-01A" or "TARGET-20-XXXXXX-09A", returns exactly
             that one aliquot) — both can be mixed in the same list. Use
             sample-level barcodes for precise, per-aliquot partial
             downloads.
@@ -804,8 +841,7 @@ def query_tcga_project_files(
     Returns:
         DataFrame with columns 'id' (GDC file_id), 'filename', 'Sample_ID'
         (Sentrix ID or GDC file UUID), 'md5sum', 'case_id', and
-        'sample_submitter_id' (the TCGA sample barcode, e.g.
-        "TCGA-05-4244-01A").
+        'sample_submitter_id' (the sample barcode, e.g. "TCGA-05-4244-01A").
     """
     filters: dict[str, Any] = {
         "op": "and",
@@ -828,6 +864,7 @@ def query_tcga_project_files(
                     "value": ["Methylation Array"],
                 },
             },
+            GDC_OPEN_ACCESS_FILTER,
         ],
     }
     if samples and samples != "all":
@@ -965,10 +1002,10 @@ def make_tcga_metadata(
 
     Two modes are supported:
 
-    1. **Project mode** (recommended): pass `project` (e.g. "TCGA-LUAD").
-       The list of IDAT files and the clinical metadata are both fetched
-       live from the GDC API. Use `samples` to restrict to specific cases
-       (partial project download).
+    1. **Project mode** (recommended): pass `project` (e.g. "TCGA-LUAD" or
+       "TARGET-AML"). The list of IDAT files and the clinical metadata are
+       both fetched live from the GDC API. Use `samples` to restrict to
+       specific cases (partial project download).
 
     2. **Legacy mode**: pass a pre-downloaded `metadata_cart` (GDC cart
        JSON) and `metadata_clinical` (clinical TSV) instead.
@@ -976,7 +1013,8 @@ def make_tcga_metadata(
     Args:
         save_dir: directory where output CSVs will be written.
 
-        project: TCGA project ID, e.g. "TCGA-LUAD". Triggers project mode.
+        project: GDC project ID, e.g. "TCGA-LUAD" or "TARGET-AML". Triggers
+            project mode.
 
         samples: Optional iterable of case submitter IDs to restrict a
             project-mode download to (partial download).
@@ -1153,7 +1191,7 @@ def make_dataset(
 ) -> list[dict[str, str | list[str]]]:
     """Normalize dataset input into a list of standardized dictionaries.
 
-    Accepts E-MTAB*, GSE*, or GSM* identifiers.
+    Accepts E-MTAB*, GSE*, GSM*, TCGA-*, or TARGET-* identifiers.
     Groups all GSMs (including those in dicts) into one GEO dataset
     with series='GEO'.
 
@@ -1201,10 +1239,15 @@ def make_dataset(
             datasets.append(
                 {"source": "tcga", "project": name, "samples": "all"}
             )
+        elif name.startswith("TARGET-"):
+            datasets.append(
+                {"source": "target", "project": name, "samples": "all"}
+            )
         else:
             raise ValueError(
                 f"Unrecognized dataset prefix '{name}'. Must start with "
-                "'E-MTAB-', 'GSE', 'GSM', or 'TCGA-' (e.g. 'TCGA-LUAD')."
+                "'E-MTAB-', 'GSE', 'GSM', 'TCGA-', or 'TARGET-' (e.g. "
+                "'TCGA-LUAD' or 'TARGET-AML')."
             )
 
     # Group all GSMs into a single dataset
@@ -1273,17 +1316,18 @@ def _download_single_dataset(
                 samples=samples,
                 subdir=subdir,
             )
-    elif source == "tcga":
+    elif source in ("tcga", "target"):
+        # TCGA and TARGET share the same GDC pipeline.
         project = dataset.get("project")
         metadata_cart = dataset.get("metadata_cart")
         metadata_clinical = dataset.get("metadata_clinical")
         if not project and not metadata_cart:
             raise ValueError(
-                "TCGA dataset requires either 'project' (e.g. "
-                "'TCGA-LUAD') or a legacy 'metadata_cart' "
+                f"{source.upper()} dataset requires either 'project' (e.g. "
+                "'TCGA-LUAD' or 'TARGET-AML') or a legacy 'metadata_cart' "
                 "(+ 'metadata_clinical')."
             )
-        subdir = subdir or project or "TCGA"
+        subdir = subdir or project or source.upper()
         make_tcga_metadata(
             save_dir=save_dir,
             project=project,
@@ -1300,7 +1344,8 @@ def _download_single_dataset(
             download_tcga_idat(save_dir=save_dir, subdir=subdir)
     else:
         raise ValueError(
-            f"Invalid source: '{source}'. Expected 'ae', 'geo', or 'tcga'."
+            f"Invalid source: '{source}'. Expected 'ae', 'geo', 'tcga', or "
+            "'target'."
         )
 
 
@@ -1310,7 +1355,7 @@ def download_idats(
     idat: bool = True,
     metadata: bool = True,
 ) -> None:
-    """Download IDAT files and/or metadata from GEO, ArrayExpress, and TCGA.
+    """Download IDAT files and/or metadata from GEO, AE, TCGA, and TARGET.
 
     This function accepts single datasets or lists of datasets, with flexible
     formats:
@@ -1318,6 +1363,8 @@ def download_idats(
     1. **Strings representing series IDs:**
         - GEO: `"GSE1234"`
         - ArrayExpress: `"E-MTAB-1234"`
+        - TCGA project: `"TCGA-LUAD"`
+        - TARGET project: `"TARGET-AML"`
     2. **Strings representing individual GEO samples:** `"GSM12345"`
     3. **Dictionaries describing a dataset**, which allow more control and
         optional overrides (including folder and annotation names):
@@ -1329,18 +1376,20 @@ def download_idats(
          - subdir: output folder under save_dir (optional, default <series>)
          - meta: annotation/metadata filename (optional, default "annotation")
 
-       TCGA dicts may include:
-         - source: "tcga" (required)
-         - project: TCGA project ID, e.g. "TCGA-LUAD" (recommended; fetches
-           IDATs + clinical metadata live from the GDC API)
+       TCGA / TARGET dicts may include:
+         - source: "tcga" or "target" (required)
+         - project: GDC project ID, e.g. "TCGA-LUAD" or "TARGET-AML"
+           (recommended; fetches IDATs + clinical metadata live from the GDC
+           API)
          - samples: "all" or list of case submitter IDs, e.g.
-           "TCGA-05-4244" (optional, default "all"; enables partial
-           per-case downloads of a project)
+           "TCGA-05-4244" or "TARGET-20-XXXXXX" (optional, default "all";
+           enables partial per-case downloads of a project)
          - subdir: output folder under save_dir (optional, default
            <project>)
          - meta: annotation/metadata filename (optional, default "annotation")
 
-       Legacy TCGA dicts (pre-downloaded GDC cart) may include instead:
+       Legacy TCGA / TARGET dicts (pre-downloaded GDC cart) may include
+       instead:
          - metadata_cart: path to GDC metadata JSON (required)
          - metadata_clinical: path to clinical TSV (required)
 
@@ -1381,6 +1430,16 @@ def download_idats(
         ...     "meta": "tcga_annotation"
         ... }, "./tcga")
 
+        # Download a whole TARGET project (IDATs + clinical metadata via GDC)
+        >>> download_idats("TARGET-AML", "~/Downloads/target_data")
+
+        # Download only specific cases from a TARGET project
+        >>> download_idats({
+        ...     "source": "target",
+        ...     "project": "TARGET-AML",
+        ...     "samples": ["TARGET-20-XXXXXX", "TARGET-20-YYYYYY"],
+        ... }, "./target")
+
         # Legacy: TCGA dataset from a manually pre-downloaded GDC cart +
         # clinical TSV
         >>> download_idats({
@@ -1392,12 +1451,13 @@ def download_idats(
         ... }, "./tcga")
 
         # Download mixed datasets: AE, GEO series, individual GSM samples,
-        # and a TCGA project
+        # and TCGA / TARGET projects
         >>> download_idats([
         ...     "E-MTAB-8542",
         ...     "GSE147391",
         ...     "GSM4180453",
         ...     "TCGA-LUAD",
+        ...     "TARGET-AML",
         ...     "GSM4180454"
         ... ], "~/Downloads/mixed_data")
 
