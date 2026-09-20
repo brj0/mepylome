@@ -347,7 +347,7 @@ def test_make_tcga_metadata(tmp_path: Path) -> None:
         subdir="TCGA_TEST",
     )
 
-    assert (tmp_path / "TCGA_TEST" / "manifest.csv").exists()
+    assert (tmp_path / "TCGA_TEST" / "manifest.txt").exists()
     annotation_file = tmp_path / "TCGA_TEST" / "annotation.csv"
     assert annotation_file.exists()
 
@@ -367,7 +367,7 @@ def test_download_tcga_idat(
     manifest_df = pd.DataFrame(
         {"id": ["id1", "id2"], "filename": ["f1.idat", "f2.idat"]}
     )
-    manifest_df.to_csv(samples_dir / "manifest.csv", index=False)
+    manifest_df.to_csv(samples_dir / "manifest.txt", index=False)
 
     cart_json = tmp_path / "dummy_cart.json"
     cart_json.write_text("[]")
@@ -375,7 +375,7 @@ def test_download_tcga_idat(
     download_tcga_idat(save_dir=tmp_path, subdir=subdir)
     assert mock_download_files.called
 
-    (samples_dir / "manifest.csv").unlink()
+    (samples_dir / "manifest.txt").unlink()
     with pytest.raises(FileNotFoundError):
         download_tcga_idat(save_dir=tmp_path, subdir=subdir)
 
@@ -567,7 +567,7 @@ def test_download_idats_target_end_to_end(
     download_idats("TARGET-AML", save_dir=tmp_path)
 
     dataset_dir = tmp_path / "TARGET-AML"
-    manifest = pd.read_csv(dataset_dir / "manifest.csv")
+    manifest = pd.read_csv(dataset_dir / "manifest.txt")
     assert list(manifest["filename"]) == [
         "111_R01C01_Grn.idat",
         "111_R01C01_Red.idat",
