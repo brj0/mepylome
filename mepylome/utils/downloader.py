@@ -204,6 +204,23 @@ def _unique_add(key: str, value: str, dictionary: dict[str, Any]) -> None:
     dictionary[f"{key}_{counter}"] = value
 
 
+def _pending_downloads(
+    urls: Iterable[str],
+    paths: Iterable[Path],
+) -> tuple[list[str], list[Path]]:
+    """Keep only the downloads whose target file does not exist yet.
+
+    `download_file` writes to a `.part` file and renames it on success, so a
+    file under its final name is complete.
+    """
+    pending = [
+        (url, path)
+        for url, path in zip(urls, paths, strict=True)
+        if not path.exists()
+    ]
+    return [url for url, _ in pending], [path for _, path in pending]
+
+
 def parse_miniml_to_df(
     miniml_path: Path,
     series_id: str,
@@ -447,8 +464,18 @@ def download_geo_idat_single_files(
             urls.append(url)
             paths.append(idat_path)
 
+    total = len(paths)
+    urls, paths = _pending_downloads(urls, paths)
+    if not paths:
+        logger.info(
+            "All %d idat files already downloaded: %s", total, idat_dir
+        )
+        return
+
     download_files(urls, paths, show_progress=show_progress)
-    logger.info("Downloaded %d idat files to %s", len(paths), idat_dir)
+    logger.info(
+        "Downloaded %d of %d idat files to %s", len(paths), total, idat_dir
+    )
 
 
 def download_geo_idat(
@@ -713,9 +740,21 @@ def download_arrayexpress_idat(
     ]
     save_paths = [idat_dir / fname for fname in target_files]
 
-    # Download IDAT files
-    logger.info("Downloading %d IDAT files to %s", len(idat_urls), idat_dir)
+    # Only fetch what is not on disk yet, so a repeat run is a quiet no-op.
+    total = len(save_paths)
+    idat_urls, save_paths = _pending_downloads(idat_urls, save_paths)
+    if not save_paths:
+        logger.info(
+            "All %d IDAT files already downloaded: %s", total, idat_dir
+        )
+        return
 
+    logger.info(
+        "Downloading %d of %d IDAT files to %s",
+        len(save_paths),
+        total,
+        idat_dir,
+    )
     download_files(
         urls=idat_urls,
         save_paths=save_paths,
