@@ -147,6 +147,7 @@ TCGA_CLINICAL_FIELDS = [
     "diagnoses.progression_or_recurrence",
     "diagnoses.last_known_disease_status",
 ]
+TCGA_SAMPLE_FIELDS = ["preservation_method", "is_ffpe", "sample_type"]
 TCGA_MANIFEST_FILE = "manifest.txt"
 
 
@@ -881,7 +882,9 @@ def query_tcga_project_files(
     Returns:
         DataFrame with columns 'id' (GDC file_id), 'filename', 'Sample_ID'
         (Sentrix ID or GDC file UUID), 'md5sum', 'case_id', and
-        'sample_submitter_id' (the sample barcode, e.g. "TCGA-05-4244-01A").
+        'sample_submitter_id' (the sample barcode, e.g. "TCGA-05-4244-01A"),
+        and the specimen type columns 'preservation_method' (e.g. "FFPE",
+        "Fresh", "Frozen"), 'is_ffpe' and 'sample_type'.
     """
     filters: dict[str, Any] = {
         "op": "and",
@@ -942,6 +945,7 @@ def query_tcga_project_files(
             "md5sum",
             "cases.case_id",
             "cases.samples.submitter_id",
+            *(f"cases.samples.{f}" for f in TCGA_SAMPLE_FIELDS),
         ],
         expand=["cases", "cases.samples"],
     )
@@ -959,6 +963,7 @@ def query_tcga_project_files(
                 "md5sum": hit.get("md5sum"),
                 "case_id": case.get("case_id", ""),
                 "sample_submitter_id": sample.get("submitter_id", ""),
+                **{f: sample.get(f) for f in TCGA_SAMPLE_FIELDS},
             }
         )
     if not rows:
@@ -1142,8 +1147,9 @@ def make_tcga_metadata(
 
     # Deduplicate to one row per aliquot (Grn/Red pair -> one Sample_ID).
     id_cols = ["case_id", "Sample_ID"]
-    if "sample_submitter_id" in download_df.columns:
-        id_cols.append("sample_submitter_id")
+    for col in ("sample_submitter_id", *TCGA_SAMPLE_FIELDS):
+        if col in download_df.columns:
+            id_cols.append(col)
     case_sample_df = download_df.drop_duplicates(
         subset=["Sample_ID"], keep="first"
     )[id_cols]
@@ -1157,7 +1163,7 @@ def make_tcga_metadata(
     )
     lead_cols = [
         c
-        for c in ("Sample_ID", "sample_submitter_id")
+        for c in ("Sample_ID", "sample_submitter_id", *TCGA_SAMPLE_FIELDS)
         if c in annotation.columns
     ]
     annotation = annotation[
@@ -1242,7 +1248,7 @@ def download_tcga_idat(
 # -------------------------------------
 
 
-def make_dataset(
+def make_dataset(  # noqa: PLR0912
     dataset: dict[str, str | list[str]] | Iterable[str] | str,
 ) -> list[dict[str, str | list[str]]]:
     """Normalize dataset input into a list of standardized dictionaries.
@@ -1372,7 +1378,7 @@ def _download_single_dataset(
                 samples=samples,
                 subdir=subdir,
             )
-    elif source in ("tcga", "target"):
+    elif source in {"tcga", "target"}:
         # TCGA and TARGET share the same GDC pipeline.
         project = dataset.get("project")
         metadata_cart = dataset.get("metadata_cart")

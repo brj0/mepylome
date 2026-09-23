@@ -387,7 +387,7 @@ def test_download_tcga_idat(
 
 def _filter_map(node: dict) -> dict:
     """Flatten a nested GDC filter into a {field: values} mapping."""
-    if node["op"] in ("and", "or"):
+    if node["op"] in {"and", "or"}:
         out: dict = {}
         for child in node["content"]:
             out.update(_filter_map(child))
