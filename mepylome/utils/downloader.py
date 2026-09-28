@@ -72,6 +72,7 @@ Examples:
 import gzip
 import json
 import logging
+import re
 import shutil
 import tarfile
 import xml.etree.ElementTree as ET
@@ -99,6 +100,10 @@ GEO_SINGLE_IDAT_URL = (
     "https://ftp.ncbi.nlm.nih.gov/geo/samples/{geo_group}/{acc}/suppl/"
     "{filename}"
 )
+GEO_MATRIX_DIR_URL = (
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/{geo_group}/{acc}/matrix/"
+)
+
 GEO_MINIML_URL = (
     "https://ftp.ncbi.nlm.nih.gov/geo/series/{geo_group}/{acc}/miniml/"
     "{acc}_family.xml.tgz"
@@ -281,6 +286,98 @@ def parse_miniml_to_df(
     result_df.to_csv(csv_path, index=False)
 
 
+def _parse_series_matrix_lines(lines: Iterable[str]) -> pd.DataFrame:
+    """Parse the `!Sample_*` header block of a GEO series matrix file.
+
+    Reading stops at `!series_matrix_table_begin`, so the (possibly huge)
+    data matrix is never read.
+    """
+    fields: list[tuple[str, list[str]]] = []
+    for line in lines:
+        if line.startswith("!series_matrix_table_begin"):
+            break
+        if not line.startswith("!Sample_"):
+            continue
+        key, *values = line.rstrip("\r\n").split("\t")
+        fields.append(
+            (key.removeprefix("!Sample_"), [v.strip('"') for v in values])
+        )
+
+    n_samples = max((len(v) for _, v in fields), default=0)
+    if n_samples == 0:
+        raise ValueError("No !Sample_ lines found in series matrix file.")
+
+    rows: list[dict[str, str]] = [{} for _ in range(n_samples)]
+    for key, values in fields:
+        for row, value in zip(rows, values, strict=False):
+            if key == "supplementary_file":
+                if "Sample_ID" not in row and value.upper() != "NONE":
+                    name = value.split("/")[-1]
+                    sample_id = (
+                        name.removesuffix(".idat.gz")
+                        .removesuffix("_Grn")
+                        .removesuffix("_Red")
+                    )
+                    _unique_add("Sample_ID", sample_id, row)
+            elif key.startswith("characteristics"):
+                tag, sep, val = value.partition(": ")
+                _unique_add(
+                    tag if sep else "characteristics",
+                    val if sep else value,
+                    row,
+                )
+                continue
+            _unique_add(key, value, row)
+    for row in rows:
+        row.setdefault("Sample_ID", row.get("geo_accession", ""))
+    # Put Sample_ID first, like the MINiML parser does.
+    cols = ["Sample_ID"] + [
+        c
+        for c in dict.fromkeys(k for r in rows for k in r)
+        if c != "Sample_ID"
+    ]
+    return pd.DataFrame(rows).reindex(columns=cols)
+
+
+def download_geo_metadata_series_matrix(
+    series_id: str,
+    csv_path: Path,
+    samples: Iterable[str] | None = None,
+) -> None:
+    """Backup metadata download using the GEO series matrix file(s).
+
+    Only the header of each matrix file is streamed. Writes the same kind of
+    `annotation.csv` as `parse_miniml_to_df`.
+    """
+    import requests
+
+    dir_url = GEO_MATRIX_DIR_URL.format(
+        geo_group=_geo_group(series_id), acc=series_id
+    )
+    index = requests.get(dir_url, timeout=30)
+    index.raise_for_status()
+    names = sorted(
+        set(re.findall(r'href="([^"]*_series_matrix\.txt\.gz)"', index.text))
+    )
+    if not names:
+        raise FileNotFoundError(f"No series matrix files found at {dir_url}")
+
+    frames = []
+    for name in names:
+        logger.info("Reading metadata from %s%s", dir_url, name)
+        with requests.get(dir_url + name, stream=True, timeout=30) as resp:
+            resp.raise_for_status()
+            with gzip.open(
+                resp.raw, "rt", encoding="utf-8", errors="replace"
+            ) as fh:
+                frames.append(_parse_series_matrix_lines(fh))
+    df = pd.concat(frames, ignore_index=True).drop_duplicates("Sample_ID")
+
+    if samples and samples != "all":
+        df = df[df["Sample_ID"].isin(set(samples))]
+    df.to_csv(csv_path, index=False)
+
+
 def download_geo_metadata(
     series_id: str,
     save_dir: Path,
@@ -321,29 +418,36 @@ def download_geo_metadata(
     miniml_tar_path = samples_dir / f"{series_id}_family.xml.tgz"
     samples_dir.mkdir(parents=True, exist_ok=True)
 
-    # Download the miniml tarball
-    geo_group = _geo_group(series_id)
-    miniml_tar_url = GEO_MINIML_URL.format(geo_group=geo_group, acc=series_id)
-    download_file(miniml_tar_url, miniml_tar_path, show_progress=show_progress)
-
-    # Extract the XML inside the tarball.
+    # Primary: MINiML tarball. Backup: series matrix header.
     try:
+        geo_group = _geo_group(series_id)
+        miniml_tar_url = GEO_MINIML_URL.format(
+            geo_group=geo_group, acc=series_id
+        )
+        download_file(
+            miniml_tar_url, miniml_tar_path, show_progress=show_progress
+        )
         with tarfile.open(miniml_tar_path, "r:gz") as tar:
             member_name = miniml_tar_path.stem
             tar.extract(member=member_name, path=samples_dir, filter="data")
             miniml_tar_path.with_suffix("").rename(miniml_path)
-    except Exception:
-        logger.exception("Could not unzip %s", miniml_tar_path)
-        raise
-
-    parse_miniml_to_df(
-        miniml_path=miniml_path,
-        series_id=series_id,
-        csv_path=csv_path,
-        samples=samples,
-    )
-    miniml_tar_path.unlink(missing_ok=True)
-    miniml_path.unlink(missing_ok=True)
+        parse_miniml_to_df(
+            miniml_path=miniml_path,
+            series_id=series_id,
+            csv_path=csv_path,
+            samples=samples,
+        )
+    except Exception as e:
+        logger.warning(
+            "MINiML metadata failed for %s (%s). Trying series matrix.",
+            series_id,
+            e,
+        )
+        csv_path.unlink(missing_ok=True)
+        download_geo_metadata_series_matrix(series_id, csv_path, samples)
+    finally:
+        miniml_tar_path.unlink(missing_ok=True)
+        miniml_path.unlink(missing_ok=True)
 
 
 def download_geo_idat_all_files(
