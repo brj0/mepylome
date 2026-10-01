@@ -675,6 +675,29 @@ def _get_arrayexpress_file_manifest(series_id: str) -> list[dict[str, Any]]:
     return all_files
 
 
+def _find_sdrf_idat_column(annotation: pd.DataFrame) -> str | None:
+    """Return the name of the SDRF column that holds IDAT file names.
+
+    Column naming differs between studies (e.g. "Array Data File" or
+    "Array Data Matrix File"), so preferred names are tried first and the
+    column contents are used as fallback.
+    """
+    preferred = [
+        "Array Data File",
+        "Array Data Matrix File",
+        "Raw Data File",
+        "Derived Array Data File",
+        "Derived Array Data Matrix File",
+    ]
+    columns = [c for c in preferred if c in annotation.columns]
+    columns += [c for c in annotation.columns if c not in columns]
+    for col in columns:
+        values = annotation[col].dropna().astype(str)
+        if len(values) and values.str.lower().str.endswith(".idat").any():
+            return str(col)
+    return None
+
+
 def download_arrayexpress_metadata(
     series_id: str,
     save_dir: Path,
@@ -734,8 +757,15 @@ def download_arrayexpress_metadata(
 
     # Read SDRF and extract unique Sample_IDs
     annotation = pd.read_csv(sdrf_path, sep="\t")
+    idat_col = _find_sdrf_idat_column(annotation)
+    if idat_col is None:
+        raise ValueError(
+            f"No column with IDAT file names found in the SDRF of "
+            f"ArrayExpress study '{series_id}'. Columns: "
+            f"{list(annotation.columns)}"
+        )
     annotation["Sample_ID"] = (
-        annotation["Array Data File"].str.split("_").str[:2].str.join("_")
+        annotation[idat_col].astype(str).str.split("_").str[:2].str.join("_")
     )
     annotation = annotation.drop_duplicates(subset=["Sample_ID"], keep="first")
 
