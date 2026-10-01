@@ -408,7 +408,7 @@ datasets = {
         "xlsx": "https://www.science.org/doi/suppl/10.1126/scitranslmed.aaw8513/suppl_file/aaw8513_data_file_s1.xlsx",
         "idat": [
             {
-                "source": "tcga",
+                "source": "gdc",
                 "metadata_cart": metadata_cart,
                 "metadata_clinical": metadata_clinical,
                 "subdir": "tcga_scc",

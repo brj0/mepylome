@@ -341,12 +341,12 @@ def parse_args() -> argparse.Namespace:
         "download",
         help=(
             """
-            Download IDAT files and/or metadata from GEO, ArrayExpress, or TCGA datasets.
+            Download IDAT files and/or metadata from GEO, ArrayExpress, or GDC (TCGA, TARGET, CPTAC, ...) datasets.
             """
         ),
         description=(
             """
-            Download IDAT files and/or metadata from GEO, ArrayExpress, or TCGA datasets.
+            Download IDAT files and/or metadata from GEO, ArrayExpress, or GDC (TCGA, TARGET, CPTAC, ...) datasets.
             """
         ),
         epilog=(
@@ -359,7 +359,8 @@ def parse_args() -> argparse.Namespace:
                 mepylome download -d GSE12345 -s ./data
                 mepylome download -d E-MTAB-1234
 
-            2. TCGA project (IDATs + clinical metadata via GDC API):
+            2. GDC project, e.g. TCGA, TARGET, CPTAC (IDATs + clinical metadata via
+               GDC API):
 
                 mepylome download -d TCGA-LUAD -s ./data
                 mepylome download -d TCGA-LUAD -i    # IDAT only
@@ -367,17 +368,21 @@ def parse_args() -> argparse.Namespace:
 
                Multiple projects, and mixing with GEO/AE, is also supported:
 
-                mepylome download -d TCGA-LUAD TCGA-LUSC GSE12345
+                mepylome download -d TCGA-LUAD CPTAC-3 HCMI-CMDC GSE12345
 
-            3. TCGA (legacy: pre-downloaded GDC cart, IDAT only):
+            3. List all GDC projects that have IDAT files:
+
+                mepylome download -L
+
+            4. GDC (legacy: pre-downloaded GDC cart, IDAT only):
 
                 mepylome download -c ~/data/cart.json -i
 
-            4. TCGA (legacy: metadata only):
+            5. GDC (legacy: metadata only):
 
                 mepylome download -c ~/data/cart.json -l ~/data/clinical.tsv -m
 
-            5. TCGA (legacy: both IDAT + metadata):
+            6. GDC (legacy: both IDAT + metadata):
 
                 mepylome download -c ~/data/cart.json -l ~/data/clinical.tsv
             """
@@ -386,10 +391,12 @@ def parse_args() -> argparse.Namespace:
     )
     download_parser.add_argument(
         "-L",
-        "--list-tcga-projects",
+        "--list-gdc-projects",
+        dest="list_gdc_projects",
         action="store_true",
         help=(
-            "List TCGA project IDs that have methylation IDAT data, then exit"
+            "List all GDC project IDs (TCGA, TARGET, CPTAC, HCMI, CCDI, ...) "
+            "that have open methylation IDAT data, then exit"
         ),
     )
     download_parser.add_argument(
@@ -397,7 +404,10 @@ def parse_args() -> argparse.Namespace:
         "--dataset",
         type=str,
         nargs="+",
-        help="Datasets to download (GSE..., E-MTAB-..., or GSM... path)",
+        help=(
+            "Datasets to download (GSE..., E-MTAB-..., GSM..., or a GDC "
+            "project such as TCGA-LUAD, CPTAC-3, HCMI-CMDC, CCDI-MCI)"
+        ),
     )
     download_parser.add_argument(
         "-s",
@@ -420,17 +430,15 @@ def parse_args() -> argparse.Namespace:
     )
     download_parser.add_argument(
         "-c",
-        "--tcga_cart",
+        "--gdc_cart",
         type=absolute_path,
-        help=(
-            "Path to TCGA metadata cart JSON file (required for TCGA datasets)"
-        ),
+        help=("Path to GDC metadata cart JSON file (legacy GDC mode)"),
     )
     download_parser.add_argument(
         "-l",
-        "--tcga_clinical",
+        "--gdc_clinical",
         type=absolute_path,
-        help="Path to TCGA clinical TSV file (required for TCGA datasets)",
+        help="Path to GDC clinical TSV file (legacy GDC mode)",
     )
 
     return parser.parse_args()  # noqa: E501
@@ -441,12 +449,12 @@ def start_mepylome() -> None:
     args = parse_args()
 
     if args.command == "download":
-        if args.list_tcga_projects:
+        if args.list_gdc_projects:
             from mepylome.utils.downloader import (
-                list_tcga_methylation_projects,
+                list_gdc_methylation_projects,
             )
 
-            for project_id in list_tcga_methylation_projects():
+            for project_id in list_gdc_methylation_projects():
                 print(project_id)
             return
 
@@ -456,25 +464,23 @@ def start_mepylome() -> None:
 
         dataset = [d.rstrip("/") for d in (args.dataset or [])]
 
-        # If TCGA info is provided, validate and add dictionary
-        if args.tcga_cart or args.tcga_clinical:
-            if download_metadata and not (
-                args.tcga_cart and args.tcga_clinical
-            ):
+        # If GDC cart info is provided, validate and add dictionary
+        if args.gdc_cart or args.gdc_clinical:
+            if download_metadata and not (args.gdc_cart and args.gdc_clinical):
                 raise ValueError(
-                    "For TCGA metadata download, both -c/--tcga_cart and "
-                    "-l/--tcga_clinical must be provided."
+                    "For GDC metadata download, both -c/--gdc_cart and "
+                    "-l/--gdc_clinical must be provided."
                 )
-            if download_idat and not args.tcga_cart:
+            if download_idat and not args.gdc_cart:
                 raise ValueError(
-                    "For TCGA IDAT download, -c/--tcga_cart must be provided."
+                    "For GDC IDAT download, -c/--gdc_cart must be provided."
                 )
 
-            # Add TCGA dataset dictionary
-            tcga_dict = {"source": "tcga", "metadata_cart": args.tcga_cart}
+            # Add GDC dataset dictionary
+            gdc_dict = {"source": "gdc", "metadata_cart": args.gdc_cart}
             if download_metadata:
-                tcga_dict["metadata_clinical"] = args.tcga_clinical
-            dataset.append(tcga_dict)
+                gdc_dict["metadata_clinical"] = args.gdc_clinical
+            dataset.append(gdc_dict)
 
         from mepylome.utils.downloader import download_idats
 

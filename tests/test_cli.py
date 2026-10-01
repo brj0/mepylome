@@ -339,18 +339,18 @@ def test_parse_args_download_metadata_default_false() -> None:
         assert parse_args().metadata is False
 
 
-def test_parse_args_download_tcga_cart_is_path(tmp_path: Path) -> None:
+def test_parse_args_download_gdc_cart_is_path(tmp_path: Path) -> None:
     cart = tmp_path / "cart.json"
     cart.touch()
     with patch("sys.argv", ["mepylome", "download", "-c", str(cart)]):
-        assert isinstance(parse_args().tcga_cart, Path)
+        assert isinstance(parse_args().gdc_cart, Path)
 
 
-def test_parse_args_download_tcga_clinical_is_path(tmp_path: Path) -> None:
+def test_parse_args_download_gdc_clinical_is_path(tmp_path: Path) -> None:
     clin = tmp_path / "clinical.tsv"
     clin.touch()
     with patch("sys.argv", ["mepylome", "download", "-l", str(clin)]):
-        assert isinstance(parse_args().tcga_clinical, Path)
+        assert isinstance(parse_args().gdc_clinical, Path)
 
 
 # ---------------------------------------------------------------------------
@@ -365,9 +365,9 @@ def _download_args(**overrides: object) -> argparse.Namespace:
         save_dir=Path("."),
         idat=False,
         metadata=False,
-        tcga_cart=None,
-        tcga_clinical=None,
-        list_tcga_projects=False,
+        gdc_cart=None,
+        gdc_clinical=None,
+        list_gdc_projects=False,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -430,7 +430,7 @@ def test_start_mepylome_download_dataset_forwarded() -> None:
     assert "GSE222" in kwargs["dataset"]
 
 
-def test_start_mepylome_download_tcga_metadata_missing_cart_raises(
+def test_start_mepylome_download_gdc_metadata_missing_cart_raises(
     tmp_path: Path,
 ) -> None:
     clinical = tmp_path / "clinical.tsv"
@@ -439,15 +439,15 @@ def test_start_mepylome_download_tcga_metadata_missing_cart_raises(
         patch(
             "mepylome.cli.parse_args",
             return_value=_download_args(
-                metadata=True, tcga_cart=None, tcga_clinical=clinical
+                metadata=True, gdc_cart=None, gdc_clinical=clinical
             ),
         ),
-        pytest.raises(ValueError, match="tcga_cart"),
+        pytest.raises(ValueError, match="gdc_cart"),
     ):
         start_mepylome()
 
 
-def test_start_mepylome_download_tcga_metadata_missing_clinical_raises(
+def test_start_mepylome_download_gdc_metadata_missing_clinical_raises(
     tmp_path: Path,
 ) -> None:
     cart = tmp_path / "cart.json"
@@ -456,15 +456,15 @@ def test_start_mepylome_download_tcga_metadata_missing_clinical_raises(
         patch(
             "mepylome.cli.parse_args",
             return_value=_download_args(
-                metadata=True, tcga_cart=cart, tcga_clinical=None
+                metadata=True, gdc_cart=cart, gdc_clinical=None
             ),
         ),
-        pytest.raises(ValueError, match="tcga_clinical"),
+        pytest.raises(ValueError, match="gdc_clinical"),
     ):
         start_mepylome()
 
 
-def test_start_mepylome_download_tcga_dict_added_to_dataset(
+def test_start_mepylome_download_gdc_dict_added_to_dataset(
     tmp_path: Path,
 ) -> None:
     cart = tmp_path / "cart.json"
@@ -473,22 +473,22 @@ def test_start_mepylome_download_tcga_dict_added_to_dataset(
     with (
         patch(
             "mepylome.cli.parse_args",
-            return_value=_download_args(idat=True, tcga_cart=cart),
+            return_value=_download_args(idat=True, gdc_cart=cart),
         ),
         patch("mepylome.utils.downloader.download_idats", mock_dl),
     ):
         start_mepylome()
     _, kwargs = mock_dl.call_args
-    tcga_entries = [
+    gdc_entries = [
         d
         for d in kwargs["dataset"]
-        if isinstance(d, dict) and d.get("source") == "tcga"
+        if isinstance(d, dict) and d.get("source") == "gdc"
     ]
-    assert len(tcga_entries) == 1
-    assert tcga_entries[0]["metadata_cart"] == cart
+    assert len(gdc_entries) == 1
+    assert gdc_entries[0]["metadata_cart"] == cart
 
 
-def test_start_mepylome_download_tcga_full_includes_clinical(
+def test_start_mepylome_download_gdc_full_includes_clinical(
     tmp_path: Path,
 ) -> None:
     cart = tmp_path / "cart.json"
@@ -499,16 +499,14 @@ def test_start_mepylome_download_tcga_full_includes_clinical(
     with (
         patch(
             "mepylome.cli.parse_args",
-            return_value=_download_args(
-                tcga_cart=cart, tcga_clinical=clinical
-            ),
+            return_value=_download_args(gdc_cart=cart, gdc_clinical=clinical),
         ),
         patch("mepylome.utils.downloader.download_idats", mock_dl),
     ):
         start_mepylome()
     _, kwargs = mock_dl.call_args
-    tcga_entry = next(d for d in kwargs["dataset"] if isinstance(d, dict))
-    assert "metadata_clinical" in tcga_entry
+    gdc_entry = next(d for d in kwargs["dataset"] if isinstance(d, dict))
+    assert "metadata_clinical" in gdc_entry
 
 
 # ---------------------------------------------------------------------------
