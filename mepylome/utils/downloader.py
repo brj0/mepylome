@@ -767,7 +767,7 @@ def download_arrayexpress_metadata(
             f"{list(annotation.columns)}"
         )
     annotation["Sample_ID"] = (
-        annotation[idat_col].astype(str).str.split("_").str[:2].str.join("_")
+        annotation[idat_col].astype(str).str.rsplit("_", n=1).str[0]
     )
     annotation = annotation.drop_duplicates(subset=["Sample_ID"], keep="first")
 
