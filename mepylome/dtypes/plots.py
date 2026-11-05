@@ -702,6 +702,7 @@ def _cn_summary_per_chrom(
 def get_cn_summary(
     cnv_dir: str | Path,
     sample_ids: list[str],
+    threshold: float = 0.1,
 ) -> tuple[go.Figure, pd.DataFrame]:
     """Generate a CNV summary plot for a given set of samples.
 
@@ -711,8 +712,9 @@ def get_cn_summary(
 
     Args:
         cnv_dir: The directory path where CNV data files are stored.
-
         sample_ids: A list of sample IDs to process.
+        threshold: Median intensity outside [-threshold, threshold] are counted
+            as CNV.
 
     Returns:
         - A Plotly figure object containing the gain/loss ratio plot.
@@ -731,7 +733,7 @@ def get_cn_summary(
     segments = pd.concat(segment_list)
     df_cn_summary = pd.concat(
         [
-            _cn_summary_per_chrom(segments_on_chrom)
+            _cn_summary_per_chrom(segments_on_chrom, threshold)
             for _, segments_on_chrom in segments.groupby("Chromosome")
         ]
     )

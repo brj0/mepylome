@@ -1603,7 +1603,11 @@ class MethylAnalysis:
             )
         return (None,) * len(extract)
 
-    def cn_summary(self, ids: Sequence[str]) -> tuple[go.Figure, pd.DataFrame]:
+    def cn_summary(
+        self,
+        ids: Sequence[str],
+        threshold: float = 0.1,
+    ) -> tuple[go.Figure, pd.DataFrame]:
         """Create a copy number summary plot for the given samples.
 
         This method generates an overview of CNV gain and loss patterns across
@@ -1612,6 +1616,8 @@ class MethylAnalysis:
 
         Args:
             ids: A list of sample IDs to include in the CNV summary.
+            threshold: Median intensity outside [-threshold, threshold] are
+                counted as CNV.
 
         Returns:
             A tuple containing:
