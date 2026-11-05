@@ -1633,7 +1633,7 @@ class MethylAnalysis:
             raise ValueError(msg)
         self.precompute_cnvs(ids)
         basenames = [self.idat_handler.id_to_basename[x] for x in ids]
-        plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames)
+        plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames, threshold)
         return plot, df_cn_summary
 
     def classify(
