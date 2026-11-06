@@ -1247,7 +1247,9 @@ def test_cn_summary_returns_plot_and_dataframe(
     analysis.idat_handler.id_to_basename = {"s1": "s1_base", "s2": "s2_base"}
     monkeypatch.setattr(analysis, "precompute_cnvs", lambda ids: None)
     monkeypatch.setattr(
-        core, "get_cn_summary", lambda cnv_dir, basenames: ("PLOT", "DF")
+        core,
+        "get_cn_summary",
+        lambda cnv_dir, basenames, threshold: ("PLOT", "DF"),
     )
     plot, df = analysis.cn_summary(["s1", "s2"])
     assert plot == "PLOT"

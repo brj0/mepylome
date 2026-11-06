@@ -130,6 +130,7 @@ def umap_plot_from_data(
     umap_df: pd.DataFrame,
     use_discrete_colors: bool = True,
     render_mode: str = PLOTLY_RENDER_MODE,
+    custom_colors: dict[str, str] | None = None,
 ) -> go.Figure:
     """Create and return umap plot from UMAP data.
 
@@ -144,6 +145,10 @@ def umap_plot_from_data(
             ``fig.write_image``) without WebGL artifacts. Defaults to
             'webgl'.
 
+        custom_colors: Optional mapping from class name to color (e.g.
+            ``{"Glioblastoma": "#e41a1c"}``) that overrides the automatically
+            chosen colors for these classes.
+
     Returns:
         UMAP plot as plotly object.
     """
@@ -156,6 +161,8 @@ def umap_plot_from_data(
         color_map = discrete_colors(methyl_classes)
     else:
         color_map = continuous_colors(methyl_classes)
+    if custom_colors:
+        color_map = {**color_map, **custom_colors}
     category_orders = {"Umap_color": methyl_classes}
     # If there are too many columns, they are not displayed correctly
     n_hover = 30

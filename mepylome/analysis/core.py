@@ -373,6 +373,16 @@ class MethylAnalysis:
         umap_params: Parameters for UMAP algorithm (default: {'metric':
             'manhattan', 'min_dist': 0.1, 'n_neighbors': 15, 'verbose': True}).
 
+        umap_custom_colors (dict[str, str]): Optional mapping from class name
+            to color that overrides the automatically chosen colors in the UMAP
+            plot. Keys must match the class labels shown in the plot legend
+            (the values of the 'Umap_color' column in `umap_df`; if several
+            annotation columns are selected, the combined label). Values can be
+            any color string accepted by Plotly, such as hex codes ("#e41a1c"),
+            "rgb(228, 26, 28)", or CSS color names ("red"). Classes not listed
+            keep their automatic color. Changes take effect the next time the
+            plot is generated (e.g. via `make_umap_plot()`) (default: {}).
+
         use_gpu: Whether to use GPU acceleration for UMAP via cuML and CuPy.
             Set to True to enable GPU-backed UMAP computations, which can
             significantly speed up large datasets. This requires the `cuml` and
@@ -567,6 +577,7 @@ class MethylAnalysis:
     precalculate_cnv: bool
     prep: PrepType
     raw_umap_plot: go.Figure | None
+    umap_custom_colors: dict[str, str]
     reference_dir: Path
     test_dir: Path
     test_ids: list[str] | None
@@ -669,6 +680,7 @@ class MethylAnalysis:
         self.precalculate_cnv = precalculate_cnv
         self.prep = prep
         self.raw_umap_plot = None
+        self.umap_custom_colors = {}
         self.reference_dir = _resolve_path(reference_dir, INVALID_PATH)
         self.test_dir = _resolve_path(test_dir, INVALID_PATH)
         self.test_ids = _to_list(test_ids)
@@ -1259,7 +1271,10 @@ class MethylAnalysis:
         umap_color = umap_color_all.loc[self.ids]
         self.umap_df["Umap_color"] = umap_color.astype(str)
         self.umap_plot = umap_plot_from_data(
-            self.umap_df, self._use_discrete_colors, render_mode=render_mode
+            self.umap_df,
+            self._use_discrete_colors,
+            render_mode=render_mode,
+            custom_colors=self.umap_custom_colors,
         )
         self.umap_plot = self.umap_plot.update_layout(
             margin={"l": 0, "r": 0, "t": 30, "b": 0},
@@ -1633,7 +1648,9 @@ class MethylAnalysis:
             raise ValueError(msg)
         self.precompute_cnvs(ids)
         basenames = [self.idat_handler.id_to_basename[x] for x in ids]
-        plot, df_cn_summary = get_cn_summary(self.cnv_dir, basenames, threshold)
+        plot, df_cn_summary = get_cn_summary(
+            self.cnv_dir, basenames, threshold
+        )
         return plot, df_cn_summary
 
     def classify(
