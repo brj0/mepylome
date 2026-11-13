@@ -277,10 +277,11 @@ def clear_cache() -> None:
         logger.info("Cleared cache for: Annotation, CNV")
 
     if "mepylome.dtypes.beads" in loaded:
-        from mepylome.dtypes.beads import _overlap_indices
+        from mepylome.dtypes.beads import _overlap_indices, _snp_indices
 
         _overlap_indices._cache.clear()
-        logger.info("Cleared cache for: _overlap_indices")
+        _snp_indices._cache.clear()
+        logger.info("Cleared cache for: _overlap_indices, _snp_indices")
 
     if "mepylome.dtypes.plots" in loaded:
         from mepylome.dtypes.plots import cnv_grid, find_genes_within_bins

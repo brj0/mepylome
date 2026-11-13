@@ -341,6 +341,35 @@ class RawData:
             dtype="int32",
         )
 
+    def snp_betas(self, offset: float = 100) -> pd.DataFrame:
+        """Beta values of the SNP ('rs') probes from the raw intensities.
+
+        The values are computed from the raw, unprocessed channels and are
+        therefore independent of any preprocessing method. They cluster around
+        0, 0.5 and 1 for the three genotypes (AA, AB, BB) and can be used as a
+        genotype fingerprint, similar to ``minfi::getSnpBeta``.
+
+        Args:
+            offset: Constant added to the denominator ``M + U + offset`` to
+                stabilize the beta values (minfi default: 100).
+
+        Returns:
+            Beta values (n_snp_probes x n_samples), indexed by IlmnID. Empty
+            if the manifest has no SNP probes.
+
+        Example:
+            >>> raw_data = RawData(idat_basepath)
+            >>> snp_betas = raw_data.snp_betas()
+        """
+        return _compute_snp_betas(
+            self.green,
+            self.red,
+            self.manifest,
+            self.bead_addresses,
+            self.sample_ids,
+            offset,
+        )
+
     def __repr__(self) -> str:
         title = "RawData():"
         lines = [
@@ -413,6 +442,105 @@ def _get_sex_indices(
     return (
         _overlap_indices(sample_probes, x_probes)[0],
         _overlap_indices(sample_probes, y_probes)[0],
+    )
+
+
+@dataclass(slots=True)
+class SnpIndices:
+    """Cached indices of the SNP ('rs') probes of a manifest."""
+
+    # SNP probe IDs in manifest order (rows of the output).
+    probe_ids: np.ndarray
+
+    # Bead array positions of the A (unmethylated) and B (methylated) beads.
+    bead_t1r_a: np.ndarray
+    bead_t1r_b: np.ndarray
+    bead_t1g_a: np.ndarray
+    bead_t1g_b: np.ndarray
+    bead_t2_a: np.ndarray
+
+    # Positions in ``probe_ids`` for each group.
+    pos_t1r: np.ndarray
+    pos_t1g: np.ndarray
+    pos_t2: np.ndarray
+
+
+@memoize
+def _snp_indices(manifest: Manifest, bead_addresses: np.ndarray) -> SnpIndices:
+    """Compute and cache the indices of all SNP probes.
+
+    Args:
+        manifest: Manifest object.
+
+        bead_addresses: Array of Illumina bead addresses.
+
+    Returns:
+        Indices of the SNP probes in the bead arrays.
+    """
+    snp_1_red = manifest.probe_info(ProbeType.SNP_ONE, Channel.RED)
+    snp_1_grn = manifest.probe_info(ProbeType.SNP_ONE, Channel.GRN)
+    snp_2 = manifest.probe_info(ProbeType.SNP_TWO)
+    snp_idx = pd.Index(
+        np.sort(
+            np.concatenate(
+                [
+                    snp_1_red.index,
+                    snp_1_grn.index,
+                    snp_2.index,
+                ]
+            )
+        )
+    )
+    probe_ids = manifest.data_frame.IlmnID.values[snp_idx.values]
+    ids = pd.Index(bead_addresses)
+    return SnpIndices(
+        probe_ids=probe_ids,
+        bead_t1r_a=ids.get_indexer(snp_1_red["AddressA_ID"]),
+        bead_t1r_b=ids.get_indexer(snp_1_red["AddressB_ID"]),
+        bead_t1g_a=ids.get_indexer(snp_1_grn["AddressA_ID"]),
+        bead_t1g_b=ids.get_indexer(snp_1_grn["AddressB_ID"]),
+        bead_t2_a=ids.get_indexer(snp_2["AddressA_ID"]),
+        pos_t1r=snp_idx.get_indexer(snp_1_red.index),
+        pos_t1g=snp_idx.get_indexer(snp_1_grn.index),
+        pos_t2=snp_idx.get_indexer(snp_2.index),
+    )
+
+
+def _compute_snp_betas(
+    green: np.ndarray,
+    red: np.ndarray,
+    manifest: Manifest,
+    bead_addresses: np.ndarray,
+    sample_ids: list[str],
+    offset: float,
+) -> pd.DataFrame:
+    """Beta values of the SNP probes from green/red bead intensities.
+
+    Type I SNP probes use the A (unmethylated) and B (methylated) beads of
+    their color channel. Type II SNP probes use a single bead, where the green
+    channel is the methylated and the red channel the unmethylated signal.
+    """
+    si = _snp_indices(manifest, bead_addresses)
+    shape = (len(sample_ids), len(si.probe_ids))
+    meth = np.empty(shape)
+    unmeth = np.empty(shape)
+
+    # Cast to float: raw intensities are unsigned 16 bit and would overflow.
+    def take(arr: np.ndarray, idx: np.ndarray) -> np.ndarray:
+        return np.take(arr, idx, axis=1).astype(np.float64)
+
+    meth[:, si.pos_t1r] = take(red, si.bead_t1r_b)
+    unmeth[:, si.pos_t1r] = take(red, si.bead_t1r_a)
+    meth[:, si.pos_t1g] = take(green, si.bead_t1g_b)
+    unmeth[:, si.pos_t1g] = take(green, si.bead_t1g_a)
+    meth[:, si.pos_t2] = take(green, si.bead_t2_a)
+    unmeth[:, si.pos_t2] = take(red, si.bead_t2_a)
+
+    betas = MethylData._get_beta(meth, unmeth, offset=offset)
+    return pd.DataFrame(
+        betas.T,
+        index=pd.Index(si.probe_ids, name="IlmnID"),
+        columns=sample_ids,
     )
 
 
