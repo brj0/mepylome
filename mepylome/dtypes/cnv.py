@@ -519,6 +519,40 @@ def _linear_regression(
     return y_pred, _coef
 
 
+def _optimal_shift(bin_ratios: np.ndarray) -> float:
+    """Finds the shift that centers the copy-neutral state of bins at 0.
+
+    The shift is the center of the shortest interval that contains half of the
+    bin ratios. Equivalently, it minimizes the median absolute deviation of the
+    bin ratios from the shift:
+
+        shift = argmin_s median(|bin_ratio - s|)
+
+    As most of the genome is usually copy-neutral, this moves the neutral
+    level to 0, even if large parts of the genome are gained or lost.
+
+    Args:
+        bin_ratios: Log2 ratios of the bins. Non-finite values are ignored.
+
+    Returns:
+        The shift, which is to be subtracted from all ratios. 0 if there is no
+        finite ratio.
+    """
+    ratios = np.asarray(bin_ratios, dtype=float)
+    sorted_ratios = np.sort(ratios[np.isfinite(ratios)])
+    n_ratios = len(sorted_ratios)
+    if n_ratios == 0:
+        return 0.0
+
+    # Every interval is given by its smallest and largest ratio and has to
+    # contain at least half of the ratios.
+    n_inside = (n_ratios + 1) // 2
+    interval_starts = sorted_ratios[: n_ratios - n_inside + 1]
+    interval_ends = sorted_ratios[n_inside - 1 :]
+    shortest = np.argmin(interval_ends - interval_starts)
+    return float((interval_starts[shortest] + interval_ends[shortest]) / 2)
+
+
 @dataclass(slots=True)
 class CNVIndices:
     """Class for caching multiple indices."""
@@ -547,10 +581,15 @@ class CNV:
         coef: Coefficient of linear regression.
 
         _ratio: Difference between observed sample intensity and expected
-            intensity calculated by linear regression from references.
+            intensity calculated by linear regression from references, shifted
+            by `shift`.
 
         ratio: The values from _ratio as DataFrame with Illumina ID's as
             indices.
+
+        shift: Value that was subtracted from all ratios, so that the
+            copy-neutral state is centered at 0 (see `_optimal_shift`). Bins,
+            detail and segments are based on the shifted ratios.
 
         noise: Noise level. A quality measure for the sample bead.
 
@@ -595,6 +634,7 @@ class CNV:
     coef: np.ndarray
     detail: pr.PyRanges | None
     noise: float
+    shift: float
     sample_id: str
     probes: pd.Index
     ratio: pd.DataFrame
@@ -737,7 +777,9 @@ class CNV:
         """Fits linear regression model to calculate CNV at every CpG site.
 
         This method fits a linear regression model to the intensity data of the
-        sample and reference and calculates the CNV at every CpG site.
+        sample and reference and calculates the CNV at every CpG site. The
+        ratios are then shifted so that the copy-neutral state is centered at
+        0 (see `_optimal_shift`).
         """
         logger.info("%s Performing fit...", self.sample_id)
 
@@ -752,11 +794,19 @@ class CNV:
             X = X[:, np.append(correlation < 0.99, True)]
 
         y_pred, self.coef = _linear_regression(X, y)
-        self._ratio = y - y_pred
+        ratio = y - y_pred
+        self.shift = self._get_shift(ratio)
+        self._ratio = ratio - self.shift
         self.ratio = pd.DataFrame({"ratio": self._ratio}, self.probes)
         self.noise = np.sqrt(
             np.mean((self._ratio[1:] - self._ratio[:-1]) ** 2)
         )
+
+    def _get_shift(self, ratio: np.ndarray) -> float:
+        """Calculates the shift from the median ratio of every bin."""
+        cpg_bins = self.annotation._cpg_bins.assign(ratio=ratio[self._ci.bins])
+        bin_medians = cpg_bins.groupby("bins_index")["ratio"].median()
+        return _optimal_shift(bin_medians.to_numpy())
 
     def set_bins(self) -> None:
         """Calculates CNV within each bin based on the results of 'fit'.
@@ -915,6 +965,7 @@ class CNV:
                 {
                     "Array_type": [str(self.annotation.array_type)],
                     "Noise": [self.noise],
+                    "Shift": [self.shift],
                 },
             )
             dfs_to_write.append(("metadata.csv", metadata_df))
@@ -958,6 +1009,7 @@ class CNV:
             f"segments:\n{self.segments}",
             f"coef:\n{self.coef}",
             f"noise:\n{self.noise}",
+            f"shift:\n{self.shift}",
             f"ratio:\n{self.ratio}",
         ]
         return "\n\n".join(lines)

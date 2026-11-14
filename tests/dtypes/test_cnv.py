@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import pyranges1 as pr
 import pytest
+from scipy.stats import norm
 
 from mepylome.dtypes.arrays import ArrayType
 from mepylome.dtypes.beads import MethylData
@@ -17,6 +18,7 @@ from mepylome.dtypes.cnv import (
     Annotation,
     _get_segmentation_fn,
     _linear_regression,
+    _optimal_shift,
 )
 
 N_PROBES: int = 200
@@ -109,6 +111,26 @@ def annotation_mock(probe_ids: np.ndarray) -> MagicMock:
     return ann
 
 
+def _fit_cnv(
+    sample: MagicMock,
+    reference: MagicMock,
+    annotation: MagicMock,
+) -> CNV:
+    """CNV instance after fit() but before set_bins / set_detail."""
+    obj: CNV = object.__new__(CNV)
+    obj.sample = sample
+    obj.sample_id = sample.sample_ids[0]
+    obj.reference = reference
+    obj.annotation = annotation
+    obj.bins = annotation.bins
+    obj.probes = annotation._adjusted_manifest.IlmnID
+    obj.detail = None
+    obj.segments = None
+    obj._ci_cached = None
+    obj.fit()
+    return obj
+
+
 @pytest.fixture
 def fitted_cnv(
     sample_mock: MagicMock,
@@ -116,18 +138,7 @@ def fitted_cnv(
     annotation_mock: MagicMock,
 ) -> CNV:
     """CNV instance after fit() but before set_bins / set_detail."""
-    obj: CNV = object.__new__(CNV)
-    obj.sample = sample_mock
-    obj.sample_id = sample_mock.sample_ids[0]
-    obj.reference = ref_mock
-    obj.annotation = annotation_mock
-    obj.bins = annotation_mock.bins
-    obj.probes = annotation_mock._adjusted_manifest.IlmnID
-    obj.detail = None
-    obj.segments = None
-    obj._ci_cached = None
-    obj.fit()
-    return obj
+    return _fit_cnv(sample_mock, ref_mock, annotation_mock)
 
 
 @pytest.fixture
@@ -325,6 +336,159 @@ def test_fit_coef_shape(fitted_cnv: CNV) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Bin shift (centering of the copy-neutral state at 0)
+# ---------------------------------------------------------------------------
+
+
+def _raw_ratio(cnv: CNV) -> np.ndarray:
+    """Regression residuals before the shift is subtracted."""
+    y = np.log2(cnv.sample.intensity)[:, cnv._ci.sample].ravel()
+    X = cnv.reference._log_intensity_design_matrix[cnv._ci.reference]
+    y_pred, _ = _linear_regression(X, y)
+    return y - y_pred
+
+
+def test_optimal_shift_recovers_baseline_of_aneuploid_profile() -> None:
+    rng = np.random.default_rng(0)
+    bins = 0.25 + rng.normal(0, 0.04, 3000)
+    bins[:600] += 0.45  # gains
+    bins[600:900] -= 0.6  # losses
+
+    assert _optimal_shift(bins) == pytest.approx(0.25, abs=0.02)
+
+
+def test_optimal_shift_is_robust_to_large_gained_fraction() -> None:
+    rng = np.random.default_rng(1)
+    bins = 0.1 + rng.normal(0, 0.04, 3000)
+    bins[:1350] += 0.5  # 45% gained
+
+    shift = _optimal_shift(bins)
+
+    assert shift == pytest.approx(0.1, abs=0.02)
+    # The median is pulled towards the gained bins.
+    assert abs(shift - 0.1) < abs(np.median(bins) - 0.1)
+
+
+def test_optimal_shift_follows_translation_of_the_data() -> None:
+    values = 0.05 * norm.ppf((np.arange(1001) + 0.5) / 1001)
+
+    assert _optimal_shift(values + 3.7) == pytest.approx(3.7, abs=0.02)
+    assert _optimal_shift(values - 3.7) == pytest.approx(-3.7, abs=0.02)
+
+
+def test_optimal_shift_ignores_non_finite_values() -> None:
+    values = np.array([np.nan, np.inf, -np.inf, 0.49, 0.5, 0.51, 0.5])
+
+    assert _optimal_shift(values) == pytest.approx(0.5, abs=0.02)
+
+
+@pytest.mark.parametrize("n_values", [1, 2, 3, 10, 11, 101])
+def test_optimal_shift_minimizes_median_absolute_deviation(
+    n_values: int,
+) -> None:
+    rng = np.random.default_rng(n_values)
+    values = rng.normal(0, 0.1, n_values)
+    values[: n_values // 3] += 0.7
+    candidates = np.linspace(values.min(), values.max(), 20001)
+    deviations = [np.median(np.abs(values - c)) for c in candidates]
+
+    shift = _optimal_shift(values)
+
+    # For an odd number of values the criterion is minimized exactly. For an
+    # even number it is the mean of two deviations, which is only
+    # approximately minimized.
+    tolerance = 1e-3 if n_values % 2 else 0.1
+    assert np.median(np.abs(values - shift)) <= min(deviations) + tolerance
+
+
+@pytest.mark.parametrize(
+    "values", [np.array([]), np.array([np.nan]), np.array([np.nan, np.inf])]
+)
+def test_optimal_shift_without_finite_values_is_zero(
+    values: np.ndarray,
+) -> None:
+    assert _optimal_shift(values) == 0.0
+
+
+def test_fit_sets_shift(fitted_cnv: CNV) -> None:
+    assert isinstance(fitted_cnv.shift, float)
+    assert np.isfinite(fitted_cnv.shift)
+
+
+def test_fit_ratio_is_shifted(fitted_cnv: CNV) -> None:
+    raw = _raw_ratio(fitted_cnv)
+
+    np.testing.assert_allclose(fitted_cnv._ratio + fitted_cnv.shift, raw)
+    np.testing.assert_allclose(
+        fitted_cnv.ratio["ratio"].to_numpy(), fitted_cnv._ratio
+    )
+
+
+def test_fit_noise_does_not_depend_on_shift(fitted_cnv: CNV) -> None:
+    raw = _raw_ratio(fitted_cnv)
+
+    expected = np.sqrt(np.mean((raw[1:] - raw[:-1]) ** 2))
+
+    assert fitted_cnv.noise == pytest.approx(expected)
+
+
+def test_fit_does_not_modify_annotation(
+    fitted_cnv: CNV, annotation_mock: MagicMock
+) -> None:
+    assert "ratio" not in annotation_mock._cpg_bins.columns
+
+
+def test_bins_are_based_on_shifted_ratios(full_cnv: CNV) -> None:
+    shifted = pd.DataFrame(full_cnv.bins)["Median"].to_numpy()
+    unshifted = shifted + full_cnv.shift
+
+    # The shift does not make the profile less centered than before.
+    assert np.median(np.abs(shifted)) <= np.median(np.abs(unshifted)) + 1e-12
+
+
+def test_detail_is_based_on_shifted_ratios(full_cnv: CNV) -> None:
+    raw = _raw_ratio(full_cnv)
+    detail = pd.DataFrame(full_cnv.detail).set_index("Name")["Median"]
+    per_gene = N_PROBES // N_GENES
+
+    for i in range(N_GENES):
+        expected = np.median(raw[i * per_gene : (i + 1) * per_gene])
+        assert detail[f"GENE{i}"] + full_cnv.shift == pytest.approx(expected)
+
+
+def test_fit_centers_neutral_bins_of_sample_with_large_gain(
+    ref_mock: MagicMock, annotation_mock: MagicMock
+) -> None:
+    """The shift corrects the offset caused by a large gained region.
+
+    The regression intercept pulls neutral bins away from 0 if a large part of
+    the genome is gained.
+    """
+    rng = np.random.default_rng(3)
+    ref_logs = ref_mock._log_intensity_design_matrix[:, :-1]
+    y = ref_logs.mean(axis=1) + rng.normal(0, 0.02, N_PROBES)
+    n_gained_bins = 8  # 40% of the genome
+    y[: n_gained_bins * (N_PROBES // N_BINS)] += 0.8
+    sample = MagicMock(spec=MethylData)
+    sample.sample_ids = ["SAMPLE_GAIN"]
+    sample.array_type = ArrayType.ILLUMINA_450K
+    sample.intensity = (2**y)[np.newaxis, :]
+    sample.probe_ids = ref_mock.probe_ids
+    # Bins consist of consecutive probes.
+    annotation_mock._cpg_bins["bins_index"] = np.repeat(
+        np.arange(N_BINS), N_PROBES // N_BINS
+    )
+
+    cnv = _fit_cnv(sample, ref_mock, annotation_mock)
+    cnv.set_bins()
+    medians = pd.DataFrame(cnv.bins)["Median"].to_numpy()
+
+    assert cnv.shift == pytest.approx(-0.32, abs=0.05)
+    assert np.median(medians[n_gained_bins:]) == pytest.approx(0, abs=0.05)
+    assert np.min(medians[:n_gained_bins]) > 0.5
+
+
+# ---------------------------------------------------------------------------
 # CNV.set_bins
 # ---------------------------------------------------------------------------
 
@@ -402,6 +566,14 @@ def test_write_metadata_has_noise(full_cnv: CNV, tmp_path: Path) -> None:
     assert float(df["Noise"].iloc[0]) >= 0
 
 
+def test_write_metadata_has_shift(full_cnv: CNV, tmp_path: Path) -> None:
+    full_cnv.write(tmp_path / "sample", data="metadata")
+    with zipfile.ZipFile(tmp_path / "sample.zip") as zf:
+        csv_name: str = next(n for n in zf.namelist() if "metadata" in n)
+        df: pd.DataFrame = pd.read_csv(io.BytesIO(zf.read(csv_name)))
+    assert float(df["Shift"].iloc[0]) == pytest.approx(full_cnv.shift)
+
+
 def test_write_bins_roundtrip(full_cnv: CNV, tmp_path: Path) -> None:
     full_cnv.write(tmp_path / "sample", data="bins")
     with zipfile.ZipFile(tmp_path / "sample.zip") as zf:
@@ -451,6 +623,10 @@ def test_repr_contains_cnv(fitted_cnv: CNV) -> None:
 
 def test_repr_contains_noise(fitted_cnv: CNV) -> None:
     assert "noise" in repr(fitted_cnv).lower()
+
+
+def test_repr_contains_shift(fitted_cnv: CNV) -> None:
+    assert "shift" in repr(fitted_cnv).lower()
 
 
 # ---------------------------------------------------------------------------
